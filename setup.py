@@ -45,6 +45,19 @@ sources = [
     'deps/VKL/src/VKLSwapChain.cpp'
 ]
 
+vulkan_lib_dir = vulkan_root + '/lib'
+
+compile_libs = ['dl', 'pthread', 'vulkan', 'glslang', 'SPIRV', 'MachineIndependent', 'GenericCodeGen']
+for file in os.listdir(vulkan_lib_dir):
+    if "OGLCompiler" in file:
+        compile_libs.append('OGLCompiler')
+        break
+
+compile_libs.extend(['OSDependent', 'SPIRV-Tools', 'SPIRV-Tools-opt',
+                             'SPIRV-Tools-link', 'SPIRV-Tools-reduce',
+                             'glslang-default-resource-limits'])
+
+
 setup(
     name='vkdispatch',
     packages=['vkdispatch'],
@@ -52,12 +65,8 @@ setup(
         Extension('vkdispatch_native',
                   sources=sources,
                   language='c++',
-                  library_dirs=[vulkan_root + '/lib'],
-                  libraries=['dl', 'pthread', 'vulkan', 'glslang', 'SPIRV', 
-                             'MachineIndependent', 'GenericCodeGen', # 'OGLCompiler', 
-                             'OSDependent', 'SPIRV-Tools', 'SPIRV-Tools-opt',
-                             'SPIRV-Tools-link', 'SPIRV-Tools-reduce',
-                             'glslang-default-resource-limits'],
+                  library_dirs=[vulkan_lib_dir],
+                  libraries=compile_libs,
                   extra_compile_args=['-g', '-std=c++11'],
                   extra_link_args=['-g', f'-Wl,-rpath,{vulkan_root}/lib'],
                   include_dirs=include_directories
