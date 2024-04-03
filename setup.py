@@ -46,9 +46,12 @@ sources = [
 
 vulkan_lib_dir = vulkan_root + '/lib'
 
-unix_libs = ['dl', 'pthread']
+unix_libs = ['dl', 'pthread', 'vulkan']
+windows_libs = ['vulkan-1']
 
-compile_libs = ['vulkan-1', 'glslang', 'SPIRV', 'MachineIndependent', 'GenericCodeGen']
+platform_libs = unix_libs if os.name == 'posix' else windows_libs
+
+compile_libs = platform_libs + ['glslang', 'SPIRV', 'MachineIndependent', 'GenericCodeGen']
 for file in os.listdir(vulkan_lib_dir):
     if "OGLCompiler" in file:
         compile_libs.append('OGLCompiler')
