@@ -1,5 +1,4 @@
-from setuptools import setup
-from distutils.extension import Extension
+from setuptools import setup, Extension
 import numpy
 import os
 
@@ -47,7 +46,9 @@ sources = [
 
 vulkan_lib_dir = vulkan_root + '/lib'
 
-compile_libs = ['dl', 'pthread', 'vulkan', 'glslang', 'SPIRV', 'MachineIndependent', 'GenericCodeGen']
+unix_libs = ['dl', 'pthread']
+
+compile_libs = ['vulkan-1', 'glslang', 'SPIRV', 'MachineIndependent', 'GenericCodeGen']
 for file in os.listdir(vulkan_lib_dir):
     if "OGLCompiler" in file:
         compile_libs.append('OGLCompiler')
