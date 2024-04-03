@@ -1,1 +1,1 @@
-from vkdispatch.init import *
+from vkdispatch.init import DeviceInfo, get_devices
