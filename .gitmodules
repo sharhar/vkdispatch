@@ -1,0 +1,6 @@
+[submodule "deps/VKL"]
+	path = deps/VKL
+	url = https://github.com/sharhar/VKL.git
+[submodule "deps/VkFFT"]
+	path = deps/VkFFT
+	url = https://github.com/DTolm/VkFFT.git

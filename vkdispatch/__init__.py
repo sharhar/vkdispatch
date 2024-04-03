@@ -1,1 +1,1 @@
-from . import example
+from vkdispatch.init import *
