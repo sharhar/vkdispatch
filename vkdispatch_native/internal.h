@@ -7,19 +7,20 @@
 
 #include "base.h"
 #include "init.h"
+#include "device_context.h"
 
 typedef struct {
     VKLInstance instance;
-    struct MyPhysicalDeviceProperties* devices;
-} MyContext;
+    struct PhysicalDeviceProperties* devices;
+} Context;
 
-extern MyContext _ctx;
+extern Context _ctx;
 
-struct MyDeviceContext {
+struct DeviceContext {
     uint32_t deviceCount;
-    uint32_t submissionThreadCount;
     VKLDevice* devices;
     const VKLQueue** queues;
+    uint32_t* submissionThreadCounts;
 };
 
 #endif // BASE_H

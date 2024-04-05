@@ -2,7 +2,7 @@
 
 #include <stdio.h>
 
-MyContext _ctx;
+Context _ctx;
 
 void init_extern(bool debug) {
     LOG_INFO("Initializing glslang...");
@@ -20,7 +20,7 @@ void init_extern(bool debug) {
 
     const std::vector<VKLPhysicalDevice>& physicalDevices = _ctx.instance.getPhysicalDevices();
 
-    _ctx.devices = new MyPhysicalDeviceProperties[physicalDevices.size()];
+    _ctx.devices = new PhysicalDeviceProperties[physicalDevices.size()];
 
     for(int i = 0; i < physicalDevices.size(); i++) {
         VkPhysicalDeviceProperties properties = physicalDevices[i].getProperties();
@@ -42,7 +42,7 @@ void init_extern(bool debug) {
     }
 }
 
-struct MyPhysicalDeviceProperties* get_devices_extern(int* count) {
+struct PhysicalDeviceProperties* get_devices_extern(int* count) {
     *count = _ctx.instance.getPhysicalDevices().size();
     return _ctx.devices;
 }

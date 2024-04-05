@@ -25,6 +25,7 @@ include_directories = [
 sources = [
     'vkdispatch_native/wrapper.pyx',
     'vkdispatch_native/init.cpp',
+    'vkdispatch_native/device_context.cpp',
 
     'deps/VKL/src/VKLBuffer.cpp',
     'deps/VKL/src/VKLCommandBuffer.cpp',

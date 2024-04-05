@@ -5,7 +5,7 @@ from libcpp cimport bool
 import sys
 
 cdef extern from "init.h":
-    struct MyPhysicalDeviceProperties:
+    struct PhysicalDeviceProperties:
         int version_variant;
         int version_major;
         int version_minor;
@@ -20,14 +20,14 @@ cdef extern from "init.h":
         const char* device_name
     
     void init_extern(bool debug)
-    MyPhysicalDeviceProperties* get_devices_extern(int* count)
+    PhysicalDeviceProperties* get_devices_extern(int* count)
 
 cpdef inline init(bool debug):
     init_extern(debug)
 
 cpdef inline get_devices():
     cdef int count = 0
-    cdef MyPhysicalDeviceProperties* devices = get_devices_extern(&count)
+    cdef PhysicalDeviceProperties* devices = get_devices_extern(&count)
 
     if not devices:
         return []
