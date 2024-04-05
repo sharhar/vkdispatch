@@ -1,27 +1,4 @@
-# Include the header files of the native python module
 include vkdispatch_native/*.h
 include vkdispatch_native/*.pxd
-
-# Include VKL headers
 include deps/VKL/include/VKL/*.h
-
-# Include VkFFT headers
-# Generated using the command: find . -type d | grep vkFFT | grep -v scripts | sed 's/^\.\///' | sed 's/^/include /' | sed 's/$/\/\*.h/'
-include deps/VkFFT/vkFFT/*.h
-include deps/VkFFT/vkFFT/vkFFT/*.h
-include deps/VkFFT/vkFFT/vkFFT/vkFFT_Structs/*.h
-include deps/VkFFT/vkFFT/vkFFT/vkFFT_PlanManagement/*.h
-include deps/VkFFT/vkFFT/vkFFT/vkFFT_PlanManagement/vkFFT_Plans/*.h
-include deps/VkFFT/vkFFT/vkFFT/vkFFT_PlanManagement/vkFFT_API_handles/*.h
-include deps/VkFFT/vkFFT/vkFFT/vkFFT_PlanManagement/vkFFT_HostFunctions/*.h
-include deps/VkFFT/vkFFT/vkFFT/vkFFT_CodeGen/*.h
-include deps/VkFFT/vkFFT/vkFFT/vkFFT_CodeGen/vkFFT_StringManagement/*.h
-include deps/VkFFT/vkFFT/vkFFT/vkFFT_CodeGen/vkFFT_MathUtils/*.h
-include deps/VkFFT/vkFFT/vkFFT/vkFFT_CodeGen/vkFFT_KernelsLevel0/*.h
-include deps/VkFFT/vkFFT/vkFFT/vkFFT_CodeGen/vkFFT_KernelsLevel0/vkFFT_MemoryManagement/*.h
-include deps/VkFFT/vkFFT/vkFFT/vkFFT_CodeGen/vkFFT_KernelsLevel0/vkFFT_MemoryManagement/vkFFT_MemoryTransfers/*.h
-include deps/VkFFT/vkFFT/vkFFT/vkFFT_CodeGen/vkFFT_KernelsLevel0/vkFFT_MemoryManagement/vkFFT_MemoryInitialization/*.h
-include deps/VkFFT/vkFFT/vkFFT/vkFFT_CodeGen/vkFFT_KernelsLevel1/*.h
-include deps/VkFFT/vkFFT/vkFFT/vkFFT_CodeGen/vkFFT_KernelsLevel1/PrePostProcessing/*.h
-include deps/VkFFT/vkFFT/vkFFT/vkFFT_CodeGen/vkFFT_KernelsLevel2/*.h
-include deps/VkFFT/vkFFT/vkFFT/vkFFT_AppManagement/*.h
+recursive-include deps/VkFFT/vkFFT *.h
