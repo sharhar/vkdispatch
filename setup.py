@@ -19,6 +19,7 @@ include_directories = [
     vulkan_root + '/include',
     vulkan_root + '/include/glslang/Include',
     proj_root + "/deps/VKL/include",
+    proj_root + "/deps/VKL/deps/VMA/include",
     proj_root + "/deps/VkFFT/vkFFT"
 ]
 
@@ -26,6 +27,7 @@ sources = [
     'vkdispatch_native/wrapper.pyx',
     'vkdispatch_native/init.cpp',
     'vkdispatch_native/device_context.cpp',
+    'vkdispatch_native/buffer.cpp',
 
     'deps/VKL/src/VKLBuffer.cpp',
     'deps/VKL/src/VKLCommandBuffer.cpp',
@@ -42,7 +44,8 @@ sources = [
     'deps/VKL/src/VKLRenderPass.cpp',
     'deps/VKL/src/VKLSurface.cpp',
     'deps/VKL/src/VKLStaticAllocator.cpp',
-    'deps/VKL/src/VKLSwapChain.cpp'
+    'deps/VKL/src/VKLSwapChain.cpp',
+    'deps/VKL/src/VMAImpl.cpp'
 ]
 
 vulkan_lib_dir = vulkan_root + '/lib'

@@ -1,4 +1,7 @@
 include vkdispatch_native/*.h
 include vkdispatch_native/*.pxd
 include deps/VKL/include/VKL/*.h
+include deps/VKL/deps/VMA/include/*.h
+include deps/VKL/deps/VMA/LICENCE.txt
 recursive-include deps/VkFFT/vkFFT *.h
+include deps/VkFFT/LICENCE
