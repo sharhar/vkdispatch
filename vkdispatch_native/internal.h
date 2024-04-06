@@ -8,6 +8,7 @@
 #include "base.h"
 #include "init.h"
 #include "device_context.h"
+#include "buffer.h"
 
 typedef struct {
     VKLInstance instance;
@@ -23,4 +24,10 @@ struct DeviceContext {
     uint32_t* submissionThreadCounts;
 };
 
-#endif // BASE_H
+struct Buffer {
+    struct DeviceContext* ctx;
+    VKLBuffer* buffers;
+    VKLBuffer* stagingBuffers;
+};
+
+#endif // INTERNAL_H
