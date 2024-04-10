@@ -1,3 +1,4 @@
+import vkdispatch
 import vkdispatch_native
 
 class DeviceContext:

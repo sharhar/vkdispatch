@@ -19,15 +19,15 @@ extern Context _ctx;
 
 struct DeviceContext {
     uint32_t deviceCount;
-    VKLDevice* devices;
+    VKLDevice** devices;
     const VKLQueue** queues;
     uint32_t* submissionThreadCounts;
 };
 
 struct Buffer {
     struct DeviceContext* ctx;
-    VKLBuffer* buffers;
-    VKLBuffer* stagingBuffers;
+    VKLBuffer** buffers;
+    VKLBuffer** stagingBuffers;
 };
 
 #endif // INTERNAL_H
