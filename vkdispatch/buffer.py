@@ -13,7 +13,7 @@ class Buffer:
         self.ctx: vkdispatch.DeviceContext = ctx
     
     def __del__(self) -> None:
-        vkdispatch_native.destroy_buffer(self._handle)
+        pass #vkdispatch_native.destroy_buffer(self._handle)
     
     def write(self, data: np.ndarray, device_index: int = -1) -> None:
         if data.size * np.dtype(data.dtype).itemsize != self.mem_size:

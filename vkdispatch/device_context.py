@@ -9,4 +9,4 @@ class DeviceContext:
         self._handle = vkdispatch_native.create_device_context(devices, submission_thread_counts)
 
     def __del__(self) -> None:
-        vkdispatch_native.destroy_device_context(self._handle)
+        pass #vkdispatch_native.destroy_device_context(self._handle)
