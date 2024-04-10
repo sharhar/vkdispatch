@@ -75,7 +75,7 @@ setup(
                   language='c++',
                   library_dirs=[vulkan_lib_dir],
                   libraries=compile_libs,
-                  extra_compile_args=['-g', '-std=c++11'],
+                  extra_compile_args=['-g', '-std=c++17'],
                   extra_link_args=['-g', f'-Wl,-rpath,{vulkan_root}/lib'],
                   include_dirs=include_directories
         )

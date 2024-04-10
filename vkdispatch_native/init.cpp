@@ -18,12 +18,12 @@ void init_extern(bool debug) {
                             .procAddr(vkGetInstanceProcAddr)
                             .debug(VK_TRUE));
 
-    const std::vector<VKLPhysicalDevice>& physicalDevices = _ctx.instance.getPhysicalDevices();
+    const std::vector<VKLPhysicalDevice*>& physicalDevices = _ctx.instance.getPhysicalDevices();
 
     _ctx.devices = new PhysicalDeviceProperties[physicalDevices.size()];
 
     for(int i = 0; i < physicalDevices.size(); i++) {
-        VkPhysicalDeviceProperties properties = physicalDevices[i].getProperties();
+        VkPhysicalDeviceProperties properties = physicalDevices[i]->getProperties();
 
         _ctx.devices[i].version_variant = VK_API_VERSION_VARIANT(properties.apiVersion);
         _ctx.devices[i].version_major = VK_API_VERSION_MAJOR(properties.apiVersion);
