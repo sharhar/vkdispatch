@@ -1,12 +1,13 @@
 import vkdispatch
+import vkdispatch_native
 import numpy as np
 
 device_num = len(vkdispatch.get_devices())
 
-ctx = vkdispatch.DeviceContext([i for i in range(device_num)], [1 for i in range(device_num)])
+ctx = vkdispatch.context([i for i in range(device_num)], [1 for i in range(device_num)])
 
-buf = vkdispatch.Buffer(ctx, (512, 512, 512), np.float32)
-buf2 = vkdispatch.Buffer(ctx, (512, 512, 512), np.float32)
+buf = vkdispatch.buffer(ctx, (512, 512, 512), np.float32)
+buf2 = vkdispatch.buffer(ctx, (512, 512, 512), np.float32)
 
 arrs = [np.random.rand(512, 512, 512).astype(np.float32) for _ in range(device_num)]
 

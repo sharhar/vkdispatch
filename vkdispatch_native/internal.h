@@ -7,17 +7,18 @@
 
 #include "base.h"
 #include "init.h"
-#include "device_context.h"
+#include "context.h"
 #include "buffer.h"
+#include "image.h"
 
 typedef struct {
     VKLInstance instance;
     struct PhysicalDeviceProperties* devices;
-} Context;
+} MyInstance;
 
-extern Context _ctx;
+extern MyInstance _instance;
 
-struct DeviceContext {
+struct Context {
     uint32_t deviceCount;
     VKLDevice** devices;
     const VKLQueue** queues;
@@ -25,9 +26,15 @@ struct DeviceContext {
 };
 
 struct Buffer {
-    struct DeviceContext* ctx;
+    struct Context* ctx;
     VKLBuffer** buffers;
     VKLBuffer** stagingBuffers;
+};
+
+struct Image {
+    struct Context* ctx;
+    VKLImage** images;
+    VKLImage** stagingImages;
 };
 
 #endif // INTERNAL_H

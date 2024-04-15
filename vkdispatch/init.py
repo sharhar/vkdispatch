@@ -10,7 +10,7 @@ device_type_id_to_str_dict = {
     4: "CPU",
 }
 
-class DeviceInfo:
+class device_info:
     def __init__(self, dev_index: int, version_variant: int, version_major: int, version_minor: int,
                 version_patch: int, driver_version: int, vendor_id: int, device_id: int,
                 device_type: int, device_name: str):
@@ -45,4 +45,4 @@ class DeviceInfo:
         return result
 
 def get_devices():
-    return [DeviceInfo(ii, *dev_obj) for ii, dev_obj in enumerate(vkdispatch_native.get_devices())]
+    return [device_info(ii, *dev_obj) for ii, dev_obj in enumerate(vkdispatch_native.get_devices())]

@@ -1,3 +1,3 @@
-from vkdispatch.init import DeviceInfo, get_devices
-from vkdispatch.device_context import DeviceContext
-from vkdispatch.buffer import Buffer
+from vkdispatch.init import device_info, get_devices
+from vkdispatch.context import context
+from vkdispatch.buffer import buffer
