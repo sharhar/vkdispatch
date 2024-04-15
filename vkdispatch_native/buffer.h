@@ -3,8 +3,8 @@
 
 #include "base.h"
 
-struct Buffer* create_buffer_extern(struct DeviceContext* device_context, unsigned long long size);
-void destroy_buffer_extern(struct Buffer* buffer);
+struct Buffer* buffer_create_extern(struct Context* context, unsigned long long size);
+void buffer_destroy_extern(struct Buffer* buffer);
 
 void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int device_index);
 void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int device_index);

@@ -6,13 +6,13 @@ import sys
 
 from libc.stdlib cimport malloc, free
 
-cdef extern from "device_context.h":
-    struct DeviceContext
+cdef extern from "context.h":
+    struct Context
 
-    DeviceContext* create_device_context_extern(int* device_indicies, int* submission_thread_couts, int device_count)
-    void destroy_device_context_extern(DeviceContext* device_context);
+    Context* context_create_extern(int* device_indicies, int* submission_thread_couts, int device_count)
+    void context_destroy_extern(Context* device_context);
 
-cpdef inline create_device_context(list[int] device_indicies, list[int] submission_thread_counts):
+cpdef inline context_create(list[int] device_indicies, list[int] submission_thread_counts):
     assert len(device_indicies) == len(submission_thread_counts)
 
     cdef int len_device_indicies = len(device_indicies)
@@ -23,12 +23,12 @@ cpdef inline create_device_context(list[int] device_indicies, list[int] submissi
         device_indicies_c[i] = device_indicies[i]
         submission_thread_counts_c[i] = submission_thread_counts[i]
 
-    cdef unsigned long long result = <unsigned long long>create_device_context_extern(device_indicies_c, submission_thread_counts_c, len_device_indicies)
+    cdef unsigned long long result = <unsigned long long>context_create_extern(device_indicies_c, submission_thread_counts_c, len_device_indicies)
 
     free(device_indicies_c)
     free(submission_thread_counts_c)
 
     return result
 
-cpdef inline destroy_device_context(unsigned long long device_context):
-    destroy_device_context_extern(<DeviceContext*>device_context)
+cpdef inline context_destroy(unsigned long long context):
+    context_destroy_extern(<Context*>context)
