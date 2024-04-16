@@ -18,6 +18,10 @@ cdef extern from "init.h":
         int device_type;
 
         const char* device_name
+
+        int float_64_support
+        int int_64_support
+        int int_16_support
     
     void init_extern(bool debug)
     PhysicalDeviceProperties* get_devices_extern(int* count)
@@ -45,7 +49,10 @@ cpdef inline get_devices():
             device.vendor_id,
             device.device_id,
             device.device_type,
-            device.device_name.decode('utf-8') if device.device_name is not None else None  # Convert C string to Python string, handling null pointers
+            device.device_name.decode('utf-8') if device.device_name is not None else None,  # Convert C string to Python string, handling null pointers
+            device.float_64_support,
+            device.int_64_support,
+            device.int_16_support
         )
         device_list.append(device_info)
 
