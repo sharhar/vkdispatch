@@ -4,13 +4,12 @@ import vkdispatch_native
 import numpy as np
 
 class buffer:
-    def __init__(self, ctx: vkdispatch.context, shape: tuple[int], dtype: np.dtype) -> None:
+    def __init__(self, shape: tuple[int], dtype: np.dtype) -> None:
         self.dtype: np.dtype = np.dtype(dtype)
         self.shape: tuple[int] = shape
         self.size: int = np.prod(shape)
         self.mem_size: int = self.size * self.dtype.itemsize
-        self._handle: int = vkdispatch_native.buffer_create(ctx._handle, self.mem_size)
-        self.ctx: vkdispatch.context = ctx
+        self._handle: int = vkdispatch_native.buffer_create(vkdispatch.get_context_handle(), self.mem_size)
     
     def __del__(self) -> None:
         pass #vkdispatch_native.buffer_destroy(self._handle)

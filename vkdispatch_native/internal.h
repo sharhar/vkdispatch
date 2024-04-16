@@ -34,7 +34,10 @@ struct Buffer {
 struct Image {
     struct Context* ctx;
     VKLImage** images;
-    VKLImage** stagingImages;
+    VKLImageView** imageViews;
+    VKLBuffer** stagingBuffers;
+
+    uint32_t block_size;
 };
 
 #endif // INTERNAL_H

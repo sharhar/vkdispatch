@@ -14,6 +14,10 @@ struct PhysicalDeviceProperties {
     int device_type;
 
     const char* device_name;
+
+    int float_64_support;
+    int int_64_support;
+    int int_16_support;
 };
 
 void init_extern(bool debug);

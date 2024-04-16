@@ -26,6 +26,7 @@ void init_extern(bool debug) {
 
     for(int i = 0; i < physicalDevices.size(); i++) {
         VkPhysicalDeviceProperties properties = physicalDevices[i]->getProperties();
+        VkPhysicalDeviceFeatures features = physicalDevices[i]->getFeatures();
 
         _instance.devices[i].version_variant = VK_API_VERSION_VARIANT(properties.apiVersion);
         _instance.devices[i].version_major = VK_API_VERSION_MAJOR(properties.apiVersion);
@@ -41,6 +42,10 @@ void init_extern(bool debug) {
         size_t deviceNameLength = strlen(properties.deviceName) + 1;
         _instance.devices[i].device_name = new char[deviceNameLength];
         strcpy((char*)_instance.devices[i].device_name, properties.deviceName);
+
+        _instance.devices[i].float_64_support = features.shaderFloat64;
+        _instance.devices[i].int_64_support = features.shaderInt64;
+        _instance.devices[i].int_16_support = features.shaderInt16;
     }
 }
 

@@ -4,10 +4,10 @@ import numpy as np
 
 device_num = len(vkdispatch.get_devices())
 
-ctx = vkdispatch.context([i for i in range(device_num)], [1 for i in range(device_num)])
+buf = vkdispatch.buffer((512, 512, 512), np.float32)
+buf2 = vkdispatch.buffer((512, 512, 512), np.float32)
 
-buf = vkdispatch.buffer(ctx, (512, 512, 512), np.float32)
-buf2 = vkdispatch.buffer(ctx, (512, 512, 512), np.float32)
+img = vkdispatch.image2d((512, 512))
 
 arrs = [np.random.rand(512, 512, 512).astype(np.float32) for _ in range(device_num)]
 
