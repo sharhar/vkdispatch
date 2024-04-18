@@ -29,7 +29,7 @@ cdef extern from "image.h":
     #void image_copy_extern(Image* src, Image* dst, VkOffset3D src_offset, unsigned int src_baseLayer, unsigned int src_layerCount, 
     #                                               VkOffset3D dst_offset, unsigned int dst_baseLayer, unsigned int dst_layerCount, VkExtent3D extent, int device_index)
 
-cpdef inline image_create(unsigned long long context, list[unsigned int] extent, unsigned int layers, unsigned int format, unsigned int type, unsigned int view_type):
+cpdef inline image_create(unsigned long long context, tuple[unsigned int, unsigned int, unsigned int] extent, unsigned int layers, unsigned int format, unsigned int type, unsigned int view_type):
     assert len(extent) == 3
 
     cdef unsigned int width = extent[0]
@@ -41,7 +41,7 @@ cpdef inline image_create(unsigned long long context, list[unsigned int] extent,
 cpdef inline image_destroy(unsigned long long image):
     image_destroy_extern(<Image*>image)
 
-cpdef inline image_write(unsigned long long image, cnp.ndarray data, list[int] offset, list[unsigned int] extent, unsigned int baseLayer, unsigned int layerCount, int device_index):
+cpdef inline image_write(unsigned long long image, cnp.ndarray data, tuple[int, int, int] offset, tuple[unsigned int, unsigned int, unsigned int] extent, unsigned int baseLayer, unsigned int layerCount, int device_index):
     assert len(offset) == 3
     assert len(extent) == 3
 
@@ -58,7 +58,7 @@ cpdef inline image_write(unsigned long long image, cnp.ndarray data, list[int] o
 cpdef inline unsigned int image_format_block_size(unsigned int format):
     return image_format_block_size_extern(format)
 
-cpdef inline image_read(unsigned long long image, cnp.ndarray data, list[int] offset, list[unsigned int] extent, unsigned int baseLayer, unsigned int layerCount, int device_index):
+cpdef inline image_read(unsigned long long image, cnp.ndarray data, tuple[int, int, int] offset, tuple[unsigned int, unsigned int, unsigned int] extent, unsigned int baseLayer, unsigned int layerCount, int device_index):
     assert len(offset) == 3
     assert len(extent) == 3
 

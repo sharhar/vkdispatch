@@ -67,7 +67,7 @@ cpdef inline stage_transfer_record_copy_buffer(unsigned long long command_list, 
 
     stage_transfer_record_copy_buffer_extern(<CommandList*>command_list, &copy_info)
 
-cpdef inline stage_transfer_record_copy_image(unsigned long long command_list, unsigned long long src, unsigned long long dst, list[int] src_offset, list[int] dst_offset, list[int] extent, unsigned int src_baseLayer, unsigned int src_layerCount, unsigned int dst_baseLayer, unsigned int dst_layerCount):
+cpdef inline stage_transfer_record_copy_image(unsigned long long command_list, unsigned long long src, unsigned long long dst, tuple[int, int, int] src_offset, tuple[int, int, int] dst_offset, tuple[unsigned int, unsigned int, unsigned int] extent, unsigned int src_baseLayer, unsigned int src_layerCount, unsigned int dst_baseLayer, unsigned int dst_layerCount):
     cdef ImageCopyInfo copy_info
     copy_info.src = <Image*>src
     copy_info.dst = <Image*>dst
@@ -87,7 +87,7 @@ cpdef inline stage_transfer_record_copy_image(unsigned long long command_list, u
 
     stage_transfer_record_copy_image_extern(<CommandList*>command_list, &copy_info)
 
-cpdef inline stage_transfer_record_copy_buffer_to_image(unsigned long long command_list, unsigned long long image, unsigned long long buffer, list[int] image_offset, unsigned long long buffer_offset, unsigned long long buffer_row_length, unsigned long long buffer_image_height, list[int] extent, unsigned int image_baseLayer, unsigned int image_layerCount):
+cpdef inline stage_transfer_record_copy_buffer_to_image(unsigned long long command_list, unsigned long long image, unsigned long long buffer, tuple[int, int, int] image_offset, unsigned long long buffer_offset, unsigned long long buffer_row_length, unsigned long long buffer_image_height, tuple[unsigned int, unsigned int, unsigned int] extent, unsigned int image_baseLayer, unsigned int image_layerCount):
     cdef ImageBufferCopyInfo copy_info
     copy_info.image = <Image*>image
     copy_info.buffer = <Buffer*>buffer
@@ -105,7 +105,7 @@ cpdef inline stage_transfer_record_copy_buffer_to_image(unsigned long long comma
 
     stage_transfer_record_copy_buffer_to_image_extern(<CommandList*>command_list, &copy_info)
 
-cpdef inline stage_transfer_record_copy_image_to_buffer(unsigned long long command_list, unsigned long long image, unsigned long long buffer, list[int] image_offset, unsigned long long buffer_offset, unsigned long long buffer_row_length, unsigned long long buffer_image_height, list[int] extent, unsigned int image_baseLayer, unsigned int image_layerCount):
+cpdef inline stage_transfer_record_copy_image_to_buffer(unsigned long long command_list, unsigned long long image, unsigned long long buffer, tuple[int, int, int] image_offset, unsigned long long buffer_offset, unsigned long long buffer_row_length, unsigned long long buffer_image_height, tuple[unsigned int, unsigned int, unsigned int] extent, unsigned int image_baseLayer, unsigned int image_layerCount):
     cdef ImageBufferCopyInfo copy_info
     copy_info.image = <Image*>image
     copy_info.buffer = <Buffer*>buffer

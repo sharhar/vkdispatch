@@ -24,7 +24,7 @@ class buffer:
         vkdispatch_native.buffer_read(self._handle, result, 0, self.mem_size, device_index)
         return result
     
-    def copy_to(self, other: 'buffer', device_index: int = -1) -> None:
-        if other.mem_size != self.mem_size:
-            raise ValueError("Buffer memory sizes must match!")
-        vkdispatch_native.buffer_copy(self._handle, other._handle, 0, 0, self.mem_size, device_index)
+    #def copy_to(self, other: 'buffer', device_index: int = -1) -> None:
+    #    if other.mem_size != self.mem_size:
+    #        raise ValueError("Buffer memory sizes must match!")
+    #    vkdispatch_native.buffer_copy(self._handle, other._handle, 0, 0, self.mem_size, device_index)

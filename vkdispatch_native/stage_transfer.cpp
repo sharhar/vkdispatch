@@ -6,8 +6,12 @@ void stage_transfer_record_copy_buffer_extern(struct CommandList* command_list, 
     struct BufferCopyInfo* my_copy_info = (struct BufferCopyInfo*)malloc(sizeof(*my_copy_info));
     memcpy(my_copy_info, copy_info, sizeof(*my_copy_info));
 
+    LOG_INFO("Recording copy buffer stage");
+
     command_list->stages.push_back({
         [](VKLCommandBuffer* cmd_buffer, struct Stage* stage, void* instance_data, int device) {
+            LOG_INFO("Executing copy buffer stage");
+
             struct BufferCopyInfo* copy_info = (struct BufferCopyInfo*)stage->user_data;
 
             VkBufferCopy bufferCopy = {};
@@ -15,7 +19,7 @@ void stage_transfer_record_copy_buffer_extern(struct CommandList* command_list, 
             bufferCopy.dstOffset = copy_info->dst_offset;
             bufferCopy.size = copy_info->size;
 
-            cmd_buffer->copyBuffer(copy_info->src->buffers[device], copy_info->dst->buffers[device], bufferCopy);
+            cmd_buffer->copyBuffer(copy_info->dst->buffers[device], copy_info->src->buffers[device], bufferCopy);
         },
         my_copy_info,
         0
