@@ -137,7 +137,7 @@ class image:
         self.block_size: int = vkdispatch_native.image_format_block_size(self.format.value[0])
         self.mem_size: int = np.prod(self.shape) * self.block_size
         
-        self._handle: int = vkdispatch_native.image_create(vkdispatch.get_context_handle(), self.extent, self.format.value, self.type.value)
+        self._handle: int = vkdispatch_native.image_create(vkdispatch.get_context_handle(), self.extent, self.layers, self.format.value[0], self.type.value[0], self.view_type.value[0])
     
     def __del__(self) -> None:
         pass #vkdispatch_native.buffer_destroy(self._handle)

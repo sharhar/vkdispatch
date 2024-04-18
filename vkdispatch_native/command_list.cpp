@@ -1,6 +1,8 @@
 #include "internal.h"
 
 struct CommandList* command_list_create_extern(struct Context* context) {
+    LOG_INFO("Creating command list with context %p", context);
+
     struct CommandList* command_list = new struct CommandList();
     command_list->ctx = context;
     return command_list;
@@ -22,11 +24,15 @@ void command_list_get_instance_size_extern(struct CommandList* command_list, uns
     }
 
     *instance_size = instance_data_size;
+
+    LOG_INFO("Instance size: %llu", *instance_size);
 }
 
 void command_list_submit_extern(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int* devices, int device_count, int* submission_thread_counts) {
     // For now, we will just submit the command list to the first device
     int device = devices[0];
+
+    LOG_INFO("Submitting command list to device %d", device);
 
     char* instance_data = (char*)instance_buffer;
     char* current_instance_data = instance_data;
@@ -45,5 +51,4 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
     command_list->ctx->queues[device]->submitAndWait(command_list->ctx->commandBuffers[device]);
 
     command_list->ctx->commandBuffers[device]->reset();
-
 }

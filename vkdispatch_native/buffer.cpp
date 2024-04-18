@@ -64,6 +64,8 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
 }
 
 void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int device_index) {
+    LOG_INFO("Reading buffer data");
+
     int dev_index = device_index == -1 ? 0 : device_index;
 
     VkBufferCopy bufferCopy;
@@ -73,6 +75,8 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
 	
 	buffer->stagingBuffers[dev_index]->copyFrom(buffer->buffers[dev_index], buffer->ctx->queues[dev_index], bufferCopy);	
 	buffer->stagingBuffers[dev_index]->getData(data, size, 0);
+
+    LOG_INFO("Buffer data read");
 }
 
 void buffer_copy_extern(struct Buffer* src, struct Buffer* dst, unsigned long long src_offset, unsigned long long dst_offset, unsigned long long size, int device_index) {

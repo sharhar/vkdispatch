@@ -6,6 +6,7 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
     ctx->deviceCount = device_count;
     ctx->devices = (VKLDevice**)malloc(sizeof(VKLDevice*) * device_count);
     ctx->queues = (const VKLQueue**)malloc(sizeof(VKLQueue*) * device_count);
+    ctx->commandBuffers = (VKLCommandBuffer**)malloc(sizeof(VKLCommandBuffer*) * device_count);
     ctx->submissionThreadCounts = (uint32_t*)malloc(sizeof(uint32_t) * device_count);
 
     const std::vector<VKLPhysicalDevice*>&  phyisicalDevices = _instance.instance.getPhysicalDevices();
@@ -22,6 +23,8 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
 
         ctx->submissionThreadCounts[i] = submission_thread_couts[i];
     }
+
+    LOG_INFO("Created context at %p with %d devices", ctx, device_count);
 
     return ctx;
 }
