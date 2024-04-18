@@ -1,4 +1,5 @@
 #include "internal.h"
+#include <vector>
 
 struct Context* context_create_extern(int* device_indicies, int* submission_thread_couts, int device_count) {
     struct Context* ctx = new struct Context();
@@ -7,7 +8,7 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
     ctx->queues = (const VKLQueue**)malloc(sizeof(VKLQueue*) * device_count);
     ctx->submissionThreadCounts = (uint32_t*)malloc(sizeof(uint32_t) * device_count);
 
-    auto phyisicalDevices = _instance.instance.getPhysicalDevices();
+    const std::vector<VKLPhysicalDevice*>&  phyisicalDevices = _instance.instance.getPhysicalDevices();
 
     for (int i = 0; i < device_count; i++) {
         ctx->devices[i] = new VKLDevice(
@@ -17,6 +18,8 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
         );
 
         ctx->queues[i] = ctx->devices[i]->getQueue(VKL_QUEUE_TYPE_ALL, 0);
+        ctx->commandBuffers[i] = new VKLCommandBuffer(ctx->queues[i]);
+
         ctx->submissionThreadCounts[i] = submission_thread_couts[i];
     }
 

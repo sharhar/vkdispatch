@@ -10,6 +10,8 @@
 #include "context.h"
 #include "buffer.h"
 #include "image.h"
+#include "stage_transfer.h"
+#include "command_list.h"
 
 typedef struct {
     VKLInstance instance;
@@ -22,6 +24,7 @@ struct Context {
     uint32_t deviceCount;
     VKLDevice** devices;
     const VKLQueue** queues;
+    VKLCommandBuffer** commandBuffers;
     uint32_t* submissionThreadCounts;
 };
 
@@ -38,6 +41,19 @@ struct Image {
     VKLBuffer** stagingBuffers;
 
     uint32_t block_size;
+};
+
+typedef void (*PFN_stage_record)(VKLCommandBuffer* cmd_buffer, struct Stage* stage, void* instance_data, int device);
+
+struct Stage {
+    PFN_stage_record record;
+    void* user_data;
+    size_t instance_data_size;
+};
+
+struct CommandList {
+    struct Context* ctx;
+    std::vector<struct Stage> stages;
 };
 
 #endif // INTERNAL_H

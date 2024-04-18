@@ -6,5 +6,7 @@
 struct Context;
 struct Buffer;
 struct Image;
+struct Stage;
+struct CommandList;
 
  #endif // BASE_H

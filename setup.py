@@ -29,6 +29,8 @@ sources = [
     'vkdispatch_native/context.cpp',
     'vkdispatch_native/buffer.cpp',
     'vkdispatch_native/image.cpp',
+    'vkdispatch_native/command_list.cpp',
+    'vkdispatch_native/stage_transfer.cpp',
 
     'deps/VKL/src/VKLBuffer.cpp',
     'deps/VKL/src/VKLCommandBuffer.cpp',

@@ -8,5 +8,7 @@ cimport init_wrapper
 cimport context_wrapper
 cimport buffer_wrapper
 cimport image_wrapper
+cimport command_list
+cimport stage_transfer
 
 assert sizeof(int) == sizeof(np.int32_t)

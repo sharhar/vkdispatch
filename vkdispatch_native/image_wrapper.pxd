@@ -26,8 +26,8 @@ cdef extern from "image.h":
     void image_write_extern(Image* image, void* data, VkOffset3D offset, VkExtent3D extent, unsigned int baseLayer, unsigned int layerCount, int device_index)
     void image_read_extern(Image* image, void* data, VkOffset3D offset, VkExtent3D extent, unsigned int baseLayer, unsigned int layerCount, int device_index)
 
-    void image_copy_extern(Image* src, Image* dst, VkOffset3D src_offset, unsigned int src_baseLayer, unsigned int src_layerCount, 
-                                                   VkOffset3D dst_offset, unsigned int dst_baseLayer, unsigned int dst_layerCount, VkExtent3D extent, int device_index)
+    #void image_copy_extern(Image* src, Image* dst, VkOffset3D src_offset, unsigned int src_baseLayer, unsigned int src_layerCount, 
+    #                                               VkOffset3D dst_offset, unsigned int dst_baseLayer, unsigned int dst_layerCount, VkExtent3D extent, int device_index)
 
 cpdef inline image_create(unsigned long long context, list[unsigned int] extent, unsigned int layers, unsigned int format, unsigned int type, unsigned int view_type):
     assert len(extent) == 3
@@ -72,21 +72,21 @@ cpdef inline image_read(unsigned long long image, cnp.ndarray data, list[int] of
 
     image_read_extern(<Image*>image, <void*>data.data, VkOffset3D(x, y, z), VkExtent3D(width, height, depth), baseLayer, layerCount, device_index)
 
-cpdef inline image_copy(unsigned long long src, unsigned long long dst, list[int] src_offset, unsigned int src_baseLayer, unsigned int src_layerCount, list[int] dst_offset, unsigned int dst_baseLayer, unsigned int dst_layerCount, list[unsigned int] extent, int device_index):
-    assert len(src_offset) == 3
-    assert len(dst_offset) == 3
-    assert len(extent) == 3
+#cpdef inline image_copy(unsigned long long src, unsigned long long dst, list[int] src_offset, unsigned int src_baseLayer, unsigned int src_layerCount, list[int] dst_offset, unsigned int dst_baseLayer, unsigned int dst_layerCount, list[unsigned int] extent, int device_index):
+#    assert len(src_offset) == 3
+#    assert len(dst_offset) == 3
+#    assert len(extent) == 3
 
-    cdef int src_x = src_offset[0]
-    cdef int src_y = src_offset[1]
-    cdef int src_z = src_offset[2]
+#    cdef int src_x = src_offset[0]
+#    cdef int src_y = src_offset[1]
+#    cdef int src_z = src_offset[2]
 
-    cdef int dst_x = dst_offset[0]
-    cdef int dst_y = dst_offset[1]
-    cdef int dst_z = dst_offset[2]
+#    cdef int dst_x = dst_offset[0]
+#    cdef int dst_y = dst_offset[1]
+#    cdef int dst_z = dst_offset[2]
 
-    cdef unsigned int width = extent[0]
-    cdef unsigned int height = extent[1]
-    cdef unsigned int depth = extent[2]
+#    cdef unsigned int width = extent[0]
+#    cdef unsigned int height = extent[1]
+#    cdef unsigned int depth = extent[2]
 
-    image_copy_extern(<Image*>src, <Image*>dst, VkOffset3D(src_x, src_y, src_z), src_baseLayer, src_layerCount, VkOffset3D(dst_x, dst_y, dst_z), dst_baseLayer, dst_layerCount, VkExtent3D(width, height, depth), device_index)
+#    image_copy_extern(<Image*>src, <Image*>dst, VkOffset3D(src_x, src_y, src_z), src_baseLayer, src_layerCount, VkOffset3D(dst_x, dst_y, dst_z), dst_baseLayer, dst_layerCount, VkExtent3D(width, height, depth), device_index)

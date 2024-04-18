@@ -111,7 +111,7 @@ class image_view_type(Enum):
     VIEW_TYPE_2D_ARRAY = 5,
 
 class image:
-    def __init__(self, shape: tuple[int], layers: int, dtype: np.dtype, channels: int, view_type: image_view_type) -> None:
+    def __init__(self, shape: tuple[int], layers: int, dtype: type, channels: int, view_type: image_view_type) -> None:
         assert len(shape) == 2 or len(shape) == 3, "Shape must be 2D or 3D!"
 
         assert type(shape[0]) == int, "Shape must be a tuple of integers!"
@@ -120,13 +120,13 @@ class image:
         if len(shape) == 3:
             assert type(shape[2]) == int, "Shape must be a tuple of integers!"
 
-        assert type(dtype) == np.dtype, "Dtype must be a numpy dtype!"
+        assert type(dtype) == type, "Dtype must be a numpy dtype!"
         assert type(channels) == int, "Channels must be an integer!"
 
         self.type = image_type.TYPE_3D if view_type == image_view_type.VIEW_TYPE_3D else image_type.TYPE_2D
         self.view_type = view_type
         self.format: image_format = select_image_format(dtype, channels)
-        self.dtype: np.dtype = dtype
+        self.dtype: type = dtype
         self.layers: int = layers
         self.channels: int = channels
 
@@ -134,7 +134,7 @@ class image:
         self.extent: tuple[int] = shape if len(shape) == 3 else (shape[0], shape[1], 1)
         self.array_shape: tuple[int] = (*self.shape, channels)
 
-        self.block_size: int = vkdispatch_native.image_format_block_size(format.value)
+        self.block_size: int = vkdispatch_native.image_format_block_size(self.format.value[0])
         self.mem_size: int = np.prod(self.shape) * self.block_size
         
         self._handle: int = vkdispatch_native.image_create(vkdispatch.get_context_handle(), self.extent, self.format.value, self.type.value)
@@ -158,16 +158,16 @@ class image:
         vkdispatch_native.image_copy(self._handle, other._handle, [0, 0, 0], 0, self.layers, [0, 0, 0], 0, self.layers, self.extent, device_index)
 
 class image2d(image):
-    def __init__(self, shape: tuple[int], dtype: np.dtype = np.float32, channels: int = 1) -> None:
+    def __init__(self, shape: tuple[int], dtype: type = np.float32, channels: int = 1) -> None:
         assert len(shape) == 2, "Shape must be 2D!"
         super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_2D)
 
 class image2d_array(image):
-    def __init__(self, shape: tuple[int], layers: int, dtype: np.dtype = np.float32, channels: int = 1) -> None:
+    def __init__(self, shape: tuple[int], layers: int, dtype: type = np.float32, channels: int = 1) -> None:
         assert len(shape) == 2, "Shape must be 2D!"
         super().__init__(shape, layers, dtype, channels, image_view_type.VIEW_TYPE_2D_ARRAY)
 
 class image3d(image):
-    def __init__(self, shape: tuple[int], dtype: np.dtype = np.float32, channels: int = 1) -> None:
+    def __init__(self, shape: tuple[int], dtype: type = np.float32, channels: int = 1) -> None:
         assert len(shape) == 3, "Shape must be 3D!"
         super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_3D)
