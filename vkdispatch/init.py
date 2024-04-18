@@ -1,7 +1,5 @@
 import vkdispatch_native
 
-vkdispatch_native.init(False)
-
 device_type_id_to_str_dict = {
     0: "Other",
     1: "Integrated GPU",
@@ -53,5 +51,18 @@ class device_info:
 
         return result
 
-def get_devices():
+__initilized_instance: bool = False
+
+def init_instance(debug_mode: bool = False):
+    global __initilized_instance
+
+    if __initilized_instance:
+        return
+
+    vkdispatch_native.init(debug_mode)
+    __initilized_instance = True
+
+def get_devices(debug_mode: bool = False):
+    init_instance(debug_mode)
+
     return [device_info(ii, *dev_obj) for ii, dev_obj in enumerate(vkdispatch_native.get_devices())]

@@ -1,6 +1,8 @@
 import vkdispatch
 import vkdispatch_native
 
+import vkdispatch.init
+
 class context:
     def __init__(self, devices: list[int], submission_thread_counts: list[int] = None) -> None:
         self._handle: int = vkdispatch_native.context_create(devices, submission_thread_counts)
@@ -8,7 +10,7 @@ class context:
     def __del__(self) -> None:
         pass #vkdispatch_native.context_destroy(self._handle)
 
-def make_context(devices: int | list[int], submission_thread_counts: int | list[int] = None) -> context:
+def make_context(devices: int | list[int], submission_thread_counts: int | list[int] = None, debug_mode: bool = False) -> context:
     if type(devices) == int:
         devices = [devices]
     
@@ -16,6 +18,8 @@ def make_context(devices: int | list[int], submission_thread_counts: int | list[
         submission_thread_counts = [1] * len(devices)
     elif type(submission_thread_counts) == int:
         submission_thread_counts = [submission_thread_counts] * len(devices)
+
+    vkdispatch.init_instance(debug_mode)
     
     total_devices = len(vkdispatch.get_devices())
     
