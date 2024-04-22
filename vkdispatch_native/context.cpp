@@ -7,6 +7,7 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
     ctx->devices = (VKLDevice**)malloc(sizeof(VKLDevice*) * device_count);
     ctx->queues = (const VKLQueue**)malloc(sizeof(VKLQueue*) * device_count);
     ctx->commandBuffers = (VKLCommandBuffer**)malloc(sizeof(VKLCommandBuffer*) * device_count);
+    ctx->fences = (VkFence*)malloc(sizeof(VkFence) * device_count);
     ctx->submissionThreadCounts = (uint32_t*)malloc(sizeof(uint32_t) * device_count);
 
     const std::vector<VKLPhysicalDevice*>&  phyisicalDevices = _instance.instance.getPhysicalDevices();
@@ -20,7 +21,7 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
 
         ctx->queues[i] = ctx->devices[i]->getQueue(VKL_QUEUE_TYPE_ALL, 0);
         ctx->commandBuffers[i] = new VKLCommandBuffer(ctx->queues[i]);
-
+        ctx->fences[i] = ctx->devices[i]->createFence(VK_FENCE_CREATE_SIGNALED_BIT);
         ctx->submissionThreadCounts[i] = submission_thread_couts[i];
     }
 
