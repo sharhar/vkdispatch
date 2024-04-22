@@ -10,5 +10,6 @@ cimport buffer_wrapper
 cimport image_wrapper
 cimport command_list
 cimport stage_transfer
+cimport stage_fft
 
 assert sizeof(int) == sizeof(np.int32_t)

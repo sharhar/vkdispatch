@@ -31,6 +31,7 @@ sources = [
     'vkdispatch_native/image.cpp',
     'vkdispatch_native/command_list.cpp',
     'vkdispatch_native/stage_transfer.cpp',
+    'vkdispatch_native/stage_fft.cpp',
 
     'deps/VKL/src/VKLBuffer.cpp',
     'deps/VKL/src/VKLCommandBuffer.cpp',

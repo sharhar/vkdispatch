@@ -8,5 +8,6 @@ struct Buffer;
 struct Image;
 struct Stage;
 struct CommandList;
+struct FFTPlan;
 
  #endif // BASE_H

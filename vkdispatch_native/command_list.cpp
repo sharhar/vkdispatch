@@ -37,6 +37,8 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
     char* instance_data = (char*)instance_buffer;
     char* current_instance_data = instance_data;
 
+    command_list->ctx->commandBuffers[device]->reset();
+
     command_list->ctx->commandBuffers[device]->begin();
 
     for(size_t instance = 0; instance < instance_count; instance++) {
@@ -48,7 +50,8 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
 
     command_list->ctx->commandBuffers[device]->end();
 
-    command_list->ctx->queues[device]->submitAndWait(command_list->ctx->commandBuffers[device]);
-
-    command_list->ctx->commandBuffers[device]->reset();
+    command_list->ctx->devices[device]->waitForFence(command_list->ctx->fences[device]);
+    command_list->ctx->devices[device]->resetFence(command_list->ctx->fences[device]);
+    command_list->ctx->queues[device]->submit(command_list->ctx->commandBuffers[device], command_list->ctx->fences[device]);
+    command_list->ctx->queues[device]->waitIdle();
 }

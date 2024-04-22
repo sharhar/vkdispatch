@@ -11,6 +11,7 @@
 #include "buffer.h"
 #include "image.h"
 #include "stage_transfer.h"
+#include "stage_fft.h"
 #include "command_list.h"
 
 typedef struct {
@@ -25,6 +26,7 @@ struct Context {
     VKLDevice** devices;
     const VKLQueue** queues;
     VKLCommandBuffer** commandBuffers;
+    VkFence* fences;
     uint32_t* submissionThreadCounts;
 };
 
@@ -54,6 +56,13 @@ struct Stage {
 struct CommandList {
     struct Context* ctx;
     std::vector<struct Stage> stages;
+};
+
+struct FFTPlan {
+    struct Context* ctx;
+    VkFFTApplication* apps;
+    VkFFTConfiguration* configs;
+    VkFFTLaunchParams* launchParams;
 };
 
 #endif // INTERNAL_H
