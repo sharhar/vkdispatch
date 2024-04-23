@@ -9,5 +9,6 @@ struct Image;
 struct Stage;
 struct CommandList;
 struct FFTPlan;
+struct ComputePlan;
 
  #endif // BASE_H
