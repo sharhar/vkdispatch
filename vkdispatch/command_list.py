@@ -1,17 +1,26 @@
-import vkdispatch
+import vkdispatch as vd
 import vkdispatch_native
 
 import numpy as np
 
+from typing import Callable, Any
+
 class command_list:
     def __init__(self) -> None:
-        self._handle: int = vkdispatch_native.command_list_create(vkdispatch.get_context_handle())
+        self._handle: int = vkdispatch_native.command_list_create(vd.get_context_handle())
     
     def __del__(self) -> None:
         pass #vkdispatch_native.command_list_destroy(self._handle)
 
     def get_instance_size(self) -> int:
         return vkdispatch_native.command_list_get_instance_size(self._handle)
+
+    def dispatch_shader(self, build_func: Callable[['vd.shader_builder', Any], None], local_size: tuple[int, int, int], blocks: tuple[int, int, int], static_args: list[vd.buffer | vd.image] = []) -> None:
+        plan = vd.build_compute_plan(build_func, local_size, static_args)
+        self.dispatch(plan, blocks)
+    
+    def dispatch(self, plan: 'vd.compute_plan', blocks: tuple[int, int, int]) -> None:
+        plan.record(self, blocks)
     
     def submit(self, data: np.ndarray = None, instance_count: int = 1, device_index: int = 0) -> None:
         if self.get_instance_size() > 0 and data is not None:
