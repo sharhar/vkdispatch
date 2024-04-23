@@ -23,8 +23,8 @@ class buffer:
         result = np.ndarray(shape=self.shape, dtype=self.dtype)
         vkdispatch_native.buffer_read(self._handle, result, 0, self.mem_size, device_index)
         return result
-    
-    #def copy_to(self, other: 'buffer', device_index: int = -1) -> None:
-    #    if other.mem_size != self.mem_size:
-    #        raise ValueError("Buffer memory sizes must match!")
-    #    vkdispatch_native.buffer_copy(self._handle, other._handle, 0, 0, self.mem_size, device_index)
+
+def asbuffer(array: np.ndarray) -> buffer:
+    buffer = vkdispatch.buffer(array.shape, array.dtype)
+    buffer.write(array)
+    return buffer
