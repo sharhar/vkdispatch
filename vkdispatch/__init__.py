@@ -6,5 +6,5 @@ from vkdispatch.command_list import command_list
 from vkdispatch.stage_transfer import stage_transfer_copy_buffers, stage_transfer_copy_image, stage_transfer_copy_image_to_buffer, stage_transfer_copy_buffer_to_image
 from vkdispatch.stage_fft import fft_plan
 from vkdispatch.stage_compute import compute_plan, build_compute_plan
-from vkdispatch.shader_builder import shader_builder
+from vkdispatch.shader_builder import shader_builder, shader_variable, shader_type, from_numpy_dtype, to_numpy_dtype
 from vkdispatch.immediate_functions import dispatch, dispatch_shader

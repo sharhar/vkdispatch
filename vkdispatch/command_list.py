@@ -15,7 +15,7 @@ class command_list:
     def get_instance_size(self) -> int:
         return vkdispatch_native.command_list_get_instance_size(self._handle)
 
-    def dispatch_shader(self, build_func: Callable[['vd.shader_builder', Any], None], local_size: tuple[int, int, int], blocks: tuple[int, int, int], static_args: list[vd.buffer | vd.image] = []) -> None:
+    def dispatch_shader(self, build_func: Callable[['vd.shader_builder', Any], None], blocks: tuple[int, int, int], local_size: tuple[int, int, int], static_args: list[vd.buffer | vd.image] = []) -> None:
         plan = vd.build_compute_plan(build_func, local_size, static_args)
         self.dispatch(plan, blocks)
     

@@ -8,6 +8,11 @@ buf = vd.asbuffer(arrs)
 buf2 = vd.asbuffer(arrs2)
 
 def add_shader(self: vd.shader_builder, buf, buf2):
+    val: vd.shader_variable = buf[self.global_x]
+    val2 = buf2[self.global_x]
+
+    self.printf(f"Val: {val.format}", val)
+
     buf2[self.global_x] += buf[self.global_x]
 
 vd.dispatch_shader(add_shader, [2, 1, 1], [16, 1, 1], [buf, buf2])
