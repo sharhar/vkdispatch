@@ -7,7 +7,7 @@ def dispatch(plan: 'vd.compute_plan', blocks: tuple[int, int, int]) -> None:
     plan.record(command_list, blocks)
     command_list.submit()
 
-def dispatch_shader(build_func: Callable[['vd.shader_builder', Any], None], local_size: tuple[int, int, int], blocks: tuple[int, int, int], static_args: list[vd.buffer | vd.image] = []) -> None:
+def dispatch_shader(build_func: Callable[['vd.shader_builder', Any], None], blocks: tuple[int, int, int], local_size: tuple[int, int, int], static_args: list[vd.buffer | vd.image] = []) -> None:
     plan = vd.build_compute_plan(build_func, local_size, static_args)
     dispatch(plan, blocks)
     
