@@ -17,6 +17,7 @@ if vulkan_root is None:
 include_directories = [
     numpy_include,
     vulkan_root + '/include',
+    vulkan_root + '/include/utility',
     vulkan_root + '/include/glslang/Include',
     proj_root + "/deps/VKL/include",
     proj_root + "/deps/VKL/deps/VMA/include",
@@ -66,9 +67,9 @@ for file in os.listdir(vulkan_lib_dir):
         compile_libs.append('OGLCompiler')
         break
 
-compile_libs.extend(['OSDependent', 'SPIRV-Tools', 'SPIRV-Tools-opt',
+compile_libs.extend(['OSDependent',  'SPIRV-Tools-opt',
                              'SPIRV-Tools-link', 'SPIRV-Tools-reduce',
-                             'glslang-default-resource-limits'])
+                             'SPIRV-Tools', 'glslang-default-resource-limits'])
 
 
 setup(
