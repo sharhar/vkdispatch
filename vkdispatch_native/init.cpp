@@ -46,6 +46,16 @@ void init_extern(bool debug) {
         _instance.devices[i].float_64_support = features.shaderFloat64;
         _instance.devices[i].int_64_support = features.shaderInt64;
         _instance.devices[i].int_16_support = features.shaderInt16;
+
+        _instance.devices[i].max_workgroup_size_x = properties.limits.maxComputeWorkGroupSize[0];
+        _instance.devices[i].max_workgroup_size_y = properties.limits.maxComputeWorkGroupSize[1];
+        _instance.devices[i].max_workgroup_size_z = properties.limits.maxComputeWorkGroupSize[2];
+
+        _instance.devices[i].max_workgroup_invocations = properties.limits.maxComputeWorkGroupInvocations;
+
+        _instance.devices[i].max_workgroup_count_x = properties.limits.maxComputeWorkGroupCount[0];
+        _instance.devices[i].max_workgroup_count_y = properties.limits.maxComputeWorkGroupCount[1];
+        _instance.devices[i].max_workgroup_count_z = properties.limits.maxComputeWorkGroupCount[2];
     }
 }
 
