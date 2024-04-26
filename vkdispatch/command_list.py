@@ -22,12 +22,15 @@ class command_list:
     def dispatch(self, plan: 'vd.compute_plan', blocks: tuple[int, int, int]) -> None:
         plan.record(self, blocks)
     
-    def submit(self, data: np.ndarray = None, instance_count: int = 1, device_index: int = 0) -> None:
+    def submit(self, data: bytes = None, instance_count: int = 1, device_index: int = 0) -> None:
         if self.get_instance_size() > 0 and data is not None:
-            if data.size * np.dtype(data.dtype).itemsize != self.get_instance_size() * instance_count:
+            if not isinstance(data, bytes):
+                raise ValueError("Data must be a bytes object!")
+
+            if len(data) != self.get_instance_size() * instance_count:
                 raise ValueError("Numpy buffer sizes must match!")
         
         if data is None:
-            data = np.zeros((instance_count, 1), dtype=np.uint8)
+            data = "nothing".encode() # np.zeros((instance_count, 1), dtype=np.uint8)
 
-        vkdispatch_native.command_list_submit(self._handle, np.ascontiguousarray(data), instance_count, device_index)
+        vkdispatch_native.command_list_submit(self._handle, data, instance_count, device_index)

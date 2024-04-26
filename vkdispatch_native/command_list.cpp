@@ -32,6 +32,13 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
     // For now, we will just submit the command list to the first device
     int device = devices[0];
 
+    const char* inst_dat = (const char*)instance_buffer;
+
+    LOG_INFO("Instance data size: %llu", command_list->stages[0].instance_data_size);
+    LOG_INFO("Instance bytes %d %d %d %d", inst_dat[0], inst_dat[1], inst_dat[2], inst_dat[3]);
+    LOG_INFO("Instance bytes %d %d %d %d", inst_dat[4], inst_dat[5], inst_dat[6], inst_dat[7]);
+    LOG_INFO("Instance bytes %d %d %d %d", inst_dat[8], inst_dat[9], inst_dat[10], inst_dat[11]);
+
     LOG_INFO("Submitting command list to device %d", device);
 
     char* instance_data = (char*)instance_buffer;

@@ -22,6 +22,16 @@ cdef extern from "init.h":
         int float_64_support
         int int_64_support
         int int_16_support
+
+        unsigned int max_workgroup_size_x
+        unsigned int max_workgroup_size_y
+        unsigned int max_workgroup_size_z
+
+        unsigned int max_workgroup_invocations
+
+        unsigned int max_workgroup_count_x
+        unsigned int max_workgroup_count_y
+        unsigned int max_workgroup_count_z
     
     void init_extern(bool debug)
     PhysicalDeviceProperties* get_devices_extern(int* count)
@@ -52,7 +62,10 @@ cpdef inline get_devices():
             device.device_name.decode('utf-8') if device.device_name is not None else None,  # Convert C string to Python string, handling null pointers
             device.float_64_support,
             device.int_64_support,
-            device.int_16_support
+            device.int_16_support,
+            (device.max_workgroup_size_x, device.max_workgroup_size_y, device.max_workgroup_size_z),
+            device.max_workgroup_invocations,
+            (device.max_workgroup_count_x, device.max_workgroup_count_y, device.max_workgroup_count_z)
         )
         device_list.append(device_info)
 

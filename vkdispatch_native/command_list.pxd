@@ -26,8 +26,10 @@ cpdef inline command_list_get_instance_size(unsigned long long command_list):
     command_list_get_instance_size_extern(<CommandList*>command_list, &instance_size)
     return instance_size
 
-cpdef inline command_list_submit(unsigned long long command_list, cnp.ndarray data, unsigned int instance_count, int device):
+cpdef inline command_list_submit(unsigned long long command_list, bytes data, unsigned int instance_count, int device):
     cdef int devices[1]
     devices[0] = device
 
-    command_list_submit_extern(<CommandList*>command_list, <void*>data.data, instance_count, devices, 1, <int*>0)
+    cdef const char* data_view = data
+
+    command_list_submit_extern(<CommandList*>command_list, <void*>data_view, instance_count, devices, 1, <int*>0)
