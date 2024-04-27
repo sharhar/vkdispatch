@@ -10,6 +10,7 @@ cdef extern from "stage_compute.h":
     struct ComputePlan
     struct Context
     struct CommandList
+    struct DescriptorSet
 
     enum DescriptorType:
         DESCRIPTOR_TYPE_STORAGE_BUFFER = 1
@@ -25,8 +26,7 @@ cdef extern from "stage_compute.h":
         unsigned int pc_size
 
     ComputePlan* stage_compute_plan_create_extern(Context* ctx, ComputePlanCreateInfo* create_info)
-    void stage_compute_bind_extern(ComputePlan* plan, unsigned int binding, void* object)
-    void stage_compute_record_extern(CommandList* command_list, ComputePlan* plan, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z)
+    void stage_compute_record_extern(CommandList* command_list, ComputePlan* plan, DescriptorSet* descriptor_set, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z)
 
 cpdef inline stage_compute_plan_create(unsigned long long context, bytes shader_source, unsigned int binding_count, unsigned int pc_size):
     cdef Context* ctx = <Context*>context
@@ -46,12 +46,9 @@ cpdef inline stage_compute_plan_create(unsigned long long context, bytes shader_
 
     return <unsigned long long>plan
 
-cpdef inline stage_compute_bind(unsigned long long plan, unsigned int binding, unsigned long long object):
-    cdef ComputePlan* p = <ComputePlan*>plan
-    stage_compute_bind_extern(p, binding, <void*>object)
-
-cpdef inline stage_compute_record(unsigned long long command_list, unsigned long long plan, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z):
+cpdef inline stage_compute_record(unsigned long long command_list, unsigned long long plan, unsigned long long descriptor_set, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z):
     cdef CommandList* cl = <CommandList*>command_list
     cdef ComputePlan* p = <ComputePlan*>plan
-    stage_compute_record_extern(cl, p, blocks_x, blocks_y, blocks_z)
+    cdef DescriptorSet* ds = <DescriptorSet*>descriptor_set
+    stage_compute_record_extern(cl, p, ds, blocks_x, blocks_y, blocks_z)
 

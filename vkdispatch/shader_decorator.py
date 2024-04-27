@@ -1,15 +1,82 @@
 import vkdispatch as vd
 import numpy as np
 
+import copy
+
+class shader_dispatcher:
+    def __init__(self, plan: vd.compute_plan, pc_buff_dict: dict, my_local_size: tuple[int, int, int], func_args: list[vd.shader_type]):
+        self.plan = plan
+        self.pc_buff_dict = copy.deepcopy(pc_buff_dict)
+        self.my_local_size = my_local_size
+        self.func_args = func_args
+
+    def __getitem__(self, exec_dims: tuple | int):
+        my_blocks = [exec_dims, 1, 1]
+        my_cmd_list = [None]
+
+        if isinstance(exec_dims, tuple):
+            my_blocks = [1, 1, 1]
+
+            for i, val in enumerate(exec_dims):
+                if isinstance(val, int) or np.issubdtype(type(val), np.integer):
+                    my_blocks[i] = val
+                else:
+                    if not isinstance(val, vd.command_list):
+                        raise ValueError(f"Invalid dimension '{val}'!")
+                    
+                    if not i == len(exec_dims) - 1:
+                        raise ValueError("Only the last dimension can be a command list!")
+                    
+                    my_cmd_list[0] = val
+
+        my_limits_x = my_blocks[0]
+        my_limits_y = my_blocks[1]
+        my_limits_z = my_blocks[2]
+
+        my_blocks[0] = (my_blocks[0] + self.my_local_size[0] - 1) // self.my_local_size[0]
+        my_blocks[1] = (my_blocks[1] + self.my_local_size[1] - 1) // self.my_local_size[1]
+        my_blocks[2] = (my_blocks[2] + self.my_local_size[2] - 1) // self.my_local_size[2]
+
+        def wrapper_func(*args, **kwargs):
+            if len(args) != len(self.func_args):
+                raise ValueError(f"Expected {len(self.func_args)} arguments, got {len(args)}!")
+
+            descriptor_set = vd.descriptor_set(self.plan)
+            pc_buff = vd.push_constant_buffer(self.pc_buff_dict)
+
+            pc_buff["exec_count"] = [my_limits_x, my_limits_y, my_limits_z, 0]
+
+            for ii, arg in enumerate(self.func_args):
+                descriptor_set.bind_buffer(args[ii], arg.binding)
+
+            for key, val in kwargs.items():
+                pc_buff[key] = val
+
+            if len(kwargs) == len(pc_buff.pc_dict) - 1 and my_cmd_list[0] is None:
+                cmd_list = vd.get_command_list()
+                cmd_list.add_pc_buffer(pc_buff)
+                cmd_list.add_desctiptor_set(descriptor_set)
+                self.plan.record(cmd_list, descriptor_set, my_blocks)
+                cmd_list.submit()
+                return
+            
+            if my_cmd_list[0] is None:
+                raise ValueError("Must provide all dynamic constants if no command list is specified!")
+
+            my_cmd_list[0].add_pc_buffer(pc_buff)
+            my_cmd_list[0].add_desctiptor_set(descriptor_set)
+            self.plan.record(my_cmd_list[0], descriptor_set, my_blocks)
+
+            return pc_buff
+        return wrapper_func
+
 def compute_shader(*args, local_size: tuple[int, int, int] = None):
     my_local_size = local_size if local_size is not None else [vd.get_devices()[0].max_workgroup_size[0], 1, 1]
 
     def decorator(build_func):
-        builder = vd.shader_builder()
+        builder = vd.shader #vd.shader_builder()
 
-        #pc_exec_count = vd.push_constant(vd.ivec3)
-
-        pc_exec_count_var = builder.dynamic_constant(vd.uvec4, "exec_count") #builder.import_push_constant(pc_exec_count, "exec_count")
+        pc_exec_count_var = builder.push_constant(vd.uvec4, "exec_count")
         
         builder.if_statement(pc_exec_count_var[0] <= builder.global_x)
         builder.return_statement()
@@ -18,74 +85,21 @@ def compute_shader(*args, local_size: tuple[int, int, int] = None):
         func_args = []
 
         for buff in args:
-            if isinstance(buff, vd.buffer):
-                func_args.append(builder.static_buffer(buff))
+            if isinstance(buff, vd.shader_type) and buff.isbuffer():
+                func_args.append(builder.buffer(buff.parent_type))
             else:
-                raise ValueError("Only buffers are supported as static arguments!")
+                raise ValueError("Decorator must be given list of shader_types only!")
 
         if len(func_args) > 0:
-            build_func(builder, *func_args)
+            build_func(*func_args)
         else:
-            build_func(builder)
+            build_func()
 
         plan = vd.compute_plan(builder.build(my_local_size[0], my_local_size[1], my_local_size[2]), builder.binding_count, builder.pc_size)
 
-        pc_buff = vd.push_constant_buffer(builder.pc_dict)
+        wrapper = shader_dispatcher(plan, builder.pc_dict, my_local_size, func_args)
 
-        for binding in builder.bindings:
-            plan.bind_buffer(binding[0], binding[1])
-
-        class shader_wrapper:
-            def __init__(self):
-                pass
-
-            def __getitem__(self, exec_dims: tuple | int):
-                my_blocks = [exec_dims, 1, 1]
-                my_cmd_list = [None]
-
-                if isinstance(exec_dims, tuple):
-                    my_blocks = [1, 1, 1]
-
-                    for i, val in enumerate(exec_dims):
-                        if isinstance(val, int) or np.issubdtype(type(val), np.integer):
-                            my_blocks[i] = val
-                        else:
-                            if not isinstance(val, vd.command_list):
-                                raise ValueError(f"Invalid dimension '{val}'!")
-                            
-                            if not i == len(exec_dims) - 1:
-                                raise ValueError("Only the last dimension can be a command list!")
-                            
-                            my_cmd_list[0] = val
-
-                pc_buff["exec_count"] = [my_blocks[0], my_blocks[1], my_blocks[2], 0]
- 
-
-                my_blocks[0] = (my_blocks[0] + my_local_size[0] - 1) // my_local_size[0]
-                my_blocks[1] = (my_blocks[1] + my_local_size[1] - 1) // my_local_size[1]
-                my_blocks[2] = (my_blocks[2] + my_local_size[2] - 1) // my_local_size[2]
-
-                def wrapper_func(**kwargs):
-                    for key, val in kwargs.items():
-                        pc_buff[key] = val
-
-                    if len(kwargs) == len(builder.pc_dict) - 1:
-                        if my_cmd_list[0] is None:
-                            my_cmd_list[0] = vd.get_command_list()
-                        
-                        my_cmd_list[0].add_pc_buffer(pc_buff)
-                        plan.record(my_cmd_list[0], my_blocks)
-                        my_cmd_list[0].submit()
-                    
-                    if my_cmd_list[0] is None:
-                        raise ValueError("Must provide all dynamic constants if no command list is specified!")
-
-                    my_cmd_list[0].add_pc_buffer(pc_buff)
-                    plan.record(my_cmd_list[0], my_blocks)
-
-                    return pc_buff
-                return wrapper_func
+        builder.reset()
         
-        wrapper = shader_wrapper()
         return wrapper
     return decorator

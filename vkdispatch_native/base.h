@@ -10,5 +10,6 @@ struct Stage;
 struct CommandList;
 struct FFTPlan;
 struct ComputePlan;
+struct DescriptorSet;
 
  #endif // BASE_H

@@ -14,6 +14,7 @@
 #include "stage_fft.h"
 #include "stage_compute.h"
 #include "command_list.h"
+#include "descriptor_set.h"
 
 typedef struct {
     VKLInstance instance;
@@ -70,8 +71,13 @@ struct ComputePlan {
     struct Context* ctx;
     VKLPipelineLayout** pipelineLayouts;
     VKLPipeline** pipelines;
-    VKLDescriptorSet** descriptorSets;
+    unsigned int binding_count;
     unsigned int pc_size;
+};
+
+struct DescriptorSet {
+    struct ComputePlan* plan;
+    VKLDescriptorSet** descriptorSets;
 };
 
 #endif // INTERNAL_H

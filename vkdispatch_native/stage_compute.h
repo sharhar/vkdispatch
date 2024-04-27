@@ -19,7 +19,6 @@ struct ComputePlanCreateInfo {
 };
 
 struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct ComputePlanCreateInfo* create_info);
-void stage_compute_bind_extern(struct ComputePlan* plan, unsigned int binding, void* object);
-void stage_compute_record_extern(struct CommandList* command_list, struct ComputePlan* plan, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z);
+void stage_compute_record_extern(struct CommandList* command_list, struct ComputePlan* plan, struct DescriptorSet* descriptor_set, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z);
 
-#endif // _STAGE_FFT_H_
+#endif // _STAGE_COMPUTE_H_
