@@ -12,6 +12,8 @@ class compute_plan:
         self.pc_size = pc_size
         self.shader_source = shader_source
 
+        print("Shader source: ", shader_source)
+
         self._handle = vkdispatch_native.stage_compute_plan_create(vd.get_context_handle(), shader_source.encode(), binding_count, pc_size)
     
     def bind_buffer(self, buffer: vd.buffer, binding: int) -> None:

@@ -56,6 +56,12 @@ void init_extern(bool debug) {
         _instance.devices[i].max_workgroup_count_x = properties.limits.maxComputeWorkGroupCount[0];
         _instance.devices[i].max_workgroup_count_y = properties.limits.maxComputeWorkGroupCount[1];
         _instance.devices[i].max_workgroup_count_z = properties.limits.maxComputeWorkGroupCount[2];
+
+        _instance.devices[i].max_descriptor_set_count = properties.limits.maxBoundDescriptorSets;
+
+        _instance.devices[i].max_push_constant_size = properties.limits.maxPushConstantsSize;
+        _instance.devices[i].max_storage_buffer_range = properties.limits.maxStorageBufferRange;
+        _instance.devices[i].max_uniform_buffer_range = properties.limits.maxUniformBufferRange;
     }
 }
 

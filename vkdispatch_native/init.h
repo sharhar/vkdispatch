@@ -28,6 +28,11 @@ struct PhysicalDeviceProperties {
     unsigned int max_workgroup_count_x;
     unsigned int max_workgroup_count_y;
     unsigned int max_workgroup_count_z;
+
+    unsigned int max_descriptor_set_count;
+    unsigned int max_push_constant_size;
+    unsigned int max_storage_buffer_range;
+    unsigned int max_uniform_buffer_range;
 };
 
 void init_extern(bool debug);
