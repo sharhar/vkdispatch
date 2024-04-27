@@ -7,7 +7,6 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
 
     plan->pipelineLayouts = new VKLPipelineLayout*[ctx->deviceCount];
     plan->pipelines = new VKLPipeline*[ctx->deviceCount];
-    plan->descriptorSets = new VKLDescriptorSet*[ctx->deviceCount];
 
     for (int i = 0; i < ctx->deviceCount; i++) {
         VKLPipelineLayoutCreateInfo layoutCreateInfo = VKLPipelineLayoutCreateInfo();
@@ -38,35 +37,25 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
         plan->pipelines[i] = new VKLPipeline();
         plan->pipelines[i]->create(VKLPipelineCreateInfo().layout(plan->pipelineLayouts[i]));
 
-        if(create_info->binding_count > 0) {
-            plan->descriptorSets[i] = new VKLDescriptorSet(plan->pipelineLayouts[i], 0);
-        } else {
-            plan->descriptorSets[i] = NULL;
-        }
+        plan->binding_count = create_info->binding_count;
     }
 
     return plan;
 }
 
-void stage_compute_bind_extern(struct ComputePlan* plan, unsigned int binding, void* object) {
-    struct Buffer* buffer = (struct Buffer*)object;
-
-    for (int i = 0; i < plan->ctx->deviceCount; i++) {
-        plan->descriptorSets[i]->writeBuffer(binding, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, buffer->buffers[i], 0, VK_WHOLE_SIZE);
-    }
-}
-
 struct ComputeRecordInfo {
     struct ComputePlan* plan;
+    struct DescriptorSet* descriptor_set;
     unsigned int blocks_x;
     unsigned int blocks_y;
     unsigned int blocks_z;
     unsigned int pc_size;
 };
 
-void stage_compute_record_extern(struct CommandList* command_list, struct ComputePlan* plan, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z) {
+void stage_compute_record_extern(struct CommandList* command_list, struct ComputePlan* plan, struct DescriptorSet* descriptor_set, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z) {
     struct ComputeRecordInfo* my_compute_info = (struct ComputeRecordInfo*)malloc(sizeof(struct ComputeRecordInfo));
     my_compute_info->plan = plan;
+    my_compute_info->descriptor_set = descriptor_set;
     my_compute_info->blocks_x = blocks_x;
     my_compute_info->blocks_y = blocks_y;
     my_compute_info->blocks_z = blocks_z;
@@ -80,8 +69,8 @@ void stage_compute_record_extern(struct CommandList* command_list, struct Comput
 
             cmd_buffer->bindPipeline(my_compute_info->plan->pipelines[device]);
 
-            if(my_compute_info->plan->descriptorSets[device] != NULL)
-                cmd_buffer->bindDescriptorSet(my_compute_info->plan->descriptorSets[device]);
+            if(my_compute_info->descriptor_set != NULL)
+                cmd_buffer->bindDescriptorSet(my_compute_info->descriptor_set->descriptorSets[device]);
             
             if(my_compute_info->pc_size > 0)
                 cmd_buffer->pushConstants(my_compute_info->plan->pipelines[device], VK_SHADER_STAGE_COMPUTE_BIT, 0, my_compute_info->pc_size, instance_data);

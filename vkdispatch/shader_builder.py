@@ -1,5 +1,6 @@
 import vkdispatch as vd
 
+import copy
 import numpy as np
 from enum import Enum
 
@@ -9,14 +10,16 @@ class shader_data_structure(Enum):
     DATA_STRUCTURE_MATRIX = 3,
 
 class shader_type:
-    def __init__(self, name: str, item_size: int, glsl_type: str, structure: shader_data_structure, structure_depth: int, format_str: str, base_type: 'shader_type' = None) -> None:
+    def __init__(self, name: str, item_size: int, glsl_type: str, structure: shader_data_structure, structure_depth: int, format_str: str, base_type: 'shader_type' = None, parent_type: 'shader_type' = None, length: int = -1) -> None:
         self.base_type = base_type if base_type is not None else self
+        self.parent_type = parent_type if parent_type is not None else self
         self.name = name
         self.glsl_type = glsl_type if glsl_type is not None else name
         self.item_size = item_size
         self.structure = structure
         self.structure_depth = structure_depth
         self.format_str = format_str
+        self.length = length
 
         assert self.item_size % self.base_type.item_size == 0
 
@@ -24,6 +27,25 @@ class shader_type:
     
     def __repr__(self) -> str:
         return f"<{self.name}, glsl_type={self.glsl_type} structure_depth={self.structure_depth} item_size={self.item_size} bytes>"
+    
+    def isbuffer(self) -> bool:
+        return self.length != -1
+    
+    def __len__(self) -> int:
+        return self.length
+
+    def __eq__(self, value: object) -> bool:
+        if not isinstance(value, shader_type):
+            return False
+        
+        return self.name == value.name and self.item_size == value.item_size and self.glsl_type == value.glsl_type and self.structure == value.structure and self.structure_depth == value.structure_depth and self.format_str == value.format_str and self.length == value.length
+
+    def __getitem__(self, index: int) -> 'shader_type':
+        ind_str = f"[{index}]"
+        if index == 0:
+            ind_str = "[]"
+
+        return shader_type(f"{self.name}{ind_str}", self.item_size * index, f"{self.glsl_type}{ind_str}", self.structure, self.structure_depth, self.format_str, self.base_type, self, index)
 
 int32 = shader_type("int32", 4, "int", shader_data_structure.DATA_STRUCTURE_SCALAR, 1, "%d")
 uint32 = shader_type("uint32", 4, "uint", shader_data_structure.DATA_STRUCTURE_SCALAR, 1, "%u")
@@ -67,12 +89,21 @@ def to_numpy_dtype(shader_type: shader_type) -> type:
         raise ValueError(f"Unsupported shader_type ({shader_type})!")
 
 class shader_variable:
-    def __init__(self, name: str, builder: 'shader_builder', var_type: shader_type) -> None:
+    def __init__(self, name: str, builder: 'shader_builder', var_type: shader_type, binding: int = None) -> None:
         self.name = name
         self.builder = builder
 
         self.var_type = var_type
         self.format = var_type.format_str
+        self.binding = binding
+
+    def copy(self, var_name: str = None) -> 'shader_variable':
+        new_var = self.builder._make_var(self.var_type, var_name)
+        self.builder.append_contents(f"{self.var_type.glsl_type} {new_var} = {self};\n")
+        return new_var
+    
+    def set(self, value: 'shader_variable') -> None:
+        self.builder.append_contents(f"{self} = {value};\n")
     
     def printf_args(self) -> str:
         if self.var_type.structure_depth == 1:
@@ -237,32 +268,38 @@ class shader_variable:
             return self.builder._make_var(self.var_type.base_type, f"{self}[{index}]")
         else:
             raise ValueError("Unsupported index count!")
-
-
-
-    #def __getitem__(self, index: 'shader_variable') -> 'shader_variable':
-    #    return self.builder.make_var(self.var_type, f"{self}[{index}]")
     
     def __setitem__(self, index: 'shader_variable', value: 'shader_variable') -> None:
-        if f"{self}.data[{index}]" == str(value):
+        if f"{self}[{index}]" == str(value):
             return
+        
+        if isinstance(index, int):
+            if index == 0:
+                self.builder.append_contents(f"{self} = {value};\n")
+                return
+            else:
+                raise ValueError("Scalar values can only be indexed at zero!")    
+
         self.builder.append_contents(f"{self}[{index}] = {value};\n")
 
 class push_constant_buffer:
     def __init__(self, pc_dict: dict) -> None:
-        self.pc_dict = pc_dict
+        self.pc_dict =  copy.deepcopy(pc_dict)
         self.ref_dict = {}
-        self.pc_list = [0] * len(pc_dict)
-        self.var_types: list[shader_type] = [vd.float32] * len(pc_dict)
+        self.pc_list = [0] * len(self.pc_dict)
+        self.var_types: list[shader_type] = [vd.float32] * len(self.pc_dict)
         self.size = 0
 
-        for key, val in pc_dict.items():
+        for key, val in self.pc_dict.items():
             ii, var_type = val
 
             dtype = to_numpy_dtype(var_type.base_type)
 
             self.ref_dict[key] = ii
-            self.pc_list[ii] = np.zeros(shape=(var_type.item_count,), dtype=dtype)
+
+            pc_shape = (var_type.item_count, ) if not var_type.isbuffer() else (len(var_type), var_type.item_count)
+            self.pc_list[ii] = np.zeros(shape=pc_shape, dtype=dtype)
+            
             self.var_types[ii] = var_type
 
             self.size += var_type.item_size
@@ -298,6 +335,22 @@ class shader_builder:
         self.header  = "#version 450\n"
         self.header += "#extension GL_ARB_separate_shader_objects : enable\n"
         self.header += "#extension GL_EXT_debug_printf : enable\n"
+    
+    def reset(self) -> None:
+        self.var_count = 0
+        self.binding_count = 0
+        self.pc_dict = {}
+        self.pc_list = []
+        self.pc_size = 0
+        self.bindings = []
+        self.global_x = self._make_var(uint32, "gl_GlobalInvocationID.x")
+        self.global_y = self._make_var(uint32, "gl_GlobalInvocationID.y")
+        self.global_z = self._make_var(uint32, "gl_GlobalInvocationID.z")
+        self.contents = ""
+
+        self.header  = "#version 450\n"
+        self.header += "#extension GL_ARB_separate_shader_objects : enable\n"
+        self.header += "#extension GL_EXT_debug_printf : enable\n"
 
     def _make_var(self, var_type: shader_type, var_name: str = None) -> shader_variable:
         new_var = f"var{self.var_count}" if var_name is None else var_name
@@ -310,11 +363,16 @@ class shader_builder:
         self.bindings.append((buff, self.binding_count - 1))
         return new_var
     
-    def dynamic_constant(self, var_type: shader_type, var_name: str) -> None:
+    def push_constant(self, var_type: shader_type, var_name: str) -> None:
         #var_name = var_name if var_name is not None else f"pc{len(self.pc_list)}"
         new_var = self._make_var(var_type, f"PC.{var_name}")
         self.pc_list.append((var_name, var_type, f"{var_type.glsl_type} {var_name};"))
         self.pc_size += var_type.item_size
+        return new_var
+    
+    def new(self, var_type: shader_type, var_name: str = None) -> shader_variable:
+        new_var = self._make_var(var_type, var_name)
+        self.append_contents(f"{var_type.glsl_type} {new_var};\n")
         return new_var
 
     def buffer(self, var_type: shader_type, var_name: str = None) -> shader_variable:
@@ -322,6 +380,7 @@ class shader_builder:
 
         new_var = self._make_var(var_type, f"{buffer_name}.data")
         self.header += f"layout(set = 0, binding = {self.binding_count}) buffer Buffer{self.binding_count} {{ {var_type.glsl_type} data[]; }} {buffer_name};\n"
+        new_var.binding = self.binding_count
         self.binding_count += 1
         return new_var
     
@@ -377,3 +436,4 @@ class shader_builder:
 
         return self.header + f"\nlayout(local_size_x = {x}, local_size_y = {y}, local_size_z = {z}) in;\nvoid main() {'{'}\n" + self.contents + "\n}"
     
+shader = shader_builder()

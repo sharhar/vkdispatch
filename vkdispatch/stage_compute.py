@@ -16,8 +16,5 @@ class compute_plan:
 
         self._handle = vkdispatch_native.stage_compute_plan_create(vd.get_context_handle(), shader_source.encode(), binding_count, pc_size)
     
-    def bind_buffer(self, buffer: vd.buffer, binding: int) -> None:
-        vkdispatch_native.stage_compute_bind(self._handle, binding, buffer._handle)
-    
-    def record(self, command_list: 'vd.command_list', blocks: tuple[int, int, int]) -> None:
-        vkdispatch_native.stage_compute_record(command_list._handle, self._handle, blocks[0], blocks[1], blocks[2])
+    def record(self, command_list: 'vd.command_list', desciptor_set: 'vd.descriptor_set', blocks: tuple[int, int, int]) -> None:
+        vkdispatch_native.stage_compute_record(command_list._handle, self._handle, desciptor_set._handle, blocks[0], blocks[1], blocks[2])

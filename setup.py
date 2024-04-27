@@ -34,6 +34,7 @@ sources = [
     'vkdispatch_native/stage_transfer.cpp',
     'vkdispatch_native/stage_fft.cpp',
     'vkdispatch_native/stage_compute.cpp',
+    'vkdispatch_native/descriptor_set.cpp',
 
     'deps/VKL/src/VKLBuffer.cpp',
     'deps/VKL/src/VKLCommandBuffer.cpp',

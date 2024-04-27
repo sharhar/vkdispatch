@@ -9,6 +9,7 @@ class command_list:
     def __init__(self, reset_on_submit: bool = False) -> None:
         self._handle: int = vkdispatch_native.command_list_create(vd.get_context_handle())
         self.pc_buffers = []
+        self.descriptor_sets = []
         self._reset_on_submit = reset_on_submit
     
     def __del__(self) -> None:
@@ -20,8 +21,12 @@ class command_list:
     def add_pc_buffer(self, pc_buffer: 'vd.push_constant_buffer') -> None:
         self.pc_buffers.append(pc_buffer)
     
+    def add_desctiptor_set(self, descriptor_set: 'vd.descriptor_set') -> None:
+        self.descriptor_sets.append(descriptor_set)
+    
     def reset(self) -> None:
         self.pc_buffers = []
+        self.descriptor_sets = []
         vkdispatch_native.command_list_reset(self._handle)
     
     def submit(self, device_index: int = 0) -> None:
