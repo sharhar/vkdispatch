@@ -31,19 +31,15 @@ float32 = shader_type("float32", 4, "float", shader_data_structure.DATA_STRUCTUR
 complex64 = shader_type("complex64", 8, "vec2", shader_data_structure.DATA_STRUCTURE_SCALAR, 2, "(%f, %f)")
 
 vec2 = shader_type("vec2", 8, "vec2", shader_data_structure.DATA_STRUCTURE_VECTOR, 2, "(%f, %f)", float32)
-vec3 = shader_type("vec3", 16, "vec3", shader_data_structure.DATA_STRUCTURE_VECTOR, 3, "(%f, %f, %f)", float32)
 vec4 = shader_type("vec4", 16, "vec4", shader_data_structure.DATA_STRUCTURE_VECTOR, 4, "(%f, %f, %f, %f)", float32)
 
 ivec2 = shader_type("ivec2", 8, "ivec2", shader_data_structure.DATA_STRUCTURE_VECTOR, 2, "(%d, %d)", int32)
-ivec3 = shader_type("ivec3", 16, "ivec3", shader_data_structure.DATA_STRUCTURE_VECTOR, 3, "(%d, %d, %d)", int32)
 ivec4 = shader_type("ivec4", 16, "ivec4", shader_data_structure.DATA_STRUCTURE_VECTOR, 4, "(%d, %d, %d, %d)", int32)
 
 uvec2 = shader_type("uvec2", 8, "uvec2", shader_data_structure.DATA_STRUCTURE_VECTOR, 2, "(%u, %u)", uint32)
-uvec3 = shader_type("uvec3", 16, "uvec3", shader_data_structure.DATA_STRUCTURE_VECTOR, 3, "(%u, %u, %u)", uint32)
 uvec4 = shader_type("uvec4", 16, "uvec4", shader_data_structure.DATA_STRUCTURE_VECTOR, 4, "(%u, %u, %u, %u)", uint32)
 
 mat2 = shader_type("mat2", 16, "mat2", shader_data_structure.DATA_STRUCTURE_MATRIX, 4, "\n[%f, %f]\n[%f, %f]\n", float32)
-mat3 = shader_type("mat3", 64, "mat3", shader_data_structure.DATA_STRUCTURE_MATRIX, 9, "\n[%f, %f, %f]\n[%f, %f, %f]\n[%f, %f, %f]\n", float32)
 mat4 = shader_type("mat4", 64, "mat4", shader_data_structure.DATA_STRUCTURE_MATRIX, 16, "\n[%f, %f, %f, %f]\n[%f, %f, %f, %f]\n[%f, %f, %f, %f]\n[%f, %f, %f, %f]\n", float32)
 
 def from_numpy_dtype(dtype: type) -> shader_type:
@@ -93,100 +89,100 @@ class shader_variable:
         return self.name
     
     def __lt__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(int32, f"{self} < {other}")
+        return self.builder._make_var(int32, f"{self} < {other}")
 
     def __le__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(int32, f"{self} <= {other}")
+        return self.builder._make_var(int32, f"{self} <= {other}")
     
     def __eq__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(int32, f"{self} == {other}")
+        return self.builder._make_var(int32, f"{self} == {other}")
     
     def __ne__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(int32, f"{self} != {other}")
+        return self.builder._make_var(int32, f"{self} != {other}")
     
     def __gt__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(int32, f"{self} > {other}")
+        return self.builder._make_var(int32, f"{self} > {other}")
     
     def __ge__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(int32, f"{self} >= {other}")
+        return self.builder._make_var(int32, f"{self} >= {other}")
     
     def __add__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"{self} + {other}")
+        return self.builder._make_var(self.var_type, f"{self} + {other}")
     
     def __sub__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"{self} - {other}")
+        return self.builder._make_var(self.var_type, f"{self} - {other}")
     
     def __mul__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"{self} * {other}")
+        return self.builder._make_var(self.var_type, f"{self} * {other}")
     
     def __truediv__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"{self} / {other}")
+        return self.builder._make_var(self.var_type, f"{self} / {other}")
     
     #def __floordiv__(self, other: 'shader_variable') -> 'shader_variable':
     #    return self.builder.make_var(f"{self} / {other}")
     
     def __mod__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"{self} % {other}")
+        return self.builder._make_var(self.var_type, f"{self} % {other}")
     
     def __pow__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"pow({self}, {other})")
+        return self.builder._make_var(self.var_type, f"pow({self}, {other})")
     
     def __neg__(self) -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"-{self}")
+        return self.builder._make_var(self.var_type, f"-{self}")
     
     #def __pos__(self) -> 'shader_variable':
     #    return self.builder.make_var(f"+{self}")
     
     def __abs__(self) -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"abs({self})")
+        return self.builder._make_var(self.var_type, f"abs({self})")
     
     def __invert__(self) -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"~{self}")
+        return self.builder._make_var(self.var_type, f"~{self}")
     
     def __lshift__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"{self} << {other}")
+        return self.builder._make_var(self.var_type, f"{self} << {other}")
     
     def __rshift__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"{self} >> {other}")
+        return self.builder._make_var(self.var_type, f"{self} >> {other}")
     
     def __and__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"{self} & {other}")
+        return self.builder._make_var(self.var_type, f"{self} & {other}")
     
     def __xor__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"{self} ^ {other}")
+        return self.builder._make_var(self.var_type, f"{self} ^ {other}")
     
     def __or__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"{self} | {other}")
+        return self.builder._make_var(self.var_type, f"{self} | {other}")
     
     def __radd__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"{other} + {self}")
+        return self.builder._make_var(self.var_type, f"{other} + {self}")
     
     def __rsub__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"{other} - {self}")
+        return self.builder._make_var(self.var_type, f"{other} - {self}")
     
     def __rmul__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"{other} * {self}")
+        return self.builder._make_var(self.var_type, f"{other} * {self}")
     
     def __rtruediv__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"{other} / {self}")
+        return self.builder._make_var(self.var_type, f"{other} / {self}")
     
     #def __rfloordiv__(self, other: 'shader_variable') -> 'shader_variable':
     #    return self.builder.make_var(f"{other} / {self}")
 
     def __rmod__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"{other} % {self}")
+        return self.builder._make_var(self.var_type, f"{other} % {self}")
     
     def __rpow__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"pow({other}, {self})")
+        return self.builder._make_var(self.var_type, f"pow({other}, {self})")
     
     def __rand__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"{other} & {self}")
+        return self.builder._make_var(self.var_type, f"{other} & {self}")
     
     def __rxor__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"{other} ^ {self}")
+        return self.builder._make_var(self.var_type, f"{other} ^ {self}")
     
     def __ror__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"{other} | {self}")
+        return self.builder._make_var(self.var_type, f"{other} | {self}")
 
     def __iadd__(self, other: 'shader_variable') -> 'shader_variable':
         self.builder.append_contents(f"{self} += {other};\n")
@@ -236,43 +232,74 @@ class shader_variable:
         self.builder.append_contents(f"{self} |= {other};\n")
         return self
     
-    def __getitem__(self, index: 'shader_variable') -> 'shader_variable':
-        return self.builder.make_var(self.var_type, f"{self}[{index}]")
+    def __getitem__(self, index: 'tuple[shader_variable, ...] | shader_variable') -> 'shader_variable':
+        if isinstance(index, shader_variable) or isinstance(index, int) or isinstance(index, float):
+            return self.builder._make_var(self.var_type.base_type, f"{self}[{index}]")
+        else:
+            raise ValueError("Unsupported index count!")
+
+
+
+    #def __getitem__(self, index: 'shader_variable') -> 'shader_variable':
+    #    return self.builder.make_var(self.var_type, f"{self}[{index}]")
     
     def __setitem__(self, index: 'shader_variable', value: 'shader_variable') -> None:
         if f"{self}.data[{index}]" == str(value):
             return
         self.builder.append_contents(f"{self}[{index}] = {value};\n")
 
-class push_constant:
-    def __init__(self, var_type: shader_type) -> None:
-        self.var_type = var_type
-        self.dtype = to_numpy_dtype(var_type.base_type)
+class push_constant_buffer:
+    def __init__(self, pc_dict: dict) -> None:
+        self.pc_dict = pc_dict
+        self.ref_dict = {}
+        self.pc_list = [0] * len(pc_dict)
+        self.var_types: list[shader_type] = [vd.float32] * len(pc_dict)
+        self.size = 0
 
-        self.size = var_type.base_type.item_size * var_type.item_count
+        for key, val in pc_dict.items():
+            ii, var_type = val
 
-        self.data = np.zeros(shape=(var_type.item_count,), dtype=self.dtype)
+            dtype = to_numpy_dtype(var_type.base_type)
 
-        if not self.size == self.data.size * self.data.itemsize:
-            raise ValueError(f"Size mismatch! {self.size} != {self.data.size * self.data.itemsize}")
+            self.ref_dict[key] = ii
+            self.pc_list[ii] = np.zeros(shape=(var_type.item_count,), dtype=dtype)
+            self.var_types[ii] = var_type
+
+            self.size += var_type.item_size
+    
+    def __setitem__(self, key: str, value: np.ndarray | int | float) -> None:
+        if key not in self.ref_dict:
+            raise ValueError(f"Invalid push constant '{key}'!")
+
+        ii = self.ref_dict[key]
+        end_ind = 1
+
+        if isinstance(value, np.ndarray) or isinstance(value, list) or isinstance(value, tuple):
+            end_ind = min(self.var_types[ii].item_count, len(value))
+
+        self.pc_list[ii][:end_ind] = value
+    
+    def get_bytes(self):
+        return b''.join([elem.tobytes() for elem in self.pc_list])
 
 class shader_builder:
     def __init__(self) -> None:
         self.var_count = 0
         self.binding_count = 0
+        self.pc_dict = {}
         self.pc_list = []
         self.pc_size = 0
         self.bindings: list[tuple['vd.buffer', int]] = []
-        self.global_x = self.make_var(uint32, "gl_GlobalInvocationID.x")
-        self.global_y = self.make_var(uint32, "gl_GlobalInvocationID.y")
-        self.global_z = self.make_var(uint32, "gl_GlobalInvocationID.z")
+        self.global_x = self._make_var(uint32, "gl_GlobalInvocationID.x")
+        self.global_y = self._make_var(uint32, "gl_GlobalInvocationID.y")
+        self.global_z = self._make_var(uint32, "gl_GlobalInvocationID.z")
         self.contents = ""
 
         self.header  = "#version 450\n"
         self.header += "#extension GL_ARB_separate_shader_objects : enable\n"
         self.header += "#extension GL_EXT_debug_printf : enable\n"
 
-    def make_var(self, var_type: shader_type, var_name: str = None) -> shader_variable:
+    def _make_var(self, var_type: shader_type, var_name: str = None) -> shader_variable:
         new_var = f"var{self.var_count}" if var_name is None else var_name
         if var_name is None:
             self.var_count += 1
@@ -283,17 +310,17 @@ class shader_builder:
         self.bindings.append((buff, self.binding_count - 1))
         return new_var
     
-    def import_push_constant(self, pc: push_constant, var_name: str = None) -> None:
-        var_name = var_name if var_name is not None else f"pc{len(self.pc_list)}"
-        new_var = self.make_var(pc.var_type, f"PC.{var_name}")
-        self.pc_list.append((pc, f"{pc.var_type.glsl_type} {var_name};"))
-        self.pc_size += pc.size
+    def dynamic_constant(self, var_type: shader_type, var_name: str) -> None:
+        #var_name = var_name if var_name is not None else f"pc{len(self.pc_list)}"
+        new_var = self._make_var(var_type, f"PC.{var_name}")
+        self.pc_list.append((var_name, var_type, f"{var_type.glsl_type} {var_name};"))
+        self.pc_size += var_type.item_size
         return new_var
 
     def buffer(self, var_type: shader_type, var_name: str = None) -> shader_variable:
         buffer_name = f"buf{self.binding_count}" if var_name is None else var_name
 
-        new_var = self.make_var(var_type, f"{buffer_name}.data")
+        new_var = self._make_var(var_type, f"{buffer_name}.data")
         self.header += f"layout(set = 0, binding = {self.binding_count}) buffer Buffer{self.binding_count} {{ {var_type.glsl_type} data[]; }} {buffer_name};\n"
         self.binding_count += 1
         return new_var
@@ -311,20 +338,40 @@ class shader_builder:
     def end_if(self) -> None:
         self.append_contents("}\n")
 
-    def printf(self, fmt: str, *args: shader_variable) -> None:
+    def print(self, *args: shader_variable | str) -> None:
         args_list = []
 
+        fmt = ""
+
         for arg in args:
-            args_list.append(arg.printf_args())
+            if isinstance(arg, shader_variable):
+                args_list.append(arg.printf_args())
+
+            if isinstance(arg, str):
+                fmt += arg
+            else:
+                fmt += arg.format            
+
 
         self.append_contents(f'debugPrintfEXT("{fmt}", {",".join(args_list)});\n')
+
+    #def printf(self, fmt: str, *args: shader_variable) -> None:
+    #    args_list = []
+
+    #    for arg in args:
+    #        args_list.append(arg.printf_args())
+
+    #    self.append_contents(f'debugPrintfEXT("{fmt}", {",".join(args_list)});\n')
 
     def append_contents(self, contents: str) -> None:
         self.contents += contents
 
     def build(self, x: int, y: int, z: int) -> str:
+        self.pc_list.sort(key=lambda x: x[1].item_size, reverse=True)
+        self.pc_dict = {elem[0]: (ii, elem[1]) for ii, elem in enumerate(self.pc_list)}
+
         if self.pc_list:
-            push_constant_contents = "\n".join([f"\t{elem[1]}" for elem in self.pc_list])
+            push_constant_contents = "\n".join([f"\t{elem[2]}" for elem in self.pc_list])
 
             self.header += f"\nlayout(push_constant) uniform PushConstant {{\n { push_constant_contents } \n}} PC;\n"
 

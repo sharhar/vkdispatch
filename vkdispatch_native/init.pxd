@@ -32,6 +32,11 @@ cdef extern from "init.h":
         unsigned int max_workgroup_count_x
         unsigned int max_workgroup_count_y
         unsigned int max_workgroup_count_z
+
+        unsigned int max_descriptor_set_count
+        unsigned int max_push_constant_size
+        unsigned int max_storage_buffer_range
+        unsigned int max_uniform_buffer_range
     
     void init_extern(bool debug)
     PhysicalDeviceProperties* get_devices_extern(int* count)
@@ -65,7 +70,11 @@ cpdef inline get_devices():
             device.int_16_support,
             (device.max_workgroup_size_x, device.max_workgroup_size_y, device.max_workgroup_size_z),
             device.max_workgroup_invocations,
-            (device.max_workgroup_count_x, device.max_workgroup_count_y, device.max_workgroup_count_z)
+            (device.max_workgroup_count_x, device.max_workgroup_count_y, device.max_workgroup_count_z),
+            device.max_descriptor_set_count,
+            device.max_push_constant_size,
+            device.max_storage_buffer_range,
+            device.max_uniform_buffer_range
         )
         device_list.append(device_info)
 
