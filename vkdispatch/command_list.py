@@ -30,20 +30,13 @@ class command_list:
         vkdispatch_native.command_list_reset(self._handle)
     
     def submit(self, device_index: int = 0) -> None:
-        #if self.get_instance_size() > 0 and data is not None:
-        #    if not isinstance(data, bytes):
-        #        raise ValueError("Data must be a bytes object!")
-
-        #    if len(data) != self.get_instance_size() * instance_count:
-        #        raise ValueError("Numpy buffer sizes must match!")
-        
-        #if data is None:
-        #    data = "nothing".encode() # np.zeros((instance_count, 1), dtype=np.uint8)
-
         data = b""
 
         for pc_buffer in self.pc_buffers:
             data += pc_buffer.get_bytes()
+
+        if len(data) != self.get_instance_size():
+            raise ValueError("Push constant buffer size mismatch!")
 
         vkdispatch_native.command_list_submit(self._handle, data, 1, device_index)
 
