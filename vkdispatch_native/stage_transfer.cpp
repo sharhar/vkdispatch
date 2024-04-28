@@ -22,7 +22,8 @@ void stage_transfer_record_copy_buffer_extern(struct CommandList* command_list, 
             cmd_buffer->copyBuffer(copy_info->dst->buffers[device], copy_info->src->buffers[device], bufferCopy);
         },
         my_copy_info,
-        0
+        0,
+        VK_PIPELINE_STAGE_TRANSFER_BIT
     });
 }
 
@@ -56,7 +57,8 @@ void stage_transfer_record_copy_image_extern(struct CommandList* command_list, s
             cmd_buffer->copyImage(copy_info->src->images[device], copy_info->dst->images[device], imageCopy);
         },
         my_copy_info,
-        0
+        0,
+        VK_PIPELINE_STAGE_TRANSFER_BIT
     });
 }
 
@@ -92,7 +94,8 @@ void stage_transfer_record_copy_buffer_to_image_extern(struct CommandList* comma
             );
         },
         my_copy_info,
-        0
+        0,
+        VK_PIPELINE_STAGE_TRANSFER_BIT
     });
 }
 
@@ -128,6 +131,7 @@ void stage_transfer_record_copy_image_to_buffer_extern(struct CommandList* comma
             );
         },
         my_copy_info,
-        0
+        0,
+        VK_PIPELINE_STAGE_TRANSFER_BIT
     });
 }

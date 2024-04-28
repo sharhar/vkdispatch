@@ -51,11 +51,26 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
 
     command_list->ctx->commandBuffers[device]->begin();
 
+    VkMemoryBarrier memory_barrier = {
+            VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+            0,
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_ACCESS_SHADER_READ_BIT,
+    };
+
     for(size_t instance = 0; instance < instance_count; instance++) {
         LOG_INFO("Recording instance %d", instance);
         for (size_t i = 0; i < command_list->stages.size(); i++) {
             LOG_INFO("Recording stage %d", i);
             command_list->stages[i].record(command_list->ctx->commandBuffers[device], &command_list->stages[i], current_instance_data, device);
+            if(i < command_list->stages.size() - 1)
+                vkCmdPipelineBarrier(
+                    command_list->ctx->commandBuffers[device]->handle(), 
+                    command_list->stages[i].stage, 
+                    command_list->stages[i+1].stage, 
+                    0, 1, 
+                    &memory_barrier, 
+                    0, 0, 0, 0);
             current_instance_data += command_list->stages[i].instance_data_size;
         }
     }

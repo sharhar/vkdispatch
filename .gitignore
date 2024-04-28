@@ -7,6 +7,8 @@ __pycache__/
 # C extensions
 *.so
 
+vkvia.html
+
 # Distribution / packaging
 .Python
 build/

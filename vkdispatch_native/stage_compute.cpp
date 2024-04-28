@@ -78,6 +78,7 @@ void stage_compute_record_extern(struct CommandList* command_list, struct Comput
             cmd_buffer->dispatch(my_compute_info->blocks_x, my_compute_info->blocks_y, my_compute_info->blocks_z);
         },
         my_compute_info,
-        plan->pc_size
+        plan->pc_size,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
     });
 }
