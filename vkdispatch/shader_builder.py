@@ -104,6 +104,9 @@ class shader_variable:
     
     def set(self, value: 'shader_variable') -> None:
         self.builder.append_contents(f"{self} = {value};\n")
+
+    def cast_to(self, var_type: shader_type) -> 'shader_variable':
+        return self.builder._make_var(var_type, f"({var_type.glsl_type}({self}))")
     
     def printf_args(self) -> str:
         if self.var_type.structure_depth == 1:
@@ -144,7 +147,12 @@ class shader_variable:
         return self.builder._make_var(self.var_type, f"{self} - {other}")
     
     def __mul__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder._make_var(self.var_type, f"{self} * {other}")
+        return_var_type = self.var_type
+
+        if self.var_type.structure == shader_data_structure.DATA_STRUCTURE_MATRIX and other.var_type.structure == shader_data_structure.DATA_STRUCTURE_VECTOR:
+            return_var_type = other.var_type
+
+        return self.builder._make_var(return_var_type, f"(({self}) * ({other}))")
     
     def __truediv__(self, other: 'shader_variable') -> 'shader_variable':
         return self.builder._make_var(self.var_type, f"{self} / {other}")
@@ -270,15 +278,22 @@ class shader_variable:
             raise ValueError("Unsupported index count!")
     
     def __setitem__(self, index: 'shader_variable', value: 'shader_variable') -> None:
+        if isinstance(index, slice):
+            if index.start is None and index.stop is None and index.step is None:
+                self.builder.append_contents(f"{self} = {value};\n")
+                return
+            else:
+                raise ValueError("Unsupported slice!")
+
         if f"{self}[{index}]" == str(value):
             return
         
-        if isinstance(index, int):
+        if isinstance(index, int) and self.var_type.structure == shader_data_structure.DATA_STRUCTURE_SCALAR:
             if index == 0:
                 self.builder.append_contents(f"{self} = {value};\n")
                 return
             else:
-                raise ValueError("Scalar values can only be indexed at zero!")    
+                raise ValueError("Scalar values can only be indexed at zero!")
 
         self.builder.append_contents(f"{self}[{index}] = {value};\n")
 
@@ -396,6 +411,14 @@ class shader_builder:
     
     def end_if(self) -> None:
         self.append_contents("}\n")
+    
+    def ceil(self, arg: shader_variable) -> shader_variable:
+        return self._make_var(arg.var_type, f"ceil({arg})")
+    
+    def atomic_add(self, arg1: shader_variable, arg2: shader_variable) -> shader_variable:
+        new_var = self.new(arg1.var_type)
+        self.append_contents(f"{new_var} = atomicAdd({arg1}, {arg2});\n")
+        return new_var #self._make_var(arg1.var_type, f"atomicAdd({arg1}, {arg2})")
 
     def print(self, *args: shader_variable | str) -> None:
         args_list = []
