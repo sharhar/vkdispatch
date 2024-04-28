@@ -53,6 +53,7 @@ struct Stage {
     PFN_stage_record record;
     void* user_data;
     size_t instance_data_size;
+    VkPipelineStageFlags stage;
 };
 
 struct CommandList {

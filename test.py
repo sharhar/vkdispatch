@@ -22,12 +22,12 @@ def add_buffers(buf, buf2):
 cmd_list = vd.command_list()
 
 add_buffers[buf.size, cmd_list](buf, buf2, num=34.0)
-add_buffers[buf.size, cmd_list](buf3, buf4, num=7.0)
+add_buffers[buf.size, cmd_list](buf2, buf4, num=7.0)
 
 cmd_list.submit()
 
 print("Diff: ", np.mean(np.abs(arrs * arrs2 / 34.0 - buf2.read(0))))
-print("Diff2: ", np.mean(np.abs(arrs3 * arrs4 / 7.0 - buf4.read(0))))
+print("Diff2: ", np.mean(np.abs(buf2.read(0) * arrs4 / 7.0 - buf4.read(0))))
 
 
 
