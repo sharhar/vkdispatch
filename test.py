@@ -102,7 +102,7 @@ def place_atoms(image, atom_coords):
     pos[2] = atom_coords[3*ind + 2]
     pos[3] = 1
 
-    pos = (rotation_matrix * pos).copy()
+    pos[:] = rotation_matrix * pos
 
     image_ind = vd.shader.new(vd.ivec2)
     image_ind[0] = vd.shader.ceil(pos[0]).cast_to(vd.int32) + (work_buffer.shape[0] // 2)
