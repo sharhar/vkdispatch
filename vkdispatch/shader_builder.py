@@ -155,7 +155,7 @@ class shader_variable:
         return self.builder._make_var(return_var_type, f"(({self}) * ({other}))")
     
     def __truediv__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder._make_var(self.var_type, f"{self} / {other}")
+        return self.builder._make_var(self.var_type, f"({self}) / ({other})")
     
     #def __floordiv__(self, other: 'shader_variable') -> 'shader_variable':
     #    return self.builder.make_var(f"{self} / {other}")
@@ -273,6 +273,8 @@ class shader_variable:
     
     def __getitem__(self, index: 'tuple[shader_variable, ...] | shader_variable') -> 'shader_variable':
         if isinstance(index, shader_variable) or isinstance(index, int) or isinstance(index, float):
+            if self.var_type == complex64:
+                return self.builder._make_var(float32, f"{self}[{index}]")
             return self.builder._make_var(self.var_type.base_type, f"{self}[{index}]")
         else:
             raise ValueError("Unsupported index count!")
@@ -287,13 +289,6 @@ class shader_variable:
 
         if f"{self}[{index}]" == str(value):
             return
-        
-        if isinstance(index, int) and self.var_type.structure == shader_data_structure.DATA_STRUCTURE_SCALAR:
-            if index == 0:
-                self.builder.append_contents(f"{self} = {value};\n")
-                return
-            else:
-                raise ValueError("Scalar values can only be indexed at zero!")
 
         self.builder.append_contents(f"{self}[{index}] = {value};\n")
 
@@ -341,7 +336,8 @@ class shader_builder:
         self.pc_dict = {}
         self.pc_list = []
         self.pc_size = 0
-        self.bindings: list[tuple['vd.buffer', int]] = []
+        self.bindings = []
+        self.scope_num = 1
         self.global_x = self._make_var(uint32, "gl_GlobalInvocationID.x")
         self.global_y = self._make_var(uint32, "gl_GlobalInvocationID.y")
         self.global_z = self._make_var(uint32, "gl_GlobalInvocationID.z")
@@ -350,6 +346,7 @@ class shader_builder:
         self.header  = "#version 450\n"
         self.header += "#extension GL_ARB_separate_shader_objects : enable\n"
         self.header += "#extension GL_EXT_debug_printf : enable\n"
+        self.header += "#extension GL_EXT_shader_atomic_float : enable\n"
     
     def reset(self) -> None:
         self.var_count = 0
@@ -358,6 +355,7 @@ class shader_builder:
         self.pc_list = []
         self.pc_size = 0
         self.bindings = []
+        self.scope_num = 1
         self.global_x = self._make_var(uint32, "gl_GlobalInvocationID.x")
         self.global_y = self._make_var(uint32, "gl_GlobalInvocationID.y")
         self.global_z = self._make_var(uint32, "gl_GlobalInvocationID.z")
@@ -366,6 +364,7 @@ class shader_builder:
         self.header  = "#version 450\n"
         self.header += "#extension GL_ARB_separate_shader_objects : enable\n"
         self.header += "#extension GL_EXT_debug_printf : enable\n"
+        self.header += "#extension GL_EXT_shader_atomic_float : enable\n"
 
     def _make_var(self, var_type: shader_type, var_name: str = None) -> shader_variable:
         new_var = f"var{self.var_count}" if var_name is None else var_name
@@ -401,7 +400,16 @@ class shader_builder:
     
     def if_statement(self, arg: shader_variable) -> None:
         self.append_contents(f"if({arg}) {'{'}\n")
+        self.scope_num += 1
 
+    def if_any(self, *args: list[shader_variable]) -> None:
+        self.append_contents(f"if({' || '.join([str(elem) for elem in args])}) {'{'}\n")
+        self.scope_num += 1
+
+    def if_all(self, *args: list[shader_variable]) -> None:
+        self.append_contents(f"if({' && '.join([str(elem) for elem in args])}) {'{'}\n")
+        self.scope_num += 1
+    
     def else_statement(self) -> None:
         self.append_contents("} else {'\n")
 
@@ -410,15 +418,31 @@ class shader_builder:
         self.append_contents(f"return {arg};\n")
     
     def end_if(self) -> None:
+        self.scope_num -= 1        
         self.append_contents("}\n")
     
     def ceil(self, arg: shader_variable) -> shader_variable:
         return self._make_var(arg.var_type, f"ceil({arg})")
+
+    def exp(self, arg: shader_variable) -> shader_variable:
+        return self._make_var(arg.var_type, f"exp({arg})")
+    
+    def sin(self, arg: shader_variable) -> shader_variable:
+        return self._make_var(arg.var_type, f"sin({arg})")
+
+    def cos(self, arg: shader_variable) -> shader_variable:
+        return self._make_var(arg.var_type, f"cos({arg})")
     
     def atomic_add(self, arg1: shader_variable, arg2: shader_variable) -> shader_variable:
         new_var = self.new(arg1.var_type)
         self.append_contents(f"{new_var} = atomicAdd({arg1}, {arg2});\n")
         return new_var #self._make_var(arg1.var_type, f"atomicAdd({arg1}, {arg2})")
+
+    def float_bits_to_int(self, arg: shader_variable) -> shader_variable:
+        return self._make_var(int32, f"floatBitsToInt({arg})")
+    
+    def int_bits_to_float(self, arg: shader_variable) -> shader_variable:
+        return self._make_var(float32, f"intBitsToFloat({arg})")
 
     def print(self, *args: shader_variable | str) -> None:
         args_list = []
@@ -446,7 +470,7 @@ class shader_builder:
     #    self.append_contents(f'debugPrintfEXT("{fmt}", {",".join(args_list)});\n')
 
     def append_contents(self, contents: str) -> None:
-        self.contents += contents
+        self.contents += ("\t" * self.scope_num) + contents
 
     def build(self, x: int, y: int, z: int) -> str:
         self.pc_list.sort(key=lambda x: x[1].item_size, reverse=True)

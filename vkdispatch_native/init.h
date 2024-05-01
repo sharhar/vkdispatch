@@ -33,6 +33,13 @@ struct PhysicalDeviceProperties {
     unsigned int max_push_constant_size;
     unsigned int max_storage_buffer_range;
     unsigned int max_uniform_buffer_range;
+
+    unsigned int subgroup_size;
+    unsigned int supported_stages;
+    unsigned int supported_operations;
+    unsigned int quad_operations_in_all_stages;
+
+    unsigned int max_compute_shared_memory_size;
 };
 
 void init_extern(bool debug);

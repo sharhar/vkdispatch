@@ -29,7 +29,7 @@ class command_list:
         self.descriptor_sets = []
         vkdispatch_native.command_list_reset(self._handle)
     
-    def submit(self, device_index: int = 0) -> None:
+    def submit(self, device_index: int = 0, instances: int = 1) -> None:
         data = b""
 
         for pc_buffer in self.pc_buffers:
@@ -38,7 +38,7 @@ class command_list:
         if len(data) != self.get_instance_size():
             raise ValueError("Push constant buffer size mismatch!")
 
-        vkdispatch_native.command_list_submit(self._handle, data, 1, device_index)
+        vkdispatch_native.command_list_submit(self._handle, data, instances, device_index)
 
         if self._reset_on_submit:
             self.reset()
