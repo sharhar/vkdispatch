@@ -37,6 +37,13 @@ cdef extern from "init.h":
         unsigned int max_push_constant_size
         unsigned int max_storage_buffer_range
         unsigned int max_uniform_buffer_range
+
+        unsigned int subgroup_size
+        unsigned int supported_stages
+        unsigned int supported_operations
+        unsigned int quad_operations_in_all_stages
+
+        unsigned int max_compute_shared_memory_size
     
     void init_extern(bool debug)
     PhysicalDeviceProperties* get_devices_extern(int* count)
@@ -74,7 +81,12 @@ cpdef inline get_devices():
             device.max_descriptor_set_count,
             device.max_push_constant_size,
             device.max_storage_buffer_range,
-            device.max_uniform_buffer_range
+            device.max_uniform_buffer_range,
+            device.subgroup_size,
+            device.supported_stages,
+            device.supported_operations,
+            device.quad_operations_in_all_stages,
+            device.max_compute_shared_memory_size
         )
         device_list.append(device_info)
 

@@ -28,6 +28,10 @@ void init_extern(bool debug) {
         VkPhysicalDeviceProperties properties = physicalDevices[i]->getProperties();
         VkPhysicalDeviceFeatures features = physicalDevices[i]->getFeatures();
 
+        VkPhysicalDeviceSubgroupProperties subgroupProperties = physicalDevices[i]->getSubgroupProperties();
+
+        VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomicFloatFeatures = physicalDevices[i]->getAtomicFloatFeatures();
+
         _instance.devices[i].version_variant = VK_API_VERSION_VARIANT(properties.apiVersion);
         _instance.devices[i].version_major = VK_API_VERSION_MAJOR(properties.apiVersion);
         _instance.devices[i].version_minor = VK_API_VERSION_MINOR(properties.apiVersion);
@@ -62,6 +66,17 @@ void init_extern(bool debug) {
         _instance.devices[i].max_push_constant_size = properties.limits.maxPushConstantsSize;
         _instance.devices[i].max_storage_buffer_range = properties.limits.maxStorageBufferRange;
         _instance.devices[i].max_uniform_buffer_range = properties.limits.maxUniformBufferRange;
+
+        _instance.devices[i].subgroup_size = subgroupProperties.subgroupSize;
+        _instance.devices[i].supported_stages = subgroupProperties.supportedStages;
+        _instance.devices[i].supported_operations = subgroupProperties.supportedOperations;
+        _instance.devices[i].quad_operations_in_all_stages = subgroupProperties.quadOperationsInAllStages;
+
+        _instance.devices[i].max_compute_shared_memory_size = properties.limits.maxComputeSharedMemorySize;
+
+        //printf("Device %d: %s\n", i, _instance.devices[i].device_name);
+        //printf("Atomics: %d\n", atomicFloatFeatures.shaderBufferFloat32Atomics);
+        //printf("Atomics Add: %d\n", atomicFloatFeatures.shaderBufferFloat32AtomicAdd);
     }
 }
 

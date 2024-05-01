@@ -8,13 +8,24 @@ device_type_id_to_str_dict = {
     4: "CPU",
 }
 
+"""
+unsigned int subgroup_size
+        unsigned int supported_stages
+        unsigned int supported_operations
+        unsigned int quad_operations_in_all_stages
+
+        unsigned int max_compute_shared_memory_size
+"""
+
 class device_info:
     def __init__(self, dev_index: int, version_variant: int, version_major: int, version_minor: int,
                 version_patch: int, driver_version: int, vendor_id: int, device_id: int,
                 device_type: int, device_name: str, float_64_support: int, int_64_support: int,
                 int_16_support: int, max_workgroup_size: tuple[int, int, int], max_workgroup_invocations: int,
                 max_workgroup_count: tuple[int, int, int], max_bound_descriptor_sets: int,
-                max_push_constant_size: int, max_storage_buffer_range: int, max_uniform_buffer_range: int):
+                max_push_constant_size: int, max_storage_buffer_range: int, max_uniform_buffer_range: int,
+                sub_group_size: int, supported_stages: int, supported_operations: int, 
+                quad_operations_in_all_stages: int, max_compute_shared_memory_size: int):
         self.dev_index = dev_index
 
         self.version_variant = version_variant
@@ -42,6 +53,13 @@ class device_info:
         self.max_push_constant_size = max_push_constant_size
         self.max_storage_buffer_range = max_storage_buffer_range
         self.max_uniform_buffer_range = max_uniform_buffer_range
+
+        self.sub_group_size = sub_group_size
+        self.supported_stages = supported_stages
+        self.supported_operations = supported_operations
+        self.quad_operations_in_all_stages = quad_operations_in_all_stages
+
+        self.max_compute_shared_memory_size = max_compute_shared_memory_size
     
     def __repr__(self) -> str:
         result = f"Device {self.dev_index}: {self.device_name}\n"
@@ -66,6 +84,13 @@ class device_info:
         result += f"\tMax Push Constant Size: {self.max_push_constant_size}\n"
         result += f"\tMax Storage Buffer Range: {self.max_storage_buffer_range}\n"
         result += f"\tMax Uniform Buffer Range: {self.max_uniform_buffer_range}\n"
+
+        result += f"\tSubgroup Size: {self.sub_group_size}\n"
+        result += f"\tSupported Stages: {hex(self.supported_stages)}\n"
+        result += f"\tSupported Operations: {hex(self.supported_operations)}\n"
+        result += f"\tQuad Operations in All Stages: {self.quad_operations_in_all_stages}\n"
+
+        result += f"\tMax Compute Shared Memory Size: {self.max_compute_shared_memory_size}\n"
 
         return result
 
