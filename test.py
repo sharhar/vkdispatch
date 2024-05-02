@@ -4,6 +4,7 @@ import numpy as np
 import sys
 import tf_calc
 import time
+import tqdm
 
 current_time = time.time()
 
@@ -23,6 +24,13 @@ test_image_normalized = np.fft.fftshift(test_image_normalized)
 phi_values = np.arange(0, 360, 2.5)
 theta_values = np.arange(0, 180, 2.5)
 psi_values = np.arange(0, 360, 1.5)
+
+#phi_values = np.arange(0, 30, 2.5)
+#theta_values = np.arange(0, 10, 2.5)
+#psi_values = np.arange(0, 30, 1.5)
+
+defocus_values = np.arange(11000, 13000, 400)
+test_values = (np.array(np.meshgrid(phi_values, theta_values, psi_values, defocus_values)).T.reshape(-1, 4))
 
 atom_data = np.load(sys.argv[3])
 atom_coords = atom_data["coords"].astype(np.float32)
@@ -306,13 +314,29 @@ update_max[work_buffer.size, cmd_list](max_cross, best_index, work_buffer)
 print("Time to compile commands: ", time.time() - current_time)
 current_time = time.time()
 
-rotation_matrix["rot_matrix"] = get_rotation_matrix([0, 0, 0], [0, 0])
-defocus["defocus"] = 12000
+batch_size = 100
 
-for i in range(10):
-    cmd_list.submit(instances=1000)
+for i in tqdm.tqdm(range(0, test_values.shape[0], batch_size)):
+    data = b""
+
+    for j in range(batch_size):
+        if i + j >= test_values.shape[0]:
+            break
+        
+        rotation_matrix["rot_matrix"] = get_rotation_matrix(test_values[i + j][:3], [0, 0])
+        defocus["defocus"] = test_values[i + j][3]
+
+        for pc_buffer in cmd_list.pc_buffers:
+            data += pc_buffer.get_bytes()
+    
+    cmd_list.submit(data=data)    
+
+#for i in range(1000):
+#    cmd_list.submit()
 
 print("Time to submit commands: ", time.time() - current_time)
+
+np.save(file_out, max_cross.read(0))
 
 plt.imshow(max_cross.read(0))
 plt.show()
