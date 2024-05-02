@@ -18,6 +18,8 @@ outliers_idxs = np.abs(input_image_raw - input_image_raw.mean()) > n_std * input
 input_image_raw[outliers_idxs] = input_image_raw.mean()
 test_image_normalized: np.ndarray = (input_image_raw - input_image_raw.mean()) / input_image_raw.std()
 
+test_image_normalized = np.fft.fftshift(test_image_normalized)
+
 phi_values = np.arange(0, 360, 2.5)
 theta_values = np.arange(0, 180, 2.5)
 psi_values = np.arange(0, 360, 1.5)
@@ -28,7 +30,7 @@ atom_proton_counts = atom_data["proton_counts"].astype(np.float32)
 
 atom_coords -= np.sum(atom_coords, axis=0) / atom_coords.shape[0]
 
-tf_data = tf_calc.prepareTF(input_image_raw.shape, 1.056, 0, upsample_factor=1)
+tf_data = tf_calc.prepareTF(input_image_raw.shape, 1.056, 0)
 
 tf_data_array = np.zeros(shape=(tf_data[0].shape[0], tf_data[0].shape[1], 9), dtype=np.float32) #vd.asbuffer(tf_data)
 tf_data_array[:, :, 0] = tf_data[0]
@@ -43,9 +45,22 @@ tf_data_array[:, :, 8] = tf_data[8]
 
 atom_coords_buffer = vd.asbuffer(atom_coords)
 tf_data_buffer = vd.asbuffer(tf_data_array)
+match_image_buffer = vd.asbuffer(test_image_normalized.astype(np.complex64))
 
-work_buffer = vd.buffer(tf_data[0].shape, vd.complex64)
+vd.fft(match_image_buffer)
 
+work_buffer = vd.buffer(input_image_raw.shape, vd.complex64)
+shift_buffer = vd.buffer(input_image_raw.shape, vd.complex64)
+max_cross = vd.buffer(input_image_raw.shape, vd.float32)
+best_index = vd.buffer(input_image_raw.shape, vd.int32)
+
+@vd.compute_shader(vd.float32[0], vd.int32[0])
+def init_accumulators(max_cross, best_index):
+    ind = vd.shader.global_x.copy()
+    max_cross[ind] = -1000000
+    best_index[ind] = -1
+
+init_accumulators[max_cross.size](max_cross, best_index)
 
 print("Time to load data: ", time.time() - current_time)
 current_time = time.time()
@@ -216,7 +231,49 @@ def apply_transfer_function(image, tf_data):
     image[ind][0] = mag * (wv[0] * rot_vec[0] - wv[1] * rot_vec[1])
     image[ind][1] = mag * (wv[0] * rot_vec[1] + wv[1] * rot_vec[0])
 
+@vd.compute_shader(vd.complex64[0])
+def get_wave_amplitude(image):
+    ind = vd.shader.global_x.copy()
 
+    image[ind][0] = (image[ind][0] * image[ind][0] + image[ind][1] * image[ind][1]).copy() / (work_buffer.shape[0] * work_buffer.shape[1])
+    image[ind][1] = 0
+
+@vd.compute_shader(vd.complex64[0], vd.complex64[0])
+def cross_correlate(input, reference):
+    ind = vd.shader.global_x.copy()
+
+    input_val = vd.shader.new(vd.complex64)
+    input_val[:] = input[ind]
+
+    input[ind][0] = input_val[0] * reference[ind][0] + input_val[1] * reference[ind][1]
+    input[ind][1] = input_val[1] * reference[ind][0] - input_val[0] * reference[ind][1]
+
+@vd.compute_shader(vd.complex64[0], vd.complex64[0])
+def fftshift(output, input):
+    ind = vd.shader.global_x.cast_to(vd.int32).copy()
+
+    r = (ind / work_buffer.shape[1]).copy()
+    c = (ind % work_buffer.shape[1]).copy()
+
+    r[:] = (r + work_buffer.shape[0] // 2) % work_buffer.shape[0]
+    c[:] = (c + work_buffer.shape[1] // 2) % work_buffer.shape[1]
+
+    output[ind] = input[r * work_buffer.shape[1] + c]
+
+@vd.compute_shader(vd.float32[0], vd.int32[0], vd.complex64[0])
+def update_max(max_cross, best_index, back_buffer):
+    ind = vd.shader.global_x.copy()
+
+    current_cross_correlation = back_buffer[ind][0]# * back_buffer[ind][0] + back_buffer[ind][1] * back_buffer[ind][1]).copy()
+
+    vd.shader.if_statement(current_cross_correlation > max_cross[ind])
+    max_cross[ind] = current_cross_correlation
+    best_index[ind] = vd.shader.push_constant(vd.int32, "index")
+    vd.shader.end_if()
+
+    #update_list = vd.shader.abs(back_buffer[ind]) > vd.shader.abs(max_cross[ind])
+    #max_cross[ind] = vd.shader.where(update_list, vd.shader.abs(back_buffer[ind]), vd.shader.abs(max_cross[ind]))
+    #best_index[ind] = vd.shader.where(update_list, vd.shader.int32(vd.shader.global_x), best_index[ind])
 
 cmd_list = vd.command_list()
 
@@ -234,33 +291,28 @@ mult_by_mask[work_buffer.size, cmd_list](work_buffer)
 defocus = apply_transfer_function[work_buffer.size, cmd_list](work_buffer, tf_data_buffer)
 vd.ifft[cmd_list](work_buffer)
 
-"""
+get_wave_amplitude[work_buffer.size, cmd_list](work_buffer)
 
-back_buffer = cp.abs(back_buffer) ** 2
-                
-back_buffer = (back_buffer - back_buffer.mean()) / back_buffer.std()
+fftshift[work_buffer.size, cmd_list](shift_buffer, work_buffer)
 
-back_buffer = cp.fft.fft2(back_buffer.astype(np.complex64))
+vd.fft[cmd_list](shift_buffer)
+cross_correlate[shift_buffer.size, cmd_list](shift_buffer, match_image_buffer)
+vd.ifft[cmd_list](shift_buffer)
 
-back_buffer *= match_image_cuda.conj()
+fftshift[shift_buffer.size, cmd_list](work_buffer, shift_buffer)
 
-back_buffer = cp.fft.ifft2(back_buffer)
-
-update_list = cp.abs(back_buffer) > cp.abs(max_cross)
-max_cross = cp.where(update_list, cp.abs(back_buffer), cp.abs(max_cross))
-best_index = cp.where(update_list, ii + start_index, best_index)
-"""
+update_max[work_buffer.size, cmd_list](max_cross, best_index, work_buffer)
 
 print("Time to compile commands: ", time.time() - current_time)
 current_time = time.time()
 
 rotation_matrix["rot_matrix"] = get_rotation_matrix([0, 0, 0], [0, 0])
 defocus["defocus"] = 12000
-cmd_list.submit()
+
+for i in range(10):
+    cmd_list.submit(instances=1000)
 
 print("Time to submit commands: ", time.time() - current_time)
 
-result = work_buffer.read(0)
-
-plt.imshow(np.abs(result))
+plt.imshow(max_cross.read(0))
 plt.show()

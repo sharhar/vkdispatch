@@ -127,7 +127,6 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
 
         cmdBuffer->end();
         image->ctx->queues[dev_index]->submitAndWait(cmdBuffer);
-        cmdBuffer->reset();
     }
 }
 
@@ -166,7 +165,6 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
 
     cmdBuffer->end();
     image->ctx->queues[dev_index]->submitAndWait(cmdBuffer);
-    cmdBuffer->reset();
 
     image->stagingBuffers[dev_index]->getData(data, size, 0);
 }
