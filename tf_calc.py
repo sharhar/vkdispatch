@@ -389,7 +389,7 @@ def get_phasePlatePhase(pp, sco: Microscope, srad, sgrid):
     
     return (eta_tot, eta0_tot_rad) # ([rad], [rad])
 
-def prepareTF(shape, pix_size, mode, upsample_factor=2) -> None:
+def prepareTF(shape, pix_size, mode, upsample_factor=1) -> None:
     rows = shape[0] * upsample_factor
     cols = shape[1] * upsample_factor
 

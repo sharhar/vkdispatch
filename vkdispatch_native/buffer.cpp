@@ -59,6 +59,7 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
         bufferCopy.dstOffset = offset;
         bufferCopy.srcOffset = 0;
 
+        buffer->ctx->queues[dev_index]->waitIdle();
         buffer->buffers[dev_index]->copyFrom(buffer->stagingBuffers[dev_index], buffer->ctx->queues[dev_index], bufferCopy);
     }
 }
@@ -73,6 +74,7 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
 	bufferCopy.dstOffset = 0;
 	bufferCopy.srcOffset = offset;
 	
+    buffer->ctx->queues[dev_index]->waitIdle();
 	buffer->stagingBuffers[dev_index]->copyFrom(buffer->buffers[dev_index], buffer->ctx->queues[dev_index], bufferCopy);	
 	buffer->stagingBuffers[dev_index]->getData(data, size, 0);
 
@@ -93,6 +95,7 @@ void buffer_copy_extern(struct Buffer* src, struct Buffer* dst, unsigned long lo
         bufferCopy.dstOffset = dst_offset;
         bufferCopy.srcOffset = src_offset;
 
+        src->ctx->queues[dev_index]->waitIdle();
         dst->buffers[dev_index]->copyFrom(src->buffers[dev_index], src->ctx->queues[dev_index], bufferCopy);
     }
 }

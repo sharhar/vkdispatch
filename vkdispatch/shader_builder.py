@@ -161,7 +161,7 @@ class shader_variable:
     #    return self.builder.make_var(f"{self} / {other}")
     
     def __mod__(self, other: 'shader_variable') -> 'shader_variable':
-        return self.builder._make_var(self.var_type, f"{self} % {other}")
+        return self.builder._make_var(self.var_type, f"(({self}) % ({other}))")
     
     def __pow__(self, other: 'shader_variable') -> 'shader_variable':
         return self.builder._make_var(self.var_type, f"pow({self}, {other})")

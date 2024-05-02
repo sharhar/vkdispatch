@@ -26,13 +26,17 @@ class fft_plan:
 
 __fft_plans = {}
 
-def get_fft_plan(shape: tuple[int, ...]) -> fft_plan:
+def get_fft_plan(buffer_handle: int, shape: tuple[int, ...]) -> fft_plan:
     global __fft_plans
 
     if shape not in __fft_plans:
-        __fft_plans[shape] = fft_plan(shape)
+        __fft_plans[(buffer_handle, *shape)] = fft_plan(shape)
 
-    return __fft_plans[shape]
+    return __fft_plans[(buffer_handle, *shape)]
+
+def reset_fft_plans():
+    global __fft_plans
+    __fft_plans = {}
 
 class fft_dispatcher:
     def __init__(self, inverse: bool = False):
@@ -41,7 +45,7 @@ class fft_dispatcher:
     def __getitem__(self, cmd_list: vd.command_list):
         
         def wrapper_func(buffer: vd.buffer):
-            plan = get_fft_plan(buffer.shape)
+            plan = get_fft_plan(buffer._handle, buffer.shape)
             plan.record(cmd_list, buffer, self.__inverse)
         
         return wrapper_func

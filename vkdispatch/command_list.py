@@ -35,13 +35,35 @@ class command_list:
         for pc_buffer in self.pc_buffers:
             data += pc_buffer.get_bytes()
 
-        if len(data) != self.get_instance_size():
-            raise ValueError("Push constant buffer size mismatch!")
+        vkdispatch_native.command_list_submit(self._handle, data, instances, device_index)
+
+        if self._reset_on_submit:
+            self.reset()
+    """
+    def submit(self, device_index: int = 0, data: bytes = None) -> None:
+        instances = None
+
+        if data is None:
+            data = b""
+
+            for pc_buffer in self.pc_buffers:
+                data += pc_buffer.get_bytes()
+            
+            instances = 1
+
+            if len(data) != self.get_instance_size():
+                raise ValueError("Push constant buffer size mismatch!")
+        else:
+            if len(data) % self.get_instance_size() != 0:
+                raise ValueError("Push constant buffer size mismatch!")
+
+            instances = len(data) // self.get_instance_size()
 
         vkdispatch_native.command_list_submit(self._handle, data, instances, device_index)
 
         if self._reset_on_submit:
             self.reset()
+"""
 
 __cmd_list = None
 

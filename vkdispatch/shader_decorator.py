@@ -4,11 +4,15 @@ import numpy as np
 import copy
 
 class shader_dispatcher:
-    def __init__(self, plan: vd.compute_plan, pc_buff_dict: dict, my_local_size: tuple[int, int, int], func_args: list[vd.shader_type]):
+    def __init__(self, plan: vd.compute_plan, source: str, pc_buff_dict: dict, my_local_size: tuple[int, int, int], func_args: list[vd.shader_type]):
         self.plan = plan
         self.pc_buff_dict = copy.deepcopy(pc_buff_dict)
         self.my_local_size = my_local_size
         self.func_args = func_args
+        self.source = source
+    
+    def __repr__(self) -> str:
+        return self.source
 
     def __getitem__(self, exec_dims: tuple | int):
         my_blocks = [exec_dims, 1, 1]
@@ -95,9 +99,11 @@ def compute_shader(*args, local_size: tuple[int, int, int] = None):
         else:
             build_func()
 
-        plan = vd.compute_plan(builder.build(my_local_size[0], my_local_size[1], my_local_size[2]), builder.binding_count, builder.pc_size)
+        shader_source = builder.build(my_local_size[0], my_local_size[1], my_local_size[2])
 
-        wrapper = shader_dispatcher(plan, builder.pc_dict, my_local_size, func_args)
+        plan = vd.compute_plan(shader_source, builder.binding_count, builder.pc_size)
+
+        wrapper = shader_dispatcher(plan, shader_source, builder.pc_dict, my_local_size, func_args)
 
         builder.reset()
         

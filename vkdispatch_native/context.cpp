@@ -20,7 +20,7 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
         );
 
         ctx->queues[i] = ctx->devices[i]->getQueue(VKL_QUEUE_TYPE_ALL, 0);
-        ctx->commandBuffers[i] = new VKLCommandBuffer(ctx->queues[i]);
+        ctx->commandBuffers[i] = new VKLCommandBuffer(ctx->queues[i], 2);
         ctx->fences[i] = ctx->devices[i]->createFence(VK_FENCE_CREATE_SIGNALED_BIT);
         ctx->submissionThreadCounts[i] = submission_thread_couts[i];
     }
