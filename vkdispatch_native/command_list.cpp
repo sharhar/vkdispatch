@@ -60,8 +60,6 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
             VK_ACCESS_SHADER_READ_BIT,
     };
 
-    printf("Instance count: %d\n", instance_count);
-
     for(size_t instance = 0; instance < instance_count; instance++) {
         LOG_INFO("Recording instance %d", instance);
 
@@ -83,8 +81,6 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
     }
 
     command_list->ctx->commandBuffers[device]->end();
-
-    printf("Submitting command buffer\n");
 
     command_list->ctx->devices[device]->waitForFence(waitFence);
 
