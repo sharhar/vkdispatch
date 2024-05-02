@@ -21,13 +21,13 @@ test_image_normalized: np.ndarray = (input_image_raw - input_image_raw.mean()) /
 
 test_image_normalized = np.fft.fftshift(test_image_normalized)
 
-phi_values = np.arange(0, 360, 2.5)
-theta_values = np.arange(0, 180, 2.5)
-psi_values = np.arange(0, 360, 1.5)
+#phi_values = np.arange(0, 360, 2.5)
+#theta_values = np.arange(0, 180, 2.5)
+#psi_values = np.arange(0, 360, 1.5)
 
-#phi_values = np.arange(0, 30, 2.5)
-#theta_values = np.arange(0, 10, 2.5)
-#psi_values = np.arange(0, 30, 1.5)
+phi_values = np.arange(0, 10, 5)
+theta_values = np.arange(0, 9, 5)
+psi_values = np.arange(0, 10, 5)
 
 defocus_values = np.arange(11000, 13000, 400)
 test_values = (np.array(np.meshgrid(phi_values, theta_values, psi_values, defocus_values)).T.reshape(-1, 4))
@@ -69,9 +69,6 @@ def init_accumulators(max_cross, best_index):
     best_index[ind] = -1
 
 init_accumulators[max_cross.size](max_cross, best_index)
-
-print("Time to load data: ", time.time() - current_time)
-current_time = time.time()
 
 def get_rotation_matrix(angles: list[int], offsets: list[int] = [0, 0]):
     in_matricies = np.zeros(shape=(16,), dtype=np.float32)
@@ -272,16 +269,12 @@ def fftshift(output, input):
 def update_max(max_cross, best_index, back_buffer):
     ind = vd.shader.global_x.copy()
 
-    current_cross_correlation = back_buffer[ind][0]# * back_buffer[ind][0] + back_buffer[ind][1] * back_buffer[ind][1]).copy()
+    current_cross_correlation = back_buffer[ind][0]
 
     vd.shader.if_statement(current_cross_correlation > max_cross[ind])
     max_cross[ind] = current_cross_correlation
     best_index[ind] = vd.shader.push_constant(vd.int32, "index")
     vd.shader.end_if()
-
-    #update_list = vd.shader.abs(back_buffer[ind]) > vd.shader.abs(max_cross[ind])
-    #max_cross[ind] = vd.shader.where(update_list, vd.shader.abs(back_buffer[ind]), vd.shader.abs(max_cross[ind]))
-    #best_index[ind] = vd.shader.where(update_list, vd.shader.int32(vd.shader.global_x), best_index[ind])
 
 cmd_list = vd.command_list()
 
@@ -309,14 +302,13 @@ vd.ifft[cmd_list](shift_buffer)
 
 fftshift[shift_buffer.size, cmd_list](work_buffer, shift_buffer)
 
-update_max[work_buffer.size, cmd_list](max_cross, best_index, work_buffer)
-
-print("Time to compile commands: ", time.time() - current_time)
-current_time = time.time()
+template_index = update_max[work_buffer.size, cmd_list](max_cross, best_index, work_buffer)
 
 batch_size = 100
 
-for i in tqdm.tqdm(range(0, test_values.shape[0], batch_size)):
+status_bar = tqdm.tqdm(total=test_values.shape[0])
+
+for i in range(0, test_values.shape[0], batch_size):
     data = b""
 
     for j in range(batch_size):
@@ -325,18 +317,49 @@ for i in tqdm.tqdm(range(0, test_values.shape[0], batch_size)):
         
         rotation_matrix["rot_matrix"] = get_rotation_matrix(test_values[i + j][:3], [0, 0])
         defocus["defocus"] = test_values[i + j][3]
+        template_index["index"] = i + j
 
         for pc_buffer in cmd_list.pc_buffers:
             data += pc_buffer.get_bytes()
     
-    cmd_list.submit(data=data)    
+    cmd_list.submit(data=data)
 
-#for i in range(1000):
-#    cmd_list.submit()
+    status_bar.update(batch_size)
 
-print("Time to submit commands: ", time.time() - current_time)
+status_bar.close()
 
-np.save(file_out, max_cross.read(0))
+final_max_cross = max_cross.read(0)
+index_of_max = np.unravel_index(np.argmax(final_max_cross), final_max_cross.shape)
+final_index = best_index.read(0)[index_of_max]
 
-plt.imshow(max_cross.read(0))
+print("Found max at:", index_of_max)
+print("Max cross correlation:", final_max_cross[index_of_max])
+print("Final index:", final_index)
+print("Phi:", test_values[final_index][0])
+print("Theta:", test_values[final_index][1])
+print("Psi:", test_values[final_index][2])
+print("Defocus:", test_values[final_index][3])
+
+
+fill_buffer[work_buffer.size](work_buffer, val=0)
+place_atoms[atom_coords.shape[0]](work_buffer, atom_coords_buffer, rot_matrix=get_rotation_matrix([118, 95, 294])) #test_values[final_index][:3], [0, 0]))
+
+#vd.fft(work_buffer)
+#apply_gaussian_filter[work_buffer.size](work_buffer, sigma=0.05)
+#vd.ifft(work_buffer)
+
+#potential_to_wave[work_buffer.size](work_buffer)
+
+#vd.fft(work_buffer)
+#mult_by_mask[work_buffer.size](work_buffer)
+#apply_transfer_function[work_buffer.size](work_buffer, tf_data_buffer, defocus=test_values[final_index][3])
+#vd.ifft(work_buffer)
+
+#get_wave_amplitude[work_buffer.size](work_buffer)
+
+result = work_buffer.read(0)
+
+np.save(file_out, result)
+
+plt.imshow(np.abs(result))
 plt.show()
