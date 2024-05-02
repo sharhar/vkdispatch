@@ -21,13 +21,13 @@ test_image_normalized: np.ndarray = (input_image_raw - input_image_raw.mean()) /
 
 test_image_normalized = np.fft.fftshift(test_image_normalized)
 
-#phi_values = np.arange(0, 360, 2.5)
-#theta_values = np.arange(0, 180, 2.5)
-#psi_values = np.arange(0, 360, 1.5)
+phi_values = np.arange(0, 360, 2.5)
+theta_values = np.arange(0, 180, 2.5)
+psi_values = np.arange(0, 360, 1.5)
 
-phi_values = np.arange(0, 10, 5)
-theta_values = np.arange(0, 9, 5)
-psi_values = np.arange(0, 10, 5)
+#phi_values = np.arange(0, 100, 5)
+#theta_values = np.arange(0, 90, 5)
+#psi_values = np.arange(0, 100, 5)
 
 defocus_values = np.arange(11000, 13000, 400)
 test_values = (np.array(np.meshgrid(phi_values, theta_values, psi_values, defocus_values)).T.reshape(-1, 4))
@@ -119,16 +119,16 @@ def place_atoms(image, atom_coords):
     rotation_matrix = vd.shader.push_constant(vd.mat4, "rot_matrix")
 
     pos = vd.shader.new(vd.vec4)
-    pos[0] = atom_coords[3*ind + 0]
-    pos[1] = atom_coords[3*ind + 1]
+    pos[0] = -atom_coords[3*ind + 1] 
+    pos[1] = atom_coords[3*ind + 0]
     pos[2] = atom_coords[3*ind + 2]
     pos[3] = 1
 
     pos[:] = rotation_matrix * pos
 
     image_ind = vd.shader.new(vd.ivec2)
-    image_ind[0] = vd.shader.ceil(pos[0]).cast_to(vd.int32) + (work_buffer.shape[0] // 2)
-    image_ind[1] = vd.shader.ceil(pos[1]).cast_to(vd.int32) + (work_buffer.shape[1] // 2)
+    image_ind[0] = vd.shader.ceil(pos[1]).cast_to(vd.int32) + (work_buffer.shape[0] // 2)
+    image_ind[1] = vd.shader.ceil(-pos[0]).cast_to(vd.int32) + (work_buffer.shape[1] // 2)
 
     vd.shader.if_any(image_ind[0] < 0, image_ind[0] >= work_buffer.shape[0], image_ind[1] < 0, image_ind[1] >= work_buffer.shape[1])
     vd.shader.return_statement()
@@ -329,8 +329,9 @@ for i in range(0, test_values.shape[0], batch_size):
 status_bar.close()
 
 final_max_cross = max_cross.read(0)
+best_index_result = best_index.read(0)
 index_of_max = np.unravel_index(np.argmax(final_max_cross), final_max_cross.shape)
-final_index = best_index.read(0)[index_of_max]
+final_index = best_index_result[index_of_max]
 
 print("Found max at:", index_of_max)
 print("Max cross correlation:", final_max_cross[index_of_max])
@@ -342,24 +343,30 @@ print("Defocus:", test_values[final_index][3])
 
 
 fill_buffer[work_buffer.size](work_buffer, val=0)
-place_atoms[atom_coords.shape[0]](work_buffer, atom_coords_buffer, rot_matrix=get_rotation_matrix([118, 95, 294])) #test_values[final_index][:3], [0, 0]))
+place_atoms[atom_coords.shape[0]](work_buffer, atom_coords_buffer, rot_matrix=get_rotation_matrix(test_values[final_index][:3]))
 
-#vd.fft(work_buffer)
-#apply_gaussian_filter[work_buffer.size](work_buffer, sigma=0.05)
-#vd.ifft(work_buffer)
+vd.fft(work_buffer)
+apply_gaussian_filter[work_buffer.size](work_buffer, sigma=0.05)
+vd.ifft(work_buffer)
 
-#potential_to_wave[work_buffer.size](work_buffer)
+potential_to_wave[work_buffer.size](work_buffer)
 
-#vd.fft(work_buffer)
-#mult_by_mask[work_buffer.size](work_buffer)
-#apply_transfer_function[work_buffer.size](work_buffer, tf_data_buffer, defocus=test_values[final_index][3])
-#vd.ifft(work_buffer)
+vd.fft(work_buffer)
+mult_by_mask[work_buffer.size](work_buffer)
+apply_transfer_function[work_buffer.size](work_buffer, tf_data_buffer, defocus=test_values[final_index][3])
+vd.ifft(work_buffer)
 
-#get_wave_amplitude[work_buffer.size](work_buffer)
+get_wave_amplitude[work_buffer.size](work_buffer)
 
-result = work_buffer.read(0)
+params_result = test_values[best_index_result]
 
-np.save(file_out, result)
+np.save(file_out + "_mip.npy", final_max_cross)
+np.save(file_out + "_match.npy", work_buffer.read(0))
+np.save(file_out + "_best_index.npy", best_index_result)
+np.save(file_out + "_phi.npy", params_result[:, :, 0])
+np.save(file_out + "_theta.npy", params_result[:, :, 1])
+np.save(file_out + "_psi.npy", params_result[:, :, 2])
+np.save(file_out + "_defocus.npy", params_result[:, :, 3])
 
-plt.imshow(np.abs(result))
-plt.show()
+#plt.imshow(np.abs(max_cross.read(0)))
+#plt.show()
