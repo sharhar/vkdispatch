@@ -1,6 +1,8 @@
 import vkdispatch as vd
 from typing import Callable, Any
 
+import numpy as np
+
 class shader_variable:
     def __init__(self, append_func: Callable[[str], None], name_func: Callable[[str], str], var_type: vd.dtype, name: str = None, binding: int = None) -> None:
         self.append_func = append_func
@@ -25,12 +27,12 @@ class shader_variable:
         return self.new(var_type, f"{var_type.glsl_type}({self})")
     
     def printf_args(self) -> str:
-        if self.var_type.structure_depth == 1:
+        if self.var_type.total_count == 1:
             return self.name
 
         args_list = []
 
-        for i in range(0, self.var_type.structure_depth):
+        for i in range(0, self.var_type.total_count):
             args_list.append(f"{self.name}[{i}]")
 
         return ','.join(args_list)
@@ -185,7 +187,7 @@ class shader_variable:
         return self
     
     def __getitem__(self, index: 'tuple[shader_variable, ...] | shader_variable') -> 'shader_variable':
-        if isinstance(index, shader_variable) or isinstance(index, int):
+        if isinstance(index, shader_variable) or isinstance(index, (int, np.integer)):
             return self.new(self.var_type.parent, f"{self}[{index}]")
         else:
             raise ValueError("Unsupported index type!")
