@@ -28,9 +28,9 @@ sigma=0.025
 #theta_values = np.arange(0, 180, 2.5)
 #psi_values = np.arange(0, 360, 1.5)
 
-phi_values = np.arange(0, 10, 5)
+phi_values = np.arange(0, 100, 5)
 theta_values = np.arange(0, 90, 5)
-psi_values = np.arange(0, 10, 5)
+psi_values = np.arange(0, 100, 5)
 
 defocus_values = np.arange(11000, 13000, 400)
 test_values = (np.array(np.meshgrid(phi_values, theta_values, psi_values, defocus_values)).T.reshape(-1, 4))
@@ -314,18 +314,17 @@ def normalization_stage2(buff):
 def normalization_stage3(image, buff):
     ind = vd.shader.global_x.copy()
 
-    sum_vec = (buff[reduce_buffer.shape[0] - 1] / (work_buffer.shape[0] * work_buffer.shape[1])).copy()
+    sum_vec = (buff[reduce_buffer.shape[0] - 1] / work_buffer.size).copy()
     sum_vec[1] = vd.shader.sqrt(sum_vec[1] - sum_vec[0] * sum_vec[0])
 
-    image[ind][0] /= vd.shader.sqrt(sum_vec[0])
-    image[ind][1] /= vd.shader.sqrt(sum_vec[0])
+    image[ind][0] = (image[ind][0] - sum_vec[0]) / sum_vec[1]
 
 @vd.compute_shader(vd.complex64[0], vd.complex64[0])
 def cross_correlate(input, reference):
     ind = vd.shader.global_x.copy()
 
     input_val = vd.shader.new(vd.complex64)
-    input_val[:] = input[ind]
+    input_val[:] = input[ind] / work_buffer.size
 
     input[ind][0] = input_val[0] * reference[ind][0] + input_val[1] * reference[ind][1]
     input[ind][1] = input_val[1] * reference[ind][0] - input_val[0] * reference[ind][1]
@@ -369,7 +368,9 @@ mult_by_mask[work_buffer.size, cmd_list](work_buffer)
 defocus = apply_transfer_function[work_buffer.size, cmd_list](work_buffer, tf_data_buffer)
 vd.ifft[cmd_list](work_buffer)
 
-#get_wave_amplitude[work_buffer.size, cmd_list](work_buffer)
+normalization_stage1[work_buffer.size, cmd_list](reduce_buffer, work_buffer)
+normalization_stage2[reduce_buffer.size - 1, cmd_list](reduce_buffer)
+normalization_stage3[work_buffer.size, cmd_list](work_buffer, reduce_buffer)
 
 fftshift[work_buffer.size, cmd_list](shift_buffer, work_buffer)
 
@@ -434,6 +435,7 @@ vd.ifft(work_buffer)
 
 normalization_stage1[work_buffer.size](reduce_buffer, work_buffer)
 normalization_stage2[reduce_buffer.size - 1](reduce_buffer)
+normalization_stage3[work_buffer.size](work_buffer, reduce_buffer)
 
 params_result = test_values[best_index_result]
 
@@ -445,46 +447,6 @@ np.save(file_out + "_theta.npy", params_result[:, :, 1])
 np.save(file_out + "_psi.npy", params_result[:, :, 2])
 np.save(file_out + "_defocus.npy", params_result[:, :, 3])
 
-
-print(normalization_stage1)
-"""
-print(work_buffer.size)
-
-ress_temp = reduce_buffer.read(0)[:-1].sum(axis=0) / work_buffer.size
-print(ress_temp)
-temp = ress_temp[1] - ress_temp[0] * ress_temp[0]
-print(temp)
-temp2 = np.sqrt(temp)
-print(temp2)
-ress_temp[1] = temp2
-
-ress = reduce_buffer.read(0)[-1] / work_buffer.size
-print(ress)
-temp = ress[1] - ress[0] * ress[0]
-print(temp)
-temp2 = np.sqrt(temp)
-print(temp2)
-ress[1] = temp2
-
-print(ress)
-
-"""
-
-vk_sum = reduce_buffer.read(0)[-1][0] / work_buffer.size
-np_sum = work_buffer.read(0).mean().real
-
-vk_var = reduce_buffer.read(0)[-1][1]  / work_buffer.size
-np_var = (work_buffer.read(0) ** 2).mean().real
-
-print(vk_sum)
-print(np_sum)
-
-print(vk_var)
-print(np_var)
-
-print(vk_var - vk_sum * vk_sum)
-print(np_var - np_sum * np_sum)
-
-plt.imshow(np.abs(work_buffer.read(0)))
+plt.imshow(final_max_cross)
 plt.colorbar()
 plt.show()
