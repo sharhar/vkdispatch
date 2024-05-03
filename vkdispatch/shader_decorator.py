@@ -4,7 +4,7 @@ import numpy as np
 import copy
 
 class shader_dispatcher:
-    def __init__(self, plan: vd.compute_plan, source: str, pc_buff_dict: dict, my_local_size: tuple[int, int, int], func_args: list[vd.shader_type]):
+    def __init__(self, plan: vd.compute_plan, source: str, pc_buff_dict: dict, my_local_size: tuple[int, int, int], func_args: list[vd.shader_variable]):
         self.plan = plan
         self.pc_buff_dict = copy.deepcopy(pc_buff_dict)
         self.my_local_size = my_local_size
@@ -16,7 +16,7 @@ class shader_dispatcher:
 
     def __getitem__(self, exec_dims: tuple | int):
         my_blocks = [exec_dims, 1, 1]
-        my_cmd_list = [None]
+        my_cmd_list: list[vd.command_list] = [None]
 
         if isinstance(exec_dims, tuple):
             my_blocks = [1, 1, 1]
@@ -89,8 +89,8 @@ def compute_shader(*args, local_size: tuple[int, int, int] = None):
         func_args = []
 
         for buff in args:
-            if isinstance(buff, vd.shader_type) and buff.isbuffer():
-                func_args.append(builder.buffer(buff.parent_type))
+            if isinstance(buff, vd.dtype) and buff.structure == vd.dtype_structure.DATA_STRUCTURE_BUFFER:
+                func_args.append(builder.buffer(buff))
             else:
                 raise ValueError("Decorator must be given list of shader_types only!")
 

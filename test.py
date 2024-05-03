@@ -12,7 +12,7 @@ sigma_e = tf_calc.get_sigmaE(300e3)
 amp_ratio = -0.07
 
 file_out = sys.argv[1]
-input_image_raw = np.load(sys.argv[2])
+input_image_raw: np.ndarray = np.load(sys.argv[2])
 
 n_std = 5
 outliers_idxs = np.abs(input_image_raw - input_image_raw.mean()) > n_std * input_image_raw.std()
@@ -21,24 +21,24 @@ test_image_normalized: np.ndarray = (input_image_raw - input_image_raw.mean()) /
 
 test_image_normalized = np.fft.fftshift(test_image_normalized)
 
-phi_values = np.arange(0, 360, 2.5)
-theta_values = np.arange(0, 180, 2.5)
-psi_values = np.arange(0, 360, 1.5)
+#phi_values = np.arange(0, 360, 2.5)
+#theta_values = np.arange(0, 180, 2.5)
+#psi_values = np.arange(0, 360, 1.5)
 
-#phi_values = np.arange(0, 100, 5)
-#theta_values = np.arange(0, 90, 5)
-#psi_values = np.arange(0, 100, 5)
+phi_values = np.arange(0, 10, 5)
+theta_values = np.arange(0, 90, 5)
+psi_values = np.arange(0, 10, 5)
 
 defocus_values = np.arange(11000, 13000, 400)
 test_values = (np.array(np.meshgrid(phi_values, theta_values, psi_values, defocus_values)).T.reshape(-1, 4))
 
-atom_data = np.load(sys.argv[3])
+atom_data: dict[str, np.ndarray] = np.load(sys.argv[3])
 atom_coords = atom_data["coords"].astype(np.float32)
 atom_proton_counts = atom_data["proton_counts"].astype(np.float32)
 
 atom_coords -= np.sum(atom_coords, axis=0) / atom_coords.shape[0]
 
-tf_data = tf_calc.prepareTF(input_image_raw.shape, 1.056, 0)
+tf_data: tuple[np.ndarray] = tf_calc.prepareTF(input_image_raw.shape, 1.056, 0)
 
 tf_data_array = np.zeros(shape=(tf_data[0].shape[0], tf_data[0].shape[1], 9), dtype=np.float32) #vd.asbuffer(tf_data)
 tf_data_array[:, :, 0] = tf_data[0]
@@ -71,7 +71,7 @@ def init_accumulators(max_cross, best_index):
 init_accumulators[max_cross.size](max_cross, best_index)
 
 def get_rotation_matrix(angles: list[int], offsets: list[int] = [0, 0]):
-    in_matricies = np.zeros(shape=(16,), dtype=np.float32)
+    in_matricies = np.zeros(shape=(4, 4), dtype=np.float32)
 
     cos_phi   = np.cos(np.deg2rad(angles[0]))
     sin_phi   = np.sin(np.deg2rad(angles[0]))
@@ -94,19 +94,17 @@ def get_rotation_matrix(angles: list[int], offsets: list[int] = [0, 0]):
     m10 = -sin_psi_in_plane
     m11 = cos_psi_in_plane
 
-    in_matricies[0] = m00 * M00 + m10 * M01
-    in_matricies[1] = m01 * M00 + m11 * M01
+    in_matricies[0, 0] = m00 * M00 + m10 * M01
+    in_matricies[0, 1] = m00 * M10 + m10 * M11
+    in_matricies[0, 2] = m00 * M20
+    in_matricies[0, 3] = offsets[0]
     
-    in_matricies[4] = m00 * M10 + m10 * M11
-    in_matricies[5] = m01 * M10 + m11 * M11
-    
-    in_matricies[8] = m00 * M20 
-    in_matricies[9] = m01 * M20
+    in_matricies[1, 0] = m01 * M00 + m11 * M01
+    in_matricies[1, 1] = m01 * M10 + m11 * M11
+    in_matricies[1, 2] = m01 * M20
+    in_matricies[1, 3] = offsets[1]
 
-    in_matricies[12] = offsets[0]
-    in_matricies[13] = offsets[1]
-
-    return in_matricies
+    return in_matricies.T
 
 @vd.compute_shader(vd.complex64[0])
 def fill_buffer(buf):
@@ -343,7 +341,7 @@ print("Defocus:", test_values[final_index][3])
 
 
 fill_buffer[work_buffer.size](work_buffer, val=0)
-place_atoms[atom_coords.shape[0]](work_buffer, atom_coords_buffer, rot_matrix=get_rotation_matrix(test_values[final_index][:3]))
+place_atoms[atom_coords.shape[0]](work_buffer, atom_coords_buffer, rot_matrix=get_rotation_matrix([118, 95, 294])) #test_values[final_index][:3]))
 
 vd.fft(work_buffer)
 apply_gaussian_filter[work_buffer.size](work_buffer, sigma=0.05)
@@ -368,5 +366,5 @@ np.save(file_out + "_theta.npy", params_result[:, :, 1])
 np.save(file_out + "_psi.npy", params_result[:, :, 2])
 np.save(file_out + "_defocus.npy", params_result[:, :, 3])
 
-#plt.imshow(np.abs(max_cross.read(0)))
+#plt.imshow(np.abs(work_buffer.read(0)))
 #plt.show()
