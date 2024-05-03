@@ -90,7 +90,7 @@ def compute_shader(*args, local_size: tuple[int, int, int] = None):
 
         for buff in args:
             if isinstance(buff, vd.dtype) and buff.structure == vd.dtype_structure.DATA_STRUCTURE_BUFFER:
-                func_args.append(builder.buffer(buff))
+                func_args.append(builder.dynamic_buffer(buff))
             else:
                 raise ValueError("Decorator must be given list of shader_types only!")
 

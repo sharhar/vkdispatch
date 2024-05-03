@@ -21,6 +21,9 @@ test_image_normalized: np.ndarray = (input_image_raw - input_image_raw.mean()) /
 
 test_image_normalized = np.fft.fftshift(test_image_normalized)
 
+mag = 200
+sigma=0.025
+
 #phi_values = np.arange(0, 360, 2.5)
 #theta_values = np.arange(0, 180, 2.5)
 #psi_values = np.arange(0, 360, 1.5)
@@ -61,6 +64,11 @@ work_buffer = vd.buffer(input_image_raw.shape, vd.complex64)
 shift_buffer = vd.buffer(input_image_raw.shape, vd.complex64)
 max_cross = vd.buffer(input_image_raw.shape, vd.float32)
 best_index = vd.buffer(input_image_raw.shape, vd.int32)
+
+workgroup_size = vd.get_devices()[0].max_workgroup_size[0]
+assert work_buffer.size % workgroup_size == 0
+
+reduce_buffer = vd.buffer(((work_buffer.size // workgroup_size) + 1,), vd.vec2)
 
 @vd.compute_shader(vd.float32[0], vd.int32[0])
 def init_accumulators(max_cross, best_index):
@@ -150,8 +158,6 @@ def apply_gaussian_filter(buf):
     x[:] = x - work_buffer.shape[0] // 2
     y[:] = y - work_buffer.shape[1] // 2
 
-    sigma = vd.shader.push_constant(vd.float32, "sigma")
-
     my_dist = vd.shader.new(vd.float32)
     my_dist[:] = (x*x + y*y) * sigma * sigma / 2
 
@@ -161,7 +167,7 @@ def apply_gaussian_filter(buf):
     vd.shader.return_statement()
     vd.shader.end_if()
 
-    buf[ind] *= vd.shader.exp(-my_dist) / (work_buffer.shape[0] * work_buffer.shape[1])
+    buf[ind] *= mag * vd.shader.exp(-my_dist) / (work_buffer.shape[0] * work_buffer.shape[1])
 
 @vd.compute_shader(vd.complex64[0])
 def potential_to_wave(image):
@@ -234,12 +240,85 @@ def apply_transfer_function(image, tf_data):
     image[ind][0] = mag * (wv[0] * rot_vec[0] - wv[1] * rot_vec[1])
     image[ind][1] = mag * (wv[0] * rot_vec[1] + wv[1] * rot_vec[0])
 
-@vd.compute_shader(vd.complex64[0])
-def get_wave_amplitude(image):
+@vd.compute_shader(vd.vec2[0], vd.complex64[0])
+def normalization_stage1(reduce_buffer, image):
     ind = vd.shader.global_x.copy()
 
-    image[ind][0] = (image[ind][0] * image[ind][0] + image[ind][1] * image[ind][1]).copy() / (work_buffer.shape[0] * work_buffer.shape[1])
+    sdata = vd.shader.shared_buffer(vd.vec2, workgroup_size // vd.get_devices()[0].sub_group_size)
+    
+    sum_vec = vd.shader.new(vd.vec2)
+    sum_vec[0] = (image[ind][0] * image[ind][0] + image[ind][1] * image[ind][1]) # / (work_buffer.shape[0] * work_buffer.shape[1])
+    sum_vec[1] = sum_vec[0] * sum_vec[0]
+
+    image[ind][0] = sum_vec[0]
     image[ind][1] = 0
+
+    sum_vec[:] = vd.shader.subgroup_add(sum_vec)
+
+    vd.shader.if_statement(vd.shader.subgroup_invocation == 0)
+    sdata[vd.shader.subgroup_id] = sum_vec
+    vd.shader.end_if()
+
+    vd.shader.memory_barrier_shared()
+    vd.shader.barrier()
+
+    vd.shader.if_statement(vd.shader.subgroup_id == 0)
+    sum_vec[:] = "vec2(0.0, 0.0)"
+
+    vd.shader.if_statement(vd.shader.subgroup_invocation < vd.shader.num_subgroups)
+    sum_vec[:] = sdata[vd.shader.subgroup_invocation]
+    vd.shader.end_if()
+
+    sum_vec[:] = vd.shader.subgroup_add(sum_vec)
+    vd.shader.end_if()
+
+    vd.shader.if_statement(vd.shader.local_x == 0)
+    reduce_buffer[vd.shader.workgroup_x] = sum_vec
+    vd.shader.end_if()
+
+@vd.compute_shader(vd.vec2[0], local_size=(reduce_buffer.shape[0] - 1, 1, 1))
+def normalization_stage2(buff):
+    ind = vd.shader.global_x.copy()
+
+    sdata = vd.shader.shared_buffer(vd.vec2, workgroup_size // vd.get_devices()[0].sub_group_size) #vd.shader.num_subgroups)
+    
+    sum_vec = buff[ind].copy()
+
+    sum_vec[:] = vd.shader.subgroup_add(sum_vec)
+
+    vd.shader.if_statement(vd.shader.subgroup_invocation == 0)
+    sdata[vd.shader.subgroup_id] = sum_vec
+    vd.shader.end_if()
+
+    vd.shader.memory_barrier_shared()
+    vd.shader.barrier()
+
+    vd.shader.if_statement(vd.shader.subgroup_id == 0)
+    sum_vec[:] = "vec2(0.0, 0.0)"
+
+    vd.shader.if_all(vd.shader.subgroup_invocation < vd.shader.num_subgroups)
+    sum_vec[:] = sdata[vd.shader.subgroup_invocation]
+    vd.shader.end_if()
+    
+    sum_vec[:] = vd.shader.subgroup_add(sum_vec)
+    vd.shader.end_if()
+
+    vd.shader.memory_barrier_shared()
+    vd.shader.barrier()
+
+    vd.shader.if_statement(vd.shader.local_x == 0)
+    buff[reduce_buffer.shape[0] - 1] = sum_vec
+    vd.shader.end_if()
+
+@vd.compute_shader(vd.complex64[0], vd.vec2[0])
+def normalization_stage3(image, buff):
+    ind = vd.shader.global_x.copy()
+
+    sum_vec = (buff[reduce_buffer.shape[0] - 1] / (work_buffer.shape[0] * work_buffer.shape[1])).copy()
+    sum_vec[1] = vd.shader.sqrt(sum_vec[1] - sum_vec[0] * sum_vec[0])
+
+    image[ind][0] /= vd.shader.sqrt(sum_vec[0])
+    image[ind][1] /= vd.shader.sqrt(sum_vec[0])
 
 @vd.compute_shader(vd.complex64[0], vd.complex64[0])
 def cross_correlate(input, reference):
@@ -280,7 +359,7 @@ fill_buffer[work_buffer.size, cmd_list](work_buffer, val=0)
 rotation_matrix = place_atoms[atom_coords.shape[0], cmd_list](work_buffer, atom_coords_buffer)
 
 vd.fft[cmd_list](work_buffer)
-apply_gaussian_filter[work_buffer.size, cmd_list](work_buffer, sigma=0.05)
+apply_gaussian_filter[work_buffer.size, cmd_list](work_buffer)
 vd.ifft[cmd_list](work_buffer)
 
 potential_to_wave[work_buffer.size, cmd_list](work_buffer)
@@ -290,7 +369,7 @@ mult_by_mask[work_buffer.size, cmd_list](work_buffer)
 defocus = apply_transfer_function[work_buffer.size, cmd_list](work_buffer, tf_data_buffer)
 vd.ifft[cmd_list](work_buffer)
 
-get_wave_amplitude[work_buffer.size, cmd_list](work_buffer)
+#get_wave_amplitude[work_buffer.size, cmd_list](work_buffer)
 
 fftshift[work_buffer.size, cmd_list](shift_buffer, work_buffer)
 
@@ -339,12 +418,11 @@ print("Theta:", test_values[final_index][1])
 print("Psi:", test_values[final_index][2])
 print("Defocus:", test_values[final_index][3])
 
-
 fill_buffer[work_buffer.size](work_buffer, val=0)
 place_atoms[atom_coords.shape[0]](work_buffer, atom_coords_buffer, rot_matrix=get_rotation_matrix([118, 95, 294])) #test_values[final_index][:3]))
 
 vd.fft(work_buffer)
-apply_gaussian_filter[work_buffer.size](work_buffer, sigma=0.05)
+apply_gaussian_filter[work_buffer.size](work_buffer)
 vd.ifft(work_buffer)
 
 potential_to_wave[work_buffer.size](work_buffer)
@@ -354,7 +432,8 @@ mult_by_mask[work_buffer.size](work_buffer)
 apply_transfer_function[work_buffer.size](work_buffer, tf_data_buffer, defocus=test_values[final_index][3])
 vd.ifft(work_buffer)
 
-get_wave_amplitude[work_buffer.size](work_buffer)
+normalization_stage1[work_buffer.size](reduce_buffer, work_buffer)
+normalization_stage2[reduce_buffer.size - 1](reduce_buffer)
 
 params_result = test_values[best_index_result]
 
@@ -366,5 +445,46 @@ np.save(file_out + "_theta.npy", params_result[:, :, 1])
 np.save(file_out + "_psi.npy", params_result[:, :, 2])
 np.save(file_out + "_defocus.npy", params_result[:, :, 3])
 
-#plt.imshow(np.abs(work_buffer.read(0)))
-#plt.show()
+
+print(normalization_stage1)
+"""
+print(work_buffer.size)
+
+ress_temp = reduce_buffer.read(0)[:-1].sum(axis=0) / work_buffer.size
+print(ress_temp)
+temp = ress_temp[1] - ress_temp[0] * ress_temp[0]
+print(temp)
+temp2 = np.sqrt(temp)
+print(temp2)
+ress_temp[1] = temp2
+
+ress = reduce_buffer.read(0)[-1] / work_buffer.size
+print(ress)
+temp = ress[1] - ress[0] * ress[0]
+print(temp)
+temp2 = np.sqrt(temp)
+print(temp2)
+ress[1] = temp2
+
+print(ress)
+
+"""
+
+vk_sum = reduce_buffer.read(0)[-1][0] / work_buffer.size
+np_sum = work_buffer.read(0).mean().real
+
+vk_var = reduce_buffer.read(0)[-1][1]  / work_buffer.size
+np_var = (work_buffer.read(0) ** 2).mean().real
+
+print(vk_sum)
+print(np_sum)
+
+print(vk_var)
+print(np_var)
+
+print(vk_var - vk_sum * vk_sum)
+print(np_var - np_sum * np_sum)
+
+plt.imshow(np.abs(work_buffer.read(0)))
+plt.colorbar()
+plt.show()
