@@ -16,13 +16,14 @@ if vulkan_root is None:
 
 include_directories = [
     numpy_include,
-    vulkan_root + '/include',
-    vulkan_root + '/include/utility',
-    vulkan_root + '/include/glslang/Include',
     proj_root + "/deps/VKL/include",
     proj_root + "/deps/VKL/deps/VMA/include",
     proj_root + "/deps/VKL/deps/volk",
-    proj_root + "/deps/VkFFT/vkFFT"
+    proj_root + "/deps/VKL/deps/glslang",
+    proj_root + "/deps/VKL/deps/glslang/glslang/Include",
+    proj_root + "/deps/VkFFT/vkFFT",
+    vulkan_root + '/include',
+    vulkan_root + '/include/utility'
 ]
 
 sources = []
@@ -67,16 +68,61 @@ append_to_sources('deps/VKL/src/', [
     'VolkImpl.cpp'
 ])
 
+append_to_sources('deps/VKL/deps/glslang/glslang/', [
+    "CInterface/glslang_c_interface.cpp",
+    "GenericCodeGen/CodeGen.cpp",
+    "GenericCodeGen/Link.cpp",
+    "MachineIndependent/glslang_tab.cpp",
+    "MachineIndependent/attribute.cpp",
+    "MachineIndependent/Constant.cpp",
+    "MachineIndependent/iomapper.cpp",
+    "MachineIndependent/InfoSink.cpp",
+    "MachineIndependent/Initialize.cpp",
+    "MachineIndependent/IntermTraverse.cpp",
+    "MachineIndependent/Intermediate.cpp",
+    "MachineIndependent/ParseContextBase.cpp",
+    "MachineIndependent/ParseHelper.cpp",
+    "MachineIndependent/PoolAlloc.cpp",
+    "MachineIndependent/RemoveTree.cpp",
+    "MachineIndependent/Scan.cpp",
+    "MachineIndependent/ShaderLang.cpp",
+    "MachineIndependent/SpirvIntrinsics.cpp",
+    "MachineIndependent/SymbolTable.cpp",
+    "MachineIndependent/Versions.cpp",
+    "MachineIndependent/intermOut.cpp",
+    "MachineIndependent/limits.cpp",
+    "MachineIndependent/linkValidate.cpp",
+    "MachineIndependent/parseConst.cpp",
+    "MachineIndependent/reflection.cpp",
+    "MachineIndependent/preprocessor/Pp.cpp",
+    "MachineIndependent/preprocessor/PpAtom.cpp",
+    "MachineIndependent/preprocessor/PpContext.cpp",
+    "MachineIndependent/preprocessor/PpScanner.cpp",
+    "MachineIndependent/preprocessor/PpTokens.cpp",
+    "MachineIndependent/propagateNoContraction.cpp",
+    "ResourceLimits/ResourceLimits.cpp",
+    "ResourceLimits/resource_limits_c.cpp"
+])
+
+append_to_sources('deps/VKL/deps/glslang/SPIRV/', [
+    "GlslangToSpv.cpp",
+    "InReadableOrder.cpp",
+    "Logger.cpp",
+    "SpvBuilder.cpp",
+    "SpvPostProcess.cpp",
+    "doc.cpp",
+    "SpvTools.cpp",
+    "disassemble.cpp",
+    "CInterface/spirv_c_interface.cpp"
+])
+
 vulkan_lib_dir = vulkan_root + '/lib'
 
-unix_libs = ['dl', 'pthread']
-windows_libs = []
+platform_libs = ['dl', 'pthread'] if os.name == 'posix' else [] 
 
-platform_libs = unix_libs if os.name == 'posix' else windows_libs
+compile_libs = platform_libs # + ['SPIRV', 'SPIRV-Tools-opt', 'SPIRV-Tools-link', 'SPIRV-Tools-reduce', 'SPIRV-Tools']
 
-#compile_libs = platform_libs + ['SPIRV', 'SPIRV-Tools-opt', 'SPIRV-Tools-link', 'SPIRV-Tools-reduce', 'SPIRV-Tools']
-
-#"""
+"""
 
 compile_libs = platform_libs + ['glslang', 'SPIRV', 'MachineIndependent', 'GenericCodeGen']
 
@@ -101,7 +147,7 @@ setup(
                   library_dirs=[vulkan_lib_dir],
                   libraries=compile_libs,
                   extra_compile_args=['-g', '-std=c++17'],
-                  extra_link_args=['-g', f'-Wl'],
+                  extra_link_args=['-g'],
                   include_dirs=include_directories
         )
     ],
