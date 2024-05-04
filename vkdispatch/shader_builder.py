@@ -2,6 +2,7 @@ import vkdispatch as vd
 
 import copy
 import numpy as np
+import typing
 
 class push_constant_buffer:
     def __init__(self, pc_dict: dict) -> None:
@@ -24,7 +25,7 @@ class push_constant_buffer:
 
             self.size += var_type.item_size
     
-    def __setitem__(self, key: str, value: np.ndarray | list | tuple | int | float) -> None:
+    def __setitem__(self, key: str, value: typing.Union[np.ndarray, list, tuple, int, float]) -> None:
         if key not in self.ref_dict:
             raise ValueError(f"Invalid push constant '{key}'!")
         
@@ -191,7 +192,7 @@ class shader_builder:
     def int_bits_to_float(self, arg: vd.shader_variable) -> vd.shader_variable:
         return self.make_var(vd.float32, f"intBitsToFloat({arg})")
 
-    def print(self, *args: vd.shader_variable | str) -> None:
+    def print(self, *args: typing.Union[vd.shader_variable, str]) -> None:
         args_list = []
 
         fmt = ""

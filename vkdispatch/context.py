@@ -1,7 +1,7 @@
 import vkdispatch
 import vkdispatch_native
 
-import vkdispatch.init
+import typing
 
 class context:
     def __init__(self, devices: list[int], submission_thread_counts: list[int] = None) -> None:
@@ -10,7 +10,7 @@ class context:
     def __del__(self) -> None:
         pass #vkdispatch_native.context_destroy(self._handle)
 
-def make_context(devices: int | list[int], submission_thread_counts: int | list[int] = None, debug_mode: bool = False) -> context:
+def make_context(devices: typing.Union[int, list[int]], submission_thread_counts: typing.Union[int, list[int]] = None, debug_mode: bool = False) -> context:
     if type(devices) == int:
         devices = [devices]
     
