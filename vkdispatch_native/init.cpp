@@ -5,6 +5,9 @@
 MyInstance _instance;
 
 void init_extern(bool debug) {
+
+	VK_CALL(volkInitialize());
+
     LOG_INFO("Initializing glslang...");
 
     if(!glslang_initialize_process()) {
@@ -16,7 +19,6 @@ void init_extern(bool debug) {
     
     _instance.instance.create(
         VKLInstanceCreateInfo()
-        .procAddr(vkGetInstanceProcAddr)
         .debug(VK_TRUE)
     );
 
