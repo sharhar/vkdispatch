@@ -5,6 +5,11 @@ include deps/VKL/deps/VMA/include/*.h
 include deps/VKL/deps/VMA/LICENSE.txt
 include deps/VKL/deps/volk/volk/volk.h
 include deps/VKL/deps/volk/volk/volk.c
-include deps/VKL/deps/volk/volk/LICENSE.txt
+include deps/VKL/deps/volk/volk/LICENSE.md
+
 recursive-include deps/VkFFT/vkFFT *.h
 include deps/VkFFT/LICENSE
+
+recursive-include deps/VKL/deps/glslang *.h
+recursive-include deps/VKL/deps/glslang *.hpp
+include deps/VKL/deps/glslang/LICENSE.txt
