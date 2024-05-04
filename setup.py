@@ -9,21 +9,16 @@ except AttributeError:
 
 proj_root = os.path.abspath(os.path.dirname(__file__))
 
-vulkan_root = os.environ.get('VULKAN_SDK')
-
-if vulkan_root is None:
-    raise ValueError('VULKAN_SDK environment variable not set')
-
 include_directories = [
     numpy_include,
     proj_root + "/deps/VKL/include",
+    proj_root + "/deps/VKL/deps/Vulkan-Headers/include",
+    proj_root + "/deps/VKL/deps/Vulkan-Utility-Libraries/include",
     proj_root + "/deps/VKL/deps/VMA/include",
     proj_root + "/deps/VKL/deps/volk",
     proj_root + "/deps/VKL/deps/glslang",
     proj_root + "/deps/VKL/deps/glslang/glslang/Include",
-    proj_root + "/deps/VkFFT/vkFFT",
-    vulkan_root + '/include',
-    vulkan_root + '/include/utility'
+    proj_root + "/deps/VkFFT/vkFFT"
 ]
 
 sources = []
@@ -116,26 +111,7 @@ append_to_sources('deps/VKL/deps/glslang/SPIRV/', [
     "CInterface/spirv_c_interface.cpp"
 ])
 
-vulkan_lib_dir = vulkan_root + '/lib'
-
-platform_libs = ['dl', 'pthread'] if os.name == 'posix' else [] 
-
-compile_libs = platform_libs # + ['SPIRV', 'SPIRV-Tools-opt', 'SPIRV-Tools-link', 'SPIRV-Tools-reduce', 'SPIRV-Tools']
-
-"""
-
-compile_libs = platform_libs + ['glslang', 'SPIRV', 'MachineIndependent', 'GenericCodeGen']
-
-for file in os.listdir(vulkan_lib_dir):
-    if "OGLCompiler" in file:
-        compile_libs.append('OGLCompiler')
-        break
-
-compile_libs.extend(['OSDependent',  'SPIRV-Tools-opt',
-                             'SPIRV-Tools-link', 'SPIRV-Tools-reduce',
-                             'SPIRV-Tools', 'glslang-default-resource-limits'])
-
-#"""
+compile_libs = ['dl', 'pthread'] if os.name == 'posix' else [] 
 
 setup(
     name='vkdispatch',
@@ -144,7 +120,7 @@ setup(
         Extension('vkdispatch_native',
                   sources=sources,
                   language='c++',
-                  library_dirs=[vulkan_lib_dir],
+                  library_dirs=[],
                   libraries=compile_libs,
                   extra_compile_args=['-g', '-std=c++17'],
                   extra_link_args=['-g'],
