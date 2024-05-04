@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    "setuptools>=50.0",
+    "setuptools>=61.0",
     "wheel",
     "Cython",
     "numpy"
@@ -15,7 +15,7 @@ authors = [
 ]
 description = "A Python module for orchestrating and dispatching large computations across multi-GPU systems using Vulkan."
 readme = "README.md"
-requires-python = ">=3.6"
+requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -23,7 +23,7 @@ classifiers = [
     "Development Status :: 1 - Planning",
 ]
 dependencies = [
-    "setuptools>=50.0",
+    "setuptools>=61.0",
     "numpy",
 ]
 scripts = { vdlist = 'vkdispatch.__main__:main' }

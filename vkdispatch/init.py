@@ -1,5 +1,7 @@
 import vkdispatch_native
 
+import typing
+
 device_type_id_to_str_dict = {
     0: "Other",
     1: "Integrated GPU",
@@ -8,21 +10,12 @@ device_type_id_to_str_dict = {
     4: "CPU",
 }
 
-"""
-unsigned int subgroup_size
-        unsigned int supported_stages
-        unsigned int supported_operations
-        unsigned int quad_operations_in_all_stages
-
-        unsigned int max_compute_shared_memory_size
-"""
-
 class device_info:
     def __init__(self, dev_index: int, version_variant: int, version_major: int, version_minor: int,
                 version_patch: int, driver_version: int, vendor_id: int, device_id: int,
                 device_type: int, device_name: str, float_64_support: int, int_64_support: int,
-                int_16_support: int, max_workgroup_size: tuple[int, int, int], max_workgroup_invocations: int,
-                max_workgroup_count: tuple[int, int, int], max_bound_descriptor_sets: int,
+                int_16_support: int, max_workgroup_size: typing.Tuple[int, int, int], max_workgroup_invocations: int,
+                max_workgroup_count: typing.Tuple[int, int, int], max_bound_descriptor_sets: int,
                 max_push_constant_size: int, max_storage_buffer_range: int, max_uniform_buffer_range: int,
                 sub_group_size: int, supported_stages: int, supported_operations: int, 
                 quad_operations_in_all_stages: int, max_compute_shared_memory_size: int):
@@ -105,7 +98,7 @@ def init_instance(debug_mode: bool = False):
     vkdispatch_native.init(debug_mode)
     __initilized_instance = True
 
-def get_devices(debug_mode: bool = False) -> list[device_info]:
+def get_devices(debug_mode: bool = False) -> typing.List[device_info]:
     init_instance(debug_mode)
 
     return [device_info(ii, *dev_obj) for ii, dev_obj in enumerate(vkdispatch_native.get_devices())]

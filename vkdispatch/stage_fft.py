@@ -2,9 +2,10 @@ import vkdispatch as vd
 import vkdispatch_native
 
 import numpy as np
+import typing
 
 class fft_plan:
-    def __init__(self, shape: tuple[int, ...]):
+    def __init__(self, shape: typing.Tuple[int, ...]):
         assert len(shape) > 0 and len(shape) < 4, "shape must be 1D, 2D, or 3D"
 
         self.shape = shape
@@ -26,7 +27,7 @@ class fft_plan:
 
 __fft_plans = {}
 
-def get_fft_plan(buffer_handle: int, shape: tuple[int, ...]) -> fft_plan:
+def get_fft_plan(buffer_handle: int, shape: typing.Tuple[int, ...]) -> fft_plan:
     global __fft_plans
 
     if shape not in __fft_plans:

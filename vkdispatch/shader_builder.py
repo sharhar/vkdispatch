@@ -6,10 +6,10 @@ import typing
 
 class push_constant_buffer:
     def __init__(self, pc_dict: dict) -> None:
-        self.pc_dict: dict[str, tuple[int, vd.dtype]] =  copy.deepcopy(pc_dict)
-        self.ref_dict: dict[str, int] = {}
-        self.pc_list: list[np.ndarray] = [None] * len(self.pc_dict)
-        self.var_types: list[vd.dtype] = [None] * len(self.pc_dict)
+        self.pc_dict: typing.Dict[str, typing.Tuple[int, vd.dtype]] =  copy.deepcopy(pc_dict)
+        self.ref_dict: typing.Dict[str, int] = {}
+        self.pc_list: typing.List[np.ndarray] = [None] * len(self.pc_dict)
+        self.var_types: typing.List[vd.dtype] = [None] * len(self.pc_dict)
         self.numpy_dtypes: list = [None] * len(self.pc_dict)
         self.size = 0
 
@@ -49,10 +49,10 @@ class shader_builder:
     def __init__(self) -> None:
         self.var_count = 0
         self.binding_count = 0
-        self.pc_dict: dict[str, tuple[int, vd.dtype]] = {}
-        self.pc_list: list[tuple[str, vd.dtype, str]] = []
-        self.binding_list: list[tuple[str, str]] = []
-        self.shared_buffers: list[tuple[vd.dtype, int, vd.shader_variable]] = []
+        self.pc_dict: typing.Dict[str, typing.Tuple[int, vd.dtype]] = {}
+        self.pc_list: typing.List[typing.Tuple[str, vd.dtype, str]] = []
+        self.binding_list: typing.List[typing.Tuple[str, str]] = []
+        self.shared_buffers: typing.List[typing.Tuple[vd.dtype, int, vd.shader_variable]] = []
         self.pc_size = 0
         self.scope_num = 1
 
@@ -144,11 +144,11 @@ class shader_builder:
         self.append_contents(f"if({arg}) {'{'}\n")
         self.scope_num += 1
 
-    def if_any(self, *args: list[vd.shader_variable]) -> None:
+    def if_any(self, *args:  typing.List[vd.shader_variable]) -> None:
         self.append_contents(f"if({' || '.join([str(elem) for elem in args])}) {'{'}\n")
         self.scope_num += 1
 
-    def if_all(self, *args: list[vd.shader_variable]) -> None:
+    def if_all(self, *args: typing.List[vd.shader_variable]) -> None:
         self.append_contents(f"if({' && '.join([str(elem) for elem in args])}) {'{'}\n")
         self.scope_num += 1
     

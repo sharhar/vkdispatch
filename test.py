@@ -5,6 +5,7 @@ import sys
 import tf_calc
 import time
 import tqdm
+import typing
 
 current_time = time.time()
 
@@ -35,13 +36,13 @@ psi_values = np.arange(0, 100, 5)
 defocus_values = np.arange(11000, 13000, 400)
 test_values = (np.array(np.meshgrid(phi_values, theta_values, psi_values, defocus_values)).T.reshape(-1, 4))
 
-atom_data: dict[str, np.ndarray] = np.load(sys.argv[3])
-atom_coords = atom_data["coords"].astype(np.float32)
-atom_proton_counts = atom_data["proton_counts"].astype(np.float32)
+atom_data = np.load(sys.argv[3])
+atom_coords: np.ndarray = atom_data["coords"].astype(np.float32)
+atom_proton_counts: np.ndarray = atom_data["proton_counts"].astype(np.float32)
 
 atom_coords -= np.sum(atom_coords, axis=0) / atom_coords.shape[0]
 
-tf_data: tuple[np.ndarray] = tf_calc.prepareTF(input_image_raw.shape, 1.056, 0)
+tf_data: typing.Tuple[np.ndarray] = tf_calc.prepareTF(input_image_raw.shape, 1.056, 0)
 
 tf_data_array = np.zeros(shape=(tf_data[0].shape[0], tf_data[0].shape[1], 9), dtype=np.float32) #vd.asbuffer(tf_data)
 tf_data_array[:, :, 0] = tf_data[0]
@@ -78,7 +79,7 @@ def init_accumulators(max_cross, best_index):
 
 init_accumulators[max_cross.size](max_cross, best_index)
 
-def get_rotation_matrix(angles: list[int], offsets: list[int] = [0, 0]):
+def get_rotation_matrix(angles: typing.List[int], offsets: typing.List[int] = [0, 0]):
     in_matricies = np.zeros(shape=(4, 4), dtype=np.float32)
 
     cos_phi   = np.cos(np.deg2rad(angles[0]))
