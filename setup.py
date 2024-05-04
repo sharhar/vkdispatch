@@ -127,5 +127,6 @@ setup(
                   include_dirs=include_directories
         )
     ],
+    version='0.0.5',
     zip_safe=False
 )
