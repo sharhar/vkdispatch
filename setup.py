@@ -63,13 +63,14 @@ append_to_sources('deps/VKL/src/', [
     'VKLSurface.cpp',
     'VKLStaticAllocator.cpp',
     'VKLSwapChain.cpp',
-    'VMAImpl.cpp'
+    'VMAImpl.cpp',
+    'VolkImpl.cpp'
 ])
 
 vulkan_lib_dir = vulkan_root + '/lib'
 
-unix_libs = ['dl', 'pthread', 'vulkan']
-windows_libs = ['vulkan-1']
+unix_libs = ['dl', 'pthread']
+windows_libs = []
 
 platform_libs = unix_libs if os.name == 'posix' else windows_libs
 
@@ -100,7 +101,7 @@ setup(
                   library_dirs=[vulkan_lib_dir],
                   libraries=compile_libs,
                   extra_compile_args=['-g', '-std=c++17'],
-                  extra_link_args=['-g', f'-Wl'], #,-rpath,{vulkan_root}/lib'],
+                  extra_link_args=['-g', f'-Wl'],
                   include_dirs=include_directories
         )
     ],

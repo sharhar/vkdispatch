@@ -3,5 +3,8 @@ include vkdispatch_native/*.pxd
 include deps/VKL/include/VKL/*.h
 include deps/VKL/deps/VMA/include/*.h
 include deps/VKL/deps/VMA/LICENSE.txt
+include deps/VKL/deps/volk/volk/volk.h
+include deps/VKL/deps/volk/volk/volk.c
+include deps/VKL/deps/volk/volk/LICENSE.txt
 recursive-include deps/VkFFT/vkFFT *.h
 include deps/VkFFT/LICENSE
