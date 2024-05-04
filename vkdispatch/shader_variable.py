@@ -1,10 +1,9 @@
 import vkdispatch as vd
-from typing import Callable, Any
-
+import typing
 import numpy as np
 
 class shader_variable:
-    def __init__(self, append_func: Callable[[str], None], name_func: Callable[[str], str], var_type: vd.dtype, name: str = None, binding: int = None) -> None:
+    def __init__(self, append_func: typing.Callable[[str], None], name_func: typing.Callable[[str], str], var_type: vd.dtype, name: str = None, binding: int = None) -> None:
         self.append_func = append_func
         self.name_func = name_func
         self.var_type = var_type
@@ -186,7 +185,7 @@ class shader_variable:
         self.append_func(f"{self} |= {other};\n")
         return self
     
-    def __getitem__(self, index: 'tuple[shader_variable, ...] | shader_variable') -> 'shader_variable':
+    def __getitem__(self, index: 'typing.Union[typing.Tuple[shader_variable, ...], shader_variable]') -> 'shader_variable':
         if isinstance(index, shader_variable) or isinstance(index, (int, np.integer)):
             return self.new(self.var_type.parent, f"{self}[{index}]")
         else:

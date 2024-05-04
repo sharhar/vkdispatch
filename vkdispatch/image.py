@@ -3,6 +3,7 @@ import vkdispatch_native
 
 import numpy as np
 from enum import Enum
+import typing
 
 class image_format(Enum):
     R8_UINT = 13,
@@ -111,7 +112,7 @@ class image_view_type(Enum):
     VIEW_TYPE_2D_ARRAY = 5,
 
 class image:
-    def __init__(self, shape: tuple[int], layers: int, dtype: type, channels: int, view_type: image_view_type) -> None:
+    def __init__(self, shape: typing.Tuple[int], layers: int, dtype: type, channels: int, view_type: image_view_type) -> None:
         assert len(shape) == 2 or len(shape) == 3, "Shape must be 2D or 3D!"
 
         assert type(shape[0]) == int, "Shape must be a tuple of integers!"
@@ -130,9 +131,9 @@ class image:
         self.layers: int = layers
         self.channels: int = channels
 
-        self.shape: tuple[int] = (layers, shape[0], shape[1]) if layers > 1 else shape
-        self.extent: tuple[int] = shape if len(shape) == 3 else (shape[0], shape[1], 1)
-        self.array_shape: tuple[int] = (*self.shape, channels)
+        self.shape: typing.Tuple[int] = (layers, shape[0], shape[1]) if layers > 1 else shape
+        self.extent: typing.Tuple[int] = shape if len(shape) == 3 else (shape[0], shape[1], 1)
+        self.array_shape: typing.Tuple[int] = (*self.shape, channels)
 
         self.block_size: int = vkdispatch_native.image_format_block_size(self.format.value[0])
         self.mem_size: int = np.prod(self.shape) * self.block_size
@@ -158,16 +159,16 @@ class image:
         vkdispatch_native.image_copy(self._handle, other._handle, [0, 0, 0], 0, self.layers, [0, 0, 0], 0, self.layers, self.extent, device_index)
 
 class image2d(image):
-    def __init__(self, shape: tuple[int], dtype: type = np.float32, channels: int = 1) -> None:
+    def __init__(self, shape: typing.Tuple[int], dtype: type = np.float32, channels: int = 1) -> None:
         assert len(shape) == 2, "Shape must be 2D!"
         super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_2D)
 
 class image2d_array(image):
-    def __init__(self, shape: tuple[int], layers: int, dtype: type = np.float32, channels: int = 1) -> None:
+    def __init__(self, shape: typing.Tuple[int], layers: int, dtype: type = np.float32, channels: int = 1) -> None:
         assert len(shape) == 2, "Shape must be 2D!"
         super().__init__(shape, layers, dtype, channels, image_view_type.VIEW_TYPE_2D_ARRAY)
 
 class image3d(image):
-    def __init__(self, shape: tuple[int], dtype: type = np.float32, channels: int = 1) -> None:
+    def __init__(self, shape: typing.Tuple[int], dtype: type = np.float32, channels: int = 1) -> None:
         assert len(shape) == 3, "Shape must be 3D!"
         super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_3D)

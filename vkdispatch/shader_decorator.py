@@ -5,7 +5,7 @@ import copy
 import typing
 
 class shader_dispatcher:
-    def __init__(self, plan: vd.compute_plan, source: str, pc_buff_dict: dict, my_local_size: tuple[int, int, int], func_args: list[vd.shader_variable]):
+    def __init__(self, plan: vd.compute_plan, source: str, pc_buff_dict: dict, my_local_size: typing.Tuple[int, int, int], func_args: typing.List[vd.shader_variable]):
         self.plan = plan
         self.pc_buff_dict = copy.deepcopy(pc_buff_dict)
         self.my_local_size = my_local_size
@@ -17,7 +17,7 @@ class shader_dispatcher:
 
     def __getitem__(self, exec_dims: typing.Union[tuple, int]):
         my_blocks = [exec_dims, 1, 1]
-        my_cmd_list: list[vd.command_list] = [None]
+        my_cmd_list: typing.List[vd.command_list] = [None]
 
         if isinstance(exec_dims, tuple):
             my_blocks = [1, 1, 1]
@@ -75,7 +75,7 @@ class shader_dispatcher:
             return pc_buff
         return wrapper_func
 
-def compute_shader(*args, local_size: tuple[int, int, int] = None):
+def compute_shader(*args, local_size: typing.Tuple[int, int, int] = None):
     my_local_size = local_size if local_size is not None else [vd.get_devices()[0].max_workgroup_size[0], 1, 1]
 
     def decorator(build_func):

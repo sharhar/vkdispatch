@@ -4,13 +4,13 @@ import vkdispatch_native
 import typing
 
 class context:
-    def __init__(self, devices: list[int], submission_thread_counts: list[int] = None) -> None:
+    def __init__(self, devices: typing.List[int], submission_thread_counts: typing.List[int] = None) -> None:
         self._handle: int = vkdispatch_native.context_create(devices, submission_thread_counts)
 
     def __del__(self) -> None:
         pass #vkdispatch_native.context_destroy(self._handle)
 
-def make_context(devices: typing.Union[int, list[int]], submission_thread_counts: typing.Union[int, list[int]] = None, debug_mode: bool = False) -> context:
+def make_context(devices: typing.Union[int, typing.List[int]], submission_thread_counts: typing.Union[int, typing.List[int]] = None, debug_mode: bool = False) -> context:
     if type(devices) == int:
         devices = [devices]
     

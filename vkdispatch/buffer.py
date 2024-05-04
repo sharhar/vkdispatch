@@ -2,11 +2,12 @@ import vkdispatch as vd
 import vkdispatch_native
 
 import numpy as np
+import typing
 
 class buffer:
-    def __init__(self, shape: tuple[int], var_type: 'vd.dtype') -> None:
+    def __init__(self, shape: typing.Tuple[int], var_type: 'vd.dtype') -> None:
         self.var_type: 'vd.dtype' = var_type
-        self.shape: tuple[int] = shape
+        self.shape: typing.Tuple[int] = shape
         self.size: int = np.prod(shape)
         self.mem_size: int = self.size * self.var_type.item_size
         self._handle: int = vkdispatch_native.buffer_create(vd.get_context_handle(), self.mem_size)
