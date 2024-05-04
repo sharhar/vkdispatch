@@ -21,39 +21,50 @@ include_directories = [
     vulkan_root + '/include/glslang/Include',
     proj_root + "/deps/VKL/include",
     proj_root + "/deps/VKL/deps/VMA/include",
+    proj_root + "/deps/VKL/deps/volk",
     proj_root + "/deps/VkFFT/vkFFT"
 ]
 
-sources = [
-    'vkdispatch_native/wrapper.pyx',
-    'vkdispatch_native/init.cpp',
-    'vkdispatch_native/context.cpp',
-    'vkdispatch_native/buffer.cpp',
-    'vkdispatch_native/image.cpp',
-    'vkdispatch_native/command_list.cpp',
-    'vkdispatch_native/stage_transfer.cpp',
-    'vkdispatch_native/stage_fft.cpp',
-    'vkdispatch_native/stage_compute.cpp',
-    'vkdispatch_native/descriptor_set.cpp',
+sources = []
 
-    'deps/VKL/src/VKLBuffer.cpp',
-    'deps/VKL/src/VKLCommandBuffer.cpp',
-    'deps/VKL/src/VKLDescriptorSet.cpp',
-    'deps/VKL/src/VKLDevice.cpp',
-    'deps/VKL/src/VKLFramebuffer.cpp',
-    'deps/VKL/src/VKLImage.cpp',
-    'deps/VKL/src/VKLImageView.cpp',
-    'deps/VKL/src/VKLInstance.cpp',
-    'deps/VKL/src/VKLPhysicalDevice.cpp',
-    'deps/VKL/src/VKLPipeline.cpp',
-    'deps/VKL/src/VKLPipelineLayout.cpp',
-    'deps/VKL/src/VKLQueue.cpp',
-    'deps/VKL/src/VKLRenderPass.cpp',
-    'deps/VKL/src/VKLSurface.cpp',
-    'deps/VKL/src/VKLStaticAllocator.cpp',
-    'deps/VKL/src/VKLSwapChain.cpp',
-    'deps/VKL/src/VMAImpl.cpp'
-]
+def append_to_sources(prefix, source_list):
+    global sources
+
+    for source in source_list:
+        sources.append(prefix + source)
+
+append_to_sources('vkdispatch_native/', [
+    'wrapper.pyx',
+    'init.cpp',
+    'context.cpp',
+    'buffer.cpp',
+    'image.cpp',
+    'command_list.cpp',
+    'stage_transfer.cpp',
+    'stage_fft.cpp',
+    'stage_compute.cpp',
+    'descriptor_set.cpp'
+])
+
+append_to_sources('deps/VKL/src/', [
+    'VKLBuffer.cpp',
+    'VKLCommandBuffer.cpp',
+    'VKLDescriptorSet.cpp',
+    'VKLDevice.cpp',
+    'VKLFramebuffer.cpp',
+    'VKLImage.cpp',
+    'VKLImageView.cpp',
+    'VKLInstance.cpp',
+    'VKLPhysicalDevice.cpp',
+    'VKLPipeline.cpp',
+    'VKLPipelineLayout.cpp',
+    'VKLQueue.cpp',
+    'VKLRenderPass.cpp',
+    'VKLSurface.cpp',
+    'VKLStaticAllocator.cpp',
+    'VKLSwapChain.cpp',
+    'VMAImpl.cpp'
+])
 
 vulkan_lib_dir = vulkan_root + '/lib'
 
@@ -62,7 +73,12 @@ windows_libs = ['vulkan-1']
 
 platform_libs = unix_libs if os.name == 'posix' else windows_libs
 
+#compile_libs = platform_libs + ['SPIRV', 'SPIRV-Tools-opt', 'SPIRV-Tools-link', 'SPIRV-Tools-reduce', 'SPIRV-Tools']
+
+#"""
+
 compile_libs = platform_libs + ['glslang', 'SPIRV', 'MachineIndependent', 'GenericCodeGen']
+
 for file in os.listdir(vulkan_lib_dir):
     if "OGLCompiler" in file:
         compile_libs.append('OGLCompiler')
@@ -72,6 +88,7 @@ compile_libs.extend(['OSDependent',  'SPIRV-Tools-opt',
                              'SPIRV-Tools-link', 'SPIRV-Tools-reduce',
                              'SPIRV-Tools', 'glslang-default-resource-limits'])
 
+#"""
 
 setup(
     name='vkdispatch',
@@ -83,7 +100,7 @@ setup(
                   library_dirs=[vulkan_lib_dir],
                   libraries=compile_libs,
                   extra_compile_args=['-g', '-std=c++17'],
-                  extra_link_args=['-g', f'-Wl,-rpath,{vulkan_root}/lib'],
+                  extra_link_args=['-g', f'-Wl'], #,-rpath,{vulkan_root}/lib'],
                   include_dirs=include_directories
         )
     ],
