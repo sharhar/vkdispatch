@@ -2,6 +2,7 @@ import vkdispatch as vd
 import numpy as np
 
 import copy
+import typing
 
 class shader_dispatcher:
     def __init__(self, plan: vd.compute_plan, source: str, pc_buff_dict: dict, my_local_size: tuple[int, int, int], func_args: list[vd.shader_variable]):
@@ -14,7 +15,7 @@ class shader_dispatcher:
     def __repr__(self) -> str:
         return self.source
 
-    def __getitem__(self, exec_dims: tuple | int):
+    def __getitem__(self, exec_dims: typing.Union[tuple, int]):
         my_blocks = [exec_dims, 1, 1]
         my_cmd_list: list[vd.command_list] = [None]
 
