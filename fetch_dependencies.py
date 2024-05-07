@@ -40,8 +40,8 @@ dependencies = [
     ("https://github.com/zeux/volk.git", "3a8068a57417940cf2bf9d837a7bb60d015ca2f1", "deps/volk/volk")
 ]
 
-#for dep in dependencies:
-#    clone_and_checkout(*dep)
+for dep in dependencies:
+    clone_and_checkout(*dep)
 
 os.makedirs("deps/MoltenVK", exist_ok=True)
 
