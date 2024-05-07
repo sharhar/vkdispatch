@@ -5,7 +5,7 @@ import platform
 
 system = platform.system()
 
-platform_library_dirs = ['./libs/'] if system == 'Darwin' else []
+platform_library_dirs = ['./deps/MoltenVK/MoltenVK/MoltenVK/static/MoltenVK.xcframework/macos-arm64_x86_64/'] if system == 'Darwin' else []
 platform_link_libraries = [] if system == 'Windows' else ['dl', 'pthread']
 
 if system == 'Darwin':
@@ -25,12 +25,12 @@ proj_root = os.path.abspath(os.path.dirname(__file__))
 include_directories = [
     numpy_include,
     proj_root + "/deps/VKL/include",
-    proj_root + "/deps/VKL/deps/Vulkan-Headers/include",
-    proj_root + "/deps/VKL/deps/Vulkan-Utility-Libraries/include",
-    proj_root + "/deps/VKL/deps/VMA/include",
-    proj_root + "/deps/VKL/deps/volk",
-    proj_root + "/deps/VKL/deps/glslang",
-    proj_root + "/deps/VKL/deps/glslang/glslang/Include",
+    proj_root + "/deps/Vulkan-Headers/include",
+    proj_root + "/deps/Vulkan-Utility-Libraries/include",
+    proj_root + "/deps/VMA/include",
+    proj_root + "/deps/volk",
+    proj_root + "/deps/glslang",
+    proj_root + "/deps/glslang/glslang/Include",
     proj_root + "/deps/VkFFT/vkFFT"
 ]
 
@@ -78,7 +78,7 @@ append_to_sources('deps/VKL/src/', [
 if not system == 'Darwin':
     sources.append("deps/VKL/src/VolkImpl.cpp")
 
-append_to_sources('deps/VKL/deps/glslang/glslang/', [
+append_to_sources('deps/glslang/glslang/', [
     "CInterface/glslang_c_interface.cpp",
     "GenericCodeGen/CodeGen.cpp",
     "GenericCodeGen/Link.cpp",
@@ -114,7 +114,7 @@ append_to_sources('deps/VKL/deps/glslang/glslang/', [
     "ResourceLimits/resource_limits_c.cpp"
 ])
 
-append_to_sources('deps/VKL/deps/glslang/SPIRV/', [
+append_to_sources('deps/glslang/SPIRV/', [
     "GlslangToSpv.cpp",
     "InReadableOrder.cpp",
     "Logger.cpp",
