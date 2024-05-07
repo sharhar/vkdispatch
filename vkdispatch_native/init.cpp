@@ -5,6 +5,7 @@
 MyInstance _instance;
 
 void init_extern(bool debug) {
+    printf("Initializing Vulkan Dispatch...\n");
     #ifdef VKDISPATCH_USE_MVK
     setenv("MVK_CONFIG_LOG_LEVEL", "2", 0);
     #else
@@ -25,6 +26,8 @@ void init_extern(bool debug) {
         VKLInstanceCreateInfo()
         .debug(VK_TRUE)
     );
+
+    LOG_INFO("Initializing Vulkan Devices...");
 
     const std::vector<VKLPhysicalDevice*>& physicalDevices = _instance.instance.getPhysicalDevices();
 
