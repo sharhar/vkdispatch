@@ -8,6 +8,9 @@ include deps/VKL/deps/volk/volk/volk.h
 include deps/VKL/deps/volk/volk/volk.c
 include deps/VKL/deps/volk/volk/LICENSE.md
 
+include libs/libMoltenVK.a
+include libs/LICENSE.txt
+
 recursive-include deps/VKL/deps/Vulkan-Headers/include *.h
 include deps/VKL/deps/Vulkan-Headers/LICENSE.md
 

@@ -5,8 +5,12 @@
 MyInstance _instance;
 
 void init_extern(bool debug) {
-
-	VK_CALL(volkInitialize());
+    #ifdef VKDISPATCH_USE_MVK
+    setenv("MVK_CONFIG_LOG_LEVEL", "2", 0);
+    #else
+    VK_CALL(volkInitialize());
+    #endif
+	
 
     LOG_INFO("Initializing glslang...");
 

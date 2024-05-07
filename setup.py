@@ -1,6 +1,17 @@
 from setuptools import setup, Extension
 import numpy
 import os
+import platform
+
+system = platform.system()
+
+platform_library_dirs = ['./libs/'] if system == 'Darwin' else []
+platform_link_libraries = [] if system == 'Windows' else ['dl', 'pthread']
+
+if system == 'Darwin':
+    platform_link_libraries.append('MoltenVK')
+
+platform_extra_link_args = ['-g'] if not system == 'Darwin' else ['-g', '-framework', 'Metal', '-framework', 'AVFoundation', '-framework', 'AppKit']
 
 try:
     numpy_include = numpy.get_include()
@@ -59,9 +70,11 @@ append_to_sources('deps/VKL/src/', [
     'VKLSurface.cpp',
     'VKLStaticAllocator.cpp',
     'VKLSwapChain.cpp',
-    'VMAImpl.cpp',
-    'VolkImpl.cpp'
+    'VMAImpl.cpp'
 ])
+
+if not system == 'Darwin':
+    sources.append("deps/VKL/src/VolkImpl.cpp")
 
 append_to_sources('deps/VKL/deps/glslang/glslang/', [
     "CInterface/glslang_c_interface.cpp",
@@ -111,8 +124,6 @@ append_to_sources('deps/VKL/deps/glslang/SPIRV/', [
     "CInterface/spirv_c_interface.cpp"
 ])
 
-compile_libs = ['dl', 'pthread'] if os.name == 'posix' else [] 
-
 setup(
     name='vkdispatch',
     packages=['vkdispatch'],
@@ -120,10 +131,11 @@ setup(
         Extension('vkdispatch_native',
                   sources=sources,
                   language='c++',
-                  library_dirs=[],
-                  libraries=compile_libs,
+                  define_macros=[('VKDISPATCH_USE_MVK', 1)] if system == 'Darwin' else [],
+                  library_dirs=platform_library_dirs,
+                  libraries=platform_link_libraries,
                   extra_compile_args=['-g', '-std=c++17'],
-                  extra_link_args=['-g'],
+                  extra_link_args=platform_extra_link_args,
                   include_dirs=include_directories
         )
     ],
