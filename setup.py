@@ -13,6 +13,8 @@ if system == 'Darwin':
 
 platform_extra_link_args = ['-g'] if not system == 'Darwin' else ['-g', '-framework', 'Metal', '-framework', 'AVFoundation', '-framework', 'AppKit']
 
+platform_extra_compile_args = ['/W3', '/GL', '/DNDEBUG', '/MD', '/EHsc', '/std:c++17'] if system == 'Windows' else ['-g', '-std=c++17']
+
 try:
     numpy_include = numpy.get_include()
 except AttributeError:
@@ -134,7 +136,7 @@ setup(
                   define_macros=[('VKDISPATCH_USE_MVK', 1)] if system == 'Darwin' else [],
                   library_dirs=platform_library_dirs,
                   libraries=platform_link_libraries,
-                  extra_compile_args=['-g', '-std=c++17'],
+                  extra_compile_args=platform_extra_compile_args,
                   extra_link_args=platform_extra_link_args,
                   include_dirs=include_directories
         )
