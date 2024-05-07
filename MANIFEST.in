@@ -2,24 +2,24 @@ include vkdispatch_native/*.h
 include vkdispatch_native/*.pxd
 include deps/VKL/include/VKL/*.h
 include deps/VKL/include/glslang/*.h
-include deps/VKL/deps/VMA/include/*.h
-include deps/VKL/deps/VMA/LICENSE.txt
-include deps/VKL/deps/volk/volk/volk.h
-include deps/VKL/deps/volk/volk/volk.c
-include deps/VKL/deps/volk/volk/LICENSE.md
+include deps/VMA/include/*.h
+include deps/VMA/LICENSE.txt
+include deps/volk/volk/volk.h
+include deps/volk/volk/volk.c
+include deps/volk/volk/LICENSE.md
 
-include libs/libMoltenVK.a
-include libs/LICENSE.txt
+include deps/MoltenVK/MoltenVK/MoltenVK/static/MoltenVK.xcframework/macos-arm64_x86_64/libMoltenVK.a
+include deps/MoltenVK/MoltenVK/LICENSE
 
-recursive-include deps/VKL/deps/Vulkan-Headers/include *.h
-include deps/VKL/deps/Vulkan-Headers/LICENSE.md
+recursive-include deps/Vulkan-Headers/include *.h
+include deps/Vulkan-Headers/LICENSE.md
 
-recursive-include deps/VKL/deps/Vulkan-Utility-Libraries/include *.h
-include deps/VKL/deps/Vulkan-Utility-Libraries/LICENSE.md
+recursive-include deps/Vulkan-Utility-Libraries/include *.h
+include deps/Vulkan-Utility-Libraries/LICENSE.md
 
 recursive-include deps/VkFFT/vkFFT *.h
 include deps/VkFFT/LICENSE
 
-recursive-include deps/VKL/deps/glslang *.h
-recursive-include deps/VKL/deps/glslang *.hpp
-include deps/VKL/deps/glslang/LICENSE.txt
+recursive-include deps/glslang *.h
+recursive-include deps/glslang *.hpp
+include deps/glslang/LICENSE.txt
