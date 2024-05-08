@@ -1,6 +1,7 @@
 #include "internal.h"
 
 #include <stdio.h>
+#include <vector>
 
 MyInstance _instance;
 
@@ -20,25 +21,51 @@ void init_extern(bool debug) {
     }
 
     LOG_INFO("Initializing Vulkan Instance...");
-    
-    _instance.instance.create(
-        VKLInstanceCreateInfo()
-        .debug(VK_TRUE)
+
+    std::vector<const char*> extention_names;
+
+    vk::ApplicationInfo appInfo = vk::ApplicationInfo()
+        .setPApplicationName("vkdispatch")
+        .setApplicationVersion(1)
+        .setPEngineName("vkdispatch")
+        .setEngineVersion(1)
+        .setApiVersion(VK_API_VERSION_1_2);
+
+    _instance.instance = vk::createInstance(
+        vk::InstanceCreateInfo()
+            .setPApplicationInfo(&appInfo),
+        nullptr
     );
+
+    #ifndef VKDISPATCH_USE_MVK
+	volkLoadInstance(_instance.instance);
+	#endif
 
     LOG_INFO("Initializing Vulkan Devices...");
 
-    const std::vector<VKLPhysicalDevice*>& physicalDevices = _instance.instance.getPhysicalDevices();
+    auto physicalDevices = _instance.instance.enumeratePhysicalDevices();
 
-    _instance.devices = new PhysicalDeviceProperties[physicalDevices.size()];
+    _instance.devices.reserve(physicalDevices.size());
 
     for(int i = 0; i < physicalDevices.size(); i++) {
-        VkPhysicalDeviceProperties properties = physicalDevices[i]->getProperties();
-        VkPhysicalDeviceFeatures features = physicalDevices[i]->getFeatures();
+        vk::StructureChain<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceSubgroupProperties> propertiesChain = {
+            vk::PhysicalDeviceProperties2(),
+            vk::PhysicalDeviceSubgroupProperties()
+        };
 
-        VkPhysicalDeviceSubgroupProperties subgroupProperties = physicalDevices[i]->getSubgroupProperties();
+        physicalDevices[i].getProperties2(&propertiesChain.get<vk::PhysicalDeviceProperties2>());
 
-        VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomicFloatFeatures = physicalDevices[i]->getAtomicFloatFeatures();
+        vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceShaderAtomicFloatFeaturesEXT> featuresChain = {
+            vk::PhysicalDeviceFeatures2(),
+            vk::PhysicalDeviceShaderAtomicFloatFeaturesEXT()
+        };
+
+        physicalDevices[i].getFeatures2(&featuresChain.get<vk::PhysicalDeviceFeatures2>());
+
+        vk::PhysicalDeviceProperties properties = propertiesChain.get<vk::PhysicalDeviceProperties2>().properties;
+        vk::PhysicalDeviceFeatures features = featuresChain.get<vk::PhysicalDeviceFeatures2>().features;
+        vk::PhysicalDeviceSubgroupProperties subgroupProperties = propertiesChain.get<vk::PhysicalDeviceSubgroupProperties>();
+        vk::PhysicalDeviceShaderAtomicFloatFeaturesEXT atomicFloatFeatures = featuresChain.get<vk::PhysicalDeviceShaderAtomicFloatFeaturesEXT>();
 
         _instance.devices[i].version_variant = VK_API_VERSION_VARIANT(properties.apiVersion);
         _instance.devices[i].version_major = VK_API_VERSION_MAJOR(properties.apiVersion);
@@ -49,11 +76,11 @@ void init_extern(bool debug) {
         _instance.devices[i].vendor_id = properties.vendorID;
         _instance.devices[i].device_id = properties.deviceID;
 
-        _instance.devices[i].device_type = properties.deviceType;
+        _instance.devices[i].device_type = static_cast<VkPhysicalDeviceType>(properties.deviceType);
 
         size_t deviceNameLength = strlen(properties.deviceName) + 1;
         _instance.devices[i].device_name = new char[deviceNameLength];
-        strcpy((char*)_instance.devices[i].device_name, properties.deviceName);
+        strcpy(const_cast<char*>(_instance.devices[i].device_name), properties.deviceName);
 
         _instance.devices[i].float_64_support = features.shaderFloat64;
         _instance.devices[i].int_64_support = features.shaderInt64;
@@ -76,8 +103,8 @@ void init_extern(bool debug) {
         _instance.devices[i].max_uniform_buffer_range = properties.limits.maxUniformBufferRange;
 
         _instance.devices[i].subgroup_size = subgroupProperties.subgroupSize;
-        _instance.devices[i].supported_stages = subgroupProperties.supportedStages;
-        _instance.devices[i].supported_operations = subgroupProperties.supportedOperations;
+        _instance.devices[i].supported_stages = static_cast<VkShaderStageFlags>(subgroupProperties.supportedStages);
+        _instance.devices[i].supported_operations = static_cast<VkSubgroupFeatureFlags>(subgroupProperties.supportedOperations);
         _instance.devices[i].quad_operations_in_all_stages = subgroupProperties.quadOperationsInAllStages;
 
         _instance.devices[i].max_compute_shared_memory_size = properties.limits.maxComputeSharedMemorySize;
@@ -86,9 +113,14 @@ void init_extern(bool debug) {
         //printf("Atomics: %d\n", atomicFloatFeatures.shaderBufferFloat32Atomics);
         //printf("Atomics Add: %d\n", atomicFloatFeatures.shaderBufferFloat32AtomicAdd);
     }
+
+    LOG_INFO("Initialized Vulkan Devices");
 }
 
 struct PhysicalDeviceProperties* get_devices_extern(int* count) {
-    *count = _instance.instance.getPhysicalDevices().size();
-    return _instance.devices;
+    *count = _instance.instance.enumeratePhysicalDevices().size();
+
+    LOG_INFO("Returning %d devices", *count);
+
+    return _instance.devices.data();
 }

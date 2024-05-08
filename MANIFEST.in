@@ -12,6 +12,7 @@ include deps/MoltenVK/MoltenVK/MoltenVK/static/MoltenVK.xcframework/macos-arm64_
 include deps/MoltenVK/MoltenVK/LICENSE
 
 recursive-include deps/Vulkan-Headers/include *.h
+recursive-include deps/Vulkan-Headers/include *.hpp
 include deps/Vulkan-Headers/LICENSE.md
 
 recursive-include deps/Vulkan-Utility-Libraries/include *.h
@@ -20,6 +21,7 @@ include deps/Vulkan-Utility-Libraries/LICENSE.md
 recursive-include deps/VkFFT/vkFFT *.h
 include deps/VkFFT/LICENSE
 
+include include_ext/glslang/build_info.h
 recursive-include deps/glslang *.h
 recursive-include deps/glslang *.hpp
 include deps/glslang/LICENSE.txt

@@ -24,7 +24,8 @@ proj_root = os.path.abspath(os.path.dirname(__file__))
 
 include_directories = [
     numpy_include,
-    proj_root + "/deps/VKL/include",
+    proj_root + "/include_ext",
+    #proj_root + "/deps/VKL/include",
     proj_root + "/deps/Vulkan-Headers/include",
     proj_root + "/deps/Vulkan-Utility-Libraries/include",
     proj_root + "/deps/VMA/include",
@@ -52,9 +53,12 @@ append_to_sources('vkdispatch_native/', [
     'stage_transfer.cpp',
     'stage_fft.cpp',
     'stage_compute.cpp',
-    'descriptor_set.cpp'
+    'descriptor_set.cpp',
+    'stream.cpp',
+    'VMAImpl.cpp'
 ])
 
+"""
 append_to_sources('deps/VKL/src/', [
     'VKLBuffer.cpp',
     'VKLCommandBuffer.cpp',
@@ -77,6 +81,8 @@ append_to_sources('deps/VKL/src/', [
 
 if not system == 'Darwin':
     sources.append("deps/VKL/src/VolkImpl.cpp")
+
+    """
 
 append_to_sources('deps/glslang/glslang/', [
     "CInterface/glslang_c_interface.cpp",

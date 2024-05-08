@@ -4,28 +4,30 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
     struct FFTPlan* plan = new struct FFTPlan();
     plan->ctx = ctx;
 
-    plan->apps = new VkFFTApplication[ctx->deviceCount];
-    plan->configs = new VkFFTConfiguration[ctx->deviceCount];
-    plan->launchParams = new VkFFTLaunchParams[ctx->deviceCount];
-
     for (int i = 0; i < ctx->deviceCount; i++) {
-        plan->launchParams[i] = {};
-        plan->configs[i] = {};
-        plan->apps[i] = {};
+        plan->launchParams.push_back({});
+        plan->configs.push_back({});
+        plan->apps.push_back({});
+        plan->datas.push_back({});
+
+        plan->datas[i].physicalDevice = ctx->physicalDevices[i];
+        plan->datas[i].device = ctx->devices[i];
+        plan->datas[i].queue = ctx->streams[i]->queue;
+        plan->datas[i].commandPool = ctx->streams[i]->commandPool;
+        plan->datas[i].fence = ctx->devices[i].createFence(vk::FenceCreateInfo());
+        plan->datas[i].bufferSize = buffer_size;
 
         plan->configs[i].FFTdim = dims;
         plan->configs[i].size[0] = rows;
         plan->configs[i].size[1] = cols;
         plan->configs[i].size[2] = depth;
-
-        plan->configs[i].physicalDevice = ctx->devices[i]->physical()->pHandle();
-        plan->configs[i].device = ctx->devices[i]->pHandle();
-        plan->configs[i].queue = ctx->queues[i]->pHandle();
-        plan->configs[i].commandPool = ctx->commandBuffers[i]->pPool();
-        plan->configs[i].fence = &ctx->fences[i];
+        plan->configs[i].physicalDevice = &plan->datas[i].physicalDevice;
+        plan->configs[i].device = &plan->datas[i].device;
+        plan->configs[i].queue = &plan->datas[i].queue;
+        plan->configs[i].commandPool = &plan->datas[i].commandPool;
+        plan->configs[i].fence = &plan->datas[i].fence;
+        plan->configs[i].bufferSize = &plan->datas[i].bufferSize;
         plan->configs[i].isCompilerInitialized = true;
-        plan->configs[i].bufferSize = (uint64_t*)malloc(sizeof(uint64_t));
-        *plan->configs[i].bufferSize = buffer_size;
         
         VkFFTResult resFFT = initializeVkFFT(&plan->apps[i], plan->configs[i]);
         if (resFFT != VKFFT_SUCCESS) {
@@ -50,13 +52,16 @@ void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* p
     my_fft_info->inverse = inverse;
 
     command_list->stages.push_back({
-        [](VKLCommandBuffer* cmd_buffer, struct Stage* stage, void* instance_data, int device) {
+        [](vk::CommandBuffer& cmd_buffer, struct Stage* stage, void* instance_data, int device) {
             LOG_INFO("Executing FFT");
 
             struct FFTRecordInfo* my_fft_info = (struct FFTRecordInfo*)stage->user_data;
 
-            my_fft_info->plan->launchParams[device].buffer = my_fft_info->buffer->buffers[device]->pHandle();
-            my_fft_info->plan->launchParams[device].commandBuffer = cmd_buffer->pHandle();
+            VkBuffer temp_buf = my_fft_info->buffer->buffers[device];
+            VkCommandBuffer temp_cmd = static_cast<VkCommandBuffer>(cmd_buffer);
+
+            my_fft_info->plan->launchParams[device].buffer = &temp_buf;
+            my_fft_info->plan->launchParams[device].commandBuffer = &temp_cmd;
 
             VkFFTResult fftRes = VkFFTAppend(&my_fft_info->plan->apps[device], my_fft_info->inverse, &my_fft_info->plan->launchParams[device]);
             if (fftRes != VKFFT_SUCCESS) {

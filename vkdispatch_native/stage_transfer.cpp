@@ -9,17 +9,17 @@ void stage_transfer_record_copy_buffer_extern(struct CommandList* command_list, 
     LOG_INFO("Recording copy buffer stage");
 
     command_list->stages.push_back({
-        [](VKLCommandBuffer* cmd_buffer, struct Stage* stage, void* instance_data, int device) {
+        [](vk::CommandBuffer& cmd_buffer, struct Stage* stage, void* instance_data, int device) {
             LOG_INFO("Executing copy buffer stage");
 
             struct BufferCopyInfo* copy_info = (struct BufferCopyInfo*)stage->user_data;
 
-            VkBufferCopy bufferCopy = {};
-            bufferCopy.srcOffset = copy_info->src_offset;
-            bufferCopy.dstOffset = copy_info->dst_offset;
-            bufferCopy.size = copy_info->size;
-
-            cmd_buffer->copyBuffer(copy_info->dst->buffers[device], copy_info->src->buffers[device], bufferCopy);
+            cmd_buffer.copyBuffer(copy_info->src->buffers[device], copy_info->dst->buffers[device], 
+                vk::BufferCopy()
+                .setSrcOffset(copy_info->src_offset)
+                .setDstOffset(copy_info->dst_offset)
+                .setSize(copy_info->size)
+            );
         },
         my_copy_info,
         0,
@@ -30,7 +30,7 @@ void stage_transfer_record_copy_buffer_extern(struct CommandList* command_list, 
 void stage_transfer_record_copy_image_extern(struct CommandList* command_list, struct ImageCopyInfo* copy_info) {
     struct ImageCopyInfo* my_copy_info = (struct ImageCopyInfo*)malloc(sizeof(*my_copy_info));
     memcpy(my_copy_info, copy_info, sizeof(*my_copy_info));
-
+/*
     command_list->stages.push_back({
         [](VKLCommandBuffer* cmd_buffer, struct Stage* stage, void* instanceData, int device) {
             struct ImageCopyInfo* copy_info = (struct ImageCopyInfo*)stage->user_data;
@@ -60,12 +60,14 @@ void stage_transfer_record_copy_image_extern(struct CommandList* command_list, s
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT
     });
+
+    */
 }
 
 void stage_transfer_record_copy_buffer_to_image_extern(struct CommandList* command_list, struct ImageBufferCopyInfo* copy_info) {
     struct ImageBufferCopyInfo* my_copy_info = (struct ImageBufferCopyInfo*)malloc(sizeof(*my_copy_info));
     memcpy(my_copy_info, copy_info, sizeof(*my_copy_info));
-
+/*
     command_list->stages.push_back({
         [](VKLCommandBuffer* cmd_buffer, struct Stage* stage, void* instanceData, int device) {
             struct ImageBufferCopyInfo* copy_info = (struct ImageBufferCopyInfo*)stage->user_data;
@@ -97,12 +99,14 @@ void stage_transfer_record_copy_buffer_to_image_extern(struct CommandList* comma
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT
     });
+
+    */
 }
 
 void stage_transfer_record_copy_image_to_buffer_extern(struct CommandList* command_list, struct ImageBufferCopyInfo* copy_info) {
     struct ImageBufferCopyInfo* my_copy_info = (struct ImageBufferCopyInfo*)malloc(sizeof(*my_copy_info));
     memcpy(my_copy_info, copy_info, sizeof(*my_copy_info));
-
+/*
     command_list->stages.push_back({
         [](VKLCommandBuffer* cmd_buffer, struct Stage* stage, void* instanceData, int device) {
             struct ImageBufferCopyInfo* copy_info = (struct ImageBufferCopyInfo*)stage->user_data;
@@ -134,4 +138,6 @@ void stage_transfer_record_copy_image_to_buffer_extern(struct CommandList* comma
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT
     });
+
+    */
 }
