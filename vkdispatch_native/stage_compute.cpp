@@ -200,6 +200,6 @@ void stage_compute_record_extern(struct CommandList* command_list, struct Comput
         },
         my_compute_info,
         plan->pc_size,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
+        vk::PipelineStageFlagBits::eComputeShader
     });
 }

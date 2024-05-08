@@ -25,7 +25,6 @@ proj_root = os.path.abspath(os.path.dirname(__file__))
 include_directories = [
     numpy_include,
     proj_root + "/include_ext",
-    #proj_root + "/deps/VKL/include",
     proj_root + "/deps/Vulkan-Headers/include",
     proj_root + "/deps/Vulkan-Utility-Libraries/include",
     proj_root + "/deps/VMA/include",
@@ -34,6 +33,9 @@ include_directories = [
     proj_root + "/deps/glslang/glslang/Include",
     proj_root + "/deps/VkFFT/vkFFT"
 ]
+
+define_macros = []
+
 
 sources = []
 
@@ -55,34 +57,9 @@ append_to_sources('vkdispatch_native/', [
     'stage_compute.cpp',
     'descriptor_set.cpp',
     'stream.cpp',
-    'VMAImpl.cpp'
+    'VMAImpl.cpp',
+    'VolkImpl.cpp',
 ])
-
-"""
-append_to_sources('deps/VKL/src/', [
-    'VKLBuffer.cpp',
-    'VKLCommandBuffer.cpp',
-    'VKLDescriptorSet.cpp',
-    'VKLDevice.cpp',
-    'VKLFramebuffer.cpp',
-    'VKLImage.cpp',
-    'VKLImageView.cpp',
-    'VKLInstance.cpp',
-    'VKLPhysicalDevice.cpp',
-    'VKLPipeline.cpp',
-    'VKLPipelineLayout.cpp',
-    'VKLQueue.cpp',
-    'VKLRenderPass.cpp',
-    'VKLSurface.cpp',
-    'VKLStaticAllocator.cpp',
-    'VKLSwapChain.cpp',
-    'VMAImpl.cpp'
-])
-
-if not system == 'Darwin':
-    sources.append("deps/VKL/src/VolkImpl.cpp")
-
-    """
 
 append_to_sources('deps/glslang/glslang/', [
     "CInterface/glslang_c_interface.cpp",
@@ -139,7 +116,7 @@ setup(
         Extension('vkdispatch_native',
                   sources=sources,
                   language='c++',
-                  define_macros=[('VKDISPATCH_USE_MVK', 1)] if system == 'Darwin' else [],
+                  define_macros=[] if system == 'Darwin' else [('VKDISPATCH_USE_VOLK', 1)],
                   library_dirs=platform_library_dirs,
                   libraries=platform_link_libraries,
                   extra_compile_args=platform_extra_compile_args,

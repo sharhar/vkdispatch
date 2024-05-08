@@ -47,35 +47,30 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
     char* instance_data = (char*)instance_buffer;
     char* current_instance_data = instance_data;
 
-    VkMemoryBarrier memory_barrier = {
-            VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-            0,
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT,
-    };
+    vk::MemoryBarrier memory_barrier = vk::MemoryBarrier()
+        .setSrcAccessMask(vk::AccessFlagBits::eMemoryWrite)
+        .setDstAccessMask(vk::AccessFlagBits::eMemoryRead);
 
     vk::CommandBuffer cmd_buffer = command_list->ctx->streams[device]->begin();
 
     for(size_t instance = 0; instance < instance_count; instance++) {
         LOG_INFO("Recording instance %d", instance);
 
-        current_instance_data = instance_data;
-
         for (size_t i = 0; i < command_list->stages.size(); i++) {
             LOG_INFO("Recording stage %d", i);
             command_list->stages[i].record(cmd_buffer, &command_list->stages[i], current_instance_data, device);
             if(i < command_list->stages.size() - 1)
-                vkCmdPipelineBarrier(
-                    static_cast<VkCommandBuffer>(cmd_buffer), 
+                cmd_buffer.pipelineBarrier(
                     command_list->stages[i].stage, 
-                    command_list->stages[i+1].stage, 
-                    0, 1, 
+                    command_list->stages[i+1].stage,
+                    vk::DependencyFlags(), 
+                    1, 
                     &memory_barrier, 
                     0, 0, 0, 0);
+
             current_instance_data += command_list->stages[i].instance_data_size;
         }
     }
 
-    vk::Fence& fence = command_list->ctx->streams[device]->submit();
-    command_list->ctx->devices[device].waitForFences(fence, VK_TRUE, UINT64_MAX);
+    command_list->ctx->streams[device]->submit();
 }

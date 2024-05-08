@@ -48,6 +48,11 @@ struct Buffer* buffer_create_extern(struct Context* context, unsigned long long 
 
         buffer->stagingAllocations.push_back(vmaAllocationStaging);
         buffer->stagingBuffers.push_back(temp_staging_buffer);
+
+        buffer->fences.push_back(ctx->devices[i].createFence(
+            vk::FenceCreateInfo()
+            .setFlags(vk::FenceCreateFlagBits::eSignaled)
+        ));
     }
 
     return buffer;
@@ -74,6 +79,8 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
         int dev_index = start_index + i;
         
         LOG_INFO("Writing buffer data to device %d", dev_index);
+
+        ctx->streams[dev_index]->queue.waitIdle();
 
         void* mapped;
         VK_CALL(vmaMapMemory(ctx->allocators[dev_index], buffer->stagingAllocations[dev_index], &mapped));

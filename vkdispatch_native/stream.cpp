@@ -18,14 +18,29 @@ Stream::Stream(vk::Device device, vk::Queue queue, int queueFamilyIndex, uint32_
         .setCommandBufferCount(command_buffer_count)
     );
 
-    this->fences.resize(command_buffer_count);
-
     for(int i = 0; i < command_buffer_count; i++) {
-        this->fences[i] = device.createFence(
+        this->fences.push_back(device.createFence(
             vk::FenceCreateInfo()
             .setFlags(vk::FenceCreateFlagBits::eSignaled)
-        );
+        ));
+
+        this->semaphores.push_back(device.createSemaphore(vk::SemaphoreCreateInfo()));
     }
+
+    commandBuffers[0].begin(
+        vk::CommandBufferBeginInfo()
+        .setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit)
+    );
+
+    commandBuffers[0].end();
+
+    queue.submit(
+        vk::SubmitInfo()
+        .setSignalSemaphores(semaphores)
+        .setCommandBuffers(commandBuffers[0])
+    , fences[0]);
+
+    device.waitForFences(fences[0], VK_TRUE, UINT64_MAX);
 }
 
 void Stream::destroy() {
@@ -40,8 +55,6 @@ void Stream::destroy() {
 }
 
 vk::CommandBuffer& Stream::begin() {
-    current_index = (current_index + 1) % commandBuffers.size();
-
     device.waitForFences(fences[current_index], VK_TRUE, UINT64_MAX);
     device.resetFences(fences[current_index]);
 
@@ -56,11 +69,20 @@ vk::CommandBuffer& Stream::begin() {
 vk::Fence& Stream::submit() {
     commandBuffers[current_index].end();
 
+    vk::Fence& result = fences[current_index];
+
+    int last_index = current_index;
+    current_index = (current_index + 1) % commandBuffers.size();
+
+    vk::PipelineStageFlags waitStage = vk::PipelineStageFlagBits::eAllCommands;
+
     queue.submit(
         vk::SubmitInfo()
-        .setCommandBufferCount(1)
-        .setPCommandBuffers(&commandBuffers[current_index])
-    , fences[current_index]);
+        .setWaitDstStageMask(waitStage)
+        .setWaitSemaphores(semaphores[last_index])
+        .setSignalSemaphores(semaphores[current_index])
+        .setCommandBuffers(commandBuffers[last_index])
+    , result);
 
-    return fences[current_index];
+    return result;
 }

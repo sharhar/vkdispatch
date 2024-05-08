@@ -3,10 +3,22 @@
 #include <stdio.h>
 #include <vector>
 
+#include <algorithm>
+
+
 MyInstance _instance;
 
+VkBool32 VKAPI_PTR mystdOutLogger(
+    VkDebugUtilsMessageSeverityFlagBitsEXT           messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT                  messageTypes,
+    const VkDebugUtilsMessengerCallbackDataEXT*      pCallbackData,
+    void*                                            pUserData) {
+    printf("VKL: %s\n", pCallbackData->pMessage);
+    return VK_FALSE;
+}
+
 void init_extern(bool debug) {
-    #ifdef VKDISPATCH_USE_MVK
+    #ifndef VKDISPATCH_USE_VOLK
     setenv("MVK_CONFIG_LOG_LEVEL", "2", 0);
     #else
     VK_CALL(volkInitialize());
@@ -22,8 +34,6 @@ void init_extern(bool debug) {
 
     LOG_INFO("Initializing Vulkan Instance...");
 
-    std::vector<const char*> extention_names;
-
     vk::ApplicationInfo appInfo = vk::ApplicationInfo()
         .setPApplicationName("vkdispatch")
         .setApplicationVersion(1)
@@ -31,13 +41,57 @@ void init_extern(bool debug) {
         .setEngineVersion(1)
         .setApiVersion(VK_API_VERSION_1_2);
 
-    _instance.instance = vk::createInstance(
+    vk::InstanceCreateFlags flags = vk::InstanceCreateFlags();
+
+    std::vector<const char *> extensions = {
+        VK_EXT_DEBUG_UTILS_EXTENSION_NAME
+    };
+
+    std::vector<const char *> layers = {
+        "VK_LAYER_LUNARG_assistant_layer",
+        "VK_LAYER_LUNARG_standard_validation",
+        "VK_LAYER_KHRONOS_validation"
+    };
+
+    auto instance_layers = vk::enumerateInstanceLayerProperties();
+
+    // Check if layers are supported and remove the ones that aren't
+    std::vector<const char*> supportedLayers;
+    for (const char* layer : layers) {
+        auto it = std::find_if(instance_layers.begin(), instance_layers.end(), [&](const vk::LayerProperties& prop) {
+            return strcmp(layer, prop.layerName) == 0;
+        });
+        if (it != instance_layers.end()) {
+            supportedLayers.push_back(layer);
+        } else {
+            LOG_WARNING("Layer '%s' is not supported", layer);
+        }
+    }
+
+    auto validationFeatures = vk::ValidationFeatureEnableEXT::eDebugPrintf;
+
+    vk::StructureChain<vk::InstanceCreateInfo, vk::ValidationFeaturesEXT> instanceCreateChain = { 
         vk::InstanceCreateInfo()
-            .setPApplicationInfo(&appInfo),
-        nullptr
+            .setPApplicationInfo(&appInfo)
+            .setFlags(flags)
+            .setEnabledExtensionCount(extensions.size())
+            .setPEnabledExtensionNames(extensions)
+            .setEnabledLayerCount(supportedLayers.size())
+            .setPEnabledLayerNames(supportedLayers),
+        vk::ValidationFeaturesEXT()
+            //.setEnabledValidationFeatures(validationFeatures)
+    };
+
+    _instance.instance = vk::createInstance(instanceCreateChain.get<vk::InstanceCreateInfo>(), nullptr);
+
+    _instance.instance.createDebugUtilsMessengerEXT(
+        vk::DebugUtilsMessengerCreateInfoEXT()
+        .setMessageSeverity(vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError)
+        .setMessageType(vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance)
+        .setPfnUserCallback(mystdOutLogger)
     );
 
-    #ifndef VKDISPATCH_USE_MVK
+    #ifdef VKDISPATCH_USE_VOLK
 	volkLoadInstance(_instance.instance);
 	#endif
 

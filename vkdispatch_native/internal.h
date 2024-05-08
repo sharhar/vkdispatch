@@ -6,7 +6,7 @@
 #define VK_CALL(result) {VkResult ___result = result; if(___result != VK_SUCCESS) { printf("(VkResult = %d) " #result " in %s in %s\n", ___result, __FUNCTION__, __FILE__); }}
 
 
-#ifdef VKDISPATCH_USE_MVK
+#ifndef VKDISPATCH_USE_VOLK
 #include <vulkan/vulkan.h>
 #else
 
@@ -44,6 +44,7 @@ inline void log_message(const char* level, const char* format, ...) {
 }
 
 //#define LOGGING_INFO
+#define LOGGING_WARNING
 #define LOGGING_ERROR
 
 #ifdef LOGGING_INFO
@@ -78,6 +79,12 @@ inline void log_message_noendl(const char* level, const char* format, ...) {
 #define LOG_NIL(format, ...)
 #define LOG_NIL_NOENDL(format, ...)
 
+#endif
+
+#ifdef LOGGING_WARNING
+#define LOG_WARNING(format, ...) log_message("[WARNING]", format, ##__VA_ARGS__)
+#else
+#define LOG_WARNING(format, ...)
 #endif
 
 #ifdef LOGGING_ERROR
@@ -117,6 +124,7 @@ public:
     vk::CommandPool commandPool;
     std::vector<vk::CommandBuffer> commandBuffers;
     std::vector<vk::Fence> fences;
+    std::vector<vk::Semaphore> semaphores;
     int current_index;
 };
 
@@ -135,6 +143,7 @@ struct Buffer {
     std::vector<VmaAllocation> allocations;
     std::vector<vk::Buffer> stagingBuffers;
     std::vector<VmaAllocation> stagingAllocations;
+    std::vector<vk::Fence> fences;
 };
 
 struct Image {
@@ -151,7 +160,7 @@ struct Stage {
     PFN_stage_record record;
     void* user_data;
     size_t instance_data_size;
-    VkPipelineStageFlags stage;
+    vk::PipelineStageFlags stage;
 };
 
 struct CommandList {

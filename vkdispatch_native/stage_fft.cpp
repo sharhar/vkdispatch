@@ -70,6 +70,6 @@ void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* p
         },
         my_fft_info,
         0,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
+        vk::PipelineStageFlagBits::eComputeShader
     });
 }

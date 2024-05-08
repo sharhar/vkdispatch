@@ -23,7 +23,7 @@ void stage_transfer_record_copy_buffer_extern(struct CommandList* command_list, 
         },
         my_copy_info,
         0,
-        VK_PIPELINE_STAGE_TRANSFER_BIT
+        vk::PipelineStageFlagBits::eTransfer
     });
 }
 
