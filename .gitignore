@@ -1,3 +1,6 @@
+.DS_Store
+libs
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -156,6 +159,9 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+# Cython-created .cpp file
+vkdispatch_native/wrapper.cpp
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
