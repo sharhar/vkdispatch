@@ -24,6 +24,7 @@ def make_context(devices: typing.Union[int, typing.List[int]], submission_thread
     total_devices = len(vkdispatch.get_devices())
     
     assert len(devices) == len(submission_thread_counts), "Device and submission thread count lists must be the same length!"
+    # assert all([isinstance(dev, int) for dev in devices])
     assert all([type(dev) == int for dev in devices]), "Device list must be a list of integers!"
     assert all([dev >= 0 and dev < total_devices for dev in devices]), f"All device indicies must between 0 and {total_devices}"
 

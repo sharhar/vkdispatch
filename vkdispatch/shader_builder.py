@@ -5,6 +5,9 @@ import numpy as np
 import typing
 
 class push_constant_buffer:
+
+    # TODO: Move type-hinting for class attributes into area just below docstring
+    
     def __init__(self, pc_dict: dict) -> None:
         self.pc_dict: typing.Dict[str, typing.Tuple[int, vd.dtype]] =  copy.deepcopy(pc_dict)
         self.ref_dict: typing.Dict[str, int] = {}
@@ -46,6 +49,9 @@ class push_constant_buffer:
         return b''.join([elem.tobytes() for elem in self.pc_list])
 
 class shader_builder:
+    
+    # TODO: Move type-hinting for class attributes into area just below docstring
+    
     def __init__(self) -> None:
         self.var_count = 0
         self.binding_count = 0

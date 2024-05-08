@@ -87,6 +87,9 @@ class device_info:
 
         return result
 
+# NOTE: What are these variables doing out here? Can initialization states be
+# incorporated into another class?
+
 __initilized_instance: bool = False
 
 def init_instance(debug_mode: bool = False):
