@@ -3,13 +3,13 @@ import vkdispatch as vd
 import numpy as np
 from enum import Enum
 
-class dtype_structure(Enum):
+class dtype_structure(Enum):  # TODO: Adhere to python class naming conventions
     DATA_STRUCTURE_SCALAR = 1,
     DATA_STRUCTURE_VECTOR = 2,
     DATA_STRUCTURE_MATRIX = 3,
     DATA_STRUCTURE_BUFFER = 4
 
-class dtype:
+class dtype:  # TODO: Adhere to python class naming conventions
     def __init__(self, name: str, item_size: int, glsl_type: str, structure: dtype_structure, child_count: int, format_str: str, parent: 'dtype' = None, is_complex: bool = False) -> None:
         self.name = name
         self.glsl_type = glsl_type
@@ -38,7 +38,8 @@ class dtype:
         
         return self.name == value.name and self.item_size == value.item_size and self.glsl_type == value.glsl_type and self.structure == value.structure
 
-    def __getitem__(self, index: int) -> 'dtype':
+    # NOTE: How is this grabbing an item in a class? wouldn't this create a new object?
+    def __getitem__(self, index: int) -> 'dtype':  # TODO: Typehinting for class
         index_str = f"[{index}]"
 
         if index == 0:
@@ -46,6 +47,9 @@ class dtype:
 
         return dtype(f"{self.name}{index_str}", self.item_size * index, self.glsl_type, dtype_structure.DATA_STRUCTURE_BUFFER, index, self.format_str, self)
 
+
+# NOTE: These should be constant values, then imported from some other class? Living at
+# base level not a great idea
 int32 = dtype("int32", 4, "int", dtype_structure.DATA_STRUCTURE_SCALAR, 1, "%d")
 uint32 = dtype("uint32", 4, "uint", dtype_structure.DATA_STRUCTURE_SCALAR, 1, "%u")
 float32 = dtype("float32", 4, "float", dtype_structure.DATA_STRUCTURE_SCALAR, 1, "%f")

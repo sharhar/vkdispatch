@@ -5,7 +5,7 @@ import numpy as np
 from enum import Enum
 import typing
 
-class image_format(Enum):
+class image_format(Enum):  # TODO: Fix class naming scheme to adhere to convention
     R8_UINT = 13,
     R8_SINT = 14,
     R8G8_UINT = 20,
@@ -51,9 +51,21 @@ class image_format(Enum):
     R64G64B64A64_SINT = 120,
     R64G64B64A64_SFLOAT = 121,
 
+# TODO: This can be moved into the enum class as an indexing method
 def select_image_format(dtype: np.dtype, channels: int) -> image_format:
     assert channels in [1, 2, 3, 4], f"Unsupported number of channels ({channels})! Must be 1, 2, 3 or 4!"
 
+    # NOTE: These large if-else statements can be better indexed and maintained by a
+    # dictionary lookup scheme
+    #
+    # __MAPPING__ = {
+    #     (np.uint8, 1): R8_UINT,
+    #     (np.uint8, 2): R8G8_UINT,
+    #     (np.uint8, 3): R8G8B8_UINT,
+    #     ...
+    # }
+    # return __MAPPING__[(dtype, channels)]
+    
     if dtype == np.uint8:
         if channels == 1: return image_format.R8_UINT
         elif channels == 2: return image_format.R8G8_UINT
@@ -153,6 +165,7 @@ class image:
         vkdispatch_native.image_read(self._handle, result, [0, 0, 0], self.extent, 0, self.layers, device_index)
         return result
 
+    # TODO: Update the 'other' argument to reference a Image class
     def copy_to(self, other: 'image', device_index: int = -1) -> None:
         if other.shape != self.shape or other.channels != self.channels:
             raise ValueError("Buffer memory sizes must match!")
