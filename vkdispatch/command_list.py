@@ -17,9 +17,7 @@ class CommandList:
     descriptor_sets: List
 
     def __init__(self, reset_on_submit: bool = False) -> None:
-        self._handle: int = vkdispatch_native.command_list_create(
-            vd.get_context_handle()
-        )
+        self._handle = vkdispatch_native.command_list_create(vd.get_context_handle())
         self.pc_buffers = []
         self.descriptor_sets = []
         self._reset_on_submit = reset_on_submit

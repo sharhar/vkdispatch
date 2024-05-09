@@ -68,12 +68,7 @@ class image_format(Enum):  # TODO: Fix class naming scheme to adhere to conventi
 
 # TODO: This can be moved into the enum class as an indexing method
 def select_image_format(dtype: np.dtype, channels: int) -> image_format:
-    assert channels in [
-        1,
-        2,
-        3,
-        4,
-    ], f"Unsupported number of channels ({channels})! Must be 1, 2, 3 or 4!"
+    assert channels in [1, 2, 3, 4], f"Unsupported number of channels ({channels})! Must be 1, 2, 3 or 4!"
 
     # NOTE: These large if-else statements can be better indexed and maintained by a
     # dictionary lookup scheme

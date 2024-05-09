@@ -9,7 +9,7 @@ class dtype_structure(Enum):  # TODO: Adhere to python class naming conventions
     DATA_STRUCTURE_SCALAR = (1,)
     DATA_STRUCTURE_VECTOR = (2,)
     DATA_STRUCTURE_MATRIX = (3,)
-    DATA_STRUCTURE_BUFFER = 4
+    DATA_STRUCTURE_BUFFER = (4,)
 
 
 class dtype:
@@ -99,74 +99,19 @@ class dtype:
 int32 = dtype("int32", 4, "int", dtype_structure.DATA_STRUCTURE_SCALAR, 1, "%d")
 uint32 = dtype("uint32", 4, "uint", dtype_structure.DATA_STRUCTURE_SCALAR, 1, "%u")
 float32 = dtype("float32", 4, "float", dtype_structure.DATA_STRUCTURE_SCALAR, 1, "%f")
-complex64 = dtype(
-    "complex64",
-    8,
-    "vec2",
-    dtype_structure.DATA_STRUCTURE_SCALAR,
-    2,
-    "(%f, %f)",
-    float32,
-    True,
-)
+complex64 = dtype("complex64", 8, "vec2", dtype_structure.DATA_STRUCTURE_SCALAR, 2, "(%f, %f)", float32, True)
 
-vec2 = dtype(
-    "vec2", 8, "vec2", dtype_structure.DATA_STRUCTURE_VECTOR, 2, "(%f, %f)", float32
-)
-vec4 = dtype(
-    "vec4",
-    16,
-    "vec4",
-    dtype_structure.DATA_STRUCTURE_VECTOR,
-    4,
-    "(%f, %f, %f, %f)",
-    float32,
-)
+vec2 = dtype("vec2", 8, "vec2", dtype_structure.DATA_STRUCTURE_VECTOR, 2, "(%f, %f)", float32)
+vec4 = dtype("vec4", 16, "vec4", dtype_structure.DATA_STRUCTURE_VECTOR, 4, "(%f, %f, %f, %f)", float32)
 
-ivec2 = dtype(
-    "ivec2", 8, "ivec2", dtype_structure.DATA_STRUCTURE_VECTOR, 2, "(%d, %d)", int32
-)
-ivec4 = dtype(
-    "ivec4",
-    16,
-    "ivec4",
-    dtype_structure.DATA_STRUCTURE_VECTOR,
-    4,
-    "(%d, %d, %d, %d)",
-    int32,
-)
+ivec2 = dtype( "ivec2", 8, "ivec2", dtype_structure.DATA_STRUCTURE_VECTOR, 2, "(%d, %d)", int32)
+ivec4 = dtype( "ivec4", 16, "ivec4", dtype_structure.DATA_STRUCTURE_VECTOR, 4, "(%d, %d, %d, %d)", int32)
 
-uvec2 = dtype(
-    "uvec2", 8, "uvec2", dtype_structure.DATA_STRUCTURE_VECTOR, 2, "(%u, %u)", uint32
-)
-uvec4 = dtype(
-    "uvec4",
-    16,
-    "uvec4",
-    dtype_structure.DATA_STRUCTURE_VECTOR,
-    4,
-    "(%u, %u, %u, %u)",
-    uint32,
-)
+uvec2 = dtype( "uvec2", 8, "uvec2", dtype_structure.DATA_STRUCTURE_VECTOR, 2, "(%u, %u)", uint32)
+uvec4 = dtype( "uvec4", 16, "uvec4", dtype_structure.DATA_STRUCTURE_VECTOR, 4, "(%u, %u, %u, %u)", uint32)
 
-mat2 = dtype(
-    "mat2",
-    16,
-    "mat2",
-    dtype_structure.DATA_STRUCTURE_MATRIX,
-    2,
-    "\n[%f, %f]\n[%f, %f]\n",
-    vec2,
-)
-mat4 = dtype(
-    "mat4",
-    64,
-    "mat4",
-    dtype_structure.DATA_STRUCTURE_MATRIX,
-    4,
-    "\n[%f, %f, %f, %f]\n[%f, %f, %f, %f]\n[%f, %f, %f, %f]\n[%f, %f, %f, %f]\n",
-    vec4,
-)
+mat2 = dtype( "mat2", 16, "mat2", dtype_structure.DATA_STRUCTURE_MATRIX, 2, "\n[%f, %f]\n[%f, %f]\n", vec2)
+mat4 = dtype( "mat4", 64, "mat4", dtype_structure.DATA_STRUCTURE_MATRIX, 4, "\n[%f, %f, %f, %f]\n[%f, %f, %f, %f]\n[%f, %f, %f, %f]\n[%f, %f, %f, %f]\n", vec4)
 
 
 def from_numpy_dtype(dtype: type) -> dtype:

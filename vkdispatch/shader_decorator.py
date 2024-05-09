@@ -50,9 +50,7 @@ class ShaderDispatcher:
                         raise ValueError(f"Invalid dimension '{val}'!")
 
                     if not i == len(exec_dims) - 1:
-                        raise ValueError(
-                            "Only the last dimension can be a command list!"
-                        )
+                        raise ValueError("Only the last dimension can be a command list!")
 
                     my_cmd_list[0] = val
 
@@ -60,15 +58,9 @@ class ShaderDispatcher:
         my_limits_y = my_blocks[1]
         my_limits_z = my_blocks[2]
 
-        my_blocks[0] = (my_blocks[0] + self.my_local_size[0] - 1) // self.my_local_size[
-            0
-        ]
-        my_blocks[1] = (my_blocks[1] + self.my_local_size[1] - 1) // self.my_local_size[
-            1
-        ]
-        my_blocks[2] = (my_blocks[2] + self.my_local_size[2] - 1) // self.my_local_size[
-            2
-        ]
+        my_blocks[0] = (my_blocks[0] + self.my_local_size[0] - 1) // self.my_local_size[0]
+        my_blocks[1] = (my_blocks[1] + self.my_local_size[1] - 1) // self.my_local_size[1]
+        my_blocks[2] = (my_blocks[2] + self.my_local_size[2] - 1) // self.my_local_size[2]
 
         def wrapper_func(*args, **kwargs):
             if len(args) != len(self.func_args):
@@ -117,7 +109,7 @@ def compute_shader(*args, local_size: Tuple[int, int, int] = None):
     )
 
     def decorator(build_func):
-        builder = vd.shader  # vd.shader_builder()
+        builder = vd.shader
 
         pc_exec_count_var = builder.push_constant(vd.uvec4, "exec_count")
 
@@ -147,9 +139,7 @@ def compute_shader(*args, local_size: Tuple[int, int, int] = None):
 
         plan = vd.ComputePlan(shader_source, builder.binding_count, builder.pc_size)
 
-        wrapper = ShaderDispatcher(
-            plan, shader_source, builder.pc_dict, my_local_size, func_args
-        )
+        wrapper = ShaderDispatcher(plan, shader_source, builder.pc_dict, my_local_size, func_args)
 
         builder.reset()
 

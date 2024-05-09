@@ -22,12 +22,6 @@ class Buffer:
         self.size: int = np.prod(shape)
         self.mem_size: int = self.size * self.var_type.item_size
 
-        # print(f"Buffer var_type: {var_type}")
-        # print(f"Buffer shape: {shape}")
-        # print(f"Buffer size: {self.size}")
-        # print(f"Buffer mem_size: {self.mem_size}")
-        print(vd.get_context_handle())
-
         self._handle: int = vkdispatch_native.buffer_create(
             vd.get_context_handle(), self.mem_size
         )

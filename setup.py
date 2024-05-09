@@ -8,9 +8,7 @@ from setuptools import setup
 system = platform.system()
 
 platform_library_dirs = (
-    [
-        "./deps/MoltenVK/MoltenVK/MoltenVK/static/MoltenVK.xcframework/macos-arm64_x86_64/"
-    ]
+    ["./deps/MoltenVK/MoltenVK/MoltenVK/static/MoltenVK.xcframework/macos-arm64_x86_64/"]
     if system == "Darwin"
     else []
 )
@@ -24,12 +22,9 @@ platform_extra_link_args = (
     if not system == "Darwin"
     else [
         "-g",
-        "-framework",
-        "Metal",
-        "-framework",
-        "AVFoundation",
-        "-framework",
-        "AppKit",
+        "-framework", "Metal",
+        "-framework", "AVFoundation",
+        "-framework", "AppKit",
     ]
 )
 

@@ -1,5 +1,7 @@
 from typing import Callable
 from typing import List
+from typing import Tuple
+from typing import Union
 
 import numpy as np
 
@@ -85,10 +87,8 @@ class ShaderVariable:
     def __mul__(self, other: "ShaderVariable"):
         return_var_type = self.var_type
 
-        if (
-            self.var_type.structure == vd.dtype_structure.DATA_STRUCTURE_MATRIX
-            and other.var_type.structure == vd.dtype_structure.DATA_STRUCTURE_VECTOR
-        ):
+        if (self.var_type.structure == vd.dtype_structure.DATA_STRUCTURE_MATRIX
+            and other.var_type.structure == vd.dtype_structure.DATA_STRUCTURE_VECTOR):
             return_var_type = other.var_type
 
         return self.new(return_var_type, f"({self} * {other})")
@@ -207,9 +207,7 @@ class ShaderVariable:
         self.append_func(f"{self} |= {other};\n")
         return self
 
-    def __getitem__(
-        self, index: "typing.Union[typing.Tuple[shader_variable, ...], shader_variable]"
-    ):
+    def __getitem__(self, index: "Union[Tuple[ShaderVariable, ...], ShaderVariable]"):
         if isinstance(index, ShaderVariable) or isinstance(index, (int, np.integer)):
             return self.new(self.var_type.parent, f"{self}[{index}]")
         else:

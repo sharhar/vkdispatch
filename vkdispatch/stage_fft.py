@@ -19,9 +19,7 @@ class FFTPlan:
             vd.get_context_handle(), list(self.shape), self.mem_size
         )
 
-    def record(
-        self, command_list: vd.CommandList, buffer: vd.Buffer, inverse: bool = False
-    ):
+    def record(self, command_list: vd.CommandList, buffer: vd.Buffer, inverse: bool = False):
         assert buffer.var_type == vd.complex64, "buffer must be of dtype complex64"
         assert buffer.mem_size == self.mem_size, "buffer size must match plan size"
 

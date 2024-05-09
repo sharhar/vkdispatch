@@ -508,3 +508,7 @@ np.save(file_out + "_defocus.npy", params_result[:, :, 3])
 plt.imshow(final_max_cross)
 plt.colorbar()
 plt.show()
+
+# (4084, 5749)
+# 3000000 template
+# 16 hours

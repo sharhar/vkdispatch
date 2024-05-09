@@ -15,9 +15,7 @@ class Context:
         devices: List[int],
         submission_thread_counts: List[int] = None,
     ) -> None:
-        self._handle: int = vkdispatch_native.context_create(
-            devices, submission_thread_counts
-        )
+        self._handle = vkdispatch_native.context_create(devices, submission_thread_counts)
 
     def __del__(self) -> None:
         pass  # vkdispatch_native.context_destroy(self._handle)
