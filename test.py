@@ -1,11 +1,13 @@
-import vkdispatch as vd 
-from matplotlib import pyplot as plt
-import numpy as np
 import sys
-import tf_calc
 import time
-import tqdm
 import typing
+
+import numpy as np
+import tqdm
+from matplotlib import pyplot as plt
+
+import tf_calc
+import vkdispatch as vd
 
 current_time = time.time()
 
@@ -16,25 +18,31 @@ file_out = sys.argv[1]
 input_image_raw: np.ndarray = np.load(sys.argv[2])
 
 n_std = 5
-outliers_idxs = np.abs(input_image_raw - input_image_raw.mean()) > n_std * input_image_raw.std()
+outliers_idxs = (
+    np.abs(input_image_raw - input_image_raw.mean()) > n_std * input_image_raw.std()
+)
 input_image_raw[outliers_idxs] = input_image_raw.mean()
-test_image_normalized: np.ndarray = (input_image_raw - input_image_raw.mean()) / input_image_raw.std()
+test_image_normalized: np.ndarray = (
+    input_image_raw - input_image_raw.mean()
+) / input_image_raw.std()
 
 test_image_normalized = np.fft.fftshift(test_image_normalized)
 
 mag = 200
-sigma=0.025
+sigma = 0.025
 
-#phi_values = np.arange(0, 360, 2.5)
-#theta_values = np.arange(0, 180, 2.5)
-#psi_values = np.arange(0, 360, 1.5)
+# phi_values = np.arange(0, 360, 2.5)
+# theta_values = np.arange(0, 180, 2.5)
+# psi_values = np.arange(0, 360, 1.5)
 
 phi_values = np.arange(0, 100, 5)
 theta_values = np.arange(0, 90, 5)
 psi_values = np.arange(0, 100, 5)
 
 defocus_values = np.arange(11000, 13000, 400)
-test_values = (np.array(np.meshgrid(phi_values, theta_values, psi_values, defocus_values)).T.reshape(-1, 4))
+test_values = np.array(
+    np.meshgrid(phi_values, theta_values, psi_values, defocus_values)
+).T.reshape(-1, 4)
 
 atom_data = np.load(sys.argv[3])
 atom_coords: np.ndarray = atom_data["coords"].astype(np.float32)
@@ -44,7 +52,9 @@ atom_coords -= np.sum(atom_coords, axis=0) / atom_coords.shape[0]
 
 tf_data: typing.Tuple[np.ndarray] = tf_calc.prepareTF(input_image_raw.shape, 1.056, 0)
 
-tf_data_array = np.zeros(shape=(tf_data[0].shape[0], tf_data[0].shape[1], 9), dtype=np.float32) #vd.asbuffer(tf_data)
+tf_data_array = np.zeros(
+    shape=(tf_data[0].shape[0], tf_data[0].shape[1], 9), dtype=np.float32
+)  # vd.asbuffer(tf_data)
 tf_data_array[:, :, 0] = tf_data[0]
 tf_data_array[:, :, 1] = tf_data[1]
 tf_data_array[:, :, 2] = tf_data[2]
@@ -61,15 +71,16 @@ match_image_buffer = vd.asbuffer(test_image_normalized.astype(np.complex64))
 
 vd.fft(match_image_buffer)
 
-work_buffer = vd.buffer(input_image_raw.shape, vd.complex64)
-shift_buffer = vd.buffer(input_image_raw.shape, vd.complex64)
-max_cross = vd.buffer(input_image_raw.shape, vd.float32)
-best_index = vd.buffer(input_image_raw.shape, vd.int32)
+work_buffer = vd.Buffer(input_image_raw.shape, vd.complex64)
+shift_buffer = vd.Buffer(input_image_raw.shape, vd.complex64)
+max_cross = vd.Buffer(input_image_raw.shape, vd.float32)
+best_index = vd.Buffer(input_image_raw.shape, vd.int32)
 
 workgroup_size = vd.get_devices()[0].max_workgroup_size[0]
 assert work_buffer.size % workgroup_size == 0
 
-reduce_buffer = vd.buffer(((work_buffer.size // workgroup_size) + 1,), vd.vec2)
+reduce_buffer = vd.Buffer(((work_buffer.size // workgroup_size) + 1,), vd.vec2)
+
 
 @vd.compute_shader(vd.float32[0], vd.int32[0])
 def init_accumulators(max_cross, best_index):
@@ -77,28 +88,30 @@ def init_accumulators(max_cross, best_index):
     max_cross[ind] = -1000000
     best_index[ind] = -1
 
+
 init_accumulators[max_cross.size](max_cross, best_index)
+
 
 def get_rotation_matrix(angles: typing.List[int], offsets: typing.List[int] = [0, 0]):
     in_matricies = np.zeros(shape=(4, 4), dtype=np.float32)
 
-    cos_phi   = np.cos(np.deg2rad(angles[0]))
-    sin_phi   = np.sin(np.deg2rad(angles[0]))
+    cos_phi = np.cos(np.deg2rad(angles[0]))
+    sin_phi = np.sin(np.deg2rad(angles[0]))
     cos_theta = np.cos(np.deg2rad(angles[1]))
     sin_theta = np.sin(np.deg2rad(angles[1]))
 
-    M00 = cos_phi * cos_theta 
-    M01 = -sin_phi 
+    M00 = cos_phi * cos_theta
+    M01 = -sin_phi
 
-    M10 = sin_phi * cos_theta 
-    M11 = cos_phi 
+    M10 = sin_phi * cos_theta
+    M11 = cos_phi
 
-    M20 = -sin_theta 
+    M20 = -sin_theta
 
-    cos_psi_in_plane   = np.cos(np.deg2rad(-angles[2] - 90)) 
-    sin_psi_in_plane   = np.sin(np.deg2rad(-angles[2] - 90))
+    cos_psi_in_plane = np.cos(np.deg2rad(-angles[2] - 90))
+    sin_psi_in_plane = np.sin(np.deg2rad(-angles[2] - 90))
 
-    m00  = cos_psi_in_plane
+    m00 = cos_psi_in_plane
     m01 = sin_psi_in_plane
     m10 = -sin_psi_in_plane
     m11 = cos_psi_in_plane
@@ -107,7 +120,7 @@ def get_rotation_matrix(angles: typing.List[int], offsets: typing.List[int] = [0
     in_matricies[0, 1] = m00 * M10 + m10 * M11
     in_matricies[0, 2] = m00 * M20
     in_matricies[0, 3] = offsets[0]
-    
+
     in_matricies[1, 0] = m01 * M00 + m11 * M01
     in_matricies[1, 1] = m01 * M10 + m11 * M11
     in_matricies[1, 2] = m01 * M20
@@ -115,9 +128,11 @@ def get_rotation_matrix(angles: typing.List[int], offsets: typing.List[int] = [0
 
     return in_matricies.T
 
+
 @vd.compute_shader(vd.complex64[0])
 def fill_buffer(buf):
     buf[vd.shader.global_x] = vd.shader.push_constant(vd.complex64, "val")
+
 
 @vd.compute_shader(vd.float32[0], vd.float32[0])
 def place_atoms(image, atom_coords):
@@ -126,22 +141,34 @@ def place_atoms(image, atom_coords):
     rotation_matrix = vd.shader.push_constant(vd.mat4, "rot_matrix")
 
     pos = vd.shader.new(vd.vec4)
-    pos[0] = -atom_coords[3*ind + 1] 
-    pos[1] = atom_coords[3*ind + 0]
-    pos[2] = atom_coords[3*ind + 2]
+    pos[0] = -atom_coords[3 * ind + 1]
+    pos[1] = atom_coords[3 * ind + 0]
+    pos[2] = atom_coords[3 * ind + 2]
     pos[3] = 1
 
     pos[:] = rotation_matrix * pos
 
     image_ind = vd.shader.new(vd.ivec2)
-    image_ind[0] = vd.shader.ceil(pos[1]).cast_to(vd.int32) + (work_buffer.shape[0] // 2)
-    image_ind[1] = vd.shader.ceil(-pos[0]).cast_to(vd.int32) + (work_buffer.shape[1] // 2)
+    image_ind[0] = vd.shader.ceil(pos[1]).cast_to(vd.int32) + (
+        work_buffer.shape[0] // 2
+    )
+    image_ind[1] = vd.shader.ceil(-pos[0]).cast_to(vd.int32) + (
+        work_buffer.shape[1] // 2
+    )
 
-    vd.shader.if_any(image_ind[0] < 0, image_ind[0] >= work_buffer.shape[0], image_ind[1] < 0, image_ind[1] >= work_buffer.shape[1])
+    vd.shader.if_any(
+        image_ind[0] < 0,
+        image_ind[0] >= work_buffer.shape[0],
+        image_ind[1] < 0,
+        image_ind[1] >= work_buffer.shape[1],
+    )
     vd.shader.return_statement()
     vd.shader.end_if()
 
-    vd.shader.atomic_add(image[2 * image_ind[1] * work_buffer.shape[0] + 2 * image_ind[0]], 1)
+    vd.shader.atomic_add(
+        image[2 * image_ind[1] * work_buffer.shape[0] + 2 * image_ind[0]], 1
+    )
+
 
 @vd.compute_shader(vd.complex64[0])
 def apply_gaussian_filter(buf):
@@ -160,7 +187,7 @@ def apply_gaussian_filter(buf):
     y[:] = y - work_buffer.shape[1] // 2
 
     my_dist = vd.shader.new(vd.float32)
-    my_dist[:] = (x*x + y*y) * sigma * sigma / 2
+    my_dist[:] = (x * x + y * y) * sigma * sigma / 2
 
     vd.shader.if_statement(my_dist > 100)
     buf[ind][0] = 0
@@ -168,7 +195,10 @@ def apply_gaussian_filter(buf):
     vd.shader.return_statement()
     vd.shader.end_if()
 
-    buf[ind] *= mag * vd.shader.exp(-my_dist) / (work_buffer.shape[0] * work_buffer.shape[1])
+    buf[ind] *= (
+        mag * vd.shader.exp(-my_dist) / (work_buffer.shape[0] * work_buffer.shape[1])
+    )
+
 
 @vd.compute_shader(vd.complex64[0])
 def potential_to_wave(image):
@@ -180,6 +210,7 @@ def potential_to_wave(image):
 
     image[ind][0] = A * vd.shader.cos(potential)
     image[ind][1] = A * vd.shader.sin(potential)
+
 
 @vd.compute_shader(vd.complex64[0])
 def mult_by_mask(image):
@@ -196,12 +227,13 @@ def mult_by_mask(image):
     c -= work_buffer.shape[1]
     vd.shader.end_if()
 
-    rad_sq = (r*r + c*c).copy()
+    rad_sq = (r * r + c * c).copy()
 
     vd.shader.if_statement(rad_sq > (work_buffer.shape[0] * work_buffer.shape[1] // 16))
     image[ind][0] = 0
     image[ind][1] = 0
     vd.shader.end_if()
+
 
 @vd.compute_shader(vd.complex64[0], vd.float32[0])
 def apply_transfer_function(image, tf_data):
@@ -241,14 +273,19 @@ def apply_transfer_function(image, tf_data):
     image[ind][0] = mag * (wv[0] * rot_vec[0] - wv[1] * rot_vec[1])
     image[ind][1] = mag * (wv[0] * rot_vec[1] + wv[1] * rot_vec[0])
 
+
 @vd.compute_shader(vd.vec2[0], vd.complex64[0])
 def normalization_stage1(reduce_buffer, image):
     ind = vd.shader.global_x.copy()
 
-    sdata = vd.shader.shared_buffer(vd.vec2, workgroup_size // vd.get_devices()[0].sub_group_size)
-    
+    sdata = vd.shader.shared_buffer(
+        vd.vec2, workgroup_size // vd.get_devices()[0].sub_group_size
+    )
+
     sum_vec = vd.shader.new(vd.vec2)
-    sum_vec[0] = (image[ind][0] * image[ind][0] + image[ind][1] * image[ind][1]) # / (work_buffer.shape[0] * work_buffer.shape[1])
+    sum_vec[0] = (
+        image[ind][0] * image[ind][0] + image[ind][1] * image[ind][1]
+    )  # / (work_buffer.shape[0] * work_buffer.shape[1])
     sum_vec[1] = sum_vec[0] * sum_vec[0]
 
     image[ind][0] = sum_vec[0]
@@ -277,12 +314,15 @@ def normalization_stage1(reduce_buffer, image):
     reduce_buffer[vd.shader.workgroup_x] = sum_vec
     vd.shader.end_if()
 
+
 @vd.compute_shader(vd.vec2[0], local_size=(reduce_buffer.shape[0] - 1, 1, 1))
 def normalization_stage2(buff):
     ind = vd.shader.global_x.copy()
 
-    sdata = vd.shader.shared_buffer(vd.vec2, workgroup_size // vd.get_devices()[0].sub_group_size) #vd.shader.num_subgroups)
-    
+    sdata = vd.shader.shared_buffer(
+        vd.vec2, workgroup_size // vd.get_devices()[0].sub_group_size
+    )  # vd.shader.num_subgroups)
+
     sum_vec = buff[ind].copy()
 
     sum_vec[:] = vd.shader.subgroup_add(sum_vec)
@@ -300,7 +340,7 @@ def normalization_stage2(buff):
     vd.shader.if_all(vd.shader.subgroup_invocation < vd.shader.num_subgroups)
     sum_vec[:] = sdata[vd.shader.subgroup_invocation]
     vd.shader.end_if()
-    
+
     sum_vec[:] = vd.shader.subgroup_add(sum_vec)
     vd.shader.end_if()
 
@@ -311,6 +351,7 @@ def normalization_stage2(buff):
     buff[reduce_buffer.shape[0] - 1] = sum_vec
     vd.shader.end_if()
 
+
 @vd.compute_shader(vd.complex64[0], vd.vec2[0])
 def normalization_stage3(image, buff):
     ind = vd.shader.global_x.copy()
@@ -319,6 +360,7 @@ def normalization_stage3(image, buff):
     sum_vec[1] = vd.shader.sqrt(sum_vec[1] - sum_vec[0] * sum_vec[0])
 
     image[ind][0] = (image[ind][0] - sum_vec[0]) / sum_vec[1]
+
 
 @vd.compute_shader(vd.complex64[0], vd.complex64[0])
 def cross_correlate(input, reference):
@@ -329,6 +371,7 @@ def cross_correlate(input, reference):
 
     input[ind][0] = input_val[0] * reference[ind][0] + input_val[1] * reference[ind][1]
     input[ind][1] = input_val[1] * reference[ind][0] - input_val[0] * reference[ind][1]
+
 
 @vd.compute_shader(vd.complex64[0], vd.complex64[0])
 def fftshift(output, input):
@@ -342,6 +385,7 @@ def fftshift(output, input):
 
     output[ind] = input[r * work_buffer.shape[1] + c]
 
+
 @vd.compute_shader(vd.float32[0], vd.int32[0], vd.complex64[0])
 def update_max(max_cross, best_index, back_buffer):
     ind = vd.shader.global_x.copy()
@@ -353,10 +397,13 @@ def update_max(max_cross, best_index, back_buffer):
     best_index[ind] = vd.shader.push_constant(vd.int32, "index")
     vd.shader.end_if()
 
-cmd_list = vd.command_list()
+
+cmd_list = vd.CommandList()
 
 fill_buffer[work_buffer.size, cmd_list](work_buffer, val=0)
-rotation_matrix = place_atoms[atom_coords.shape[0], cmd_list](work_buffer, atom_coords_buffer)
+rotation_matrix = place_atoms[atom_coords.shape[0], cmd_list](
+    work_buffer, atom_coords_buffer
+)
 
 vd.fft[cmd_list](work_buffer)
 apply_gaussian_filter[work_buffer.size, cmd_list](work_buffer)
@@ -366,7 +413,9 @@ potential_to_wave[work_buffer.size, cmd_list](work_buffer)
 
 vd.fft[cmd_list](work_buffer)
 mult_by_mask[work_buffer.size, cmd_list](work_buffer)
-defocus = apply_transfer_function[work_buffer.size, cmd_list](work_buffer, tf_data_buffer)
+defocus = apply_transfer_function[work_buffer.size, cmd_list](
+    work_buffer, tf_data_buffer
+)
 vd.ifft[cmd_list](work_buffer)
 
 normalization_stage1[work_buffer.size, cmd_list](reduce_buffer, work_buffer)
@@ -381,7 +430,9 @@ vd.ifft[cmd_list](shift_buffer)
 
 fftshift[shift_buffer.size, cmd_list](work_buffer, shift_buffer)
 
-template_index = update_max[work_buffer.size, cmd_list](max_cross, best_index, work_buffer)
+template_index = update_max[work_buffer.size, cmd_list](
+    max_cross, best_index, work_buffer
+)
 
 batch_size = 100
 
@@ -393,14 +444,16 @@ for i in range(0, test_values.shape[0], batch_size):
     for j in range(batch_size):
         if i + j >= test_values.shape[0]:
             break
-        
-        rotation_matrix["rot_matrix"] = get_rotation_matrix(test_values[i + j][:3], [0, 0])
+
+        rotation_matrix["rot_matrix"] = get_rotation_matrix(
+            test_values[i + j][:3], [0, 0]
+        )
         defocus["defocus"] = test_values[i + j][3]
         template_index["index"] = i + j
 
         for pc_buffer in cmd_list.pc_buffers:
             data += pc_buffer.get_bytes()
-    
+
     cmd_list.submit(data=data)
 
     status_bar.update(batch_size)
@@ -421,7 +474,9 @@ print("Psi:", test_values[final_index][2])
 print("Defocus:", test_values[final_index][3])
 
 fill_buffer[work_buffer.size](work_buffer, val=0)
-place_atoms[atom_coords.shape[0]](work_buffer, atom_coords_buffer, rot_matrix=get_rotation_matrix([118, 95, 294])) #test_values[final_index][:3]))
+place_atoms[atom_coords.shape[0]](
+    work_buffer, atom_coords_buffer, rot_matrix=get_rotation_matrix([118, 95, 294])
+)  # test_values[final_index][:3]))
 
 vd.fft(work_buffer)
 apply_gaussian_filter[work_buffer.size](work_buffer)
@@ -431,7 +486,9 @@ potential_to_wave[work_buffer.size](work_buffer)
 
 vd.fft(work_buffer)
 mult_by_mask[work_buffer.size](work_buffer)
-apply_transfer_function[work_buffer.size](work_buffer, tf_data_buffer, defocus=test_values[final_index][3])
+apply_transfer_function[work_buffer.size](
+    work_buffer, tf_data_buffer, defocus=test_values[final_index][3]
+)
 vd.ifft(work_buffer)
 
 normalization_stage1[work_buffer.size](reduce_buffer, work_buffer)
