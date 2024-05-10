@@ -30,9 +30,13 @@ const char* concat(const std::string& str,  const char** out, const char* cstr) 
 
 // Some platform specific code borrowed from volk for loading Vulkan
 #ifdef _WIN32
-__declspec(dllimport) HMODULE __stdcall LoadLibraryA(LPCSTR);
-__declspec(dllimport) FARPROC __stdcall GetProcAddress(HMODULE, LPCSTR);
-__declspec(dllimport) int __stdcall FreeLibrary(HMODULE);
+
+#include <Windows.h>
+
+//__declspec(dllimport) HMODULE __stdcall LoadLibraryA(LPCSTR);
+//__declspec(dllimport) FARPROC __stdcall GetProcAddress(HMODULE, LPCSTR);
+//__declspec(dllimport) int __stdcall FreeLibrary(HMODULE);
+
 #endif
 
 #if defined(__GNUC__)
@@ -98,6 +102,14 @@ VkBool32 VKAPI_PTR mystdOutLogger(
     return VK_FALSE;
 }
 
+#ifdef _WIN32
+
+void setenv(const char* arg1, const char* arg2, int arg3) {
+
+}
+
+#endif
+
 void init_extern(bool debug) {
     #ifdef VKDISPATCH_LOADER_PATH
     const char* layer_path = concat(VKDISPATCH_LOADER_PATH, nullptr, "share/vulkan/explicit_layer.d/");
@@ -106,8 +118,10 @@ void init_extern(bool debug) {
     delete[] layer_path;
     #endif
 
-    #ifndef VKDISPATCH_USE_VOLK
+    #ifndef VKDISPATCH_USE_VOLK    
+
     setenv("MVK_CONFIG_LOG_LEVEL", "2", 0);
+
     #else
 
     #ifdef VKDISPATCH_LOADER_PATH
