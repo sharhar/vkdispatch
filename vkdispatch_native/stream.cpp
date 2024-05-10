@@ -3,7 +3,6 @@
 Stream::Stream(vk::Device device, vk::Queue queue, int queueFamilyIndex, uint32_t command_buffer_count) {
     this->device = device;
     this->queue = queue;
-    this->current_index = 0;
 
     this->commandPool = device.createCommandPool(
         vk::CommandPoolCreateInfo()
@@ -17,11 +16,13 @@ Stream::Stream(vk::Device device, vk::Queue queue, int queueFamilyIndex, uint32_
         .setLevel(vk::CommandBufferLevel::ePrimary)
         .setCommandBufferCount(command_buffer_count)
     );
+    
+    this->current_index = commandBuffers.size() - 1;
 
     for(int i = 0; i < command_buffer_count; i++) {
         this->fences.push_back(device.createFence(
             vk::FenceCreateInfo()
-            .setFlags(vk::FenceCreateFlagBits::eSignaled)
+            .setFlags(i == current_index ? vk::FenceCreateFlags() : vk::FenceCreateFlagBits::eSignaled)
         ));
 
         this->semaphores.push_back(device.createSemaphore(vk::SemaphoreCreateInfo()));
@@ -36,11 +37,12 @@ Stream::Stream(vk::Device device, vk::Queue queue, int queueFamilyIndex, uint32_
 
     queue.submit(
         vk::SubmitInfo()
-        .setSignalSemaphores(semaphores)
+        .setPSignalSemaphores(&semaphores.data()[1])
+        .setSignalSemaphoreCount(semaphores.size() - 1)
         .setCommandBuffers(commandBuffers[0])
-    , fences[0]);
+    , fences[current_index]);
 
-    device.waitForFences(fences[0], VK_TRUE, UINT64_MAX);
+    device.waitForFences(fences[current_index], VK_TRUE, UINT64_MAX);
 }
 
 void Stream::destroy() {

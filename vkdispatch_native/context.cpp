@@ -12,7 +12,23 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
     auto physicalDevices = _instance.instance.enumeratePhysicalDevices();
 
     for(int i = 0; i < device_count; i++) {
-        ctx->physicalDevices.push_back(physicalDevices[device_indicies[i]]);
+        auto physical = physicalDevices[device_indicies[i]];
+
+        vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceShaderAtomicFloatFeaturesEXT> featuresChainQuery = {
+            vk::PhysicalDeviceFeatures2(),
+            vk::PhysicalDeviceShaderAtomicFloatFeaturesEXT()
+        };
+
+        physical.getFeatures2(&featuresChainQuery.get<vk::PhysicalDeviceFeatures2>());
+
+        auto atomicFeatures = featuresChainQuery.get<vk::PhysicalDeviceShaderAtomicFloatFeaturesEXT>();
+
+        if(!atomicFeatures.shaderBufferFloat32AtomicAdd) {
+            LOG_ERROR("Device does not support shaderBufferFloat32AtomicAdd");
+            return nullptr;
+        }
+
+        ctx->physicalDevices.push_back(physical);
 
         LOG_INFO("Creating physical device %p...", static_cast<VkPhysicalDevice>(ctx->physicalDevices[i]));
 
@@ -40,16 +56,56 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
 
         float queue_priority = 1.0f;
 
+        
+
         vk::DeviceQueueCreateInfo queueCreateInfo = vk::DeviceQueueCreateInfo()
             .setQueueFamilyIndex(foundIndex)
             .setQueueCount(1)
             .setPQueuePriorities(&queue_priority);
 
-        ctx->devices.push_back(ctx->physicalDevices[i].createDevice(
+        std::vector<const char*> desiredExtensions =  {
+            "VK_KHR_shader_non_semantic_info",
+            "VK_EXT_shader_atomic_float"
+        };
+
+#ifdef __APPLE__
+        desiredExtensions.push_back("VK_KHR_portability_subset");
+#endif
+        
+        auto deviceExtensions = ctx->physicalDevices[i].enumerateDeviceExtensionProperties();
+
+        // Check if all desired extensions are supported
+        for(auto& desiredExtension : desiredExtensions) {
+            bool found = false;
+
+            for(auto& extension : deviceExtensions) {
+                if(strcmp(extension.extensionName, desiredExtension) == 0) {
+                    found = true;
+                    break;
+                }
+            }
+
+            if(!found) {
+                LOG_ERROR("Device does not support extension: %s", desiredExtension);
+                return nullptr;
+            }
+        }
+
+        for(auto& extension : deviceExtensions) {
+            LOG_INFO("Device Extension: %s", extension.extensionName);
+        }
+
+        vk::StructureChain<vk::DeviceCreateInfo, vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceShaderAtomicFloatFeaturesEXT> deviceCreateChain = {
             vk::DeviceCreateInfo()
-            .setQueueCreateInfoCount(1)
-            .setPQueueCreateInfos(&queueCreateInfo)
-        ));
+                .setQueueCreateInfoCount(1)
+                .setPQueueCreateInfos(&queueCreateInfo)
+                .setPEnabledExtensionNames(desiredExtensions),
+            vk::PhysicalDeviceFeatures2(),
+            vk::PhysicalDeviceShaderAtomicFloatFeaturesEXT()
+                .setShaderBufferFloat32AtomicAdd(VK_TRUE)
+        };
+
+        ctx->devices.push_back(ctx->physicalDevices[i].createDevice(deviceCreateChain.get<vk::DeviceCreateInfo>()));
 
         LOG_INFO("Created device %p", static_cast<VkDevice>(ctx->devices[i]));
 
@@ -57,8 +113,12 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
         ctx->submissionThreadCounts.push_back(submission_thread_couts[i]);
 
         VmaVulkanFunctions vmaVulkanFunctions = {};
-        vmaVulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
-        vmaVulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
+        vmaVulkanFunctions.vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
+            _instance.instance.getProcAddr("vkGetInstanceProcAddr")
+        );
+        vmaVulkanFunctions.vkGetDeviceProcAddr = reinterpret_cast<PFN_vkGetDeviceProcAddr>(
+            _instance.instance.getProcAddr("vkGetDeviceProcAddr")
+        );
 
         VmaAllocatorCreateInfo allocatorCreateInfo = {};
         allocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_2;

@@ -5,22 +5,24 @@
 
 #define VK_CALL(result) {VkResult ___result = result; if(___result != VK_SUCCESS) { printf("(VkResult = %d) " #result " in %s in %s\n", ___result, __FUNCTION__, __FILE__); }}
 
-
 #ifndef VKDISPATCH_USE_VOLK
-#include <vulkan/vulkan.h>
+
+#include <vulkan/vulkan.hpp>
+
 #else
 
 #define VK_NO_PROTOTYPES
 #include <vulkan/vulkan.h>
 #include <volk/volk.h>
 
+#undef VK_NO_PROTOTYPES
+#include <vulkan/vulkan.hpp>
+
 #endif
 
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
 #include <vk_mem_alloc.h>
-
-#include <vulkan/vulkan.hpp>
 
 #include <vkFFT.h>
 #include <vector>
@@ -170,6 +172,7 @@ struct CommandList {
 
 struct FFTPlan {
     struct FFTData {
+
         VkPhysicalDevice physicalDevice;
         VkDevice device;
         VkQueue queue;

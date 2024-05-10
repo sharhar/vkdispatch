@@ -30,12 +30,12 @@ from .image import image3d
 from .init import DeviceInfo
 from .init import get_devices
 from .init import init_instance
+from .shader_variable import ShaderVariable
 from .shader_builder import PushConstantBuffer
 from .shader_builder import shader
 from .shader_builder import ShaderBuilder
-from .shader_decorator import compute_shader
-from .shader_variable import ShaderVariable
 from .stage_compute import ComputePlan
+from .shader_decorator import compute_shader
 from .stage_fft import fft
 from .stage_fft import FFTPlan
 from .stage_fft import ifft

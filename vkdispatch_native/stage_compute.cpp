@@ -1,5 +1,6 @@
 #include "internal.h"
 
+#include <glslang_c_interface.h>
 #include <glslang/Public/resource_limits_c.h>
 
 uint32_t* util_compile_shader_code(glslang_stage_t stage, size_t* size, const char* shader_source, const char* shader_name) {
