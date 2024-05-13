@@ -47,12 +47,6 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
     char* instance_data = (char*)instance_buffer;
     char* current_instance_data = instance_data;
 
-    //command_list->ctx->commandBuffers[device]->reset();
-
-    VkFence waitFence = command_list->ctx->commandBuffers[device]->fence();
-
-    command_list->ctx->commandBuffers[device]->begin();
-
     VkMemoryBarrier memory_barrier = {
             VK_STRUCTURE_TYPE_MEMORY_BARRIER,
             0,
@@ -60,17 +54,17 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
             VK_ACCESS_SHADER_READ_BIT,
     };
 
+    VkCommandBuffer cmd_buffer = command_list->ctx->streams[device]->begin();
+
     for(size_t instance = 0; instance < instance_count; instance++) {
         LOG_INFO("Recording instance %d", instance);
 
-        current_instance_data = instance_data;
-
         for (size_t i = 0; i < command_list->stages.size(); i++) {
             LOG_INFO("Recording stage %d", i);
-            command_list->stages[i].record(command_list->ctx->commandBuffers[device], &command_list->stages[i], current_instance_data, device);
+            command_list->stages[i].record(cmd_buffer, &command_list->stages[i], current_instance_data, device);
             if(i < command_list->stages.size() - 1)
                 vkCmdPipelineBarrier(
-                    command_list->ctx->commandBuffers[device]->handle(), 
+                    cmd_buffer, 
                     command_list->stages[i].stage, 
                     command_list->stages[i+1].stage, 
                     0, 1, 
@@ -80,10 +74,5 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
         }
     }
 
-    command_list->ctx->commandBuffers[device]->end();
-
-    command_list->ctx->devices[device]->waitForFence(waitFence);
-
-    command_list->ctx->queues[device]->submit(command_list->ctx->commandBuffers[device]);
-    //command_list->ctx->queues[device]->waitIdle();
+    command_list->ctx->streams[device]->submit();
 }

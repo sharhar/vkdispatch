@@ -3,69 +3,6 @@
 #include <string>
 #include <stdio.h>
 
-#ifdef __VKDISPATCH_PLATFORM_LINUX__
-#include <dlfcn.h>
-#endif
-
-const char* concat(const std::string& str,  const char** out, const char* cstr) {
-    size_t total_length = str.length() + strlen(cstr) + 1;
-    char* result = new char[total_length];
-
-    strcpy(result, str.c_str());
-    strcat(result, cstr);
-
-
-    if(out != nullptr) {
-        if(*out != nullptr)
-            delete[] *out;
-
-        *out = result;
-    }
-
-    return result;
-}
-
-static PFN_vkGetInstanceProcAddr load_vulkan(std::string path) {
-    PFN_vkGetInstanceProcAddr load_func = nullptr;
-    const char* res_str = nullptr;
-
-#if defined(_WIN32)
-	HMODULE module = LoadLibraryA(concat(path, &res_str, "vulkan-1.dll"));
-	if (!module)
-		return nullptr;
-
-	// note: function pointer is cast through void function pointer to silence cast-function-type warning on gcc8
-	load_func = (PFN_vkGetInstanceProcAddr)(void(*)(void))GetProcAddress(module, "vkGetInstanceProcAddr");
-#elif defined(__APPLE__)
-	void* module = dlopen(concat(path, &res_str, "libvulkan.dylib"), RTLD_NOW | RTLD_LOCAL);
-	if (!module)
-		module = dlopen(concat(path, &res_str, "libvulkan.1.dylib"), RTLD_NOW | RTLD_LOCAL);
-	if (!module)
-		module = dlopen(concat(path, &res_str, "libMoltenVK.dylib"), RTLD_NOW | RTLD_LOCAL);
-    if (!module)
-        module = dlopen(concat(path, &res_str, "vulkan.framework/vulkan"), RTLD_NOW | RTLD_LOCAL);
-    if (!module)
-        module = dlopen(concat(path, &res_str, "MoltenVK.framework/MoltenVK"), RTLD_NOW | RTLD_LOCAL);
-	if (!module)
-		return nullptr;
-
-	load_func = (PFN_vkGetInstanceProcAddr)dlsym(module, "vkGetInstanceProcAddr");
-#else
-	void* module = dlopen(concat(path, &res_str, "libvulkan.so.1"), RTLD_NOW | RTLD_LOCAL);
-	if (!module)
-		module = dlopen(concat(path, &res_str, "libvulkan.so"), RTLD_NOW | RTLD_LOCAL);
-	if (!module)
-		return nullptr;
-	//VOLK_DISABLE_GCC_PEDANTIC_WARNINGS
-	load_func = (PFN_vkGetInstanceProcAddr)dlsym(module, "vkGetInstanceProcAddr");
-	//VOLK_RESTORE_GCC_PEDANTIC_WARNINGS
-#endif
-
-    delete[] res_str;
-
-	return load_func;
-}
-
 MyInstance _instance;
 
 void init_extern(bool debug) {
@@ -75,7 +12,6 @@ void init_extern(bool debug) {
     LOG_INFO("Loading Vulkan using volk");
     VK_CALL(volkInitialize());
     #endif
-	
 
     LOG_INFO("Initializing glslang...");
 

@@ -113,7 +113,7 @@ append_to_sources("vkdispatch_native/", [
     "stage_fft.cpp",
     "stage_compute.cpp",
     "descriptor_set.cpp",
-    #"stream.cpp",
+    "stream.cpp",
     "VMAImpl.cpp",
     "VolkImpl.cpp"
 ])
