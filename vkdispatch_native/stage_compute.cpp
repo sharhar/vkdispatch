@@ -62,20 +62,36 @@ void stage_compute_record_extern(struct CommandList* command_list, struct Comput
     my_compute_info->pc_size = plan->pc_size;
 
     command_list->stages.push_back({
-        [](VKLCommandBuffer* cmd_buffer, struct Stage* stage, void* instance_data, int device) {
+        [](VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device) {
             LOG_INFO("Executing Compute");
 
             struct ComputeRecordInfo* my_compute_info = (struct ComputeRecordInfo*)stage->user_data;
 
-            cmd_buffer->bindPipeline(my_compute_info->plan->pipelines[device]);
+            vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, my_compute_info->plan->pipelines[device]->handle());
 
             if(my_compute_info->descriptor_set != NULL)
-                cmd_buffer->bindDescriptorSet(my_compute_info->descriptor_set->descriptorSets[device]);
-            
-            if(my_compute_info->pc_size > 0)
-                cmd_buffer->pushConstants(my_compute_info->plan->pipelines[device], VK_SHADER_STAGE_COMPUTE_BIT, 0, my_compute_info->pc_size, instance_data);
+                vkCmdBindDescriptorSets(
+                    cmd_buffer,
+                    VK_PIPELINE_BIND_POINT_COMPUTE,
+                    my_compute_info->plan->pipelineLayouts[device]->handle(),
+                    0,
+                    1,
+                    my_compute_info->descriptor_set->descriptorSets[device]->pHandle(),
+                    0,
+                    NULL
+                );
 
-            cmd_buffer->dispatch(my_compute_info->blocks_x, my_compute_info->blocks_y, my_compute_info->blocks_z);
+            if(my_compute_info->pc_size > 0)
+                vkCmdPushConstants(
+                    cmd_buffer, 
+                    my_compute_info->plan->pipelineLayouts[device]->handle(),
+                    VK_SHADER_STAGE_COMPUTE_BIT,
+                    0,
+                    my_compute_info->pc_size,
+                    instance_data
+                );
+            
+            vkCmdDispatch(cmd_buffer, my_compute_info->blocks_x, my_compute_info->blocks_y, my_compute_info->blocks_z);
         },
         my_compute_info,
         plan->pc_size,

@@ -5,9 +5,12 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
     struct Context* ctx = new struct Context();
     ctx->deviceCount = device_count;
     ctx->devices = (VKLDevice**)malloc(sizeof(VKLDevice*) * device_count);
-    ctx->queues = (const VKLQueue**)malloc(sizeof(VKLQueue*) * device_count);
-    ctx->commandBuffers = (VKLCommandBuffer**)malloc(sizeof(VKLCommandBuffer*) * device_count);
-    ctx->fences = (VkFence*)malloc(sizeof(VkFence) * device_count);
+
+    ctx->streams.resize(device_count);
+
+    //ctx->queues = (const VKLQueue**)malloc(sizeof(VKLQueue*) * device_count);
+    //ctx->commandBuffers = (VKLCommandBuffer**)malloc(sizeof(VKLCommandBuffer*) * device_count);
+    //ctx->fences = (VkFence*)malloc(sizeof(VkFence) * device_count);
     ctx->submissionThreadCounts = (uint32_t*)malloc(sizeof(uint32_t) * device_count);
 
     const std::vector<VKLPhysicalDevice*>&  phyisicalDevices = _instance.instance.getPhysicalDevices();
@@ -19,9 +22,14 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
             .queueTypeCount(VKL_QUEUE_TYPE_ALL, 1)
         );
 
-        ctx->queues[i] = ctx->devices[i]->getQueue(VKL_QUEUE_TYPE_ALL, 0);
-        ctx->commandBuffers[i] = new VKLCommandBuffer(ctx->queues[i], 2);
-        ctx->fences[i] = ctx->devices[i]->createFence(VK_FENCE_CREATE_SIGNALED_BIT);
+        const VKLQueue* queue = ctx->devices[i]->getQueue(VKL_QUEUE_TYPE_ALL, 0);
+
+        ctx->streams[i] = new Stream(ctx->devices[i]->handle(), queue->handle(), queue->getFamilyIndex(), 2);
+
+        //ctx->queues[i] = ctx->devices[i]->getQueue(VKL_QUEUE_TYPE_ALL, 0);
+        //ctx->commandBuffers[i] = new VKLCommandBuffer(ctx->queues[i], 2);
+        //ctx->fences[i] = ctx->devices[i]->createFence(VK_FENCE_CREATE_SIGNALED_BIT);
+
         ctx->submissionThreadCounts[i] = submission_thread_couts[i];
     }
 
@@ -32,12 +40,15 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
 
 void context_destroy_extern(struct Context* context) {
     for (int i = 0; i < context->deviceCount; i++) {
+        context->streams[i]->destroy();
+        delete context->streams[i];
+
         context->devices[i]->destroy();
         delete context->devices[i];
     }
 
     free((void*)context->devices);
-    free((void*)context->queues);
+    //free((void*)context->queues);
     free((void*)context->submissionThreadCounts);
     delete context;
 }

@@ -23,12 +23,30 @@ typedef struct {
 
 extern MyInstance _instance;
 
+class Stream {
+public:
+    Stream(VkDevice device, VkQueue queue, int queueFamilyIndex, uint32_t command_buffer_count);
+    void destroy();
+
+    VkCommandBuffer& begin();
+    VkFence& submit();
+
+    VkDevice device;
+    VkQueue queue;
+    VkCommandPool commandPool;
+    std::vector<VkCommandBuffer> commandBuffers;
+    std::vector<VkFence> fences;
+    std::vector<VkSemaphore> semaphores;
+    int current_index;
+};
+
 struct Context {
     uint32_t deviceCount;
     VKLDevice** devices;
-    const VKLQueue** queues;
-    VKLCommandBuffer** commandBuffers;
-    VkFence* fences;
+    //const VKLQueue** queues;
+    //VKLCommandBuffer** commandBuffers;
+    //VkFence* fences;
+    std::vector<Stream*> streams;
     uint32_t* submissionThreadCounts;
 };
 
@@ -47,7 +65,7 @@ struct Image {
     uint32_t block_size;
 };
 
-typedef void (*PFN_stage_record)(VKLCommandBuffer* cmd_buffer, struct Stage* stage, void* instance_data, int device);
+typedef void (*PFN_stage_record)(VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device);
 
 struct Stage {
     PFN_stage_record record;
@@ -63,6 +81,7 @@ struct CommandList {
 
 struct FFTPlan {
     struct Context* ctx;
+    VkFence* fences;
     VkFFTApplication* apps;
     VkFFTConfiguration* configs;
     VkFFTLaunchParams* launchParams;

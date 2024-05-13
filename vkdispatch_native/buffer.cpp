@@ -52,6 +52,8 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
     for (int i = 0; i < enum_count; i++) {
         int dev_index = start_index + i;
 
+        VK_CALL(vkQueueWaitIdle(buffer->ctx->streams[dev_index]->queue));
+
         buffer->stagingBuffers[dev_index]->setData(data, size, 0);
 
         VkBufferCopy bufferCopy;
@@ -59,8 +61,12 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
         bufferCopy.dstOffset = offset;
         bufferCopy.srcOffset = 0;
 
-        buffer->ctx->queues[dev_index]->waitIdle();
-        buffer->buffers[dev_index]->copyFrom(buffer->stagingBuffers[dev_index], buffer->ctx->queues[dev_index], bufferCopy);
+        VkCommandBuffer cmdBuffer = buffer->ctx->streams[dev_index]->begin();
+        
+        vkCmdCopyBuffer(cmdBuffer, buffer->stagingBuffers[dev_index]->handle(), buffer->buffers[dev_index]->handle(), 1, &bufferCopy);
+        
+        VkFence fence = buffer->ctx->streams[dev_index]->submit();
+        VK_CALL(vkWaitForFences(buffer->ctx->devices[dev_index]->handle(), 1, &fence, VK_TRUE, UINT64_MAX));
     }
 }
 
@@ -74,14 +80,20 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
 	bufferCopy.dstOffset = 0;
 	bufferCopy.srcOffset = offset;
 	
-    buffer->ctx->queues[dev_index]->waitIdle();
-	buffer->stagingBuffers[dev_index]->copyFrom(buffer->buffers[dev_index], buffer->ctx->queues[dev_index], bufferCopy);	
-	buffer->stagingBuffers[dev_index]->getData(data, size, 0);
+    VK_CALL(vkQueueWaitIdle(buffer->ctx->streams[dev_index]->queue));
 
-    LOG_INFO("Buffer data read");
-}
+    VkCommandBuffer cmdBuffer = buffer->ctx->streams[dev_index]->begin();
+    
+    vkCmdCopyBuffer(cmdBuffer, buffer->buffers[dev_index]->handle(), buffer->stagingBuffers[dev_index]->handle(), 1, &bufferCopy);
+    
+    VkFence fence = buffer->ctx->streams[dev_index]->submit();
+    VK_CALL(vkWaitForFences(buffer->ctx->devices[dev_index]->handle(), 1, &fence, VK_TRUE, UINT64_MAX));
+
+    buffer->stagingBuffers[dev_index]->getData(data, size, 0);
+} 
 
 void buffer_copy_extern(struct Buffer* src, struct Buffer* dst, unsigned long long src_offset, unsigned long long dst_offset, unsigned long long size, int device_index) {
+    /*
     assert(src->ctx == dst->ctx);
 
     int enum_count = device_index == -1 ? src->ctx->deviceCount : 1;
@@ -98,4 +110,5 @@ void buffer_copy_extern(struct Buffer* src, struct Buffer* dst, unsigned long lo
         src->ctx->queues[dev_index]->waitIdle();
         dst->buffers[dev_index]->copyFrom(src->buffers[dev_index], src->ctx->queues[dev_index], bufferCopy);
     }
+    */
 }

@@ -4,6 +4,8 @@
 #include <vulkan/vk_enum_string_helper.h>
 
 struct Image* image_create_extern(struct Context* context, VkExtent3D extent, unsigned int layers, unsigned int format, unsigned int type, unsigned int view_type) {
+    /*
+    
     struct Image* image = new struct Image();
     image->ctx = context;
     image->images = (VKLImage**)malloc(sizeof(VKLImage*) * context->deviceCount);
@@ -66,9 +68,13 @@ struct Image* image_create_extern(struct Context* context, VkExtent3D extent, un
     }
 
     return image;
+    */
+
+    return NULL;
 }
 
 void image_destroy_extern(struct Image* image) {
+    /*
     for (int i = 0; i < image->ctx->deviceCount; i++) {
         image->images[i]->destroy();
         delete image->images[i];
@@ -79,14 +85,19 @@ void image_destroy_extern(struct Image* image) {
     free((void*)image->images);
     free((void*)image->stagingBuffers);
     delete image;
+    */
 }
 
 unsigned int image_format_block_size_extern(unsigned int format) {
-    struct VKU_FORMAT_INFO formatInfo = vkuGetFormatInfo((VkFormat)format);
-    return formatInfo.block_size;
+    //struct VKU_FORMAT_INFO formatInfo = vkuGetFormatInfo((VkFormat)format);
+    //return formatInfo.block_size;
+
+    return 0;
 }
 
 void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkExtent3D extent, unsigned int baseLayer, unsigned int layerCount, int device_index) {
+    /*
+    
     int enum_count = device_index == -1 ? image->ctx->deviceCount : 1;
     int start_index = device_index == -1 ? 0 : device_index;
 
@@ -128,9 +139,11 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
         cmdBuffer->end();
         image->ctx->queues[dev_index]->submitAndWait(cmdBuffer);
     }
+    */
 }
 
 void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExtent3D extent, unsigned int baseLayer, unsigned int layerCount, int device_index) {
+    /*
     int dev_index = device_index == -1 ? 0 : device_index;
 
     unsigned long long size = extent.width * extent.height * extent.depth * image->block_size;
@@ -167,10 +180,12 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
     image->ctx->queues[dev_index]->submitAndWait(cmdBuffer);
 
     image->stagingBuffers[dev_index]->getData(data, size, 0);
+    */
 }
 
 void image_copy_extern(struct Image* src, struct Image* dst, VkOffset3D src_offset, unsigned int src_baseLayer, unsigned int src_layerCount, 
                                                              VkOffset3D dst_offset, unsigned int dst_baseLayer, unsigned int dst_layerCount, VkExtent3D extent, int device_index) {
+    /*
     assert(src->ctx == dst->ctx);
 
     int enum_count = device_index == -1 ? src->ctx->deviceCount : 1;
@@ -193,5 +208,5 @@ void image_copy_extern(struct Image* src, struct Image* dst, VkOffset3D src_offs
 
         dst->images[dev_index]->copyFrom(src->images[dev_index], src->ctx->queues[dev_index], imageCopy);
     } 
-
+*/
 }
