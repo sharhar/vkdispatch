@@ -1,13 +1,46 @@
-from vkdispatch.init import device_info, get_devices, init_instance
-from vkdispatch.context import make_context, get_context, get_context_handle
-from vkdispatch.buffer import buffer, asbuffer
-from vkdispatch.image import image, image2d, image2d_array, image3d
-from vkdispatch.command_list import command_list, get_command_list, get_command_list_handle
-from vkdispatch.stage_transfer import stage_transfer_copy_buffers, stage_transfer_copy_image, stage_transfer_copy_image_to_buffer, stage_transfer_copy_buffer_to_image
-from vkdispatch.stage_fft import fft_plan, fft, ifft, reset_fft_plans
-from vkdispatch.stage_compute import compute_plan
-from vkdispatch.dtype import dtype, dtype_structure, from_numpy_dtype, to_numpy_dtype, int32, uint32, float32, complex64, vec2, vec4, uvec2, uvec4, ivec2, ivec4, mat2, mat4
-from vkdispatch.shader_variable import shader_variable
-from vkdispatch.shader_builder import shader_builder, push_constant_buffer, shader
-from vkdispatch.shader_decorator import compute_shader
-from vkdispatch.descriptor_set import descriptor_set
+from .buffer import asbuffer
+from .buffer import Buffer
+from .command_list import CommandList
+from .command_list import get_command_list
+from .command_list import get_command_list_handle
+from .context import get_context
+from .context import get_context_handle
+from .context import make_context
+from .descriptor_set import DescriptorSet
+from .dtype import complex64
+from .dtype import dtype
+from .dtype import dtype_structure
+from .dtype import float32
+from .dtype import from_numpy_dtype
+from .dtype import int32
+from .dtype import ivec2
+from .dtype import ivec4
+from .dtype import mat2
+from .dtype import mat4
+from .dtype import to_numpy_dtype
+from .dtype import uint32
+from .dtype import uvec2
+from .dtype import uvec4
+from .dtype import vec2
+from .dtype import vec4
+from .image import image
+from .image import image2d
+from .image import image2d_array
+from .image import image3d
+from .init import DeviceInfo
+from .init import get_devices
+from .init import init_instance
+from .shader_variable import ShaderVariable
+from .shader_builder import PushConstantBuffer
+from .shader_builder import shader
+from .shader_builder import ShaderBuilder
+from .stage_compute import ComputePlan
+from .shader_decorator import compute_shader
+from .stage_fft import fft
+from .stage_fft import FFTPlan
+from .stage_fft import ifft
+from .stage_fft import reset_fft_plans
+from .stage_transfer import stage_transfer_copy_buffer_to_image
+from .stage_transfer import stage_transfer_copy_buffers
+from .stage_transfer import stage_transfer_copy_image
+from .stage_transfer import stage_transfer_copy_image_to_buffer
