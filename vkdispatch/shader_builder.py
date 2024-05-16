@@ -182,9 +182,16 @@ class ShaderBuilder:
         self.pc_size += var_type.item_size
         return new_var
 
-    def new(self, var_type: vd.dtype, var_name: str = None):
+    def new(self, var_type: vd.dtype, *args, var_name: str = None):
         new_var = self.make_var(var_type, var_name)
-        self.append_contents(f"{var_type.glsl_type} {new_var};\n")
+
+        if args:
+            args_str = ", ".join([str(elem) for elem in args])
+
+            self.append_contents(f"{var_type.glsl_type} {new_var} = {var_type.glsl_type}({args_str});\n")
+        else:
+            self.append_contents(f"{var_type.glsl_type} {new_var};\n")
+
         return new_var
 
     def dynamic_buffer(self, var_type: vd.dtype, var_name: str = None):
@@ -196,7 +203,7 @@ class ShaderBuilder:
         return new_var
 
     def shared_buffer(self, var_type: vd.dtype, size: int, var_name: str = None):
-        new_var = self.make_var(var_type[size])
+        new_var = self.make_var(var_type[size], var_name)
         self.shared_buffers.append((new_var.var_type, size, new_var))
         return new_var
 
@@ -225,7 +232,11 @@ class ShaderBuilder:
         arg = arg if arg is not None else ""
         self.append_contents(f"return {arg};\n")
 
-    def end_if(self):
+    def while_statement(self, arg: vd.ShaderVariable):
+        self.append_contents(f"while({arg}) {'{'}\n")
+        self.scope_num += 1
+
+    def end(self):
         self.scope_num -= 1
         self.append_contents("}\n")
 
@@ -244,6 +255,12 @@ class ShaderBuilder:
     def sqrt(self, arg: vd.ShaderVariable):
         return self.make_var(arg.var_type, f"sqrt({arg})")
 
+    def max(self, arg1: vd.ShaderVariable, arg2: vd.ShaderVariable):
+        return self.make_var(arg1.var_type, f"max({arg1}, {arg2})")
+    
+    def min(self, arg1: vd.ShaderVariable, arg2: vd.ShaderVariable):
+        return self.make_var(arg1.var_type, f"min({arg1}, {arg2})")
+
     def atomic_add(self, arg1: vd.ShaderVariable, arg2: vd.ShaderVariable):
         new_var = self.new(arg1.var_type)
         self.append_contents(f"{new_var} = atomicAdd({arg1}, {arg2});\n")
@@ -251,6 +268,30 @@ class ShaderBuilder:
 
     def subgroup_add(self, arg1: vd.ShaderVariable):
         return self.make_var(arg1.var_type, f"subgroupAdd({arg1})")
+    
+    def subgroup_mul(self, arg1: vd.ShaderVariable):
+        return self.make_var(arg1.var_type, f"subgroupMul({arg1})")
+
+    def subgroup_min(self, arg1: vd.ShaderVariable):
+        return self.make_var(arg1.var_type, f"subgroupMin({arg1})")
+
+    def subgroup_max(self, arg1: vd.ShaderVariable):
+        return self.make_var(arg1.var_type, f"subgroupMax({arg1})")
+    
+    def subgroup_and(self, arg1: vd.ShaderVariable):
+        return self.make_var(arg1.var_type, f"subgroupAnd({arg1})")
+    
+    def subgroup_or(self, arg1: vd.ShaderVariable):
+        return self.make_var(arg1.var_type, f"subgroupOr({arg1})")
+
+    def subgroup_xor(self, arg1: vd.ShaderVariable):
+        return self.make_var(arg1.var_type, f"subgroupXor({arg1})")
+
+    def subgroup_elect(self):
+        return self.make_var(vd.int32, f"subgroupElect()")
+
+    def subgroup_barrier(self):
+        self.append_contents("subgroupBarrier();\n")
 
     def float_bits_to_int(self, arg: vd.ShaderVariable):
         return self.make_var(vd.int32, f"floatBitsToInt({arg})")

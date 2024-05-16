@@ -33,7 +33,12 @@ class ShaderDispatcher:
         self.source = source
 
     def __repr__(self) -> str:
-        return self.source
+        result = ""
+
+        for ii, line in enumerate(self.source.split("\n")):
+            result += f"{ii + 1:4d}: {line}\n"
+
+        return result
 
     def __getitem__(self, exec_dims: Union[tuple, int]):
         my_blocks = [exec_dims, 1, 1]
@@ -46,7 +51,7 @@ class ShaderDispatcher:
                 if isinstance(val, int) or np.issubdtype(type(val), np.integer):
                     my_blocks[i] = val
                 else:
-                    if not isinstance(val, vd.CommandList):
+                    if not isinstance(val, vd.CommandList) and val is not None:
                         raise ValueError(f"Invalid dimension '{val}'!")
 
                     if not i == len(exec_dims) - 1:
@@ -115,18 +120,16 @@ def compute_shader(*args, local_size: Tuple[int, int, int] = None):
 
         builder.if_statement(pc_exec_count_var[0] <= builder.global_x)
         builder.return_statement()
-        builder.end_if()
+        builder.end()
 
         func_args = []
 
         for buff in args:
-            if (
-                isinstance(buff, vd.dtype)
-                and buff.structure == vd.dtype_structure.DATA_STRUCTURE_BUFFER
-            ):
+            if (isinstance(buff, vd.dtype)
+                and buff.structure == vd.dtype_structure.DATA_STRUCTURE_BUFFER):
                 func_args.append(builder.dynamic_buffer(buff))
             else:
-                raise ValueError("Decorator must be given list of shader_types only!")
+                raise ValueError("Decorator must be given list of vd.dtype's only!")
 
         if len(func_args) > 0:
             build_func(*func_args)
