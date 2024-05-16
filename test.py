@@ -241,6 +241,26 @@ def apply_transfer_function(image, tf_data):
     image[ind][0] = mag * (wv[0] * rot_vec[0] - wv[1] * rot_vec[1])
     image[ind][1] = mag * (wv[0] * rot_vec[1] + wv[1] * rot_vec[0])
 
+@vd.map_reduce(vd.vec2, vd.vec2[0], reduction="subgroupAdd") # We define the reduction function here
+def calc_sums(wave): # so this is the mapping function
+    result = vd.shader.new(vd.vec2)
+    result[0] = wave[0] * wave[0] + wave[1] * wave[1]
+    result[1] = result[0] * result[0]
+
+    wave[0] = result[0]
+    wave[1] = 0
+
+    return result
+
+@vd.compute_shader(vd.vec2[0], vd.vec2[0])
+def normalize_image(image, sum_buff):
+    ind = vd.shader.global_x.copy()
+
+    sum_vec = (sum_buff[0] / work_buffer.size).copy()
+    sum_vec[1] = vd.shader.sqrt(sum_vec[1] - sum_vec[0] * sum_vec[0])
+
+    image[ind][0] = (image[ind][0] - sum_vec[0]) / sum_vec[1]
+
 @vd.compute_shader(vd.complex64[0], vd.complex64[0])
 def cross_correlate(input, reference):
     ind = vd.shader.global_x.copy()
@@ -290,28 +310,7 @@ mult_by_mask[work_buffer.size, cmd_list](work_buffer)
 defocus = apply_transfer_function[work_buffer.size, cmd_list](work_buffer, tf_data_buffer)
 vd.ifft[cmd_list](work_buffer)
 
-def wave_abs(wave):
-    result = vd.shader.new(vd.vec2)
-    result[0] = wave[0] * wave[0] + wave[1] * wave[1] # / (work_buffer.shape[0] * work_buffer.shape[1])
-    result[1] = result[0] * result[0]
-
-    wave[0] = result[0]
-    wave[1] = 0
-
-    return result
-
-@vd.compute_shader(vd.vec2[0], vd.vec2[0])
-def normalize_image(image, sum_buff):
-    ind = vd.shader.global_x.copy()
-
-    sum_vec = (sum_buff[0] / work_buffer.size).copy()
-    sum_vec[1] = vd.shader.sqrt(sum_vec[1] - sum_vec[0] * sum_vec[0])
-
-    image[ind][0] = (image[ind][0] - sum_vec[0]) / sum_vec[1]
-
-normalize = vd.make_reduction("subgroupAdd", vd.vec2, vd.vec2[0], map=wave_abs)
-
-sum_buff = normalize[work_buffer.size, cmd_list](work_buffer)
+sum_buff = calc_sums[work_buffer.size, cmd_list](work_buffer) # The reduction returns a buffer with the result in the first value
 normalize_image[work_buffer.size, cmd_list](work_buffer, sum_buff)
 
 fftshift[work_buffer.size, cmd_list](shift_buffer, work_buffer)
@@ -377,7 +376,7 @@ vd.ifft(work_buffer)
 
 params_result = test_values[best_index_result]
 
-sum_buff = normalize[work_buffer.size](work_buffer)
+sum_buff = calc_sums[work_buffer.size](work_buffer)
 normalize_image[work_buffer.size](work_buffer, sum_buff)
 
 np.save(file_out + "_mip.npy", final_max_cross)
@@ -392,23 +391,14 @@ np.save(file_out + "_defocus.npy", params_result[:, :, 3])
 #plt.colorbar()
 #plt.show()
 
+# Do 3D plot of MIP
 from matplotlib import cm
 from matplotlib.ticker import LinearLocator
-
 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-
 X, Y = np.meshgrid(range(final_max_cross.shape[0]), range(final_max_cross.shape[1]))
-
 surf = ax.plot_surface(X, Y, final_max_cross, cmap=cm.coolwarm,
                        linewidth=0, antialiased=False)
-
-# Customize the z axis.
-#ax.set_zlim(-1.01, 1.01)
 ax.zaxis.set_major_locator(LinearLocator(10))
-# A StrMethodFormatter is used automatically
 ax.zaxis.set_major_formatter('{x:.02f}')
-
-# Add a color bar which maps values to colors.
 fig.colorbar(surf, shrink=0.5, aspect=5)
-
 plt.show()
