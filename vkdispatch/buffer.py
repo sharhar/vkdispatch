@@ -19,7 +19,7 @@ class Buffer:
     def __init__(self, shape: Tuple[int], var_type: dtype) -> None:
         self.var_type: dtype = var_type
         self.shape: Tuple[int] = shape
-        self.size: int = np.prod(shape)
+        self.size: int = int(np.prod(shape))
         self.mem_size: int = self.size * self.var_type.item_size
 
         self._handle: int = vkdispatch_native.buffer_create(

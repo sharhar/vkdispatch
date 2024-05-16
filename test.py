@@ -29,9 +29,9 @@ sigma=0.025
 #theta_values = np.arange(0, 180, 2.5)
 #psi_values = np.arange(0, 360, 1.5)
 
-phi_values = np.arange(0, 100, 5)
-theta_values = np.arange(0, 90, 5)
-psi_values = np.arange(0, 100, 5)
+phi_values = np.arange(100, 200, 2.5)
+theta_values = np.arange(70, 100, 2.5)
+psi_values = np.arange(280, 340, 1.5)
 
 defocus_values = np.arange(11000, 13000, 400)
 test_values = (np.array(np.meshgrid(phi_values, theta_values, psi_values, defocus_values)).T.reshape(-1, 4))
@@ -61,15 +61,15 @@ match_image_buffer = vd.asbuffer(test_image_normalized.astype(np.complex64))
 
 vd.fft(match_image_buffer)
 
-work_buffer = vd.buffer(input_image_raw.shape, vd.complex64)
-shift_buffer = vd.buffer(input_image_raw.shape, vd.complex64)
-max_cross = vd.buffer(input_image_raw.shape, vd.float32)
-best_index = vd.buffer(input_image_raw.shape, vd.int32)
+work_buffer = vd.Buffer(input_image_raw.shape, vd.complex64)
+shift_buffer = vd.Buffer(input_image_raw.shape, vd.complex64)
+max_cross = vd.Buffer(input_image_raw.shape, vd.float32)
+best_index = vd.Buffer(input_image_raw.shape, vd.int32)
 
 workgroup_size = vd.get_devices()[0].max_workgroup_size[0]
 assert work_buffer.size % workgroup_size == 0
 
-reduce_buffer = vd.buffer(((work_buffer.size // workgroup_size) + 1,), vd.vec2)
+reduce_buffer = vd.Buffer(((work_buffer.size // workgroup_size) + 1,), vd.vec2)
 
 @vd.compute_shader(vd.float32[0], vd.int32[0])
 def init_accumulators(max_cross, best_index):
@@ -139,7 +139,7 @@ def place_atoms(image, atom_coords):
 
     vd.shader.if_any(image_ind[0] < 0, image_ind[0] >= work_buffer.shape[0], image_ind[1] < 0, image_ind[1] >= work_buffer.shape[1])
     vd.shader.return_statement()
-    vd.shader.end_if()
+    vd.shader.end()
 
     vd.shader.atomic_add(image[2 * image_ind[1] * work_buffer.shape[0] + 2 * image_ind[0]], 1)
 
@@ -166,7 +166,7 @@ def apply_gaussian_filter(buf):
     buf[ind][0] = 0
     buf[ind][1] = 0
     vd.shader.return_statement()
-    vd.shader.end_if()
+    vd.shader.end()
 
     buf[ind] *= mag * vd.shader.exp(-my_dist) / (work_buffer.shape[0] * work_buffer.shape[1])
 
@@ -190,18 +190,18 @@ def mult_by_mask(image):
 
     vd.shader.if_statement(r > work_buffer.shape[0] // 2)
     r -= work_buffer.shape[0]
-    vd.shader.end_if()
+    vd.shader.end()
 
     vd.shader.if_statement(c > work_buffer.shape[1] // 2)
     c -= work_buffer.shape[1]
-    vd.shader.end_if()
+    vd.shader.end()
 
     rad_sq = (r*r + c*c).copy()
 
     vd.shader.if_statement(rad_sq > (work_buffer.shape[0] * work_buffer.shape[1] // 16))
     image[ind][0] = 0
     image[ind][1] = 0
-    vd.shader.end_if()
+    vd.shader.end()
 
 @vd.compute_shader(vd.complex64[0], vd.float32[0])
 def apply_transfer_function(image, tf_data):
@@ -241,85 +241,6 @@ def apply_transfer_function(image, tf_data):
     image[ind][0] = mag * (wv[0] * rot_vec[0] - wv[1] * rot_vec[1])
     image[ind][1] = mag * (wv[0] * rot_vec[1] + wv[1] * rot_vec[0])
 
-@vd.compute_shader(vd.vec2[0], vd.complex64[0])
-def normalization_stage1(reduce_buffer, image):
-    ind = vd.shader.global_x.copy()
-
-    sdata = vd.shader.shared_buffer(vd.vec2, workgroup_size // vd.get_devices()[0].sub_group_size)
-    
-    sum_vec = vd.shader.new(vd.vec2)
-    sum_vec[0] = (image[ind][0] * image[ind][0] + image[ind][1] * image[ind][1]) # / (work_buffer.shape[0] * work_buffer.shape[1])
-    sum_vec[1] = sum_vec[0] * sum_vec[0]
-
-    image[ind][0] = sum_vec[0]
-    image[ind][1] = 0
-
-    sum_vec[:] = vd.shader.subgroup_add(sum_vec)
-
-    vd.shader.if_statement(vd.shader.subgroup_invocation == 0)
-    sdata[vd.shader.subgroup_id] = sum_vec
-    vd.shader.end_if()
-
-    vd.shader.memory_barrier_shared()
-    vd.shader.barrier()
-
-    vd.shader.if_statement(vd.shader.subgroup_id == 0)
-    sum_vec[:] = "vec2(0.0, 0.0)"
-
-    vd.shader.if_statement(vd.shader.subgroup_invocation < vd.shader.num_subgroups)
-    sum_vec[:] = sdata[vd.shader.subgroup_invocation]
-    vd.shader.end_if()
-
-    sum_vec[:] = vd.shader.subgroup_add(sum_vec)
-    vd.shader.end_if()
-
-    vd.shader.if_statement(vd.shader.local_x == 0)
-    reduce_buffer[vd.shader.workgroup_x] = sum_vec
-    vd.shader.end_if()
-
-@vd.compute_shader(vd.vec2[0], local_size=(reduce_buffer.shape[0] - 1, 1, 1))
-def normalization_stage2(buff):
-    ind = vd.shader.global_x.copy()
-
-    sdata = vd.shader.shared_buffer(vd.vec2, workgroup_size // vd.get_devices()[0].sub_group_size) #vd.shader.num_subgroups)
-    
-    sum_vec = buff[ind].copy()
-
-    sum_vec[:] = vd.shader.subgroup_add(sum_vec)
-
-    vd.shader.if_statement(vd.shader.subgroup_invocation == 0)
-    sdata[vd.shader.subgroup_id] = sum_vec
-    vd.shader.end_if()
-
-    vd.shader.memory_barrier_shared()
-    vd.shader.barrier()
-
-    vd.shader.if_statement(vd.shader.subgroup_id == 0)
-    sum_vec[:] = "vec2(0.0, 0.0)"
-
-    vd.shader.if_all(vd.shader.subgroup_invocation < vd.shader.num_subgroups)
-    sum_vec[:] = sdata[vd.shader.subgroup_invocation]
-    vd.shader.end_if()
-    
-    sum_vec[:] = vd.shader.subgroup_add(sum_vec)
-    vd.shader.end_if()
-
-    vd.shader.memory_barrier_shared()
-    vd.shader.barrier()
-
-    vd.shader.if_statement(vd.shader.local_x == 0)
-    buff[reduce_buffer.shape[0] - 1] = sum_vec
-    vd.shader.end_if()
-
-@vd.compute_shader(vd.complex64[0], vd.vec2[0])
-def normalization_stage3(image, buff):
-    ind = vd.shader.global_x.copy()
-
-    sum_vec = (buff[reduce_buffer.shape[0] - 1] / work_buffer.size).copy()
-    sum_vec[1] = vd.shader.sqrt(sum_vec[1] - sum_vec[0] * sum_vec[0])
-
-    image[ind][0] = (image[ind][0] - sum_vec[0]) / sum_vec[1]
-
 @vd.compute_shader(vd.complex64[0], vd.complex64[0])
 def cross_correlate(input, reference):
     ind = vd.shader.global_x.copy()
@@ -351,9 +272,9 @@ def update_max(max_cross, best_index, back_buffer):
     vd.shader.if_statement(current_cross_correlation > max_cross[ind])
     max_cross[ind] = current_cross_correlation
     best_index[ind] = vd.shader.push_constant(vd.int32, "index")
-    vd.shader.end_if()
+    vd.shader.end()
 
-cmd_list = vd.command_list()
+cmd_list = vd.CommandList()
 
 fill_buffer[work_buffer.size, cmd_list](work_buffer, val=0)
 rotation_matrix = place_atoms[atom_coords.shape[0], cmd_list](work_buffer, atom_coords_buffer)
@@ -369,9 +290,29 @@ mult_by_mask[work_buffer.size, cmd_list](work_buffer)
 defocus = apply_transfer_function[work_buffer.size, cmd_list](work_buffer, tf_data_buffer)
 vd.ifft[cmd_list](work_buffer)
 
-normalization_stage1[work_buffer.size, cmd_list](reduce_buffer, work_buffer)
-normalization_stage2[reduce_buffer.size - 1, cmd_list](reduce_buffer)
-normalization_stage3[work_buffer.size, cmd_list](work_buffer, reduce_buffer)
+def wave_abs(wave):
+    result = vd.shader.new(vd.vec2)
+    result[0] = wave[0] * wave[0] + wave[1] * wave[1] # / (work_buffer.shape[0] * work_buffer.shape[1])
+    result[1] = result[0] * result[0]
+
+    wave[0] = result[0]
+    wave[1] = 0
+
+    return result
+
+@vd.compute_shader(vd.vec2[0], vd.vec2[0])
+def normalize_image(image, sum_buff):
+    ind = vd.shader.global_x.copy()
+
+    sum_vec = (sum_buff[0] / work_buffer.size).copy()
+    sum_vec[1] = vd.shader.sqrt(sum_vec[1] - sum_vec[0] * sum_vec[0])
+
+    image[ind][0] = (image[ind][0] - sum_vec[0]) / sum_vec[1]
+
+normalize = vd.make_reduction("subgroupAdd", vd.vec2, vd.vec2[0], map=wave_abs)
+
+sum_buff = normalize[work_buffer.size, cmd_list](work_buffer)
+normalize_image[work_buffer.size, cmd_list](work_buffer, sum_buff)
 
 fftshift[work_buffer.size, cmd_list](shift_buffer, work_buffer)
 
@@ -434,11 +375,10 @@ mult_by_mask[work_buffer.size](work_buffer)
 apply_transfer_function[work_buffer.size](work_buffer, tf_data_buffer, defocus=test_values[final_index][3])
 vd.ifft(work_buffer)
 
-normalization_stage1[work_buffer.size](reduce_buffer, work_buffer)
-normalization_stage2[reduce_buffer.size - 1](reduce_buffer)
-normalization_stage3[work_buffer.size](work_buffer, reduce_buffer)
-
 params_result = test_values[best_index_result]
+
+sum_buff = normalize[work_buffer.size](work_buffer)
+normalize_image[work_buffer.size](work_buffer, sum_buff)
 
 np.save(file_out + "_mip.npy", final_max_cross)
 np.save(file_out + "_match.npy", work_buffer.read(0))
@@ -448,6 +388,27 @@ np.save(file_out + "_theta.npy", params_result[:, :, 1])
 np.save(file_out + "_psi.npy", params_result[:, :, 2])
 np.save(file_out + "_defocus.npy", params_result[:, :, 3])
 
-plt.imshow(final_max_cross)
-plt.colorbar()
+#plt.imshow(final_max_cross)
+#plt.colorbar()
+#plt.show()
+
+from matplotlib import cm
+from matplotlib.ticker import LinearLocator
+
+fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+
+X, Y = np.meshgrid(range(final_max_cross.shape[0]), range(final_max_cross.shape[1]))
+
+surf = ax.plot_surface(X, Y, final_max_cross, cmap=cm.coolwarm,
+                       linewidth=0, antialiased=False)
+
+# Customize the z axis.
+#ax.set_zlim(-1.01, 1.01)
+ax.zaxis.set_major_locator(LinearLocator(10))
+# A StrMethodFormatter is used automatically
+ax.zaxis.set_major_formatter('{x:.02f}')
+
+# Add a color bar which maps values to colors.
+fig.colorbar(surf, shrink=0.5, aspect=5)
+
 plt.show()
