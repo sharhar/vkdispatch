@@ -1,0 +1,5 @@
+# Versions should be made more exact eventually
+numpy
+scipy
+matplotlib
+tqdm

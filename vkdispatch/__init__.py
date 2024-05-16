@@ -38,6 +38,7 @@ from .stage_compute import ComputePlan
 from .shader_decorator import compute_shader
 from .shader_decorator import ShaderDispatcher
 from .reductions import make_reduction
+from .reductions import map_reduce
 from .stage_fft import fft
 from .stage_fft import FFTPlan
 from .stage_fft import ifft

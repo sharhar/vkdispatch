@@ -4,13 +4,13 @@ import numpy as np
 import typing
 
 subgroup_operations = {
-    "subgroupAdd": (vd.shader.subgroup_add, lambda x, y: x + y),
-    "subgroupMul": (vd.shader.subgroup_mul, lambda x, y: x * y),
-    "subgroupMin": (vd.shader.subgroup_min, vd.shader.min),
-    "subgroupMax": (vd.shader.subgroup_max, vd.shader.max),
-    "subgroupAnd": (vd.shader.subgroup_and, lambda x, y: x & y),
-    "subgroupOr":  (vd.shader.subgroup_or,  lambda x, y: x | y),
-    "subgroupXor": (vd.shader.subgroup_xor, lambda x, y: x ^ y),
+    "subgroupAdd": (vd.shader.subgroup_add, lambda x, y: x + y, 0),
+    "subgroupMul": (vd.shader.subgroup_mul, lambda x, y: x * y, 1),
+    "subgroupMin": (vd.shader.subgroup_min, vd.shader.min, np.inf),
+    "subgroupMax": (vd.shader.subgroup_max, vd.shader.max, -np.inf),
+    "subgroupAnd": (vd.shader.subgroup_and, lambda x, y: x & y, -1),
+    "subgroupOr":  (vd.shader.subgroup_or,  lambda x, y: x | y, 0),
+    "subgroupXor": (vd.shader.subgroup_xor, lambda x, y: x ^ y, 0),
 }
 
 class ReductionDispatcher:
@@ -77,6 +77,7 @@ def make_reduction(
                 ],
         out_type: vd.dtype,
         *var_types: vd.dtype,
+        reduction_identity = None,
         group_size: int = None,
         map: typing.Callable[[typing.List[vd.ShaderVariable]], vd.ShaderVariable] = None):
     if len(var_types) == 0:
@@ -96,6 +97,9 @@ def make_reduction(
     if isinstance(reduce, str) and reduce not in subgroup_operations.keys():
             raise ValueError("Invalid reduction operation!")
     
+    if reduction_identity is None:
+        reduction_identity = subgroup_operations[reduce][2] if isinstance(reduce, str) else 0
+
     reduction_func = subgroup_operations[reduce][1] if isinstance(reduce, str) else reduce
 
     def create_reduction_stage(reduction_map, first_input_index, in_var_types):
@@ -106,7 +110,7 @@ def make_reduction(
             N = vd.shader.push_constant(vd.int32, "N")
             offset = vd.shader.new(vd.uint32, 1 - first_input_index, var_name="offset")
 
-            reduction_aggregate = vd.shader.new(out_type, 0, var_name="reduction_aggregate")
+            reduction_aggregate = vd.shader.new(out_type, reduction_identity, var_name="reduction_aggregate")
 
             vd.shader.while_statement(ind + offset < N)
 
@@ -176,91 +180,25 @@ def make_reduction(
         out_type
     )
     
+def map_reduce(
+        out_type, 
+        *args, 
+        group_size: int = None,
+        reduction: typing.Union[
+                    typing.Callable[[vd.ShaderVariable, vd.ShaderVariable], vd.ShaderVariable],
+                    str
+                ] = None,
+        reduction_identity = None, 
+        map: typing.Callable[[typing.List[vd.ShaderVariable]], vd.ShaderVariable] = None):
+    def decorator(build_func):
+        my_map = map
+        my_reduction = reduction
+        
+        if my_reduction is None:
+            my_reduction = build_func
+        elif my_map is None:
+            my_map = build_func
 
-"""
+        return make_reduction(my_reduction, out_type, *args, group_size=group_size, map=my_map, reduction_identity=reduction_identity)
 
-
-
-@vd.compute_shader(vd.vec2[0], vd.complex64[0])
-def normalization_stage1(reduce_buffer, image):
-    ind = vd.shader.global_x.copy()
-
-    sdata = vd.shader.shared_buffer(vd.vec2, workgroup_size // vd.get_devices()[0].sub_group_size)
-    
-    sum_vec = vd.shader.new(vd.vec2)
-    sum_vec[0] = (image[ind][0] * image[ind][0] + image[ind][1] * image[ind][1]) # / (work_buffer.shape[0] * work_buffer.shape[1])
-    sum_vec[1] = sum_vec[0] * sum_vec[0]
-
-    image[ind][0] = sum_vec[0]
-    image[ind][1] = 0
-
-    sum_vec[:] = vd.shader.subgroup_add(sum_vec)
-
-    vd.shader.if_statement(vd.shader.subgroup_invocation == 0)
-    sdata[vd.shader.subgroup_id] = sum_vec
-    vd.shader.end()
-
-    vd.shader.memory_barrier_shared()
-    vd.shader.barrier()
-
-    vd.shader.if_statement(vd.shader.subgroup_id == 0)
-    sum_vec[:] = "vec2(0.0, 0.0)"
-
-    vd.shader.if_statement(vd.shader.subgroup_invocation < vd.shader.num_subgroups)
-    sum_vec[:] = sdata[vd.shader.subgroup_invocation]
-    vd.shader.end()
-
-    sum_vec[:] = vd.shader.subgroup_add(sum_vec)
-    vd.shader.end()
-
-    vd.shader.if_statement(vd.shader.local_x == 0)
-    reduce_buffer[vd.shader.workgroup_x] = sum_vec
-    vd.shader.end()
-
-@vd.compute_shader(vd.vec2[0], local_size=(reduce_buffer.shape[0] - 1, 1, 1))
-def normalization_stage2(buff):
-    ind = vd.shader.global_x.copy()
-
-    sdata = vd.shader.shared_buffer(vd.vec2, workgroup_size // vd.get_devices()[0].sub_group_size) #vd.shader.num_subgroups)
-    
-    sum_vec = buff[ind].copy()
-
-    sum_vec[:] = vd.shader.subgroup_add(sum_vec)
-
-    vd.shader.if_statement(vd.shader.subgroup_invocation == 0)
-    sdata[vd.shader.subgroup_id] = sum_vec
-    vd.shader.end()
-
-    vd.shader.memory_barrier_shared()
-    vd.shader.barrier()
-
-    vd.shader.if_statement(vd.shader.subgroup_id == 0)
-    sum_vec[:] = "vec2(0.0, 0.0)"
-
-    vd.shader.if_all(vd.shader.subgroup_invocation < vd.shader.num_subgroups)
-    sum_vec[:] = sdata[vd.shader.subgroup_invocation]
-    vd.shader.end()
-    
-    sum_vec[:] = vd.shader.subgroup_add(sum_vec)
-    vd.shader.end()
-
-    vd.shader.memory_barrier_shared()
-    vd.shader.barrier()
-
-    vd.shader.if_statement(vd.shader.local_x == 0)
-    buff[reduce_buffer.shape[0] - 1] = sum_vec
-    vd.shader.end()
-
-@vd.compute_shader(vd.complex64[0], vd.vec2[0])
-def normalization_stage3(image, buff):
-    ind = vd.shader.global_x.copy()
-
-    sum_vec = (buff[reduce_buffer.shape[0] - 1] / work_buffer.size).copy()
-    sum_vec[1] = vd.shader.sqrt(sum_vec[1] - sum_vec[0] * sum_vec[0])
-
-    image[ind][0] = (image[ind][0] - sum_vec[0]) / sum_vec[1]
-
-
-"""
-
-    
+    return decorator
