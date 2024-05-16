@@ -6,7 +6,7 @@
 MyInstance _instance;
 
 void init_extern(bool debug) {
-    #ifdef VKDISPATCH_USE_MVK
+    #ifndef VKDISPATCH_USE_VOLK
     setenv("MVK_CONFIG_LOG_LEVEL", "2", 0);
     #else
     LOG_INFO("Loading Vulkan using volk");
