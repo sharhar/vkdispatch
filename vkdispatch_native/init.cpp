@@ -1,5 +1,6 @@
 #include "internal.h"
 
+#include <algorithm>
 #include <string>
 #include <stdio.h>
 
