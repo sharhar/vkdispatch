@@ -30,6 +30,7 @@ def stage_transfer_copy_buffers(
         command_list._handle, src._handle, dst._handle, src_offset, dst_offset, size
     )
 
+"""
 
 def stage_transfer_copy_image(
     command_list: vkdispatch.CommandList,
@@ -236,3 +237,5 @@ def stage_transfer_copy_image_to_buffer(
         image_baseLayer,
         image_layerCount,
     )
+
+"""

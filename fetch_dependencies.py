@@ -32,7 +32,6 @@ def clone_and_checkout(repo_url, commit_hash, output_dir):
 
 dependencies = [
     ("https://github.com/DTolm/VkFFT.git", "066a17c17068c0f11c9298d848c2976c71fad1c1", "deps/VkFFT"),
-    ("https://github.com/sharhar/VKL.git", "4d15e93c588d653cbe271e7a8272ab5dcf1912f0", "deps/VKL"),
     ("https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git", "5677097bafb8477097c6e3354ce68b7a44fd01a4", "deps/VMA"),
     ("https://github.com/KhronosGroup/Vulkan-Headers.git", "eaa319dade959cb61ed2229c8ea42e307cc8f8b3", "deps/Vulkan-Headers"),
     ("https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git", "ad7f699a7b2b5deb66eb3de19f24aa33597ed65b", "deps/Vulkan-Utility-Libraries"),

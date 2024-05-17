@@ -34,7 +34,6 @@ platform_extra_compile_args = (
 
 include_directories = [
     numpy_include,
-    proj_root + "/deps/VKL/include",
     proj_root + "/deps/VMA/include",
     proj_root + "/deps/volk",
     proj_root + "/deps/VkFFT/vkFFT",
@@ -117,26 +116,6 @@ append_to_sources("vkdispatch_native/", [
     "VMAImpl.cpp",
     "VolkImpl.cpp"
 ])
-
-append_to_sources('deps/VKL/src/', [
-    'VKLBuffer.cpp',
-    'VKLCommandBuffer.cpp',
-    'VKLDescriptorSet.cpp',
-    'VKLDevice.cpp',
-    'VKLFramebuffer.cpp',
-    'VKLImage.cpp',
-    'VKLImageView.cpp',
-    'VKLInstance.cpp',
-    'VKLPhysicalDevice.cpp',
-    'VKLPipeline.cpp',
-    'VKLPipelineLayout.cpp',
-    'VKLQueue.cpp',
-    'VKLRenderPass.cpp',
-    'VKLSurface.cpp',
-    'VKLStaticAllocator.cpp',
-    'VKLSwapChain.cpp'
-])
-
 
 if vulkan_sdk_root is None:
     append_to_sources("deps/glslang/glslang/", [

@@ -5,7 +5,7 @@ from libcpp cimport bool
 import sys
 
 cdef extern from "init.h":
-    struct PhysicalDeviceProperties:
+    struct PhysicalDeviceDetails:
         int version_variant;
         int version_major;
         int version_minor;
@@ -46,14 +46,14 @@ cdef extern from "init.h":
         unsigned int max_compute_shared_memory_size
     
     void init_extern(bool debug)
-    PhysicalDeviceProperties* get_devices_extern(int* count)
+    PhysicalDeviceDetails* get_devices_extern(int* count)
 
 cpdef inline init(bool debug):
     init_extern(debug)
 
 cpdef inline get_devices():
     cdef int count = 0
-    cdef PhysicalDeviceProperties* devices = get_devices_extern(&count)
+    cdef PhysicalDeviceDetails* devices = get_devices_extern(&count)
 
     if not devices:
         return []

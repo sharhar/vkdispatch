@@ -343,6 +343,8 @@ for i in range(0, test_values.shape[0], batch_size):
     
     cmd_list.submit(data=data)
 
+    #exit()
+
     status_bar.update(batch_size)
 
 status_bar.close()

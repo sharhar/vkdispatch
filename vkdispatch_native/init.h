@@ -1,7 +1,7 @@
 #ifndef SRC_INIT_H
 #define SRC_INIT_H
 
-struct PhysicalDeviceProperties {
+struct PhysicalDeviceDetails {
     int version_variant;
     int version_major;
     int version_minor;
@@ -43,6 +43,6 @@ struct PhysicalDeviceProperties {
 };
 
 void init_extern(bool debug);
-struct PhysicalDeviceProperties* get_devices_extern(int* count);
+struct PhysicalDeviceDetails* get_devices_extern(int* count);
 
 #endif // INIT_H

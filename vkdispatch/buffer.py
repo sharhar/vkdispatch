@@ -75,8 +75,6 @@ class Buffer:
 def asbuffer(array: np.ndarray) -> Buffer:
     """Cast a numpy array to a buffer object."""
 
-    print("asbuffer", array.shape, vd.from_numpy_dtype(array.dtype))
-
     buffer = Buffer(array.shape, vd.from_numpy_dtype(array.dtype))
     buffer.write(array)
 
