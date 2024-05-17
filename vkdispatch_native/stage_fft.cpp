@@ -61,7 +61,7 @@ void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* p
 
             struct FFTRecordInfo* my_fft_info = (struct FFTRecordInfo*)stage->user_data;
 
-            my_fft_info->plan->launchParams[device].buffer = my_fft_info->buffer->buffers[device]->pHandle();
+            my_fft_info->plan->launchParams[device].buffer = &my_fft_info->buffer->buffers[device];
             my_fft_info->plan->launchParams[device].commandBuffer = &cmd_buffer;
 
             VkFFTResult fftRes = VkFFTAppend(&my_fft_info->plan->apps[device], my_fft_info->inverse, &my_fft_info->plan->launchParams[device]);
