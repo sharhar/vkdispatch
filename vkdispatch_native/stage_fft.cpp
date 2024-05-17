@@ -21,11 +21,10 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
 
         VkFenceCreateInfo fenceInfo = {};
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        VK_CALL(vkCreateFence(ctx->devices[i], &fenceInfo, nullptr, &plan->fences[i]));
 
-        VK_CALL(vkCreateFence(ctx->devices[i]->handle(), &fenceInfo, nullptr, &plan->fences[i]));
-
-        plan->configs[i].physicalDevice = ctx->devices[i]->physical()->pHandle();
-        plan->configs[i].device = ctx->devices[i]->pHandle();
+        plan->configs[i].physicalDevice = &ctx->physicalDevices[i];
+        plan->configs[i].device = &ctx->devices[i];
         plan->configs[i].queue = &ctx->streams[i]->queue;
         plan->configs[i].commandPool = &ctx->streams[i]->commandPool;
         plan->configs[i].fence = &plan->fences[i];

@@ -14,7 +14,7 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
         descriptorPoolCreateInfo.poolSizeCount = plan->poolSizes[i].size();
         descriptorPoolCreateInfo.pPoolSizes = plan->poolSizes[i].data();
 
-        VK_CALL(vkCreateDescriptorPool(plan->ctx->devices[i]->handle(), &descriptorPoolCreateInfo, NULL, &descriptor_set->pools[i]));
+        VK_CALL(vkCreateDescriptorPool(plan->ctx->devices[i], &descriptorPoolCreateInfo, NULL, &descriptor_set->pools[i]));
 
         VkDescriptorSetAllocateInfo descriptorSetAllocateInfo;
         memset(&descriptorSetAllocateInfo, 0, sizeof(VkDescriptorSetAllocateInfo));
@@ -23,7 +23,7 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
         descriptorSetAllocateInfo.descriptorSetCount = 1;
         descriptorSetAllocateInfo.pSetLayouts = &plan->descriptorSetLayouts[i];
 
-        VK_CALL(vkAllocateDescriptorSets(plan->ctx->devices[i]->handle(), &descriptorSetAllocateInfo, &descriptor_set->sets[i]));
+        VK_CALL(vkAllocateDescriptorSets(plan->ctx->devices[i], &descriptorSetAllocateInfo, &descriptor_set->sets[i]));
     }
 
     return descriptor_set;
@@ -31,7 +31,7 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
 
 void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set) {
     for (int i = 0; i < descriptor_set->plan->ctx->deviceCount; i++) {
-        vkDestroyDescriptorPool(descriptor_set->plan->ctx->devices[i]->handle(), descriptor_set->pools[i], NULL);        
+        vkDestroyDescriptorPool(descriptor_set->plan->ctx->devices[i], descriptor_set->pools[i], NULL);        
     }
 
     delete descriptor_set;
@@ -58,6 +58,6 @@ void descriptor_set_write_buffer_extern(struct DescriptorSet* descriptor_set, un
         writeDescriptor.pBufferInfo = &buffDesc;
         writeDescriptor.pTexelBufferView = NULL;
 
-        vkUpdateDescriptorSets(descriptor_set->plan->ctx->devices[i]->handle(), 1, &writeDescriptor, 0, NULL);
+        vkUpdateDescriptorSets(descriptor_set->plan->ctx->devices[i], 1, &writeDescriptor, 0, NULL);
     }
 }
