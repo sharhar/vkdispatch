@@ -47,13 +47,21 @@ struct Context {
     //VKLCommandBuffer** commandBuffers;
     //VkFence* fences;
     std::vector<Stream*> streams;
+    std::vector<VmaAllocator> allocators;
     uint32_t* submissionThreadCounts;
 };
 
 struct Buffer {
     struct Context* ctx;
-    VKLBuffer** buffers;
-    VKLBuffer** stagingBuffers;
+    
+    std::vector<VkBuffer> buffers;
+    std::vector<VmaAllocation> allocations;
+    std::vector<VkBuffer> stagingBuffers;
+    std::vector<VmaAllocation> stagingAllocations;
+    std::vector<VkFence> fences;
+
+    //VKLBuffer** buffers;
+    //VKLBuffer** stagingBuffers;
 };
 
 struct Image {

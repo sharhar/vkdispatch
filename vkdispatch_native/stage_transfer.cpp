@@ -19,7 +19,7 @@ void stage_transfer_record_copy_buffer_extern(struct CommandList* command_list, 
             bufferCopy.dstOffset = copy_info->dst_offset;
             bufferCopy.size = copy_info->size;
 
-            vkCmdCopyBuffer(cmd_buffer, copy_info->src->buffers[device]->handle(), copy_info->dst->buffers[device]->handle(), 1, &bufferCopy);
+            vkCmdCopyBuffer(cmd_buffer, copy_info->src->buffers[device], copy_info->dst->buffers[device], 1, &bufferCopy);
         },
         my_copy_info,
         0,

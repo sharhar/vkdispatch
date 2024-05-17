@@ -387,18 +387,18 @@ np.save(file_out + "_theta.npy", params_result[:, :, 1])
 np.save(file_out + "_psi.npy", params_result[:, :, 2])
 np.save(file_out + "_defocus.npy", params_result[:, :, 3])
 
-#plt.imshow(final_max_cross)
-#plt.colorbar()
-#plt.show()
+plt.imshow(final_max_cross)
+plt.colorbar()
+plt.show()
 
 # Do 3D plot of MIP
-from matplotlib import cm
-from matplotlib.ticker import LinearLocator
-fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-X, Y = np.meshgrid(range(final_max_cross.shape[0]), range(final_max_cross.shape[1]))
-surf = ax.plot_surface(X, Y, final_max_cross, cmap=cm.coolwarm,
-                       linewidth=0, antialiased=False)
-ax.zaxis.set_major_locator(LinearLocator(10))
-ax.zaxis.set_major_formatter('{x:.02f}')
-fig.colorbar(surf, shrink=0.5, aspect=5)
-plt.show()
+#from matplotlib import cm
+#from matplotlib.ticker import LinearLocator
+#fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+#X, Y = np.meshgrid(range(final_max_cross.shape[0]), range(final_max_cross.shape[1]))
+#surf = ax.plot_surface(X, Y, final_max_cross, cmap=cm.coolwarm,
+#                       linewidth=0, antialiased=False)
+#ax.zaxis.set_major_locator(LinearLocator(10))
+#ax.zaxis.set_major_formatter('{x:.02f}')
+#fig.colorbar(surf, shrink=0.5, aspect=5)
+#plt.show()
