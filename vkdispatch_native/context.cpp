@@ -14,9 +14,9 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
     LOG_INFO("Enumerating physical devices...");
 
     uint32_t true_device_count;
-    VK_CALL(vkEnumeratePhysicalDevices(_instance.instance.handle(), &true_device_count, nullptr));
+    VK_CALL(vkEnumeratePhysicalDevices(_instance.instance, &true_device_count, nullptr));
     std::vector<VkPhysicalDevice> physicalDevices(true_device_count);
-    VK_CALL(vkEnumeratePhysicalDevices(_instance.instance.handle(), &true_device_count, physicalDevices.data()));
+    VK_CALL(vkEnumeratePhysicalDevices(_instance.instance, &true_device_count, physicalDevices.data()));
 
     for(int i = 0; i < device_count; i++) {
         ctx->physicalDevices[i] = physicalDevices[device_indicies[i]];
@@ -40,8 +40,6 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
         vkGetPhysicalDeviceQueueFamilyProperties(ctx->physicalDevices[i], &queueFamilyCount, nullptr);
         queue_family_properties.resize(queueFamilyCount);
         vkGetPhysicalDeviceQueueFamilyProperties(ctx->physicalDevices[i], &queueFamilyCount, queue_family_properties.data());
-
-        //auto queue_family_properties = ctx->physicalDevices[i].getQueueFamilyProperties();
 
         int foundIndex = -1;
 
@@ -139,7 +137,7 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
         allocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_2;
         allocatorCreateInfo.physicalDevice = ctx->physicalDevices[i];
         allocatorCreateInfo.device = ctx->devices[i];
-        allocatorCreateInfo.instance = _instance.instance.handle();
+        allocatorCreateInfo.instance = _instance.instance;
         allocatorCreateInfo.pVulkanFunctions = &vmaVulkanFunctions;
         VK_CALL(vmaCreateAllocator(&allocatorCreateInfo, &ctx->allocators[i]));
 

@@ -23,10 +23,10 @@ from .dtype import uvec2
 from .dtype import uvec4
 from .dtype import vec2
 from .dtype import vec4
-from .image import image
-from .image import image2d
-from .image import image2d_array
-from .image import image3d
+#from .image import image
+#from .image import image2d
+#from .image import image2d_array
+#from .image import image3d
 from .init import DeviceInfo
 from .init import get_devices
 from .init import init_instance
@@ -43,7 +43,7 @@ from .stage_fft import fft
 from .stage_fft import FFTPlan
 from .stage_fft import ifft
 from .stage_fft import reset_fft_plans
-from .stage_transfer import stage_transfer_copy_buffer_to_image
+#from .stage_transfer import stage_transfer_copy_buffer_to_image
 from .stage_transfer import stage_transfer_copy_buffers
-from .stage_transfer import stage_transfer_copy_image
-from .stage_transfer import stage_transfer_copy_image_to_buffer
+#from .stage_transfer import stage_transfer_copy_image
+#from .stage_transfer import stage_transfer_copy_image_to_buffer
