@@ -176,28 +176,39 @@ class ShaderBuilder:
     def make_var(self, var_type: vd.dtype, var_name: str = None):
         return vd.ShaderVariable(self.append_contents, self.get_name, var_type, var_name)
 
+    def get_variable_decleration(self, var_name: str, var_type: vd.dtype, args: list):
+        is_buffer = ""
+        suffix = ""
+
+        if args:
+            if var_type.structure == vd.dtype_structure.DATA_STRUCTURE_BUFFER:
+                raise ValueError("Cannot initialize buffer in variable decleration!")
+
+            suffix = f" = {var_type.glsl_type}({', '.join([str(elem) for elem in args])})"
+        
+        if var_type.structure == vd.dtype_structure.DATA_STRUCTURE_BUFFER:
+            if var_type.child_count == 0:
+                is_buffer = "[]"
+            else:
+                is_buffer = f"[{var_type.child_count}]"
+
+        return f"{var_type.glsl_type} {var_name}{is_buffer}{suffix};"
+
     def push_constant(self, var_type: vd.dtype, var_name: str):
         new_var = self.make_var(var_type, f"PC.{var_name}")
-        self.pc_list.append((var_name, var_type, f"{var_type.glsl_type} {var_name};"))
+        self.pc_list.append((var_name, var_type, self.get_variable_decleration(var_name, var_type, []))) #f"{var_type.glsl_type} {var_name};"))
         self.pc_size += var_type.item_size
         return new_var
 
     def new(self, var_type: vd.dtype, *args, var_name: str = None):
         new_var = self.make_var(var_type, var_name)
-
-        if args:
-            args_str = ", ".join([str(elem) for elem in args])
-
-            self.append_contents(f"{var_type.glsl_type} {new_var} = {var_type.glsl_type}({args_str});\n")
-        else:
-            self.append_contents(f"{var_type.glsl_type} {new_var};\n")
-
+        self.append_contents(self.get_variable_decleration(new_var, var_type, args))
         return new_var
 
     def dynamic_buffer(self, var_type: vd.dtype, var_name: str = None):
         buffer_name = f"buf{self.binding_count}" if var_name is None else var_name
         new_var = self.make_var(var_type, f"{buffer_name}.data")
-        self.binding_list.append((var_type.glsl_type, buffer_name))
+        self.binding_list.append((var_type, buffer_name))
         new_var.binding = self.binding_count
         self.binding_count += 1
         return new_var
@@ -317,7 +328,7 @@ class ShaderBuilder:
         self.contents += ("\t" * self.scope_num) + contents
 
     def build(self, x: int, y: int, z: int) -> str:
-        self.pc_list.sort(key=lambda x: x[1].item_size, reverse=True)
+        self.pc_list.sort(key=lambda x: x[1].alignment_size, reverse=True)
         self.pc_dict = {elem[0]: (ii, elem[1]) for ii, elem in enumerate(self.pc_list)}
 
         header = "" + self.pre_header
@@ -326,7 +337,7 @@ class ShaderBuilder:
             header += f"shared {shared_buffer[0].glsl_type} {shared_buffer[2]}[{shared_buffer[1]}];\n"
 
         for ii, binding in enumerate(self.binding_list):
-            header += f"layout(set = 0, binding = {ii}) buffer Buffer{ii} {{ {binding[0]} data[]; }} {binding[1]};\n"
+            header += f"layout(set = 0, binding = {ii}) buffer Buffer{ii} {{ {self.get_variable_decleration('data', binding[0], [])} }} {binding[1]};\n"
 
         if self.pc_list:
             push_constant_contents = "\n".join(
