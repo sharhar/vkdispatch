@@ -90,19 +90,19 @@ struct FFTPlan {
 
 struct ComputePlan {
     struct Context* ctx;
-    VKLPipelineLayout** pipelineLayouts;
-    VKLPipeline** pipelines;
+    std::vector<VkShaderModule> modules;
+    std::vector<std::vector<VkDescriptorPoolSize>> poolSizes;
+    std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
+    std::vector<VkPipelineLayout> pipelineLayouts;
+    std::vector<VkPipeline> pipelines;
     unsigned int binding_count;
     unsigned int pc_size;
 };
 
 struct DescriptorSet {
     struct ComputePlan* plan;
-    
     std::vector<VkDescriptorSet> sets;
     std::vector<VkDescriptorPool> pools;
-
-    //VKLDescriptorSet** descriptorSets;
 };
 
 #endif // INTERNAL_H
