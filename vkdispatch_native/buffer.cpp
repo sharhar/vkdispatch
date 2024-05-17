@@ -36,7 +36,7 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
         memset(&fenceCreateInfo, 0, sizeof(VkFenceCreateInfo));
         fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-        VK_CALL(vkCreateFence(ctx->devices[i]->handle(), &fenceCreateInfo, NULL, &buffer->fences[i]));
+        VK_CALL(vkCreateFence(ctx->devices[i], &fenceCreateInfo, NULL, &buffer->fences[i]));
     }
 
     return buffer;
@@ -44,7 +44,7 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
 
 void buffer_destroy_extern(struct Buffer* buffer) {
     for(int i = 0; i < buffer->ctx->deviceCount; i++) {
-        vkDestroyFence(buffer->ctx->devices[i]->handle(), buffer->fences[i], NULL);
+        vkDestroyFence(buffer->ctx->devices[i], buffer->fences[i], NULL);
         vmaDestroyBuffer(buffer->ctx->allocators[i], buffer->buffers[i], buffer->allocations[i]);
         vmaDestroyBuffer(buffer->ctx->allocators[i], buffer->stagingBuffers[i], buffer->stagingAllocations[i]);
     }
@@ -78,7 +78,7 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
         vkCmdCopyBuffer(cmdBuffer, buffer->stagingBuffers[dev_index], buffer->buffers[dev_index], 1, &bufferCopy);
         
         VkFence fence = buffer->ctx->streams[dev_index]->submit();
-        VK_CALL(vkWaitForFences(buffer->ctx->devices[dev_index]->handle(), 1, &fence, VK_TRUE, UINT64_MAX));
+        VK_CALL(vkWaitForFences(buffer->ctx->devices[dev_index], 1, &fence, VK_TRUE, UINT64_MAX));
     }
 }
 
@@ -101,7 +101,7 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
     vkCmdCopyBuffer(cmdBuffer, buffer->buffers[dev_index], buffer->stagingBuffers[dev_index], 1, &bufferCopy);
     
     VkFence fence = buffer->ctx->streams[dev_index]->submit();
-    VK_CALL(vkWaitForFences(buffer->ctx->devices[dev_index]->handle(), 1, &fence, VK_TRUE, UINT64_MAX));
+    VK_CALL(vkWaitForFences(buffer->ctx->devices[dev_index], 1, &fence, VK_TRUE, UINT64_MAX));
 
     void* mapped;
     VK_CALL(vmaMapMemory(ctx->allocators[dev_index], buffer->stagingAllocations[dev_index], &mapped));

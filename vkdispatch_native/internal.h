@@ -42,26 +42,19 @@ public:
 
 struct Context {
     uint32_t deviceCount;
-    VKLDevice** devices;
-    //const VKLQueue** queues;
-    //VKLCommandBuffer** commandBuffers;
-    //VkFence* fences;
+    std::vector<VkPhysicalDevice> physicalDevices;
+    std::vector<VkDevice> devices;
     std::vector<Stream*> streams;
     std::vector<VmaAllocator> allocators;
-    uint32_t* submissionThreadCounts;
 };
 
 struct Buffer {
     struct Context* ctx;
-    
     std::vector<VkBuffer> buffers;
     std::vector<VmaAllocation> allocations;
     std::vector<VkBuffer> stagingBuffers;
     std::vector<VmaAllocation> stagingAllocations;
     std::vector<VkFence> fences;
-
-    //VKLBuffer** buffers;
-    //VKLBuffer** stagingBuffers;
 };
 
 struct Image {
