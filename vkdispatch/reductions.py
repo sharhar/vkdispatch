@@ -41,7 +41,7 @@ class ReductionDispatcher:
         if len(exec_dims) > 2:
             raise ValueError("Only two arguments can be given for the execution dimensions!")
         
-        if not isinstance(exec_dims[0], int):
+        if not isinstance(exec_dims[0], (int, np.integer)):
             raise ValueError("First excution dimention must be an int!")
         
         if len(exec_dims) == 2:

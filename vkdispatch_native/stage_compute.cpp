@@ -76,7 +76,7 @@ void stage_compute_record_extern(struct CommandList* command_list, struct Comput
                     my_compute_info->plan->pipelineLayouts[device]->handle(),
                     0,
                     1,
-                    my_compute_info->descriptor_set->descriptorSets[device]->pHandle(),
+                    &my_compute_info->descriptor_set->sets[device],
                     0,
                     NULL
                 );

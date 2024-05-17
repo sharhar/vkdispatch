@@ -27,6 +27,11 @@ class dtype:
         self.name = name
         self.glsl_type = glsl_type
         self.item_size = item_size
+        self.alignment_size = item_size
+
+        if structure == dtype_structure.DATA_STRUCTURE_BUFFER:
+            self.alignment_size = parent.alignment_size
+
         self.structure = structure
         self.format_str = format_str
         self.parent = self if parent is None else parent
@@ -90,7 +95,7 @@ class dtype:
             dtype_structure.DATA_STRUCTURE_BUFFER,
             index,
             self.format_str,
-            self,
+            parent=self
         )
 
 

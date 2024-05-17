@@ -58,9 +58,10 @@ struct Buffer {
 
 struct Image {
     struct Context* ctx;
-    VKLImage** images;
-    VKLImageView** imageViews;
-    VKLBuffer** stagingBuffers;
+    
+    //VKLImage** images;
+    //VKLImageView** imageViews;
+    //VKLBuffer** stagingBuffers;
 
     uint32_t block_size;
 };
@@ -97,7 +98,11 @@ struct ComputePlan {
 
 struct DescriptorSet {
     struct ComputePlan* plan;
-    VKLDescriptorSet** descriptorSets;
+    
+    std::vector<VkDescriptorSet> sets;
+    std::vector<VkDescriptorPool> pools;
+
+    //VKLDescriptorSet** descriptorSets;
 };
 
 #endif // INTERNAL_H
