@@ -3,21 +3,16 @@
 struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
     struct DescriptorSet* descriptor_set = new struct DescriptorSet();
     descriptor_set->plan = plan;
-
     descriptor_set->pools.resize(plan->ctx->deviceCount);
     descriptor_set->sets.resize(plan->ctx->deviceCount);
-    
-    //descriptor_set->descriptorSets = new VKLDescriptorSet*[plan->ctx->deviceCount];
 
     for (int i = 0; i < plan->ctx->deviceCount; i++) {
-        //descriptor_set->descriptorSets[i] = new VKLDescriptorSet(plan->pipelineLayouts[i], 0);
-
         VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
         memset(&descriptorPoolCreateInfo, 0, sizeof(VkDescriptorPoolCreateInfo));
         descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         descriptorPoolCreateInfo.maxSets = 1;
-        descriptorPoolCreateInfo.poolSizeCount = plan->pipelineLayouts[i]->m_descriptorPoolSizes[0].size();
-        descriptorPoolCreateInfo.pPoolSizes = plan->pipelineLayouts[i]->m_descriptorPoolSizes[0].data();
+        descriptorPoolCreateInfo.poolSizeCount = plan->poolSizes[i].size();
+        descriptorPoolCreateInfo.pPoolSizes = plan->poolSizes[i].data();
 
         VK_CALL(vkCreateDescriptorPool(plan->ctx->devices[i]->handle(), &descriptorPoolCreateInfo, NULL, &descriptor_set->pools[i]));
 
@@ -26,7 +21,7 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
         descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         descriptorSetAllocateInfo.descriptorPool = descriptor_set->pools[i];
         descriptorSetAllocateInfo.descriptorSetCount = 1;
-        descriptorSetAllocateInfo.pSetLayouts = plan->pipelineLayouts[i]->descriptorSetLayouts(); //&m_layout->descriptorSetLayouts()[set];
+        descriptorSetAllocateInfo.pSetLayouts = &plan->descriptorSetLayouts[i];
 
         VK_CALL(vkAllocateDescriptorSets(plan->ctx->devices[i]->handle(), &descriptorSetAllocateInfo, &descriptor_set->sets[i]));
     }
@@ -37,10 +32,8 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
 void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set) {
     for (int i = 0; i < descriptor_set->plan->ctx->deviceCount; i++) {
         vkDestroyDescriptorPool(descriptor_set->plan->ctx->devices[i]->handle(), descriptor_set->pools[i], NULL);        
-        //delete descriptor_set->descriptorSets[i];
     }
 
-    //delete[] descriptor_set->descriptorSets;
     delete descriptor_set;
 }
 
@@ -66,7 +59,5 @@ void descriptor_set_write_buffer_extern(struct DescriptorSet* descriptor_set, un
         writeDescriptor.pTexelBufferView = NULL;
 
         vkUpdateDescriptorSets(descriptor_set->plan->ctx->devices[i]->handle(), 1, &writeDescriptor, 0, NULL);
-        
-        //descriptor_set->descriptorSets[i]->writeBuffer(binding, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, buffer->buffers[i], offset, range == 0 ? VK_WHOLE_SIZE : range);
     }
 }
