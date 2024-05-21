@@ -2,6 +2,9 @@
 
 struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size) {
     struct Buffer* buffer = new struct Buffer();
+    
+    LOG_INFO("Creating buffer of size %d with handle %p", size, buffer);
+    
     buffer->ctx = ctx;
     buffer->allocations.resize(ctx->deviceCount);
     buffer->buffers.resize(ctx->deviceCount);
@@ -43,6 +46,8 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
 }
 
 void buffer_destroy_extern(struct Buffer* buffer) {
+    LOG_INFO("Destroying buffer with handle %p", buffer);
+
     for(int i = 0; i < buffer->ctx->deviceCount; i++) {
         vkDestroyFence(buffer->ctx->devices[i], buffer->fences[i], NULL);
         vmaDestroyBuffer(buffer->ctx->allocators[i], buffer->buffers[i], buffer->allocations[i]);
@@ -53,6 +58,8 @@ void buffer_destroy_extern(struct Buffer* buffer) {
 }
 
 void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int device_index) {
+    LOG_INFO("Writing data to buffer (%p) at offset %d with size %d", buffer, offset, size);
+
     struct Context* ctx = buffer->ctx;
 
     int enum_count = device_index == -1 ? buffer->ctx->deviceCount : 1;
@@ -83,7 +90,7 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
 }
 
 void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int device_index) {
-    LOG_INFO("Reading buffer data");
+    LOG_INFO("Reading data from buffer (%p) at offset %d with size %d", buffer, offset, size);
 
     struct Context* ctx = buffer->ctx;
 

@@ -23,7 +23,7 @@ platform_name_dict = {
 }
 
 platform_library_dirs = []
-platform_define_macros = [(f"__VKDISPATCH_PLATFORM_{platform_name_dict[system]}__", 1)]
+platform_define_macros = [(f"__VKDISPATCH_PLATFORM_{platform_name_dict[system]}__", 1), ("LOG_VERBOSE_ENABLED", 1)]
 platform_link_libraries = []
 platform_extra_link_args = []
 platform_extra_compile_args = (

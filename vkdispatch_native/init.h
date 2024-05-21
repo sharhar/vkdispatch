@@ -1,6 +1,8 @@
 #ifndef SRC_INIT_H
 #define SRC_INIT_H
 
+#include "base.h"
+
 struct PhysicalDeviceDetails {
     int version_variant;
     int version_major;
@@ -42,7 +44,7 @@ struct PhysicalDeviceDetails {
     unsigned int max_compute_shared_memory_size;
 };
 
-void init_extern(bool debug);
+void init_extern(bool debug, LogLevel log_level);
 struct PhysicalDeviceDetails* get_devices_extern(int* count);
 
 #endif // INIT_H

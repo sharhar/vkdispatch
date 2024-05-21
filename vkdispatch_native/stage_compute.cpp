@@ -177,7 +177,7 @@ void stage_compute_record_extern(struct CommandList* command_list, struct Comput
 
     command_list->stages.push_back({
         [](VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device) {
-            LOG_INFO("Executing Compute");
+            LOG_VERBOSE("Executing Compute");
 
             struct ComputeRecordInfo* my_compute_info = (struct ComputeRecordInfo*)stage->user_data;
 

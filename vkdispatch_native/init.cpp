@@ -2,19 +2,70 @@
 
 #include <string>
 #include <stdio.h>
+#include <algorithm>
 
+LogLevel __log_level_limit = LOG_LEVEL_WARNING;
 MyInstance _instance;
 
 static VkBool32 VKAPI_PTR vulkan_custom_debug_callback(
-    VkDebugUtilsMessageSeverityFlagBitsEXT           messageSeverity,
-    VkDebugUtilsMessageTypeFlagsEXT                  messageTypes,
-    const VkDebugUtilsMessengerCallbackDataEXT*      pCallbackData,
-    void*                                            pUserData) {
-    printf("VKL: %s\n", pCallbackData->pMessage);
+    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT messageTypes,
+    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+    void* pUserData)
+{
+    std::string message_str(pCallbackData->pMessage);
+
+    // Define the prefix and substring to check
+    std::string shader_print_prefix = "Validation Information: [ WARNING-DEBUG-PRINTF ] | MessageID = ";
+    std::string shader_print_substring = " | vkQueueSubmit():  ";
+
+    size_t substring_location = message_str.find(shader_print_substring);
+
+    if (message_str.rfind(shader_print_prefix, 0) == 0 && 
+        substring_location != std::string::npos) {
+        // This is a shader print message, so we want to log it regardless of the log level
+
+        // Remove the prefix and substring
+        size_t start_index = substring_location + shader_print_substring.size();
+
+        log_message(LOG_LEVEL_ERROR, "[SHADER PRINT] ", "\n", "%s", message_str.substr(start_index).c_str());
+        return VK_FALSE;
+    }
+
+    const char* prefix = "";
+    LogLevel log_level = static_cast<LogLevel>(0);
+
+    switch (messageSeverity)
+    {
+    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
+        prefix = "[VERBOSE - Vulkan] ";
+        log_level = LOG_LEVEL_VERBOSE;
+        break;
+    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+        prefix = "[INFO - Vulkan] ";
+        log_level = LOG_LEVEL_INFO;
+        break;
+    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+        prefix = "[WARNING - Vulkan] ";
+        log_level = LOG_LEVEL_WARNING;
+        break;
+    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+        prefix = "[ERROR - Vulkan] ";
+        log_level = LOG_LEVEL_ERROR;
+        break;
+    default:
+        break;
+    }
+
+    log_message(log_level, prefix, "\n", pCallbackData->pMessage);
+
+    //printf("%s", pCallbackData->pMessage);
     return VK_FALSE;
 }
 
-void init_extern(bool debug) {
+void init_extern(bool debug, LogLevel log_level) {
+    __log_level_limit = log_level;
+
     #ifndef VKDISPATCH_USE_VOLK
     setenv("MVK_CONFIG_LOG_LEVEL", "2", 0);
     #else
@@ -45,13 +96,13 @@ void init_extern(bool debug) {
 
     VkInstanceCreateFlags flags = 0;
 
-    std::vector<const char *> extensions = {
-        VK_EXT_DEBUG_UTILS_EXTENSION_NAME
-    };
+    std::vector<const char *> extensions;
+    std::vector<const char *> layers;
 
-    std::vector<const char *> layers = {
-        "VK_LAYER_KHRONOS_validation"
-    };
+    if(debug) {
+        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        layers.push_back("VK_LAYER_KHRONOS_validation");
+    }
 
 
 #ifdef __APPLE__
@@ -79,7 +130,7 @@ void init_extern(bool debug) {
             LOG_INFO("Layer '%s' is supported", layer);
             supportedLayers.push_back(layer);
         } else {
-            LOG_INFO("Layer '%s' is not supported", layer);
+            LOG_WARNING("Layer '%s' is not supported", layer);
         }
     }
 
@@ -93,18 +144,18 @@ void init_extern(bool debug) {
             LOG_INFO("Extension '%s' is supported", extension);
             supportedExtensions.push_back(extension);
         } else {
-            LOG_INFO("Extension '%s' is not supported", extension);
+            LOG_WARNING("Extension '%s' is not supported", extension);
         }
     }
 
-	VkValidationFeatureEnableEXT enabledValidationFeatures[] = {
+    VkValidationFeatureEnableEXT enabledValidationFeatures[] = {
         VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT
     };
-    
+
     VkValidationFeaturesEXT validationFeatures = {};
-	validationFeatures.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT;
-	validationFeatures.enabledValidationFeatureCount = sizeof(enabledValidationFeatures) / sizeof(enabledValidationFeatures[0]);
-	validationFeatures.pEnabledValidationFeatures = enabledValidationFeatures;
+    validationFeatures.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT;
+    validationFeatures.enabledValidationFeatureCount = sizeof(enabledValidationFeatures) / sizeof(enabledValidationFeatures[0]);
+    validationFeatures.pEnabledValidationFeatures = enabledValidationFeatures;
 
     VkInstanceCreateInfo instanceCreateInfo = {};
     instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -119,23 +170,29 @@ void init_extern(bool debug) {
     VK_CALL(vkCreateInstance(&instanceCreateInfo, nullptr, &_instance.instance));
 
     #ifdef VKDISPATCH_USE_VOLK
-	volkLoadInstance(_instance.instance);
-	#endif
+    volkLoadInstance(_instance.instance);
+    #endif
 
-    VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {};
-	debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-	debugCreateInfo.pNext = NULL;
-    debugCreateInfo.flags = 0;
-    debugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-						VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
-					   VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-					   VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-    debugCreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-                       VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT;
-    debugCreateInfo.pfnUserCallback = vulkan_custom_debug_callback;
-    debugCreateInfo.pUserData = NULL;
+    if(debug) {
+        LOG_INFO("Initializing Vulkan Debug Messenger...");
 
-    VK_CALL(vkCreateDebugUtilsMessengerEXT(_instance.instance, &debugCreateInfo, nullptr, &_instance.debug_messenger));
+
+        VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {};
+        debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+        debugCreateInfo.pNext = NULL;
+        debugCreateInfo.flags = 0;
+        debugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+                                          VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
+                                          VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+                                          VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+        debugCreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+                                      VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | 
+                                      VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+        debugCreateInfo.pfnUserCallback = vulkan_custom_debug_callback;
+        debugCreateInfo.pUserData = NULL;
+
+        VK_CALL(vkCreateDebugUtilsMessengerEXT(_instance.instance, &debugCreateInfo, nullptr, &_instance.debug_messenger));
+    }
 
     LOG_INFO("Initializing Vulkan Devices...");
 

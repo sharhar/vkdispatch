@@ -23,8 +23,7 @@ class Context:
 
 def make_context(
     devices: Union[int, List[int]],
-    submission_thread_counts: Union[int, List[int]] = None,
-    debug_mode: bool = False,
+    submission_thread_counts: Union[int, List[int]] = None
 ) -> Context:
     if isinstance(devices, int):
         devices = [devices]
@@ -35,7 +34,7 @@ def make_context(
     elif isinstance(submission_thread_counts, int):
         submission_thread_counts = [submission_thread_counts] * len(devices)
 
-    vkdispatch.init_instance(debug_mode)
+    vkdispatch.initialize()
 
     total_devices = len(vkdispatch.get_devices())
 

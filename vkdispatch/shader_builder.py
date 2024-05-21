@@ -320,9 +320,14 @@ class ShaderBuilder:
                 args_list.append(arg.printf_args())
                 fmt += arg.format
             else:
-                fmt += arg.__repr__()
+                fmt += str(arg)
+        
+        args_argument = ""
 
-        self.append_contents(f'debugPrintfEXT("{fmt}", {",".join(args_list)});\n')
+        if len(args_list) > 0:
+            args_argument = f", {','.join(args_list)}"
+
+        self.append_contents(f'debugPrintfEXT("{fmt}"{args_argument});\n')
 
     def append_contents(self, contents: str) -> None:
         self.contents += ("\t" * self.scope_num) + contents
