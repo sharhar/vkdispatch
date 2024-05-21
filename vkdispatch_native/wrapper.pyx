@@ -13,5 +13,6 @@ cimport stage_transfer
 cimport stage_fft
 cimport stage_compute
 cimport descriptor_set
+cimport errors
 
 assert sizeof(int) == sizeof(np.int32_t)

@@ -57,6 +57,8 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
     };
 
     VkCommandBuffer cmd_buffer = command_list->ctx->streams[device]->begin();
+    if(__error_string != NULL)
+        return;
 
     for(size_t instance = 0; instance < instance_count; instance++) {
         LOG_VERBOSE("Recording instance %d", instance);
@@ -64,6 +66,10 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
         for (size_t i = 0; i < command_list->stages.size(); i++) {
             LOG_VERBOSE("Recording stage %d", i);
             command_list->stages[i].record(cmd_buffer, &command_list->stages[i], current_instance_data, device);
+
+            if(__error_string != NULL)
+                return;
+
             if(i < command_list->stages.size() - 1)
                 vkCmdPipelineBarrier(
                     cmd_buffer, 

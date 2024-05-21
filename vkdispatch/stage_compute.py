@@ -19,6 +19,7 @@ class ComputePlan:
         self._handle = vkdispatch_native.stage_compute_plan_create(
             vd.get_context_handle(), shader_source.encode(), binding_count, pc_size
         )
+        vd.check_for_errors()
 
     def record(
         self,
@@ -34,3 +35,4 @@ class ComputePlan:
             blocks[1],
             blocks[2],
         )
+        vd.check_for_errors()

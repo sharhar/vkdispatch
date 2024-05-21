@@ -25,6 +25,7 @@ class Buffer:
         self._handle: int = vkdispatch_native.buffer_create(
             vd.get_context_handle(), self.mem_size
         )
+        vd.check_for_errors()
 
     def __del__(self) -> None:
         pass  # vkdispatch_native.buffer_destroy(self._handle)
@@ -48,6 +49,7 @@ class Buffer:
         vkdispatch_native.buffer_write(
             self._handle, np.ascontiguousarray(data), 0, self.mem_size, device_index
         )
+        vd.check_for_errors()
 
     def read(self, device_index: int = -1) -> np.ndarray:
         """Read the data in the buffer at the specified device index and return it as a
@@ -67,6 +69,7 @@ class Buffer:
         vkdispatch_native.buffer_read(
             self._handle, result, 0, self.mem_size, device_index
         )
+        vd.check_for_errors()
 
         return result
 

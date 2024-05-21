@@ -39,20 +39,40 @@ inline void log_message(LogLevel log_level, const char* prefix, const char* post
 #define LOG_WARNING(format, ...) log_message(LOG_LEVEL_WARNING, "[WARNING] ", "\n", format, ##__VA_ARGS__)
 #define LOG_ERROR(format, ...) log_message(LOG_LEVEL_ERROR, "[ERROR] ", "\n", format, ##__VA_ARGS__)
 
+extern const char* __error_string;
+
+inline void set_error(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+
+    if (__error_string != NULL) {
+        free((void*)__error_string);
+    }
+
+    vasprintf((char**)&__error_string, format, args);
+
+    va_end(args);
+}
+
 #include <vulkan/vk_enum_string_helper.h>
 
-#define VK_CALL(EXPRESSION)                                              \
+#define VK_CALL_RETURN(EXPRESSION, RET_EXPR)                             \
 {                                                                        \
     VkResult ___result = (EXPRESSION);                                   \
     if(___result != VK_SUCCESS) {                                        \
-        LOG_ERROR("(VkResult is %s (%d)) " #EXPRESSION " inside '%s' at %s:%d\n", string_VkResult(___result), ___result, __FUNCTION__, __FILE__, __LINE__); \
+        set_error("(VkResult is %s (%d)) " #EXPRESSION " inside '%s' at %s:%d\n", string_VkResult(___result), ___result, __FUNCTION__, __FILE__, __LINE__); \
+        return RET_EXPR;                                                 \
     }                                                                    \
 }
+
+#define VK_CALL(EXPRESSION) VK_CALL_RETURN(EXPRESSION, ;)
+#define VK_CALL_RETNULL(EXPRESSION) VK_CALL_RETURN(EXPRESSION, NULL)
 
 #include <vkFFT.h>
 #include <vector>
 
 #include "init.h"
+#include "errors.h"
 #include "context.h"
 #include "buffer.h"
 #include "image.h"

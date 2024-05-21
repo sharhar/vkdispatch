@@ -21,7 +21,7 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
 
         VkFenceCreateInfo fenceInfo = {};
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        VK_CALL(vkCreateFence(ctx->devices[i], &fenceInfo, nullptr, &plan->fences[i]));
+        VK_CALL_RETNULL(vkCreateFence(ctx->devices[i], &fenceInfo, nullptr, &plan->fences[i]));
 
         plan->configs[i].physicalDevice = &ctx->physicalDevices[i];
         plan->configs[i].device = &ctx->devices[i];
@@ -34,7 +34,7 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
         
         VkFFTResult resFFT = initializeVkFFT(&plan->apps[i], plan->configs[i]);
         if (resFFT != VKFFT_SUCCESS) {
-            LOG_ERROR("Failed to initialize VkFFT %d", resFFT);
+            set_error("(VkFFTResult is %d) initializeVkFFT inside '%s' at %s:%d\n", resFFT, __FUNCTION__, __FILE__, __LINE__);
             return NULL;
         }
     }
@@ -65,7 +65,7 @@ void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* p
 
             VkFFTResult fftRes = VkFFTAppend(&my_fft_info->plan->apps[device], my_fft_info->inverse, &my_fft_info->plan->launchParams[device]);
             if (fftRes != VKFFT_SUCCESS) {
-                LOG_ERROR("Failed to append VkFFT %d", fftRes);
+                set_error("(VkFFTResult is %d) VkFFTAppend inside '%s' at %s:%d\n", fftRes, __FUNCTION__, __FILE__, __LINE__);
             }
         },
         my_fft_info,

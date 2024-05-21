@@ -33,13 +33,13 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
         vmaAllocationCreateInfo = {};
 		vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
 		vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-        VK_CALL(vmaCreateBuffer(ctx->allocators[i], &stagingBufferCreateInfo, &vmaAllocationCreateInfo, &buffer->stagingBuffers[i], &buffer->stagingAllocations[i], NULL));        
+        VK_CALL_RETNULL(vmaCreateBuffer(ctx->allocators[i], &stagingBufferCreateInfo, &vmaAllocationCreateInfo, &buffer->stagingBuffers[i], &buffer->stagingAllocations[i], NULL));        
 
         VkFenceCreateInfo fenceCreateInfo;
         memset(&fenceCreateInfo, 0, sizeof(VkFenceCreateInfo));
         fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-        VK_CALL(vkCreateFence(ctx->devices[i], &fenceCreateInfo, NULL, &buffer->fences[i]));
+        VK_CALL_RETNULL(vkCreateFence(ctx->devices[i], &fenceCreateInfo, NULL, &buffer->fences[i]));
     }
 
     return buffer;
@@ -81,10 +81,14 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
         bufferCopy.srcOffset = 0;
 
         VkCommandBuffer cmdBuffer = buffer->ctx->streams[dev_index]->begin();
+        if(__error_string != NULL)
+            return;
         
         vkCmdCopyBuffer(cmdBuffer, buffer->stagingBuffers[dev_index], buffer->buffers[dev_index], 1, &bufferCopy);
         
         VkFence fence = buffer->ctx->streams[dev_index]->submit();
+        if(__error_string != NULL)
+            return;
         VK_CALL(vkWaitForFences(buffer->ctx->devices[dev_index], 1, &fence, VK_TRUE, UINT64_MAX));
     }
 }
@@ -104,10 +108,14 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
     VK_CALL(vkQueueWaitIdle(buffer->ctx->streams[dev_index]->queue));
 
     VkCommandBuffer cmdBuffer = buffer->ctx->streams[dev_index]->begin();
+    if(__error_string != NULL)
+        return;
     
     vkCmdCopyBuffer(cmdBuffer, buffer->buffers[dev_index], buffer->stagingBuffers[dev_index], 1, &bufferCopy);
     
     VkFence fence = buffer->ctx->streams[dev_index]->submit();
+    if(__error_string != NULL)
+        return;
     VK_CALL(vkWaitForFences(buffer->ctx->devices[dev_index], 1, &fence, VK_TRUE, UINT64_MAX));
 
     void* mapped;

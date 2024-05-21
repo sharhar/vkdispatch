@@ -79,19 +79,19 @@ void Stream::destroy() {
 }
 
 VkCommandBuffer& Stream::begin() {
-    VK_CALL(vkWaitForFences(device, 1, &fences[current_index], VK_TRUE, UINT64_MAX));
-    VK_CALL(vkResetFences(device, 1, &fences[current_index]));
+    VK_CALL_RETURN(vkWaitForFences(device, 1, &fences[current_index], VK_TRUE, UINT64_MAX), commandBuffers[current_index]);
+    VK_CALL_RETURN(vkResetFences(device, 1, &fences[current_index]), commandBuffers[current_index]);
 
     VkCommandBufferBeginInfo beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    VK_CALL(vkBeginCommandBuffer(commandBuffers[current_index], &beginInfo));
+    VK_CALL_RETURN(vkBeginCommandBuffer(commandBuffers[current_index], &beginInfo), commandBuffers[current_index]);
 
     return commandBuffers[current_index];
 }
 
 VkFence& Stream::submit() {
-    VK_CALL(vkEndCommandBuffer(commandBuffers[current_index]));
+    VK_CALL_RETURN(vkEndCommandBuffer(commandBuffers[current_index]), fences[current_index]);
 
     int last_index = current_index;
     current_index = (current_index + 1) % commandBuffers.size();
@@ -108,7 +108,7 @@ VkFence& Stream::submit() {
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &semaphores[current_index];
     
-    VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[last_index]));
+    VK_CALL_RETURN(vkQueueSubmit(queue, 1, &submitInfo, fences[last_index]), fences[last_index]);
 
     return fences[last_index];
 }
