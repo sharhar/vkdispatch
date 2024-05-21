@@ -18,6 +18,7 @@ class CommandList:
 
     def __init__(self, reset_on_submit: bool = False) -> None:
         self._handle = vkdispatch_native.command_list_create(vd.get_context_handle())
+        vd.check_for_errors()
         self.pc_buffers = []
         self.descriptor_sets = []
         self._reset_on_submit = reset_on_submit
@@ -27,7 +28,9 @@ class CommandList:
 
     def get_instance_size(self) -> int:
         """Get the total size of the command list in bytes."""
-        return vkdispatch_native.command_list_get_instance_size(self._handle)
+        result = vkdispatch_native.command_list_get_instance_size(self._handle)
+        vd.check_for_errors()
+        return result
 
     def add_pc_buffer(self, pc_buffer: "vd.push_constant_buffer") -> None:
         """Add a push constant buffer to the command list."""
@@ -44,6 +47,7 @@ class CommandList:
         self.pc_buffers = []
         self.descriptor_sets = []
         vkdispatch_native.command_list_reset(self._handle)
+        vd.check_for_errors()
 
     def submit(self, device_index: int = 0, data: bytes = None) -> None:
         """Submit the command list to the specified device with additional data to
@@ -75,6 +79,7 @@ class CommandList:
         vkdispatch_native.command_list_submit(
             self._handle, data, instances, device_index
         )
+        vd.check_for_errors()
 
         if self._reset_on_submit:
             self.reset()

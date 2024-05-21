@@ -7,6 +7,8 @@ import time
 import tqdm
 import typing
 
+#vd.initialize(log_level=vd.LogLevel.INFO)
+
 current_time = time.time()
 
 sigma_e = tf_calc.get_sigmaE(300e3)

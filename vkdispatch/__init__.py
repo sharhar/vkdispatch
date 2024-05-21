@@ -1,3 +1,4 @@
+from .errors import check_for_errors
 from .init import DeviceInfo
 from .init import LogLevel
 from .init import get_devices

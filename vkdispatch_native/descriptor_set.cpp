@@ -14,7 +14,7 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
         descriptorPoolCreateInfo.poolSizeCount = plan->poolSizes[i].size();
         descriptorPoolCreateInfo.pPoolSizes = plan->poolSizes[i].data();
 
-        VK_CALL(vkCreateDescriptorPool(plan->ctx->devices[i], &descriptorPoolCreateInfo, NULL, &descriptor_set->pools[i]));
+        VK_CALL_RETNULL(vkCreateDescriptorPool(plan->ctx->devices[i], &descriptorPoolCreateInfo, NULL, &descriptor_set->pools[i]));
 
         VkDescriptorSetAllocateInfo descriptorSetAllocateInfo;
         memset(&descriptorSetAllocateInfo, 0, sizeof(VkDescriptorSetAllocateInfo));
@@ -23,7 +23,7 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
         descriptorSetAllocateInfo.descriptorSetCount = 1;
         descriptorSetAllocateInfo.pSetLayouts = &plan->descriptorSetLayouts[i];
 
-        VK_CALL(vkAllocateDescriptorSets(plan->ctx->devices[i], &descriptorSetAllocateInfo, &descriptor_set->sets[i]));
+        VK_CALL_RETNULL(vkAllocateDescriptorSets(plan->ctx->devices[i], &descriptorSetAllocateInfo, &descriptor_set->sets[i]));
     }
 
     return descriptor_set;

@@ -14,9 +14,9 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
     LOG_INFO("Enumerating physical devices...");
 
     uint32_t true_device_count;
-    VK_CALL(vkEnumeratePhysicalDevices(_instance.instance, &true_device_count, nullptr));
+    VK_CALL_RETNULL(vkEnumeratePhysicalDevices(_instance.instance, &true_device_count, nullptr));
     std::vector<VkPhysicalDevice> physicalDevices(true_device_count);
-    VK_CALL(vkEnumeratePhysicalDevices(_instance.instance, &true_device_count, physicalDevices.data()));
+    VK_CALL_RETNULL(vkEnumeratePhysicalDevices(_instance.instance, &true_device_count, physicalDevices.data()));
 
     for(int i = 0; i < device_count; i++) {
         ctx->physicalDevices[i] = physicalDevices[device_indicies[i]];
@@ -80,9 +80,9 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
         
         uint32_t extensionCount;
         std::vector<VkExtensionProperties> deviceExtensions;
-        vkEnumerateDeviceExtensionProperties(ctx->physicalDevices[i], nullptr, &extensionCount, nullptr);
+        VK_CALL_RETNULL(vkEnumerateDeviceExtensionProperties(ctx->physicalDevices[i], nullptr, &extensionCount, nullptr));
         deviceExtensions.resize(extensionCount);
-        vkEnumerateDeviceExtensionProperties(ctx->physicalDevices[i], nullptr, &extensionCount, deviceExtensions.data());
+        VK_CALL_RETNULL(vkEnumerateDeviceExtensionProperties(ctx->physicalDevices[i], nullptr, &extensionCount, deviceExtensions.data()));
 
         // Check if all desired extensions are supported
         std::vector<const char*> supportedExtensions;
@@ -114,7 +114,7 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
         deviceCreateInfo.enabledExtensionCount = supportedExtensions.size();
         deviceCreateInfo.ppEnabledExtensionNames = supportedExtensions.data();
 
-        VK_CALL(vkCreateDevice(ctx->physicalDevices[i], &deviceCreateInfo, nullptr, &ctx->devices[i]));
+        VK_CALL_RETNULL(vkCreateDevice(ctx->physicalDevices[i], &deviceCreateInfo, nullptr, &ctx->devices[i]));
 
         LOG_INFO("Created device %p", static_cast<VkDevice>(ctx->devices[i]));
 
@@ -132,7 +132,7 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
         allocatorCreateInfo.device = ctx->devices[i];
         allocatorCreateInfo.instance = _instance.instance;
         allocatorCreateInfo.pVulkanFunctions = &vmaVulkanFunctions;
-        VK_CALL(vmaCreateAllocator(&allocatorCreateInfo, &ctx->allocators[i]));
+        VK_CALL_RETNULL(vmaCreateAllocator(&allocatorCreateInfo, &ctx->allocators[i]));
 
         LOG_INFO("Created allocator %p", ctx->allocators[i]);
     }

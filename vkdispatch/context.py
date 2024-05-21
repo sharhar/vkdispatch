@@ -1,7 +1,7 @@
 from typing import List
 from typing import Union
 
-import vkdispatch
+import vkdispatch as vd
 import vkdispatch_native
 
 
@@ -16,6 +16,7 @@ class Context:
         submission_thread_counts: List[int] = None,
     ) -> None:
         self._handle = vkdispatch_native.context_create(devices, submission_thread_counts)
+        vd.check_for_errors()
 
     def __del__(self) -> None:
         pass  # vkdispatch_native.context_destroy(self._handle)
@@ -34,9 +35,9 @@ def make_context(
     elif isinstance(submission_thread_counts, int):
         submission_thread_counts = [submission_thread_counts] * len(devices)
 
-    vkdispatch.initialize()
+    vd.initialize()
 
-    total_devices = len(vkdispatch.get_devices())
+    total_devices = len(vd.get_devices())
 
     # Do type checking before passing to native code
     assert len(devices) == len(
@@ -60,7 +61,7 @@ def get_context() -> Context:
     global __context
 
     if __context is None:
-        device_count = len(vkdispatch.get_devices())
+        device_count = len(vd.get_devices())
         __context = make_context([i for i in range(device_count)])
 
     return __context

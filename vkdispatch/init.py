@@ -1,5 +1,8 @@
 import typing
 from enum import Enum
+
+import vkdispatch as vd
+
 import vkdispatch_native
 
 device_type_id_to_str_dict = {
@@ -132,6 +135,8 @@ def initialize(debug_mode: bool = True, log_level: LogLevel = LogLevel.WARNING):
         return
 
     vkdispatch_native.init(debug_mode, log_level.value)
+    vd.check_for_errors()
+    
     __initilized_instance = True
 
 
