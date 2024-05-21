@@ -1,3 +1,7 @@
+from .init import DeviceInfo
+from .init import LogLevel
+from .init import get_devices
+from .init import initialize
 from .buffer import asbuffer
 from .buffer import Buffer
 from .command_list import CommandList
@@ -27,9 +31,6 @@ from .dtype import vec4
 #from .image import image2d
 #from .image import image2d_array
 #from .image import image3d
-from .init import DeviceInfo
-from .init import get_devices
-from .init import init_instance
 from .shader_variable import ShaderVariable
 from .shader_builder import PushConstantBuffer
 from .shader_builder import shader

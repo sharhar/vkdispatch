@@ -1,27 +1,7 @@
 #ifndef SRC_INTERNAL_H
 #define SRC_INTERNAL_H
 
-//#include <VKL/VKL.h>
-
-//#ifdef _DEBUG
-#define VK_CALL(result) {VkResult ___result = result; if(___result != VK_SUCCESS) { printf("(VkResult = %d) " #result " in %s in %s\n", ___result, __FUNCTION__, __FILE__); }}
-//#endif
-
-//#ifndef _DEBUG
-//#define VK_CALL(result) result;
-//#endif
-
-#define VKL_VALIDATION
-
-#ifndef VKDISPATCH_USE_VOLK
-#include <vulkan/vulkan.h>
-#else
-
-#define VK_NO_PROTOTYPES
-#include <vulkan/vulkan.h>
-#include <volk/volk.h>
-
-#endif
+#include "base.h"
 
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
@@ -34,69 +14,44 @@
 
 #include <stdarg.h>
 
-inline void log_message(const char* level, const char* format, ...) {
-    va_list args;
-    va_start(args, format);
+extern LogLevel __log_level_limit;
 
-    // Estimate the size of the full message
-    int size = snprintf(NULL, 0, "%s %s\n", level, format) + 1; // +1 for the null terminator
-    char* full_format = (char*)malloc(size);
-    if (full_format != NULL) {
-        snprintf(full_format, size, "%s %s\n", level, format);
-        vprintf(full_format, args);
-        free(full_format);
+inline void log_message(LogLevel log_level, const char* prefix, const char* postfix, const char* format, ...) {
+    if(log_level >= __log_level_limit) {
+        va_list args;
+        va_start(args, format);
+
+        printf("%s", prefix);
+        vprintf(format, args);
+        printf("%s", postfix);
+
+        va_end(args);
     }
-
-    va_end(args);
 }
 
-//#define LOGGING_INFO
-#define LOGGING_ERROR
+#ifdef LOG_VERBOSE_ENABLED
+#define LOG_VERBOSE(format, ...) log_message(LOG_LEVEL_VERBOSE, "[VERBOSE] ", "\n", format, ##__VA_ARGS__)
+#else
+#define LOG_VERBOSE(format, ...)
+#endif
 
-#ifdef LOGGING_INFO
+#define LOG_INFO(format, ...) log_message(LOG_LEVEL_INFO, "[INFO] ", "\n", format, ##__VA_ARGS__)
+#define LOG_WARNING(format, ...) log_message(LOG_LEVEL_WARNING, "[WARNING] ", "\n", format, ##__VA_ARGS__)
+#define LOG_ERROR(format, ...) log_message(LOG_LEVEL_ERROR, "[ERROR] ", "\n", format, ##__VA_ARGS__)
 
-inline void log_message_noendl(const char* level, const char* format, ...) {
-    va_list args;
-    va_start(args, format);
+#include <vulkan/vk_enum_string_helper.h>
 
-    // Estimate the size of the full message
-    int size = snprintf(NULL, 0, "%s%s", level, format) + 1; // +1 for the null terminator
-    char* full_format = (char*)malloc(size);
-    if (full_format != NULL) {
-        snprintf(full_format, size, "%s%s", level, format);
-        vprintf(full_format, args);
-        free(full_format);
-    }
-
-    va_end(args);
+#define VK_CALL(EXPRESSION)                                              \
+{                                                                        \
+    VkResult ___result = (EXPRESSION);                                   \
+    if(___result != VK_SUCCESS) {                                        \
+        LOG_ERROR("(VkResult is %s (%d)) " #EXPRESSION " inside '%s' at %s:%d\n", string_VkResult(___result), ___result, __FUNCTION__, __FILE__, __LINE__); \
+    }                                                                    \
 }
-
-#define LOG_INFO(format, ...) log_message("[INFO] ", format, ##__VA_ARGS__)
-#define LOG_INFO_NOENDL(format, ...) log_message_noendl("[INFO] ", format, ##__VA_ARGS__)
-
-#define LOG_NIL(format, ...) log_message("", format, ##__VA_ARGS__)
-#define LOG_NIL_NOENDL(format, ...) log_message_noendl("", format, ##__VA_ARGS__)
-
-#else
-
-#define LOG_INFO(format, ...)
-#define LOG_INFO_NOENDL(format, ...)
-
-#define LOG_NIL(format, ...)
-#define LOG_NIL_NOENDL(format, ...)
-
-#endif
-
-#ifdef LOGGING_ERROR
-#define LOG_ERROR(format, ...) log_message("[ERROR]", format, ##__VA_ARGS__)
-#else
-#define LOG_ERROR(format, ...)
-#endif
 
 #include <vkFFT.h>
 #include <vector>
 
-#include "base.h"
 #include "init.h"
 #include "context.h"
 #include "buffer.h"

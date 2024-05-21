@@ -56,7 +56,7 @@ void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* p
 
     command_list->stages.push_back({
         [](VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device) {
-            LOG_INFO("Executing FFT");
+            LOG_VERBOSE("Executing FFT");
 
             struct FFTRecordInfo* my_fft_info = (struct FFTRecordInfo*)stage->user_data;
 

@@ -1,5 +1,5 @@
 import typing
-
+from enum import Enum
 import vkdispatch_native
 
 device_type_id_to_str_dict = {
@@ -9,6 +9,13 @@ device_type_id_to_str_dict = {
     3: "Virtual GPU",
     4: "CPU",
 }
+
+# define a log_level enum
+class LogLevel(Enum):
+    VERBOSE = 0
+    INFO = 1
+    WARNING = 2
+    ERROR = 3
 
 
 class DeviceInfo:
@@ -118,18 +125,18 @@ class DeviceInfo:
 __initilized_instance: bool = False
 
 
-def init_instance(debug_mode: bool = False):
+def initialize(debug_mode: bool = True, log_level: LogLevel = LogLevel.WARNING):
     global __initilized_instance
 
     if __initilized_instance:
         return
 
-    vkdispatch_native.init(debug_mode)
+    vkdispatch_native.init(debug_mode, log_level.value)
     __initilized_instance = True
 
 
-def get_devices(debug_mode: bool = False) -> typing.List[DeviceInfo]:
-    init_instance(debug_mode)
+def get_devices() -> typing.List[DeviceInfo]:
+    initialize()
 
     return [
         DeviceInfo(ii, *dev_obj)

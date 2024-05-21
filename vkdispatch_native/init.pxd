@@ -5,6 +5,12 @@ from libcpp cimport bool
 import sys
 
 cdef extern from "init.h":
+    enum LogLevel:
+        LOG_LEVEL_VERBOSE = 0
+        LOG_LEVEL_INFO = 1
+        LOG_LEVEL_WARNING = 2
+        LOG_LEVEL_ERROR = 3
+
     struct PhysicalDeviceDetails:
         int version_variant;
         int version_major;
@@ -45,11 +51,11 @@ cdef extern from "init.h":
 
         unsigned int max_compute_shared_memory_size
     
-    void init_extern(bool debug)
+    void init_extern(bool debug, LogLevel log_level)
     PhysicalDeviceDetails* get_devices_extern(int* count)
 
-cpdef inline init(bool debug):
-    init_extern(debug)
+cpdef inline init(bool debug, int log_level):
+    init_extern(debug, <LogLevel>(log_level))
 
 cpdef inline get_devices():
     cdef int count = 0

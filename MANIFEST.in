@@ -1,7 +1,5 @@
 include vkdispatch_native/*.h
 include vkdispatch_native/*.pxd
-include deps/VKL/include/VKL/*.h
-include deps/VKL/include/glslang/*.h
 include deps/VMA/include/*.h
 include deps/VMA/LICENSE.txt
 include deps/volk/volk/volk.h

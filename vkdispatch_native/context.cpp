@@ -85,24 +85,17 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
         vkEnumerateDeviceExtensionProperties(ctx->physicalDevices[i], nullptr, &extensionCount, deviceExtensions.data());
 
         // Check if all desired extensions are supported
+        std::vector<const char*> supportedExtensions;
         for(auto& desiredExtension : desiredExtensions) {
-            bool found = false;
-
-            for(auto& extension : deviceExtensions) {
-                if(strcmp(extension.extensionName, desiredExtension) == 0) {
-                    found = true;
-                    break;
-                }
+            auto it = std::find_if(deviceExtensions.begin(), deviceExtensions.end(), [&](const VkExtensionProperties& prop) {
+                return strcmp(desiredExtension, prop.extensionName) == 0;
+            });
+            if (it != deviceExtensions.end()) {
+                LOG_INFO("Device Extension '%s' is supported", desiredExtension);
+                supportedExtensions.push_back(desiredExtension);
+            } else {
+                LOG_WARNING("Extension '%s' is not supported", desiredExtension);
             }
-
-            if(!found) {
-                LOG_ERROR("Device does not support extension: %s", desiredExtension);
-                return nullptr;
-            }
-        }
-
-        for(auto& extension : deviceExtensions) {
-            LOG_INFO("Device Extension: %s", extension.extensionName);
         }
 
         VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomicFloatFeaturesEnableStruct = {};
@@ -118,8 +111,8 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
         deviceCreateInfo.pNext = &features2EnableStruct;
         deviceCreateInfo.queueCreateInfoCount = 1;
         deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
-        deviceCreateInfo.enabledExtensionCount = desiredExtensions.size();
-        deviceCreateInfo.ppEnabledExtensionNames = desiredExtensions.data();
+        deviceCreateInfo.enabledExtensionCount = supportedExtensions.size();
+        deviceCreateInfo.ppEnabledExtensionNames = supportedExtensions.data();
 
         VK_CALL(vkCreateDevice(ctx->physicalDevices[i], &deviceCreateInfo, nullptr, &ctx->devices[i]));
 
