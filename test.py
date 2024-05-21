@@ -68,11 +68,6 @@ shift_buffer = vd.Buffer(input_image_raw.shape, vd.complex64)
 max_cross = vd.Buffer(input_image_raw.shape, vd.float32)
 best_index = vd.Buffer(input_image_raw.shape, vd.int32)
 
-workgroup_size = vd.get_devices()[0].max_workgroup_size[0]
-assert work_buffer.size % workgroup_size == 0
-
-reduce_buffer = vd.Buffer(((work_buffer.size // workgroup_size) + 1,), vd.vec2)
-
 @vd.compute_shader(vd.float32[0], vd.int32[0])
 def init_accumulators(max_cross, best_index):
     ind = vd.shader.global_x.copy()
@@ -325,7 +320,7 @@ fftshift[shift_buffer.size, cmd_list](work_buffer, shift_buffer)
 
 template_index = update_max[work_buffer.size, cmd_list](max_cross, best_index, work_buffer)
 
-batch_size = 100
+batch_size = 3
 
 status_bar = tqdm.tqdm(total=test_values.shape[0])
 
@@ -344,8 +339,6 @@ for i in range(0, test_values.shape[0], batch_size):
             data += pc_buffer.get_bytes()
     
     cmd_list.submit(data=data)
-
-    #exit()
 
     status_bar.update(batch_size)
 
