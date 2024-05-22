@@ -91,6 +91,7 @@ typedef struct {
     std::vector<VkPhysicalDeviceProperties2> properties;
     std::vector<VkPhysicalDeviceSubgroupProperties> subgroup_properties;
     std::vector<struct PhysicalDeviceDetails> device_details;
+    std::vector<std::vector<VkQueueFamilyProperties>> queue_family_properties;
 } MyInstance;
 
 extern MyInstance _instance;
@@ -116,7 +117,7 @@ struct Context {
     uint32_t deviceCount;
     std::vector<VkPhysicalDevice> physicalDevices;
     std::vector<VkDevice> devices;
-    std::vector<Stream*> streams;
+    std::vector<std::vector<Stream*>> streams;
     std::vector<VmaAllocator> allocators;
 };
 

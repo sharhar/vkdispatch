@@ -25,8 +25,8 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
 
         plan->configs[i].physicalDevice = &ctx->physicalDevices[i];
         plan->configs[i].device = &ctx->devices[i];
-        plan->configs[i].queue = &ctx->streams[i]->queue;
-        plan->configs[i].commandPool = &ctx->streams[i]->commandPool;
+        plan->configs[i].queue = &ctx->streams[i][0]->queue;
+        plan->configs[i].commandPool = &ctx->streams[i][0]->commandPool;
         plan->configs[i].fence = &plan->fences[i];
         plan->configs[i].isCompilerInitialized = true;
         plan->configs[i].bufferSize = (uint64_t*)malloc(sizeof(uint64_t));

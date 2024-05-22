@@ -13,27 +13,43 @@ class Context:
     def __init__(
         self,
         devices: List[int],
-        submission_thread_counts: List[int] = None,
+        queue_families: List[List[int]]
     ) -> None:
-        self._handle = vkdispatch_native.context_create(devices, submission_thread_counts)
+        self._handle = vkdispatch_native.context_create(devices, queue_families)
         vd.check_for_errors()
 
     def __del__(self) -> None:
         pass  # vkdispatch_native.context_destroy(self._handle)
 
+def get_compute_queue_family_index(device_index: int) -> int:
+    device = vd.get_devices()[device_index]
+
+    # First check if we have a pure compute queue family with (sparse) transfer capabilities
+    for i, queue_family in enumerate(device.queue_properties):
+        if queue_family[1] == 6 or queue_family == 14:
+            return i
+
+    # If not, check if we have a compute queue family without graphics capabilities
+    for i, queue_family in enumerate(device.queue_properties):
+        if queue_family[1] & 2 and not queue_family[1] & 1:
+            return i
+        
+    # Finnally, return any queue with compute capabilities
+    for i, queue_family in enumerate(device.queue_properties):
+        if queue_family[1] & 2:
+            return i
+
+    raise ValueError(f"Device {device_index} does not have a compute queue family!")
 
 def make_context(
     devices: Union[int, List[int]],
-    submission_thread_counts: Union[int, List[int]] = None
+    queue_families: List[List[int]] = None
 ) -> Context:
     if isinstance(devices, int):
         devices = [devices]
 
-    # Extend out thread counts to match the number of devices
-    if submission_thread_counts is None:
-        submission_thread_counts = [1] * len(devices)
-    elif isinstance(submission_thread_counts, int):
-        submission_thread_counts = [submission_thread_counts] * len(devices)
+    if queue_families is None:
+        queue_families = [[get_compute_queue_family_index(dev_index)] * 2 for dev_index in devices]
 
     vd.initialize()
 
@@ -41,7 +57,7 @@ def make_context(
 
     # Do type checking before passing to native code
     assert len(devices) == len(
-        submission_thread_counts
+        queue_families
     ), "Device and submission thread count lists must be the same length!"
     # assert all([isinstance(dev, int) for dev in devices])
     assert all(
@@ -51,7 +67,7 @@ def make_context(
         [dev >= 0 and dev < total_devices for dev in devices]
     ), f"All device indicies must between 0 and {total_devices}"
 
-    return Context(devices, submission_thread_counts)
+    return Context(devices, queue_families)
 
 
 __context: Context = None

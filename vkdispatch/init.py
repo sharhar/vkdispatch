@@ -13,6 +13,28 @@ device_type_id_to_str_dict = {
     4: "CPU",
 }
 
+def get_queue_type_strings(queue_type: int) -> typing.List[str]:
+    result = []
+
+    if queue_type & 0x001:
+        result.append("Graphics")
+    if queue_type & 0x002:
+        result.append("Compute")
+    if queue_type & 0x004:
+        result.append("Transfer")
+    if queue_type & 0x008:
+        result.append("Sparse Binding")
+    #if queue_type & 0x010:
+    #    result.append("Protected")
+    #if queue_type & 0x020:
+    #    result.append("Video Decode")
+    #if queue_type & 0x040:
+    #    result.append("Video Encode")
+    #if queue_type & 0x100:
+    #    result.append("Optical Flow (NV)")
+
+    return result
+
 # define a log_level enum
 class LogLevel(Enum):
     VERBOSE = 0
@@ -51,6 +73,7 @@ class DeviceInfo:
         supported_operations: int,
         quad_operations_in_all_stages: int,
         max_compute_shared_memory_size: int,
+        queue_properties: typing.List[typing.Tuple[int, int]]
     ):
         self.dev_index = dev_index
 
@@ -87,6 +110,8 @@ class DeviceInfo:
 
         self.max_compute_shared_memory_size = max_compute_shared_memory_size
 
+        self.queue_properties = queue_properties
+
     def __repr__(self) -> str:
         result = f"Device {self.dev_index}: {self.device_name}\n"
 
@@ -114,13 +139,16 @@ class DeviceInfo:
         result += f"\tSubgroup Size: {self.sub_group_size}\n"
         result += f"\tSupported Stages: {hex(self.supported_stages)}\n"
         result += f"\tSupported Operations: {hex(self.supported_operations)}\n"
-        result += (
-            f"\tQuad Operations in All Stages: {self.quad_operations_in_all_stages}\n"
-        )
+        result += f"\tMax Compute Shared Memory Size: {self.max_compute_shared_memory_size}\n"
 
-        result += (
-            f"\tMax Compute Shared Memory Size: {self.max_compute_shared_memory_size}\n"
-        )
+        result += f"\tQueues:\n"
+        for ii, queue in enumerate(self.queue_properties):
+            result += f"\t\t{ii} (count={queue[0]}, flags={hex(queue[1])}): "
+
+            result += " | ".join(get_queue_type_strings(queue[1])) + "\n"
+
+            #for flag_str in get_queue_type_strings(queue[1]):
+            #    result += f"\t\t\t{flag_str}\n"
 
         return result
 

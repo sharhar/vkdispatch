@@ -59,20 +59,12 @@ class ReductionDispatcher:
                 raise ValueError(f"Expected {self.arg_count} arguments, got {len(args)}!")
             
             data_size = my_exec_dims[0][0]
-
-            print(f"Data size: {data_size}")
-
             stage1_blocks = int(np.ceil(data_size / self.group_size))
-
-            print(f"Stage 1 blocks: {stage1_blocks}")
-
-            #if stage1_blocks > self.group_size:
-            #    reduction_scale = int(np.ceil(stage1_blocks / self.group_size))
-            #    print(f"Reduction scale: {reduction_scale}")
-            #    stage_scale = np.ceil(np.sqrt(reduction_scale))
-            #    print(f"Stage scale: {stage_scale}")
-            #    stage1_blocks = int(np.ceil(stage1_blocks / stage_scale))
-            #    print(f"New stage 1 blocks: {stage1_blocks}")
+            
+            if stage1_blocks > self.group_size:
+                reduction_scale = int(np.ceil(stage1_blocks / self.group_size))
+                stage_scale = np.ceil(np.sqrt(reduction_scale))
+                stage1_blocks = int(np.ceil(stage1_blocks / stage_scale))
 
             reduction_buffer = vd.Buffer((stage1_blocks + 1,), self.out_type)
 

@@ -68,7 +68,7 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
     for (int i = 0; i < enum_count; i++) {
         int dev_index = start_index + i;
 
-        VK_CALL(vkQueueWaitIdle(buffer->ctx->streams[dev_index]->queue));
+        VK_CALL(vkQueueWaitIdle(buffer->ctx->streams[dev_index][0]->queue));
 
         void* mapped;
         VK_CALL(vmaMapMemory(ctx->allocators[dev_index], buffer->stagingAllocations[dev_index], &mapped));
@@ -80,13 +80,13 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
         bufferCopy.dstOffset = offset;
         bufferCopy.srcOffset = 0;
 
-        VkCommandBuffer cmdBuffer = buffer->ctx->streams[dev_index]->begin();
+        VkCommandBuffer cmdBuffer = buffer->ctx->streams[dev_index][0]->begin();
         if(__error_string != NULL)
             return;
         
         vkCmdCopyBuffer(cmdBuffer, buffer->stagingBuffers[dev_index], buffer->buffers[dev_index], 1, &bufferCopy);
         
-        VkFence fence = buffer->ctx->streams[dev_index]->submit();
+        VkFence fence = buffer->ctx->streams[dev_index][0]->submit();
         if(__error_string != NULL)
             return;
         VK_CALL(vkWaitForFences(buffer->ctx->devices[dev_index], 1, &fence, VK_TRUE, UINT64_MAX));
@@ -105,15 +105,15 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
 	bufferCopy.dstOffset = 0;
 	bufferCopy.srcOffset = offset;
 	
-    VK_CALL(vkQueueWaitIdle(buffer->ctx->streams[dev_index]->queue));
+    VK_CALL(vkQueueWaitIdle(buffer->ctx->streams[dev_index][0]->queue));
 
-    VkCommandBuffer cmdBuffer = buffer->ctx->streams[dev_index]->begin();
+    VkCommandBuffer cmdBuffer = buffer->ctx->streams[dev_index][0]->begin();
     if(__error_string != NULL)
         return;
     
     vkCmdCopyBuffer(cmdBuffer, buffer->buffers[dev_index], buffer->stagingBuffers[dev_index], 1, &bufferCopy);
     
-    VkFence fence = buffer->ctx->streams[dev_index]->submit();
+    VkFence fence = buffer->ctx->streams[dev_index][0]->submit();
     if(__error_string != NULL)
         return;
     VK_CALL(vkWaitForFences(buffer->ctx->devices[dev_index], 1, &fence, VK_TRUE, UINT64_MAX));
