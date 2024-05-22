@@ -1,7 +1,10 @@
 #include "internal.h"
 #include <vector>
+#include <algorithm>
+#include <unordered_map>
+#include <utility>
 
-struct Context* context_create_extern(int* device_indicies, int* submission_thread_couts, int device_count) {
+struct Context* context_create_extern(int* device_indicies, int* queue_counts, int* queue_families, int device_count) {
     LOG_INFO("Creating context with %d devices", device_count);
 
     struct Context* ctx = new struct Context();
@@ -13,42 +16,27 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
 
     LOG_INFO("Enumerating physical devices...");
 
-    uint32_t true_device_count;
-    VK_CALL_RETNULL(vkEnumeratePhysicalDevices(_instance.instance, &true_device_count, nullptr));
-    std::vector<VkPhysicalDevice> physicalDevices(true_device_count);
-    VK_CALL_RETNULL(vkEnumeratePhysicalDevices(_instance.instance, &true_device_count, physicalDevices.data()));
+    int queue_index_offset = 0;
 
     for(int i = 0; i < device_count; i++) {
-        ctx->physicalDevices[i] = physicalDevices[device_indicies[i]];
+        ctx->physicalDevices[i] = _instance.physicalDevices[device_indicies[i]];
 
-        VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomicFloatFeatures = {};
-        atomicFloatFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT;
-        VkPhysicalDeviceFeatures2 features2 = {};
-        features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-        features2.pNext = &atomicFloatFeatures;
-        vkGetPhysicalDeviceFeatures2(ctx->physicalDevices[i], &features2);
-
-        if(!atomicFloatFeatures.shaderBufferFloat32AtomicAdd) {
-            LOG_ERROR("Device does not support shaderBufferFloat32AtomicAdd");
+        if(!_instance.atomicFloatFeatures[device_indicies[i]].shaderBufferFloat32AtomicAdd) {
+            set_error("Device does not support shaderBufferFloat32AtomicAdd");
             return nullptr;
         }
 
         LOG_INFO("Creating physical device %p...", static_cast<VkPhysicalDevice>(ctx->physicalDevices[i]));
 
-        uint32_t queueFamilyCount;
-        std::vector<VkQueueFamilyProperties> queue_family_properties;
-        vkGetPhysicalDeviceQueueFamilyProperties(ctx->physicalDevices[i], &queueFamilyCount, nullptr);
-        queue_family_properties.resize(queueFamilyCount);
-        vkGetPhysicalDeviceQueueFamilyProperties(ctx->physicalDevices[i], &queueFamilyCount, queue_family_properties.data());
-
+/*
         int foundIndex = -1;
 
-        for(int queueIndex = 0; queueIndex < queue_family_properties.size(); queueIndex++) {
+        for(int queueIndex = 0; queueIndex < _instance.queue_family_properties[device_indicies[i]].size(); queueIndex++) {
             LOG_INFO("Queue Index: %d", queueIndex);
-            LOG_INFO("Queue Count: %d", queue_family_properties[queueIndex].queueCount);
-            LOG_INFO("Queue Flags:  %p", queue_family_properties[queueIndex].queueFlags);
+            LOG_INFO("Queue Count: %d", _instance.queue_family_properties[device_indicies[i]][queueIndex].queueCount);
+            LOG_INFO("Queue Flags:  %p", _instance.queue_family_properties[device_indicies[i]][queueIndex].queueFlags);
 
-            if(queue_family_properties[queueIndex].queueFlags & VK_QUEUE_COMPUTE_BIT) {
+            if(_instance.queue_family_properties[device_indicies[i]][queueIndex].queueFlags & VK_QUEUE_COMPUTE_BIT) {
                 foundIndex = queueIndex;
                 break;
             }
@@ -61,13 +49,7 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
 
         LOG_INFO("Queue Family Index: %d", foundIndex);
 
-        float queue_priority = 1.0f;
-
-        VkDeviceQueueCreateInfo queueCreateInfo = {};
-        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfo.queueFamilyIndex = foundIndex;
-        queueCreateInfo.queueCount = 1;
-        queueCreateInfo.pQueuePriorities = &queue_priority;
+       */ 
 
         std::vector<const char*> desiredExtensions =  {
             "VK_KHR_shader_non_semantic_info",
@@ -106,21 +88,58 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
         features2EnableStruct.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
         features2EnableStruct.pNext = &atomicFloatFeaturesEnableStruct;
 
+        float* queue_priorities = (float*)malloc(sizeof(float) * queue_counts[i]);
+        for(int j = 0; j < queue_counts[i]; j++) {
+            queue_priorities[j] = 1.0f;
+        }
+
+        std::unordered_map<int, int> frequencyMap;
+        for(int j = 0; j < queue_counts[i]; j++)
+            frequencyMap[queue_families[queue_index_offset + j]]++;
+
+        LOG_INFO("Queue Family Count: %d", frequencyMap.size());
+
+        std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+        queueCreateInfos.resize(frequencyMap.size());
+
+        int index = 0;
+        for (const auto& queueFamily : frequencyMap) {
+            LOG_INFO("Queue Family %d Count: %d", queueFamily.first, queueFamily.second);
+
+            queueCreateInfos[index] = {};
+            queueCreateInfos[index].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            queueCreateInfos[index].queueFamilyIndex = queueFamily.first;
+            queueCreateInfos[index].queueCount = queueFamily.second;
+            queueCreateInfos[index].pQueuePriorities = queue_priorities;
+            index++;
+        }
+
         VkDeviceCreateInfo deviceCreateInfo = {};
         deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
         deviceCreateInfo.pNext = &features2EnableStruct;
-        deviceCreateInfo.queueCreateInfoCount = 1;
-        deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
+        deviceCreateInfo.queueCreateInfoCount = queueCreateInfos.size();
+        deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
         deviceCreateInfo.enabledExtensionCount = supportedExtensions.size();
         deviceCreateInfo.ppEnabledExtensionNames = supportedExtensions.data();
 
         VK_CALL_RETNULL(vkCreateDevice(ctx->physicalDevices[i], &deviceCreateInfo, nullptr, &ctx->devices[i]));
 
+        free(queue_priorities);
+
         LOG_INFO("Created device %p", static_cast<VkDevice>(ctx->devices[i]));
 
-        VkQueue queue;
-        vkGetDeviceQueue(ctx->devices[i], foundIndex, 0, &queue);
-        ctx->streams[i] = new Stream(ctx->devices[i], queue, foundIndex, 2);
+        ctx->streams[i] = {};
+        for(int j = 0; j < queueCreateInfos.size(); j++) {
+            LOG_INFO("Creating %d queues for family %d", queueCreateInfos[j].queueCount, queueCreateInfos[j].queueFamilyIndex);
+            for(int k = 0; k < queueCreateInfos[j].queueCount; k++) {
+                VkQueue queue;
+                vkGetDeviceQueue(ctx->devices[i], queueCreateInfos[j].queueFamilyIndex, k, &queue);
+                LOG_INFO("Creating queue %d with handle %p", k, queue);
+                ctx->streams[i].push_back(new Stream(ctx->devices[i], queue, queueCreateInfos[j].queueFamilyIndex, 2));
+            }            
+        }
+
+        queue_index_offset += queue_counts[i];
 
         VmaVulkanFunctions vmaVulkanFunctions = {};
         vmaVulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
@@ -144,8 +163,11 @@ struct Context* context_create_extern(int* device_indicies, int* submission_thre
 
 void context_destroy_extern(struct Context* context) {
     for(int i = 0; i < context->deviceCount; i++) {
-        context->streams[i]->destroy();
-        delete context->streams[i];
+        for(int j = 0; j < context->streams[i].size(); j++) {
+            context->streams[i][j]->destroy();
+            delete context->streams[i][j];
+        }
+        context->streams[i].clear();
 
         vmaDestroyAllocator(context->allocators[i]);
         vkDestroyDevice(context->devices[i], nullptr);

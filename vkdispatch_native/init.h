@@ -3,6 +3,11 @@
 
 #include "base.h"
 
+struct QueueFamilyProperties {
+    unsigned int queueCount;
+    unsigned int queueFlags;
+};
+
 struct PhysicalDeviceDetails {
     int version_variant;
     int version_major;
@@ -42,6 +47,9 @@ struct PhysicalDeviceDetails {
     unsigned int quad_operations_in_all_stages;
 
     unsigned int max_compute_shared_memory_size;
+
+    unsigned int queue_family_count;
+    struct QueueFamilyProperties* queue_family_properties;
 };
 
 void init_extern(bool debug, LogLevel log_level);

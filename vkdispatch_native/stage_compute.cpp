@@ -84,7 +84,7 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
         uint32_t* code = glsl_to_spirv_util(GLSLANG_STAGE_COMPUTE, &code_size, create_info->shader_source, "compute_shader");
         
         if(code == NULL) {
-            LOG_ERROR("Failed to compile shader");
+            set_error("Failed to compile compute shader!");
             return NULL;
         }
 

@@ -56,7 +56,7 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
             VK_ACCESS_SHADER_READ_BIT,
     };
 
-    VkCommandBuffer cmd_buffer = command_list->ctx->streams[device]->begin();
+    VkCommandBuffer cmd_buffer = command_list->ctx->streams[device][0]->begin();
     if(__error_string != NULL)
         return;
 
@@ -82,5 +82,5 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
         }
     }
 
-    command_list->ctx->streams[device]->submit();
+    command_list->ctx->streams[device][0]->submit();
 }

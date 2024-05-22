@@ -11,6 +11,10 @@ cdef extern from "init.h":
         LOG_LEVEL_WARNING = 2
         LOG_LEVEL_ERROR = 3
 
+    struct QueueFamilyProperties:
+        unsigned int queueCount
+        unsigned int queueFlags
+
     struct PhysicalDeviceDetails:
         int version_variant;
         int version_major;
@@ -50,6 +54,9 @@ cdef extern from "init.h":
         unsigned int quad_operations_in_all_stages
 
         unsigned int max_compute_shared_memory_size
+
+        unsigned int queue_family_count
+        QueueFamilyProperties* queue_family_properties
     
     void init_extern(bool debug, LogLevel log_level)
     PhysicalDeviceDetails* get_devices_extern(int* count)
@@ -92,7 +99,8 @@ cpdef inline get_devices():
             device.supported_stages,
             device.supported_operations,
             device.quad_operations_in_all_stages,
-            device.max_compute_shared_memory_size
+            device.max_compute_shared_memory_size,
+            [(device.queue_family_properties[j].queueCount, device.queue_family_properties[j].queueFlags) for j in range(device.queue_family_count)]
         )
         device_list.append(device_info)
 

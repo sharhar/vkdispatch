@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <string>
 #include <stdio.h>
-#include <algorithm>
 
 LogLevel __log_level_limit = LOG_LEVEL_WARNING;
 MyInstance _instance;
@@ -205,6 +204,7 @@ void init_extern(bool debug, LogLevel log_level) {
     _instance.properties.resize(device_count);
     _instance.subgroup_properties.resize(device_count);
     _instance.device_details.resize(device_count);
+    _instance.queue_family_properties.resize(device_count);
     VK_CALL(vkEnumeratePhysicalDevices(_instance.instance, &device_count, _instance.physicalDevices.data()));
 
     for(int i = 0; i < _instance.physicalDevices.size(); i++) {
@@ -228,6 +228,12 @@ void init_extern(bool debug, LogLevel log_level) {
         _instance.properties[i].pNext = &_instance.subgroup_properties[i];
 
         vkGetPhysicalDeviceProperties2(_instance.physicalDevices[i], &_instance.properties[i]);
+        
+        uint32_t queueFamilyCount;
+        _instance.queue_family_properties[i] = {};
+        vkGetPhysicalDeviceQueueFamilyProperties(_instance.physicalDevices[i], &queueFamilyCount, nullptr);
+        _instance.queue_family_properties[i].resize(queueFamilyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(_instance.physicalDevices[i], &queueFamilyCount, _instance.queue_family_properties[i].data());
 
         VkPhysicalDeviceProperties properties = _instance.properties[i].properties;
         VkPhysicalDeviceSubgroupProperties subgroupProperties = _instance.subgroup_properties[i];
@@ -273,6 +279,13 @@ void init_extern(bool debug, LogLevel log_level) {
         _instance.device_details[i].quad_operations_in_all_stages = subgroupProperties.quadOperationsInAllStages;
 
         _instance.device_details[i].max_compute_shared_memory_size = properties.limits.maxComputeSharedMemorySize;
+
+        _instance.device_details[i].queue_family_count = queueFamilyCount;
+        _instance.device_details[i].queue_family_properties = new QueueFamilyProperties[queueFamilyCount];
+        for(int j = 0; j < queueFamilyCount; j++) {
+            _instance.device_details[i].queue_family_properties[j].queueCount = _instance.queue_family_properties[i][j].queueCount;
+            _instance.device_details[i].queue_family_properties[j].queueFlags = _instance.queue_family_properties[i][j].queueFlags;
+        }
 
         //printf("Device %d: %s\n", i, _instance.devices[i].device_name);
         //printf("Atomics: %d\n", atomicFloatFeatures.shaderBufferFloat32Atomics);

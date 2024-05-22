@@ -70,9 +70,14 @@ class CommandList:
 
             if len(data) != self.get_instance_size():
                 raise ValueError("Push constant buffer size mismatch!")
+        elif len(data) == 0:
+            if self.get_instance_size() != 0:
+                raise ValueError("Push constant buffer size mismatch!")
+
+            instances = 1
         else:
             if len(data) % self.get_instance_size() != 0:
-                raise ValueError("Push constant buffer size mismatch!")
+                    raise ValueError("Push constant buffer size mismatch!")
 
             instances = len(data) // self.get_instance_size()
 
