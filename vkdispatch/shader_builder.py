@@ -310,17 +310,19 @@ class ShaderBuilder:
     def int_bits_to_float(self, arg: vd.ShaderVariable):
         return self.make_var(vd.float32, f"intBitsToFloat({arg})")
 
-    def print(self, *args: Union[vd.ShaderVariable, str]):
+    def print(self, *args: Union[vd.ShaderVariable, str], seperator=" "):
         args_list = []
 
-        fmt = ""
+        fmts = []
 
         for arg in args:
             if isinstance(arg, vd.ShaderVariable):
                 args_list.append(arg.printf_args())
-                fmt += arg.format
+                fmts.append(arg.format)
             else:
-                fmt += str(arg)
+                fmts.append(str(arg))
+
+        fmt = seperator.join(fmts)
         
         args_argument = ""
 

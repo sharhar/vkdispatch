@@ -110,7 +110,7 @@ def compute_shader(*args, local_size: Tuple[int, int, int] = None):
     my_local_size = (
         local_size
         if local_size is not None
-        else [vd.get_devices()[0].max_workgroup_size[0], 1, 1]
+        else [vd.get_context().device_infos[0].max_workgroup_size[0], 1, 1]
     )
 
     def decorator(build_func):
