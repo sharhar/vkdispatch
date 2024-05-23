@@ -56,7 +56,7 @@ def make_context(
             devices = [devices]
 
         if queue_families is None:
-            queue_families = [[get_compute_queue_family_index(dev_index)] * 2 for dev_index in devices]
+            queue_families = [[get_compute_queue_family_index(dev_index)] for dev_index in devices]
 
         vd.initialize()
 
