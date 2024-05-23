@@ -7,7 +7,12 @@ import time
 import tqdm
 import typing
 
+
 #vd.initialize(log_level=vd.LogLevel.INFO)
+vd.make_context([0])
+
+#for dev in vd.get_devices():
+#    print(dev)
 
 current_time = time.time()
 
@@ -116,7 +121,7 @@ def get_rotation_matrix(angles: typing.List[int], offsets: typing.List[int] = [0
 def fill_buffer(buf):
     buf[vd.shader.global_x] = vd.shader.push_constant(vd.complex64, "val")
 
-@vd.compute_shader(vd.float32[0], vd.float32[0])
+@vd.compute_shader(vd.int32[0], vd.float32[0])
 def place_atoms(image, atom_coords):
     ind = vd.shader.global_x.copy()
 
@@ -139,6 +144,12 @@ def place_atoms(image, atom_coords):
     vd.shader.end()
 
     vd.shader.atomic_add(image[2 * image_ind[1] * work_buffer.shape[0] + 2 * image_ind[0]], 1)
+
+@vd.compute_shader(vd.float32[0])
+def convert_int_to_float(image):
+    ind = vd.shader.global_x.copy()
+
+    image[ind] = vd.shader.float_bits_to_int(image[ind]).cast_to(vd.float32)
 
 @vd.compute_shader(vd.complex64[0])
 def apply_gaussian_filter(buf):
@@ -295,6 +306,7 @@ cmd_list = vd.CommandList()
 
 fill_buffer[work_buffer.size, cmd_list](work_buffer, val=0)
 rotation_matrix = place_atoms[atom_coords.shape[0], cmd_list](work_buffer, atom_coords_buffer)
+convert_int_to_float[work_buffer.size * 2, cmd_list](work_buffer)
 
 vd.fft[cmd_list](work_buffer)
 apply_gaussian_filter[work_buffer.size, cmd_list](work_buffer)
@@ -359,6 +371,7 @@ print("Defocus:", test_values[final_index][3])
 
 fill_buffer[work_buffer.size](work_buffer, val=0)
 place_atoms[atom_coords.shape[0]](work_buffer, atom_coords_buffer, rot_matrix=get_rotation_matrix([118, 95, 294])) #test_values[final_index][:3]))
+convert_int_to_float[work_buffer.size * 2](work_buffer)
 
 vd.fft(work_buffer)
 apply_gaussian_filter[work_buffer.size](work_buffer)

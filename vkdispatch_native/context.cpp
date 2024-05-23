@@ -19,12 +19,14 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     int queue_index_offset = 0;
 
     for(int i = 0; i < device_count; i++) {
+        LOG_INFO("Device %d Index: %d", i, device_indicies[i]);
+
         ctx->physicalDevices[i] = _instance.physicalDevices[device_indicies[i]];
 
-        if(!_instance.atomicFloatFeatures[device_indicies[i]].shaderBufferFloat32AtomicAdd) {
-            set_error("Device does not support shaderBufferFloat32AtomicAdd");
-            return nullptr;
-        }
+        //if(!_instance.atomicFloatFeatures[device_indicies[i]].shaderBufferFloat32AtomicAdd) {
+        //    set_error("Device does not support shaderBufferFloat32AtomicAdd");
+        //    return nullptr;
+        //}
 
         LOG_INFO("Creating physical device %p...", static_cast<VkPhysicalDevice>(ctx->physicalDevices[i]));
 
@@ -116,7 +118,7 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
         VkDeviceCreateInfo deviceCreateInfo = {};
         deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        deviceCreateInfo.pNext = &features2EnableStruct;
+        deviceCreateInfo.pNext = NULL; //&features2EnableStruct;
         deviceCreateInfo.queueCreateInfoCount = queueCreateInfos.size();
         deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
         deviceCreateInfo.enabledExtensionCount = supportedExtensions.size();

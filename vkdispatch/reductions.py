@@ -91,10 +91,10 @@ def make_reduction(
     if len(var_types) > 1 and map is None:
         raise ValueError("A map function must be provided for multiple buffer types!")
     
-    subgroup_size = vd.get_devices()[0].sub_group_size
+    subgroup_size = vd.get_context().device_infos[0].sub_group_size
     
     if group_size is None:
-        group_size = vd.get_devices()[0].max_workgroup_size[0]
+        group_size = vd.get_context().device_infos[0].max_workgroup_size[0]
     
     if group_size % subgroup_size != 0:
         raise ValueError("Group size must be a multiple of the sub-group size!")

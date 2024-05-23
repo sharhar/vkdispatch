@@ -15,6 +15,8 @@ class Context:
         devices: List[int],
         queue_families: List[List[int]]
     ) -> None:
+        self.devices = devices
+        self.device_infos = [vd.get_devices()[dev] for dev in devices]
         self._handle = vkdispatch_native.context_create(devices, queue_families)
         vd.check_for_errors()
 
@@ -41,46 +43,46 @@ def get_compute_queue_family_index(device_index: int) -> int:
 
     raise ValueError(f"Device {device_index} does not have a compute queue family!")
 
+__context: Context = None
+
 def make_context(
     devices: Union[int, List[int]],
     queue_families: List[List[int]] = None
 ) -> Context:
-    if isinstance(devices, int):
-        devices = [devices]
+    global __context
+    
+    if __context is None:
+        if isinstance(devices, int):
+            devices = [devices]
 
-    if queue_families is None:
-        queue_families = [[get_compute_queue_family_index(dev_index)] * 2 for dev_index in devices]
+        if queue_families is None:
+            queue_families = [[get_compute_queue_family_index(dev_index)] * 2 for dev_index in devices]
 
-    vd.initialize()
+        vd.initialize()
 
-    total_devices = len(vd.get_devices())
+        total_devices = len(vd.get_devices())
 
-    # Do type checking before passing to native code
-    assert len(devices) == len(
-        queue_families
-    ), "Device and submission thread count lists must be the same length!"
-    # assert all([isinstance(dev, int) for dev in devices])
-    assert all(
-        [type(dev) == int for dev in devices]
-    ), "Device list must be a list of integers!"
-    assert all(
-        [dev >= 0 and dev < total_devices for dev in devices]
-    ), f"All device indicies must between 0 and {total_devices}"
+        # Do type checking before passing to native code
+        assert len(devices) == len(
+            queue_families
+        ), "Device and submission thread count lists must be the same length!"
+        # assert all([isinstance(dev, int) for dev in devices])
+        assert all(
+            [type(dev) == int for dev in devices]
+        ), "Device list must be a list of integers!"
+        assert all(
+            [dev >= 0 and dev < total_devices for dev in devices]
+        ), f"All device indicies must between 0 and {total_devices}"
 
-    return Context(devices, queue_families)
+        __context = Context(devices, queue_families)
 
+    return __context
 
-__context: Context = None
 
 
 def get_context() -> Context:
-    global __context
-
-    if __context is None:
-        device_count = len(vd.get_devices())
-        __context = make_context([i for i in range(device_count)])
-
-    return __context
+    device_count = len(vd.get_devices())
+    return make_context([i for i in range(device_count)])
 
 
 def get_context_handle() -> int:

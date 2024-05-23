@@ -49,8 +49,13 @@ inline void set_error(const char* format, ...) {
         free((void*)__error_string);
     }
 
+    #ifdef _WIN32
+    int length = _vscprintf(format, args) + 1;
+    __error_string = (const char*)malloc(length * sizeof(char));
+    vsprintf_s((char*)__error_string, length, format, args);
+    #else
     vasprintf((char**)&__error_string, format, args);
-
+    #endif
     va_end(args);
 }
 
