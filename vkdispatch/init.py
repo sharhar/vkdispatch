@@ -1,5 +1,6 @@
 import typing
 from enum import Enum
+import os
 
 import vkdispatch as vd
 
@@ -11,6 +12,14 @@ device_type_id_to_str_dict = {
     2: "Discrete GPU",
     3: "Virtual GPU",
     4: "CPU",
+}
+
+device_type_ranks_dict = {
+    0: 0,
+    1: 2,
+    2: 4,
+    3: 3,
+    4: 1
 }
 
 def get_queue_type_strings(queue_type: int) -> typing.List[str]:
@@ -156,11 +165,14 @@ class DeviceInfo:
 __initilized_instance: bool = False
 
 
-def initialize(debug_mode: bool = True, log_level: LogLevel = LogLevel.WARNING):
+def initialize(debug_mode: bool = True, log_level: LogLevel = LogLevel.WARNING, loader_debug_logs: bool = False):
     global __initilized_instance
 
     if __initilized_instance:
         return
+    
+    if loader_debug_logs:
+        os.environ["VK_LOADER_DEBUG"] = "all"
 
     vkdispatch_native.init(debug_mode, log_level.value)
     vd.check_for_errors()

@@ -30,29 +30,6 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
         LOG_INFO("Creating physical device %p...", static_cast<VkPhysicalDevice>(ctx->physicalDevices[i]));
 
-/*
-        int foundIndex = -1;
-
-        for(int queueIndex = 0; queueIndex < _instance.queue_family_properties[device_indicies[i]].size(); queueIndex++) {
-            LOG_INFO("Queue Index: %d", queueIndex);
-            LOG_INFO("Queue Count: %d", _instance.queue_family_properties[device_indicies[i]][queueIndex].queueCount);
-            LOG_INFO("Queue Flags:  %p", _instance.queue_family_properties[device_indicies[i]][queueIndex].queueFlags);
-
-            if(_instance.queue_family_properties[device_indicies[i]][queueIndex].queueFlags & VK_QUEUE_COMPUTE_BIT) {
-                foundIndex = queueIndex;
-                break;
-            }
-        }
-
-        if(foundIndex == -1) {
-            LOG_ERROR("Failed to find queue family index");
-            return nullptr;
-        }
-
-        LOG_INFO("Queue Family Index: %d", foundIndex);
-
-       */ 
-
         std::vector<const char*> desiredExtensions =  {
             "VK_KHR_shader_non_semantic_info",
             "VK_EXT_shader_atomic_float"
@@ -137,7 +114,9 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
                 VkQueue queue;
                 vkGetDeviceQueue(ctx->devices[i], queueCreateInfos[j].queueFamilyIndex, k, &queue);
                 LOG_INFO("Creating queue %d with handle %p", k, queue);
-                ctx->streams[i].push_back(new Stream(ctx->devices[i], queue, queueCreateInfos[j].queueFamilyIndex, 2));
+
+                ctx->stream_indicies.push_back(std::make_pair(i, ctx->streams[i].size()));
+                ctx->streams[i].push_back(new Stream(ctx->devices[i], queue, queueCreateInfos[j].queueFamilyIndex, 2, ctx->stream_indicies.size() - 1));
             }            
         }
 

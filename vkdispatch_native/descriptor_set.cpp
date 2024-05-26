@@ -3,35 +3,38 @@
 struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
     struct DescriptorSet* descriptor_set = new struct DescriptorSet();
     descriptor_set->plan = plan;
-    descriptor_set->pools.resize(plan->ctx->deviceCount);
-    descriptor_set->sets.resize(plan->ctx->deviceCount);
+    descriptor_set->pools.resize(plan->ctx->stream_indicies.size());
+    descriptor_set->sets.resize(plan->ctx->stream_indicies.size());
 
-    for (int i = 0; i < plan->ctx->deviceCount; i++) {
+    for (int i = 0; i < plan->ctx->stream_indicies.size(); i++) {
+        int device_index = plan->ctx->stream_indicies[i].first;
+
         VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
         memset(&descriptorPoolCreateInfo, 0, sizeof(VkDescriptorPoolCreateInfo));
         descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         descriptorPoolCreateInfo.maxSets = 1;
-        descriptorPoolCreateInfo.poolSizeCount = plan->poolSizes[i].size();
-        descriptorPoolCreateInfo.pPoolSizes = plan->poolSizes[i].data();
+        descriptorPoolCreateInfo.poolSizeCount = plan->poolSizes[device_index].size();
+        descriptorPoolCreateInfo.pPoolSizes = plan->poolSizes[device_index].data();
 
-        VK_CALL_RETNULL(vkCreateDescriptorPool(plan->ctx->devices[i], &descriptorPoolCreateInfo, NULL, &descriptor_set->pools[i]));
+        VK_CALL_RETNULL(vkCreateDescriptorPool(plan->ctx->devices[device_index], &descriptorPoolCreateInfo, NULL, &descriptor_set->pools[i]));
 
         VkDescriptorSetAllocateInfo descriptorSetAllocateInfo;
         memset(&descriptorSetAllocateInfo, 0, sizeof(VkDescriptorSetAllocateInfo));
         descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         descriptorSetAllocateInfo.descriptorPool = descriptor_set->pools[i];
         descriptorSetAllocateInfo.descriptorSetCount = 1;
-        descriptorSetAllocateInfo.pSetLayouts = &plan->descriptorSetLayouts[i];
+        descriptorSetAllocateInfo.pSetLayouts = &plan->descriptorSetLayouts[device_index];
 
-        VK_CALL_RETNULL(vkAllocateDescriptorSets(plan->ctx->devices[i], &descriptorSetAllocateInfo, &descriptor_set->sets[i]));
+        VK_CALL_RETNULL(vkAllocateDescriptorSets(plan->ctx->devices[device_index], &descriptorSetAllocateInfo, &descriptor_set->sets[i]));
     }
 
     return descriptor_set;
 }
 
 void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set) {
-    for (int i = 0; i < descriptor_set->plan->ctx->deviceCount; i++) {
-        vkDestroyDescriptorPool(descriptor_set->plan->ctx->devices[i], descriptor_set->pools[i], NULL);        
+    for (int i = 0; i < descriptor_set->plan->ctx->stream_indicies.size(); i++) {
+        int device_index = descriptor_set->plan->ctx->stream_indicies[i].first;
+        vkDestroyDescriptorPool(descriptor_set->plan->ctx->devices[device_index], descriptor_set->pools[i], NULL);        
     }
 
     delete descriptor_set;
@@ -40,9 +43,14 @@ void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set) {
 void descriptor_set_write_buffer_extern(struct DescriptorSet* descriptor_set, unsigned int binding, void* object, unsigned long long offset, unsigned long long range) {
     struct Buffer* buffer = (struct Buffer*)object;
 
-    for (int i = 0; i < descriptor_set->plan->ctx->deviceCount; i++) {
+    for (int i = 0; i < descriptor_set->plan->ctx->stream_indicies.size(); i++) {
+        int device_index = descriptor_set->plan->ctx->stream_indicies[i].first;
+
         VkDescriptorBufferInfo buffDesc;
-        buffDesc.buffer = buffer->buffers[i]; //->handle();
+        buffDesc.buffer = buffer->buffers[i];
+        if(buffer->per_device)
+            buffDesc.buffer = buffer->buffers[device_index];
+
         buffDesc.offset = offset;
         buffDesc.range = range == 0 ? VK_WHOLE_SIZE : range;
 
@@ -58,6 +66,6 @@ void descriptor_set_write_buffer_extern(struct DescriptorSet* descriptor_set, un
         writeDescriptor.pBufferInfo = &buffDesc;
         writeDescriptor.pTexelBufferView = NULL;
 
-        vkUpdateDescriptorSets(descriptor_set->plan->ctx->devices[i], 1, &writeDescriptor, 0, NULL);
+        vkUpdateDescriptorSets(descriptor_set->plan->ctx->devices[device_index], 1, &writeDescriptor, 0, NULL);
     }
 }
