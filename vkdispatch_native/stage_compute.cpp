@@ -70,6 +70,8 @@ static uint32_t* glsl_to_spirv_util(glslang_stage_t stage, size_t* size, const c
 
 struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct ComputePlanCreateInfo* create_info) {
     struct ComputePlan* plan = new struct ComputePlan();
+    LOG_INFO("Creating Compute Plan with handle %p", plan);
+    
     plan->ctx = ctx;
     plan->pc_size = create_info->pc_size;
     plan->binding_count = create_info->binding_count;
@@ -80,6 +82,8 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
     plan->pipelines.resize(ctx->deviceCount);
 
     for (int i = 0; i < ctx->deviceCount; i++) {
+        LOG_INFO("Creating Compute Plan for device %d", i);
+
         size_t code_size;
         uint32_t* code = glsl_to_spirv_util(GLSLANG_STAGE_COMPUTE, &code_size, create_info->shader_source, "compute_shader");
         
@@ -176,21 +180,23 @@ void stage_compute_record_extern(struct CommandList* command_list, struct Comput
     my_compute_info->pc_size = plan->pc_size;
 
     command_list->stages.push_back({
-        [](VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device) {
+        [](VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int stream_index) {
             LOG_VERBOSE("Executing Compute");
 
             struct ComputeRecordInfo* my_compute_info = (struct ComputeRecordInfo*)stage->user_data;
 
-            vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, my_compute_info->plan->pipelines[device]);
+            int device_index = my_compute_info->plan->ctx->stream_indicies[stream_index].first;
+
+            vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, my_compute_info->plan->pipelines[device_index]);
 
             if(my_compute_info->descriptor_set != NULL)
                 vkCmdBindDescriptorSets(
                     cmd_buffer,
                     VK_PIPELINE_BIND_POINT_COMPUTE,
-                    my_compute_info->plan->pipelineLayouts[device],
+                    my_compute_info->plan->pipelineLayouts[device_index],
                     0,
                     1,
-                    &my_compute_info->descriptor_set->sets[device],
+                    &my_compute_info->descriptor_set->sets[stream_index],
                     0,
                     NULL
                 );
@@ -198,7 +204,7 @@ void stage_compute_record_extern(struct CommandList* command_list, struct Comput
             if(my_compute_info->pc_size > 0)
                 vkCmdPushConstants(
                     cmd_buffer, 
-                    my_compute_info->plan->pipelineLayouts[device],
+                    my_compute_info->plan->pipelineLayouts[device_index],
                     VK_SHADER_STAGE_COMPUTE_BIT,
                     0,
                     my_compute_info->pc_size,

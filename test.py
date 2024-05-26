@@ -9,10 +9,7 @@ import typing
 
 
 #vd.initialize(log_level=vd.LogLevel.INFO)
-vd.make_context([0])
-
-#for dev in vd.get_devices():
-#    print(dev)
+#vd.make_context(use_cpu=True)
 
 current_time = time.time()
 

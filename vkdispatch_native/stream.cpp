@@ -1,8 +1,9 @@
 #include "internal.h"
 
-Stream::Stream(VkDevice device, VkQueue queue, int queueFamilyIndex, uint32_t command_buffer_count) {
+Stream::Stream(VkDevice device, VkQueue queue, int queueFamilyIndex, uint32_t command_buffer_count, int stream_index) {
     this->device = device;
     this->queue = queue;
+    this->stream_index = stream_index;
 
     LOG_INFO("Creating stream with device %p, queue %p, queue family index %d, command buffer count %d", device, queue, queueFamilyIndex, command_buffer_count);
 
