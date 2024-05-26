@@ -116,7 +116,7 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
                 LOG_INFO("Creating queue %d with handle %p", k, queue);
 
                 ctx->stream_indicies.push_back(std::make_pair(i, ctx->streams[i].size()));
-                ctx->streams[i].push_back(new Stream(ctx->devices[i], queue, queueCreateInfos[j].queueFamilyIndex, 2, ctx->stream_indicies.size() - 1));
+                ctx->streams[i].push_back(new Stream(ctx, ctx->devices[i], queue, queueCreateInfos[j].queueFamilyIndex, 2, ctx->stream_indicies.size() - 1));
             }            
         }
 
@@ -138,6 +138,8 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     }
 
     LOG_INFO("Created context at %p with %d devices", ctx, device_count);
+
+    ctx->command_list = command_list_create_extern(ctx);
 
     return ctx;
 }

@@ -40,10 +40,65 @@ void command_list_reset_extern(struct CommandList* command_list) {
     command_list->stages.clear();
 }
 
-void command_list_submit_extern(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int* devices, int device_count, int* submission_thread_counts) {
+void command_list_wait_idle_extern(struct CommandList* command_list) {
+    std::unique_lock<std::mutex> lock(command_list->ctx->mutex);
+
+    auto check_idle = [command_list] {
+        return command_list->work_info_list.size() == 0;
+    };
+
+
+
+
+    lock.unlock();
+}
+
+void command_list_submit_extern(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int* indicies, int count, int per_device) {
     // For now, we will just submit the command list to the first device
     //LOG_VERBOSE("Submitting command list to device %d", device);
 
+    LOG_INFO("Submitting command list with handle %p", command_list);
+
+    struct Context* ctx = command_list->ctx;
+
+    std::atomic<VkFence>* fence = new std::atomic<VkFence>(VK_NULL_HANDLE);
+
+    struct WorkInfo work_info = {
+        command_list,
+        indicies[0],
+        (char*)instance_buffer,
+        instance_count,
+        fence 
+    };
+
+    LOG_INFO("Pushing work info to list for stream %d", indicies[0]);
+
+    std::unique_lock<std::mutex> lock(ctx->mutex);
+
+    auto check_for_room = [ctx] {
+        return ctx->work_info_list.size() < ctx->stream_indicies.size() * 2;
+    };
+
+    LOG_INFO("Checking for room");
+
+    if(!check_for_room()) {
+        LOG_INFO("Waiting for room");
+        ctx->cv_pop.wait(lock, check_for_room);
+    }
+
+    LOG_INFO("Adding work info to list");
+
+    ctx->work_info_list.push_back(work_info);
+
+    LOG_INFO("Notifying all");
+
+    ctx->cv_push.notify_all();
+
+    LOG_INFO("unlocking");
+
+    lock.unlock();
+
+/*
     char* instance_data = (char*)instance_buffer;
     char* current_instance_data = instance_data;
 
@@ -83,4 +138,5 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
     }
 
     command_list->ctx->streams[0][0]->submit();
+    */
 }
