@@ -8,7 +8,7 @@ import tqdm
 import typing
 
 
-#vd.initialize(log_level=vd.LogLevel.INFO)
+vd.initialize(log_level=vd.LogLevel.INFO)
 #vd.make_context(use_cpu=True)
 
 current_time = time.time()

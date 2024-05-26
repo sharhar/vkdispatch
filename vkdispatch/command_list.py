@@ -82,7 +82,7 @@ class CommandList:
             instances = len(data) // self.get_instance_size()
 
         vkdispatch_native.command_list_submit(
-            self._handle, data, instances, device_index
+            self._handle, data, instances, 1, [0], False
         )
         vd.check_for_errors()
 

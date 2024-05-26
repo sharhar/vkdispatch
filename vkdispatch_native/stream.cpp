@@ -1,6 +1,9 @@
 #include "internal.h"
 
-Stream::Stream(VkDevice device, VkQueue queue, int queueFamilyIndex, uint32_t command_buffer_count, int stream_index) {
+static void thread_worker(struct ThreadInfo* info);
+
+Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFamilyIndex, uint32_t command_buffer_count, int stream_index) {
+    this->ctx = ctx;
     this->device = device;
     this->queue = queue;
     this->stream_index = stream_index;
@@ -62,6 +65,15 @@ Stream::Stream(VkDevice device, VkQueue queue, int queueFamilyIndex, uint32_t co
     LOG_INFO("Waiting for initial command buffer");
 
     VK_CALL(vkWaitForFences(device, 1, &fences[current_index], VK_TRUE, UINT64_MAX));
+
+    this->done = false;
+
+    thread_info = {};
+    thread_info.ctx = ctx;
+    thread_info.done = &done;
+    thread_info.index = stream_index;
+
+    work_thread = std::thread(thread_worker, &thread_info);
 }
 
 void Stream::destroy() {
@@ -112,4 +124,110 @@ VkFence& Stream::submit() {
     VK_CALL_RETURN(vkQueueSubmit(queue, 1, &submitInfo, fences[last_index]), fences[last_index]);
 
     return fences[last_index];
+}
+
+static void thread_worker(struct ThreadInfo* info) {
+    VkMemoryBarrier memory_barrier = {
+            VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+            0,
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_ACCESS_SHADER_READ_BIT,
+    };
+
+    struct Context* ctx = info->ctx;
+
+    int device_index = ctx->stream_indicies[info->index].first;
+    int stream_index = ctx->stream_indicies[info->index].second;
+
+    LOG_INFO("Thread worker for device %d, stream %d", device_index, stream_index);
+
+    Stream* stream = ctx->streams[device_index][stream_index];
+
+    LOG_INFO("Thread worker for device %d, stream %d", device_index, stream_index);
+
+    while (!*info->done) {
+        std::unique_lock<std::mutex> lock(info->ctx->mutex);
+
+        int* work_info_index = NULL;
+        struct WorkInfo* work_info = NULL;
+        auto check_for_available_work = [info, work_info, work_info_index] {
+            if(*info->done) {
+                *work_info_index = 0;
+                return true;
+            }
+            
+            if(info->ctx->work_info_list.size() == 0)
+                return false;
+
+            *work_info_index = -1;
+
+            for(int i = 0; i < info->ctx->work_info_list.size(); i++) {
+                if(info->ctx->work_info_list[i].index == info->index || info->ctx->work_info_list[i].index == -1) {
+                    *work_info_index = i;
+                    *work_info = info->ctx->work_info_list[i];
+                    return true;
+                }
+            }
+
+            return false;
+        };
+        
+        LOG_INFO("Checking for available work");
+
+        if(!check_for_available_work()) {
+            LOG_INFO("Waiting for available work");
+            info->ctx->cv_push.wait(lock, check_for_available_work);
+        }
+
+        LOG_INFO("Found available work at index %d", *work_info_index);
+        
+        if(*info->done) {
+            lock.unlock();
+            return;
+        }
+        
+        LOG_INFO("Removing work info from list");
+
+        info->ctx->work_info_list.erase(info->ctx->work_info_list.begin() + *work_info_index);
+
+        LOG_INFO("Notifying all");
+
+        info->ctx->cv_pop.notify_all();
+
+        LOG_INFO("Unlocking");
+
+        lock.unlock();
+
+        char* current_instance_data = work_info->instance_data;
+
+        VkCommandBuffer cmd_buffer = stream->begin();
+        if(__error_string != NULL)
+            return;
+
+        for(size_t instance = 0; instance < work_info->instance_count; instance++) {
+            LOG_VERBOSE("Recording instance %d", instance);
+
+            for (size_t i = 0; i < work_info->command_list->stages.size(); i++) {
+                LOG_VERBOSE("Recording stage %d", i);
+                work_info->command_list->stages[i].record(cmd_buffer, &work_info->command_list->stages[i], current_instance_data, 0);
+
+                if(__error_string != NULL)
+                    return;
+
+                if(i < work_info->command_list->stages.size() - 1)
+                    vkCmdPipelineBarrier(
+                        cmd_buffer, 
+                        work_info->command_list->stages[i].stage, 
+                        work_info->command_list->stages[i+1].stage, 
+                        0, 1, 
+                        &memory_barrier, 
+                        0, 0, 0, 0);
+                current_instance_data += work_info->command_list->stages[i].instance_data_size;
+            }
+        }
+
+        *(work_info->fence) = std::move(stream->submit());
+    }
+
+    LOG_INFO("Thread worker for device %d, stream %d done", device_index, stream_index);
 }

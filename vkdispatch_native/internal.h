@@ -11,6 +11,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <thread>
+#include <queue>
+#include <mutex>
+#include <atomic>
+#include <condition_variable>
 
 #include <stdarg.h>
 
@@ -101,20 +106,39 @@ typedef struct {
 
 extern MyInstance _instance;
 
+struct WorkInfo {
+    struct CommandList* command_list;
+    int index;
+    char* instance_data;
+    unsigned int instance_count;
+    std::atomic<VkFence>* fence;
+};
+
+struct ThreadInfo {
+    struct Context* ctx;
+    int index;
+    std::atomic<bool>* done;
+};
+
 class Stream {
 public:
-    Stream(VkDevice device, VkQueue queue, int queueFamilyIndex, uint32_t command_buffer_count, int stream_index);
+    Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFamilyIndex, uint32_t command_buffer_count, int stream_index);
     void destroy();
 
     VkCommandBuffer& begin();
     VkFence& submit();
 
+    struct Context* ctx;
     VkDevice device;
     VkQueue queue;
     VkCommandPool commandPool;
     std::vector<VkCommandBuffer> commandBuffers;
     std::vector<VkFence> fences;
     std::vector<VkSemaphore> semaphores;
+    
+    std::atomic<bool> done;
+    struct ThreadInfo thread_info;
+    std::thread work_thread;
     int current_index;
     int stream_index;
 };
@@ -126,6 +150,12 @@ struct Context {
     std::vector<std::pair<int, int>> stream_indicies;
     std::vector<std::vector<Stream*>> streams;
     std::vector<VmaAllocator> allocators;
+
+    struct CommandList* command_list;
+    std::vector<struct WorkInfo> work_info_list;
+    std::mutex mutex;
+    std::condition_variable cv_push;
+    std::condition_variable cv_pop;
 };
 
 struct Buffer {
@@ -161,6 +191,7 @@ struct Stage {
 struct CommandList {
     struct Context* ctx;
     std::vector<struct Stage> stages;
+    unsigned int instance_block_size;
 };
 
 struct FFTPlan {
