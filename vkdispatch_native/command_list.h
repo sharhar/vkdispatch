@@ -9,7 +9,6 @@ void command_list_destroy_extern(struct CommandList* command_list);
 void command_list_get_instance_size_extern(struct CommandList* command_list, unsigned long long* instance_size);
 
 void command_list_reset_extern(struct CommandList* command_list);
-void command_list_wait_idle_extern(struct CommandList* command_list);
 void command_list_submit_extern(struct CommandList* command_list, void* instance_buffer, unsigned int instanceCount, int* indicies, int count, int per_device);
 
 #endif // SRC_COMMAND_LIST_H

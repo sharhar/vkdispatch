@@ -129,10 +129,10 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
         
         vkCmdCopyBuffer(cmdBuffer, buffer->stagingBuffers[buffer_index], buffer->buffers[buffer_index], 1, &bufferCopy);
         
-        VkFence fence = stream->submit();
+        stream->submit();
         if(__error_string != NULL)
             return;
-        VK_CALL(vkWaitForFences(buffer->ctx->devices[device_index], 1, &fence, VK_TRUE, UINT64_MAX));
+        //VK_CALL(vkWaitForFences(buffer->ctx->devices[device_index], 1, &fence, VK_TRUE, UINT64_MAX));
     }
 }
 
@@ -168,10 +168,10 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
     
     vkCmdCopyBuffer(cmdBuffer, buffer->buffers[buffer_index], buffer->stagingBuffers[buffer_index], 1, &bufferCopy);
     
-    VkFence fence = stream->submit();
+    stream->submit();
     if(__error_string != NULL)
         return;
-    VK_CALL(vkWaitForFences(buffer->ctx->devices[buffer_index], 1, &fence, VK_TRUE, UINT64_MAX));
+    //VK_CALL(vkWaitForFences(buffer->ctx->devices[buffer_index], 1, &fence, VK_TRUE, UINT64_MAX));
 
     void* mapped;
     VK_CALL(vmaMapMemory(ctx->allocators[device_index], buffer->stagingAllocations[buffer_index], &mapped));

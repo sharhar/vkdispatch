@@ -116,7 +116,10 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
                 LOG_INFO("Creating queue %d with handle %p", k, queue);
 
                 ctx->stream_indicies.push_back(std::make_pair(i, ctx->streams[i].size()));
-                ctx->streams[i].push_back(new Stream(ctx, ctx->devices[i], queue, queueCreateInfos[j].queueFamilyIndex, 2, ctx->stream_indicies.size() - 1));
+
+                Stream* stream = new Stream(ctx, ctx->devices[i], queue, queueCreateInfos[j].queueFamilyIndex, 2, ctx->stream_indicies.size() - 1);
+                ctx->streams[i].push_back(stream);
+                stream->start_thread();
             }            
         }
 
@@ -142,6 +145,41 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     ctx->command_list = command_list_create_extern(ctx);
 
     return ctx;
+}
+
+VkFence context_submit_work(struct Context* ctx, struct WorkInfo work_info) {
+    std::unique_lock<std::mutex> lock(ctx->mutex);
+
+    auto check_for_room = [ctx] {
+        return ctx->work_info_list.size() < ctx->stream_indicies.size() * 2;
+    };
+
+    LOG_INFO("Checking for room");
+
+    if(!check_for_room()) {
+        LOG_INFO("Waiting for room");
+        ctx->cv_pop.wait(lock, check_for_room);
+    }
+
+    LOG_INFO("Adding work info to list");
+
+    ctx->work_info_list.push_back(work_info);
+
+    LOG_INFO("Notifying all");
+
+    ctx->cv_push.notify_all();
+
+    LOG_INFO("unlocking");
+
+    lock.unlock();
+}
+
+void context_wait_idle_extern(struct Context* context) {
+    for(int i = 0; i < context->deviceCount; i++) {
+        for(int j = 0; j < context->streams[i].size(); j++) {
+            context->streams[i][j]->wait_idle();
+        }
+    }
 }
 
 void context_destroy_extern(struct Context* context) {
