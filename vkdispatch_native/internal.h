@@ -108,14 +108,16 @@ extern MyInstance _instance;
 
 struct WorkInfo {
     struct CommandList* command_list;
-    int index;
     char* instance_data;
+    int index;
     unsigned int instance_count;
-    std::atomic<VkFence>* fence;
 };
+
+class Stream;
 
 struct ThreadInfo {
     struct Context* ctx;
+    Stream* stream;
     int index;
     std::atomic<bool>* done;
 };
@@ -125,16 +127,27 @@ public:
     Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFamilyIndex, uint32_t command_buffer_count, int stream_index);
     void destroy();
 
+    void start_thread();
+
     VkCommandBuffer& begin();
-    VkFence& submit();
+    void submit();
+
+    void wait_idle();
 
     struct Context* ctx;
     VkDevice device;
     VkQueue queue;
     VkCommandPool commandPool;
-    std::vector<VkCommandBuffer> commandBuffers;
+
+    std::condition_variable cv_main_done;
+    std::condition_variable cv_async_done;
+    std::mutex mutex;
+    
     std::vector<VkFence> fences;
+    std::vector<VkCommandBuffer> commandBuffers;
+
     std::vector<VkSemaphore> semaphores;
+    std::vector<VkFence> wait_tasks;
     
     std::atomic<bool> done;
     struct ThreadInfo thread_info;
@@ -157,6 +170,8 @@ struct Context {
     std::condition_variable cv_push;
     std::condition_variable cv_pop;
 };
+
+VkFence context_submit_work(struct Context* context, struct WorkInfo work_info);
 
 struct Buffer {
     struct Context* ctx;

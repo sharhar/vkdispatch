@@ -72,8 +72,25 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
     thread_info.ctx = ctx;
     thread_info.done = &done;
     thread_info.index = stream_index;
+    thread_info.stream = this;
+}
+
+void Stream::start_thread() {
+    std::unique_lock<std::mutex> lock(mutex);
+    
+    LOG_INFO("Starting thread worker");
 
     work_thread = std::thread(thread_worker, &thread_info);
+
+    LOG_INFO("Thread worker started");
+
+    //cv_main_done.notify_all();
+
+    LOG_INFO("Notified all");
+
+    cv_async_done.wait(lock);
+
+    LOG_INFO("Waiting for async done");
 }
 
 void Stream::destroy() {
@@ -103,8 +120,8 @@ VkCommandBuffer& Stream::begin() {
     return commandBuffers[current_index];
 }
 
-VkFence& Stream::submit() {
-    VK_CALL_RETURN(vkEndCommandBuffer(commandBuffers[current_index]), fences[current_index]);
+void Stream::submit() {
+    VK_CALL(vkEndCommandBuffer(commandBuffers[current_index]));
 
     int last_index = current_index;
     current_index = (current_index + 1) % commandBuffers.size();
@@ -121,12 +138,27 @@ VkFence& Stream::submit() {
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &semaphores[current_index];
     
-    VK_CALL_RETURN(vkQueueSubmit(queue, 1, &submitInfo, fences[last_index]), fences[last_index]);
+    VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[last_index]));
+}
 
-    return fences[last_index];
+void Stream::wait_idle() {
+    std::unique_lock<std::mutex> lock(mutex);
+    VK_CALL(vkWaitForFences(device, fences.size(), fences.data(), VK_TRUE, UINT64_MAX));
 }
 
 static void thread_worker(struct ThreadInfo* info) {
+    Stream* stream = info->stream;
+
+    LOG_INFO("Waiting for mutex on new worker thread");
+    
+    //std::unique_lock<std::mutex> lock(stream->mutex);
+
+    LOG_INFO("Waiting for main");
+
+    //stream->cv_main_done.wait(lock);
+
+    LOG_INFO("Notified");
+
     VkMemoryBarrier memory_barrier = {
             VK_STRUCTURE_TYPE_MEMORY_BARRIER,
             0,
@@ -136,38 +168,64 @@ static void thread_worker(struct ThreadInfo* info) {
 
     struct Context* ctx = info->ctx;
 
+    int index = info->index;
+    std::atomic<bool>* done = info->done;
+    std::mutex* mutex = &ctx->mutex;
+    std::vector<struct WorkInfo>* work_info_list = &ctx->work_info_list;
+
+    std::condition_variable* cv_push = &ctx->cv_push;
+    std::condition_variable* cv_pop = &ctx->cv_pop;
+
     int device_index = ctx->stream_indicies[info->index].first;
     int stream_index = ctx->stream_indicies[info->index].second;
 
-    LOG_INFO("Thread worker for device %d, stream %d", device_index, stream_index);
-
-    Stream* stream = ctx->streams[device_index][stream_index];
+    stream->cv_async_done.notify_all();
 
     LOG_INFO("Thread worker for device %d, stream %d", device_index, stream_index);
 
-    while (!*info->done) {
-        std::unique_lock<std::mutex> lock(info->ctx->mutex);
+    while (!*done) {
+        std::unique_lock<std::mutex> lock(*mutex);
 
-        int* work_info_index = NULL;
+        LOG_INFO("Thread worker for device %d, stream %d waiting for work", device_index, stream_index);
+        LOG_INFO("%d", info->ctx->work_info_list.size());
+
+        int work_info_index = -1;
+        int* work_info_index_ptr = &work_info_index;
         struct WorkInfo* work_info = NULL;
-        auto check_for_available_work = [info, work_info, work_info_index] {
-            if(*info->done) {
-                *work_info_index = 0;
+        auto check_for_available_work = [done, index, work_info_list, work_info, work_info_index_ptr] {
+            LOG_INFO("Doing conditional variable check at index %d", index);
+            LOG_INFO("Done: %p", done);
+            LOG_INFO("Work Info List: %p", work_info_list);
+            LOG_INFO("Work Info List Size: %d", work_info_list->size());
+
+            if(*done) {
+                LOG_INFO("Done flag set, returning false");
+                *work_info_index_ptr = 0;
                 return true;
             }
+
+            LOG_INFO("Checking work list size");
             
-            if(info->ctx->work_info_list.size() == 0)
+            if(work_info_list->size() == 0) {
+                LOG_INFO("No work info available, returning false");
                 return false;
+            }
 
-            *work_info_index = -1;
+            *work_info_index_ptr = -1;
 
-            for(int i = 0; i < info->ctx->work_info_list.size(); i++) {
-                if(info->ctx->work_info_list[i].index == info->index || info->ctx->work_info_list[i].index == -1) {
-                    *work_info_index = i;
-                    *work_info = info->ctx->work_info_list[i];
+            LOG_INFO("Checking for compatible work in list (my index is %d)", index);
+
+            for(int i = 0; i < work_info_list->size(); i++) {
+                LOG_INFO("Checking work info for index %d", work_info_list->at(i).index);
+                if(work_info_list->at(i).index == index || work_info_list->at(i).index == -1) {
+                    LOG_INFO("Found available work at index %d", i);
+                    *work_info_index_ptr = i;
+                    *work_info = work_info_list->at(i);
                     return true;
                 }
             }
+
+            LOG_INFO("No work info found, returning false");
 
             return false;
         };
@@ -176,23 +234,25 @@ static void thread_worker(struct ThreadInfo* info) {
 
         if(!check_for_available_work()) {
             LOG_INFO("Waiting for available work");
-            info->ctx->cv_push.wait(lock, check_for_available_work);
+            cv_push->wait(lock, check_for_available_work);
         }
 
-        LOG_INFO("Found available work at index %d", *work_info_index);
+        LOG_INFO("Found available work at index %d", work_info_index);
         
-        if(*info->done) {
+        if(*done) {
             lock.unlock();
             return;
         }
         
-        LOG_INFO("Removing work info from list");
+        LOG_INFO("Removing work info from list at index %d", work_info_index);
 
-        info->ctx->work_info_list.erase(info->ctx->work_info_list.begin() + *work_info_index);
+        work_info_list->erase(work_info_list->begin() + work_info_index);
 
         LOG_INFO("Notifying all");
 
-        info->ctx->cv_pop.notify_all();
+        VkCommandBuffer cmd_buffer = stream->begin();
+        
+        cv_pop->notify_all();
 
         LOG_INFO("Unlocking");
 
@@ -200,7 +260,6 @@ static void thread_worker(struct ThreadInfo* info) {
 
         char* current_instance_data = work_info->instance_data;
 
-        VkCommandBuffer cmd_buffer = stream->begin();
         if(__error_string != NULL)
             return;
 
@@ -226,7 +285,7 @@ static void thread_worker(struct ThreadInfo* info) {
             }
         }
 
-        *(work_info->fence) = std::move(stream->submit());
+        //*(work_info->fence) = std::move(stream->submit());
     }
 
     LOG_INFO("Thread worker for device %d, stream %d done", device_index, stream_index);
