@@ -88,7 +88,7 @@ void Stream::start_thread() {
 
     LOG_INFO("Notified all");
 
-    cv_async_done.wait(lock);
+    cv_async_done.wait(lock, [] () { return true; });
 
     LOG_INFO("Waiting for async done");
 }
@@ -268,7 +268,7 @@ static void thread_worker(struct ThreadInfo* info) {
 
             for (size_t i = 0; i < work_info->command_list->stages.size(); i++) {
                 LOG_VERBOSE("Recording stage %d", i);
-                work_info->command_list->stages[i].record(cmd_buffer, &work_info->command_list->stages[i], current_instance_data, 0);
+                work_info->command_list->stages[i].record(cmd_buffer, &work_info->command_list->stages[i], current_instance_data, 0, 0);
 
                 if(__error_string != NULL)
                     return;

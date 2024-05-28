@@ -8,7 +8,7 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
     buffer->ctx = ctx;
 
     if (per_device) {
-        LOG_INFO("Creating %d buffers for each device", ctx->deviceCount);
+        LOG_INFO("Creating %d buffers (one per device)", ctx->deviceCount);
 
         buffer->allocations.resize(ctx->deviceCount);
         buffer->buffers.resize(ctx->deviceCount);
@@ -17,7 +17,7 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
         buffer->fences.resize(ctx->deviceCount);
         buffer->per_device = true;
     } else {
-        LOG_INFO("Creating %d buffers for each stream", ctx->stream_indicies.size());
+        LOG_INFO("Creating %d buffers (one per stream)", ctx->stream_indicies.size());
 
         buffer->allocations.resize(ctx->stream_indicies.size());
         buffer->buffers.resize(ctx->stream_indicies.size());
@@ -97,42 +97,67 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
 
         LOG_INFO("Writing data to buffer %d", buffer_index);
 
-        Stream* stream = NULL;
+        //Stream* stream = NULL;
         int device_index = 0;
 
         if(buffer->per_device) {
-            stream = ctx->streams[buffer_index][0];
+            //stream = ctx->streams[buffer_index][0];
             device_index = buffer_index;
         } else {
             auto stream_index = ctx->stream_indicies[buffer_index];
             device_index = stream_index.first;
-            stream = ctx->streams[stream_index.first][stream_index.second];
+            //stream = ctx->streams[stream_index.first][stream_index.second];
         }
 
-        LOG_INFO("Writing data to buffer %d with stream %p", buffer_index, stream);
+        LOG_INFO("Writing data to buffer %d in device %d", buffer_index, device_index); //, stream);
 
-        VK_CALL(vkQueueWaitIdle(stream->queue));
+        context_wait_idle_extern(ctx);
+        RETURN_ON_ERROR(;)
 
         void* mapped;
         VK_CALL(vmaMapMemory(ctx->allocators[device_index], buffer->stagingAllocations[buffer_index], &mapped));
         memcpy(mapped, data, size);
-        vmaUnmapMemory(ctx->allocators[device_index], buffer->stagingAllocations[buffer_index]);  
+        vmaUnmapMemory(ctx->allocators[device_index], buffer->stagingAllocations[buffer_index]);
 
-        VkBufferCopy bufferCopy;
-        bufferCopy.size = size;
-        bufferCopy.dstOffset = offset;
-        bufferCopy.srcOffset = 0;
+        struct BufferWriteInfo {
+            struct Buffer* buffer;
+            unsigned long long offset;
+            unsigned long long size;
+        };
 
-        VkCommandBuffer cmdBuffer = stream->begin();
-        if(__error_string != NULL)
-            return;
-        
-        vkCmdCopyBuffer(cmdBuffer, buffer->stagingBuffers[buffer_index], buffer->buffers[buffer_index], 1, &bufferCopy);
-        
-        stream->submit();
-        if(__error_string != NULL)
-            return;
-        //VK_CALL(vkWaitForFences(buffer->ctx->devices[device_index], 1, &fence, VK_TRUE, UINT64_MAX));
+        struct BufferWriteInfo* buffer_write_info = (struct BufferWriteInfo*)malloc(sizeof(*buffer_write_info));
+        buffer_write_info->buffer = buffer;
+        buffer_write_info->offset = offset;
+        buffer_write_info->size = size;
+
+        ctx->command_list->stages.push_back({
+            [] (VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
+                struct BufferWriteInfo* info = (struct BufferWriteInfo*)stage->user_data;
+
+                VkBufferCopy bufferCopy;
+                bufferCopy.size = info->size;
+                bufferCopy.dstOffset = info->offset;
+                bufferCopy.srcOffset = 0;
+                
+                int buffer_index = stream_index;
+                if(info->buffer->per_device) {
+                    buffer_index = device_index;
+                }
+
+                vkCmdCopyBuffer(cmd_buffer, info->buffer->stagingBuffers[buffer_index], info->buffer->buffers[buffer_index], 1, &bufferCopy);
+            },
+            buffer_write_info,
+            0,
+            VK_PIPELINE_STAGE_TRANSFER_BIT
+        });
+
+        command_list_submit_extern(ctx->command_list, NULL, 0, &buffer_index, 1, buffer->per_device);
+
+        context_wait_idle_extern(ctx);
+        RETURN_ON_ERROR(;)
+
+        command_list_reset_extern(ctx->command_list);
+        RETURN_ON_ERROR(;)
     }
 }
 
@@ -141,42 +166,62 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
 
     struct Context* ctx = buffer->ctx;
 
-    int buffer_index = index;
-
-    Stream* stream = NULL;
     int device_index = 0;
 
     if(buffer->per_device) {
-        stream = ctx->streams[buffer_index][0];
-        device_index = buffer_index;
+        device_index = index;
     } else {
-        auto stream_index = ctx->stream_indicies[buffer_index];
+        auto stream_index = ctx->stream_indicies[index];
         device_index = stream_index.first;
-        stream = ctx->streams[stream_index.first][stream_index.second];
     }
-
-    VkBufferCopy bufferCopy;
-	bufferCopy.size = size;
-	bufferCopy.dstOffset = 0;
-	bufferCopy.srcOffset = offset;
 	
-    VK_CALL(vkQueueWaitIdle(stream->queue));
+    context_wait_idle_extern(ctx);
+    RETURN_ON_ERROR(;)
 
-    VkCommandBuffer cmdBuffer = stream->begin();
-    if(__error_string != NULL)
-        return;
-    
-    vkCmdCopyBuffer(cmdBuffer, buffer->buffers[buffer_index], buffer->stagingBuffers[buffer_index], 1, &bufferCopy);
-    
-    stream->submit();
-    if(__error_string != NULL)
-        return;
-    //VK_CALL(vkWaitForFences(buffer->ctx->devices[buffer_index], 1, &fence, VK_TRUE, UINT64_MAX));
+    struct BufferReadInfo {
+        struct Buffer* buffer;
+        unsigned long long offset;
+        unsigned long long size;
+    };
+
+    struct BufferReadInfo* buffer_read_info = (struct BufferReadInfo*)malloc(sizeof(*buffer_read_info));
+    buffer_read_info->buffer = buffer;
+    buffer_read_info->offset = offset;
+    buffer_read_info->size = size;
+
+    ctx->command_list->stages.push_back({
+        [] (VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
+            struct BufferReadInfo* info = (struct BufferReadInfo*)stage->user_data;
+
+            VkBufferCopy bufferCopy;
+            bufferCopy.size = info->size;
+            bufferCopy.dstOffset = 0;
+            bufferCopy.srcOffset = info->offset;
+            
+            int buffer_index = stream_index;
+            if(info->buffer->per_device) {
+                buffer_index = device_index;
+            }
+
+            vkCmdCopyBuffer(cmd_buffer, info->buffer->buffers[buffer_index], info->buffer->stagingBuffers[buffer_index], 1, &bufferCopy);
+        },
+        buffer_read_info,
+        0,
+        VK_PIPELINE_STAGE_TRANSFER_BIT
+    });
+
+    command_list_submit_extern(ctx->command_list, NULL, 0, &index, 1, buffer->per_device);
+
+    context_wait_idle_extern(ctx);
+    RETURN_ON_ERROR(;)
+
+    command_list_reset_extern(ctx->command_list);
+    RETURN_ON_ERROR(;)
 
     void* mapped;
-    VK_CALL(vmaMapMemory(ctx->allocators[device_index], buffer->stagingAllocations[buffer_index], &mapped));
+    VK_CALL(vmaMapMemory(ctx->allocators[device_index], buffer->stagingAllocations[index], &mapped));
     memcpy(data, mapped, size);
-    vmaUnmapMemory(ctx->allocators[device_index], buffer->stagingAllocations[buffer_index]);
+    vmaUnmapMemory(ctx->allocators[device_index], buffer->stagingAllocations[index]);
 } 
 
 void buffer_copy_extern(struct Buffer* src, struct Buffer* dst, unsigned long long src_offset, unsigned long long dst_offset, unsigned long long size, int device_index) {
