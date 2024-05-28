@@ -14,12 +14,12 @@ void stage_transfer_record_copy_buffer_extern(struct CommandList* command_list, 
     LOG_INFO("Recording copy buffer stage");
 
     command_list->stages.push_back({
-        [](VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int stream_index) {
+        [](VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
             LOG_VERBOSE("Executing copy buffer stage");
 
             struct BufferCopyInfo* copy_info = (struct BufferCopyInfo*)stage->user_data;
 
-            int device_index = copy_info->src->ctx->stream_indicies[stream_index].first;
+            //int device_index = copy_info->src->ctx->stream_indicies[stream_index].first;
 
             VkBufferCopy bufferCopy = {};
             bufferCopy.srcOffset = copy_info->src_offset;

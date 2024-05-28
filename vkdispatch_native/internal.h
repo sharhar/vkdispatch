@@ -75,6 +75,13 @@ inline void set_error(const char* format, ...) {
     }                                                                    \
 }
 
+#define RETURN_ON_ERROR(RET_EXPR) \
+{                                   \
+    if(__error_string != NULL) {    \
+            return RET_EXPR;        \
+    }                               \
+}
+
 #define VK_CALL(EXPRESSION) VK_CALL_RETURN(EXPRESSION, ;)
 #define VK_CALL_RETNULL(EXPRESSION) VK_CALL_RETURN(EXPRESSION, NULL)
 
@@ -194,7 +201,7 @@ struct Image {
     uint32_t block_size;
 };
 
-typedef void (*PFN_stage_record)(VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int stream_index);
+typedef void (*PFN_stage_record)(VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index);
 
 struct Stage {
     PFN_stage_record record;

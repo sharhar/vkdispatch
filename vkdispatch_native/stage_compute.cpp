@@ -180,12 +180,12 @@ void stage_compute_record_extern(struct CommandList* command_list, struct Comput
     my_compute_info->pc_size = plan->pc_size;
 
     command_list->stages.push_back({
-        [](VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int stream_index) {
+        [](VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
             LOG_VERBOSE("Executing Compute");
 
             struct ComputeRecordInfo* my_compute_info = (struct ComputeRecordInfo*)stage->user_data;
 
-            int device_index = my_compute_info->plan->ctx->stream_indicies[stream_index].first;
+            //int device_index = my_compute_info->plan->ctx->stream_indicies[stream_index].first;
 
             vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, my_compute_info->plan->pipelines[device_index]);
 
