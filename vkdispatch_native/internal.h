@@ -19,10 +19,13 @@
 
 #include <stdarg.h>
 
+extern std::mutex __log_mutex;
 extern LogLevel __log_level_limit;
 
 inline void log_message(LogLevel log_level, const char* prefix, const char* postfix, const char* format, ...) {
     if(log_level >= __log_level_limit) {
+        __log_mutex.lock();
+
         va_list args;
         va_start(args, format);
 
@@ -31,6 +34,8 @@ inline void log_message(LogLevel log_level, const char* prefix, const char* post
         printf("%s", postfix);
 
         va_end(args);
+
+        __log_mutex.unlock();
     }
 }
 
@@ -44,9 +49,12 @@ inline void log_message(LogLevel log_level, const char* prefix, const char* post
 #define LOG_WARNING(format, ...) log_message(LOG_LEVEL_WARNING, "[WARNING] ", "\n", format, ##__VA_ARGS__)
 #define LOG_ERROR(format, ...) log_message(LOG_LEVEL_ERROR, "[ERROR] ", "\n", format, ##__VA_ARGS__)
 
+extern std::mutex __error_mutex;
 extern const char* __error_string;
 
 inline void set_error(const char* format, ...) {
+    __error_mutex.lock();
+    
     va_list args;
     va_start(args, format);
 
@@ -62,6 +70,8 @@ inline void set_error(const char* format, ...) {
     vasprintf((char**)&__error_string, format, args);
     #endif
     va_end(args);
+
+    __error_mutex.unlock();
 }
 
 #include <vulkan/vk_enum_string_helper.h>

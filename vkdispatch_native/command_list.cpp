@@ -53,5 +53,32 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
 
     LOG_INFO("Pushing work info to list for stream %d", indicies[0]);
 
-    context_submit_work(ctx, work_info);    
+    std::unique_lock<std::mutex> lock(ctx->mutex);
+
+    auto check_for_room = [ctx] {
+        LOG_INFO("Thread %d: Checking for room", std::this_thread::get_id());
+        LOG_INFO("Work Info List Size: %d", ctx->work_info_list.size());
+        LOG_INFO("Stream Indicies Size: %d", ctx->stream_indicies.size());
+        return ctx->work_info_list.size() < ctx->stream_indicies.size() * 2;
+    };
+
+    LOG_INFO("Thread %d: Submitting work to context", std::this_thread::get_id());
+
+    if(!check_for_room()) {
+        LOG_INFO("Did not find room, waiting for pop");
+        LOG_WARNING("Thread %d: Waiting for pop", std::this_thread::get_id());
+        ctx->cv_pop.wait(lock, check_for_room);
+    }
+
+    LOG_INFO("Adding work info to list");
+
+    ctx->work_info_list.push_back(work_info);
+
+    LOG_INFO("Notifying all");
+
+    ctx->cv_push.notify_all();
+
+    LOG_INFO("unlocking");
+
+    //context_submit_work(ctx, work_info);
 }
