@@ -8,7 +8,7 @@ import tqdm
 import typing
 
 
-vd.initialize(log_level=vd.LogLevel.INFO)
+#vd.initialize(log_level=vd.LogLevel.INFO)
 vd.make_context(devices=[0], queue_families=[[2]])
 
 current_time = time.time()
@@ -59,11 +59,17 @@ tf_data_array[:, :, 6] = tf_data[6]
 tf_data_array[:, :, 7] = tf_data[7]
 tf_data_array[:, :, 8] = tf_data[8]
 
+print("Copying buffers")
 atom_coords_buffer = vd.asbuffer(atom_coords)
+print("Done copying buffer 1")
 tf_data_buffer = vd.asbuffer(tf_data_array)
+print("Done copying buffer 2")
 match_image_buffer = vd.asbuffer(test_image_normalized.astype(np.complex64))
+print("Done copying buffer 3")
 
 vd.fft(match_image_buffer)
+
+print("Done doing fft")
 
 work_buffer = vd.Buffer(input_image_raw.shape, vd.complex64)
 shift_buffer = vd.Buffer(input_image_raw.shape, vd.complex64)
@@ -333,7 +339,7 @@ batch_size = 3
 
 status_bar = tqdm.tqdm(total=test_values.shape[0])
 
-for i in range(0, test_values.shape[0], batch_size):
+for i in range(10):#range(0, test_values.shape[0], batch_size):
     data = b""
 
     for j in range(batch_size):

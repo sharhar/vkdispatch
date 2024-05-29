@@ -4,6 +4,7 @@
 #include <string>
 #include <stdio.h>
 
+std::mutex __log_mutex = {};
 LogLevel __log_level_limit = LOG_LEVEL_WARNING;
 MyInstance _instance;
 

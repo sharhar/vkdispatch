@@ -143,6 +143,11 @@ void Stream::submit() {
 
 void Stream::wait_idle() {
     std::unique_lock<std::mutex> lock(mutex);
+
+    for(int i = 0; i < fences.size(); i++) {
+        LOG_WARNING("Fence status for fence %d: %d", i, vkGetFenceStatus(device, fences[i]));
+    }
+
     VK_CALL(vkWaitForFences(device, fences.size(), fences.data(), VK_TRUE, UINT64_MAX));
 }
 
@@ -183,6 +188,8 @@ static void thread_worker(struct ThreadInfo* info) {
 
     LOG_INFO("Thread worker for device %d, stream %d", device_index, stream_index);
 
+    struct WorkInfo* work_info = (struct WorkInfo*)malloc(sizeof(struct WorkInfo));
+    
     while (!*done) {
         std::unique_lock<std::mutex> lock(*mutex);
 
@@ -191,9 +198,8 @@ static void thread_worker(struct ThreadInfo* info) {
 
         int work_info_index = -1;
         int* work_info_index_ptr = &work_info_index;
-        struct WorkInfo* work_info = NULL;
-        auto check_for_available_work = [done, index, work_info_list, work_info, work_info_index_ptr] {
-            LOG_INFO("Doing conditional variable check at index %d", index);
+        auto check_for_available_work = [done, index, work_info_list, work_info, work_info_index_ptr] () {
+            LOG_INFO("Doing conditional variable check at index %d for thread %d", index, std::this_thread::get_id());
             LOG_INFO("Done: %p", done);
             LOG_INFO("Work Info List: %p", work_info_list);
             LOG_INFO("Work Info List Size: %d", work_info_list->size());
@@ -230,10 +236,12 @@ static void thread_worker(struct ThreadInfo* info) {
             return false;
         };
         
-        LOG_INFO("Checking for available work");
+
+        LOG_INFO("Thread %d: Checking for available work", std::this_thread::get_id());
 
         if(!check_for_available_work()) {
             LOG_INFO("Waiting for available work");
+            LOG_WARNING("Thread %d: Waiting for push", std::this_thread::get_id());
             cv_push->wait(lock, check_for_available_work);
         }
 
@@ -284,6 +292,8 @@ static void thread_worker(struct ThreadInfo* info) {
                 current_instance_data += work_info->command_list->stages[i].instance_data_size;
             }
         }
+
+        stream->submit();
 
         //*(work_info->fence) = std::move(stream->submit());
     }

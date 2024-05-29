@@ -148,30 +148,7 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 }
 
 VkFence context_submit_work(struct Context* ctx, struct WorkInfo work_info) {
-    std::unique_lock<std::mutex> lock(ctx->mutex);
-
-    auto check_for_room = [ctx] {
-        return ctx->work_info_list.size() < ctx->stream_indicies.size() * 2;
-    };
-
-    LOG_INFO("Checking for room");
-
-    if(!check_for_room()) {
-        LOG_INFO("Waiting for room");
-        ctx->cv_pop.wait(lock, check_for_room);
-    }
-
-    LOG_INFO("Adding work info to list");
-
-    ctx->work_info_list.push_back(work_info);
-
-    LOG_INFO("Notifying all");
-
-    ctx->cv_push.notify_all();
-
-    LOG_INFO("unlocking");
-
-    lock.unlock();
+    
 }
 
 void context_wait_idle_extern(struct Context* context) {
