@@ -31,6 +31,8 @@ void command_list_get_instance_size_extern(struct CommandList* command_list, uns
 }
 
 void command_list_reset_extern(struct CommandList* command_list) {
+    context_wait_idle_extern(command_list->ctx);
+
     LOG_INFO("Resetting command list with handle %p", command_list);
 
     for(int i = 0; i < command_list->stages.size(); i++) {
@@ -45,12 +47,12 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
 
     struct Context* ctx = command_list->ctx;
 
-    struct WorkInfo work_info = {};
-    work_info.command_list = command_list;
-    work_info.instance_data = (char*)instance_buffer;
-    work_info.index = indicies[0];
-    work_info.instance_count = instance_count;
-    work_info.signal = reinterpret_cast<Signal*>(signal);
+    struct WorkInfo* work_info = new struct WorkInfo();
+    work_info->command_list = command_list;
+    work_info->instance_data = (char*)instance_buffer;
+    work_info->index = indicies[0];
+    work_info->instance_count = instance_count;
+    work_info->signal = reinterpret_cast<Signal*>(signal);
 
     LOG_INFO("Pushing work info to list for stream %d", indicies[0]);
 
