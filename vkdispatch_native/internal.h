@@ -49,49 +49,29 @@ inline void log_message(LogLevel log_level, const char* prefix, const char* post
 #define LOG_WARNING(format, ...) log_message(LOG_LEVEL_WARNING, "[WARNING] ", "\n", format, ##__VA_ARGS__)
 #define LOG_ERROR(format, ...) log_message(LOG_LEVEL_ERROR, "[ERROR] ", "\n", format, ##__VA_ARGS__)
 
-extern std::mutex __error_mutex;
-extern const char* __error_string;
-
-inline void set_error(const char* format, ...) {
-    __error_mutex.lock();
-    
-    va_list args;
-    va_start(args, format);
-
-    if (__error_string != NULL) {
-        free((void*)__error_string);
-    }
-
-    #ifdef _WIN32
-    int length = _vscprintf(format, args) + 1;
-    __error_string = (const char*)malloc(length * sizeof(char));
-    vsprintf_s((char*)__error_string, length, format, args);
-    #else
-    vasprintf((char**)&__error_string, format, args);
-    #endif
-    va_end(args);
-
-    __error_mutex.unlock();
-}
+void set_error(const char* format, ...);
 
 #include <vulkan/vk_enum_string_helper.h>
 
-#define VK_CALL_RETURN(EXPRESSION, RET_EXPR)                             \
+#define VK_CHECK_RETURN(EXPRESSION, RET_EXPR)                            \
 {                                                                        \
     VkResult ___result = (EXPRESSION);                                   \
     if(___result != VK_SUCCESS) {                                        \
         set_error("(VkResult is %s (%d)) " #EXPRESSION " inside '%s' at %s:%d\n", string_VkResult(___result), ___result, __FUNCTION__, __FILE__, __LINE__); \
-        return RET_EXPR;                                                 \
+        RET_EXPR;                                                 \
     }                                                                    \
 }
 
+#define VK_CALL_RETURN(EXPRESSION, RET_EXPR) VK_CHECK_RETURN(EXPRESSION, return RET_EXPR;)
+
 #define RETURN_ON_ERROR(RET_EXPR) \
 {                                   \
-    if(__error_string != NULL) {    \
+    if(get_error_string_extern() != NULL) {    \
             return RET_EXPR;        \
     }                               \
 }
 
+#define VK_GOTO(EXPRESSION, LOCATION) VK_CHECK_RETURN(EXPRESSION, goto LOCATION)
 #define VK_CALL(EXPRESSION) VK_CALL_RETURN(EXPRESSION, ;)
 #define VK_CALL_RETNULL(EXPRESSION) VK_CALL_RETURN(EXPRESSION, NULL)
 
@@ -123,11 +103,48 @@ typedef struct {
 
 extern MyInstance _instance;
 
+
+/**
+ * @brief Represents a signal that can be used for synchronization.
+ *
+ * This class provides a simple signal mechanism that can be used for synchronization between threads.
+ * It allows one thread to notify other threads that a certain condition has occurred.
+ */
+class Signal {
+public:
+    /**
+     * @brief Creates a new signal. Must be called from the main thread!!
+     */
+    Signal(std::shared_ptr<Signal> parent = nullptr);
+
+    /**
+     * @brief Notifies the signal. Must be called from a stream thread!!
+     *
+     * This function sets the state of the signal to true, indicating that the condition has occurred.
+     * It wakes up any waiting threads.
+     */
+    void notify();
+
+    /**
+     * @brief Waits for the signal. Must be called from the main thread!!
+     *
+     * This function blocks the calling thread until the signal is notified.
+     * If the signal is already in the notified state, the function returns immediately.
+     */
+    void wait();
+    
+    std::mutex mutex;
+    std::condition_variable cv;
+    bool state;
+    std::shared_ptr<Signal> parent;
+};
+
 struct WorkInfo {
     struct CommandList* command_list;
     char* instance_data;
     int index;
     unsigned int instance_count;
+    Signal* signal;
 };
 
 class Stream;
@@ -144,10 +161,7 @@ public:
     Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFamilyIndex, uint32_t command_buffer_count, int stream_index);
     void destroy();
 
-    void start_thread();
-
-    VkCommandBuffer& begin();
-    void submit();
+    void thread_worker();
 
     void wait_idle();
 
@@ -155,13 +169,10 @@ public:
     VkDevice device;
     VkQueue queue;
     VkCommandPool commandPool;
-
-    std::condition_variable cv_main_done;
-    std::condition_variable cv_async_done;
-    std::mutex mutex;
     
     std::vector<VkFence> fences;
     std::vector<VkCommandBuffer> commandBuffers;
+    std::vector<Signal*> signals;
 
     std::vector<VkSemaphore> semaphores;
     std::vector<VkFence> wait_tasks;
@@ -171,6 +182,8 @@ public:
     std::thread work_thread;
     int current_index;
     int stream_index;
+
+    //Signal init_signal;
 };
 
 struct Context {
