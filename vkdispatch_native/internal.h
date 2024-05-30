@@ -14,6 +14,7 @@
 #include <thread>
 #include <queue>
 #include <mutex>
+#include <functional>
 #include <atomic>
 #include <condition_variable>
 
@@ -115,7 +116,7 @@ public:
     /**
      * @brief Creates a new signal. Must be called from the main thread!!
      */
-    Signal(std::shared_ptr<Signal> parent = nullptr);
+    Signal(Signal* parent = nullptr);
 
     /**
      * @brief Notifies the signal. Must be called from a stream thread!!
@@ -136,7 +137,7 @@ public:
     std::mutex mutex;
     std::condition_variable cv;
     bool state;
-    std::shared_ptr<Signal> parent;
+    Signal* parent;
 };
 
 struct WorkInfo {
@@ -145,6 +146,22 @@ struct WorkInfo {
     int index;
     unsigned int instance_count;
     Signal* signal;
+};
+
+template <typename T>
+class Queue {
+public:
+    Queue(int max_size);
+
+    void push(T elem, std::function<bool()> callback = nullptr);
+    bool pop(T* elem, std::function<bool(T* arg)> callback = nullptr);
+
+
+    std::mutex mutex;
+    std::condition_variable cv_push;
+    std::condition_variable cv_pop;
+    std::vector<T> data;
+    int max_size;
 };
 
 class Stream;
@@ -183,6 +200,8 @@ public:
     int current_index;
     int stream_index;
 
+    struct CommandList* command_list;
+
     //Signal init_signal;
 };
 
@@ -195,13 +214,11 @@ struct Context {
     std::vector<VmaAllocator> allocators;
 
     struct CommandList* command_list;
-    std::vector<struct WorkInfo> work_info_list;
+    std::vector<struct WorkInfo*> work_info_list;
     std::mutex mutex;
     std::condition_variable cv_push;
     std::condition_variable cv_pop;
 };
-
-VkFence context_submit_work(struct Context* context, struct WorkInfo work_info);
 
 struct Buffer {
     struct Context* ctx;

@@ -1,6 +1,6 @@
 #include "internal.h"
 
-Signal::Signal(std::shared_ptr<Signal> parent) : parent(parent), state(false) {}
+Signal::Signal(Signal* parent) : parent(parent), state(false) {}
 
 void Signal::notify() {
     if(parent != nullptr) {

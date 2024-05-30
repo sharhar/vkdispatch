@@ -25,6 +25,7 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
 
     VkFenceCreateInfo fenceInfo = {};
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
     VkSemaphoreCreateInfo semaphoreInfo = {};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
@@ -36,7 +37,6 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
     LOG_INFO("Creating %d fences and semaphores", command_buffer_count);
 
     for(int i = 0; i < command_buffer_count; i++) {
-        fenceInfo.flags = i == current_index ? 0 : VK_FENCE_CREATE_SIGNALED_BIT;
         VK_CALL(vkCreateFence(device, &fenceInfo, nullptr, &fences[i]));
         VK_CALL(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &semaphores[i]));
     }
@@ -58,11 +58,11 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
 
     LOG_INFO("Submitting initial command buffer");
 
-    VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[current_index]));
+    VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
 
     LOG_INFO("Waiting for initial command buffer");
 
-    VK_CALL(vkWaitForFences(device, 1, &fences[current_index], VK_TRUE, UINT64_MAX));
+    VK_CALL(vkQueueWaitIdle(queue));
 
     this->done = false;
 
@@ -71,6 +71,16 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
     thread_info.done = &done;
     thread_info.index = stream_index;
     thread_info.stream = this;
+
+    command_list = command_list_create_extern(ctx);
+
+    command_list->stages.push_back({[] (VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
+
+        },
+        NULL,
+        0,
+        VK_PIPELINE_STAGE_TRANSFER_BIT
+    });
 
     work_thread = std::thread([this]() { this->thread_worker(); });
     //init_signal.wait();
@@ -92,25 +102,17 @@ void Stream::destroy() {
 }
 
 void Stream::wait_idle() {
-    //std::unique_lock<std::mutex> lock(mutex);
-
-    //VK_CALL(vkWaitForFences(device, fences.size(), fences.data(), VK_TRUE, UINT64_MAX));
-
-
+    Signal* signal = new Signal();
+    command_list_submit_extern(this->command_list, NULL, 1, &stream_index, 1, 0, signal);
+    signal->wait();
+    delete signal;
 }
 
 void Stream::thread_worker() {
-    VkMemoryBarrier memory_barrier = {
-        VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-        0,
-        VK_ACCESS_SHADER_WRITE_BIT,
-        VK_ACCESS_SHADER_READ_BIT,
-    };
-
     struct Context* ctx = this->ctx;
 
     std::mutex* mutex = &ctx->mutex;
-    std::vector<struct WorkInfo>* work_info_list = &ctx->work_info_list;
+    std::vector<struct WorkInfo*>* work_info_list = &ctx->work_info_list;
 
     std::condition_variable* cv_push = &ctx->cv_push;
     std::condition_variable* cv_pop = &ctx->cv_pop;
@@ -121,14 +123,14 @@ void Stream::thread_worker() {
 
     LOG_INFO("Starting Thread worker for stream %d", stream_index);
 
-    struct WorkInfo* work_info = (struct WorkInfo*)malloc(sizeof(struct WorkInfo));
+    struct WorkInfo* work_info = NULL;
     
     while (!done) {
         std::unique_lock<std::mutex> lock(*mutex);
 
         int work_info_index = -1;
         int* work_info_index_ptr = &work_info_index;
-        cv_push->wait(lock, [this, work_info_list, work_info, work_info_index_ptr] () {
+        cv_push->wait(lock, [this, work_info_list, &work_info, work_info_index_ptr] () {
             if(done) {
                 *work_info_index_ptr = 0;
                 return true;
@@ -141,9 +143,9 @@ void Stream::thread_worker() {
             *work_info_index_ptr = -1;
 
             for(int i = 0; i < work_info_list->size(); i++) {
-                if(work_info_list->at(i).index == stream_index || work_info_list->at(i).index == -1) {
+                if(work_info_list->at(i)->index == stream_index || work_info_list->at(i)->index == -1) {
                     *work_info_index_ptr = i;
-                    *work_info = work_info_list->at(i);
+                    work_info = work_info_list->at(i);
                     return true;
                 }
             }
@@ -175,6 +177,13 @@ notify_all:
         lock.unlock();
 
         RETURN_ON_ERROR(;)
+
+        VkMemoryBarrier memory_barrier = {
+            VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+            0,
+            VK_ACCESS_MEMORY_WRITE_BIT,
+            VK_ACCESS_MEMORY_READ_BIT,
+        };
         
         char* current_instance_data = work_info->instance_data;
         for(size_t instance = 0; instance < work_info->instance_count; instance++) {
@@ -220,6 +229,8 @@ notify_all:
             VK_CALL(vkWaitForFences(device, 1, &fences[last_index], VK_TRUE, UINT64_MAX));
             work_info->signal->notify();
         }
+
+        delete work_info;
     }
 
     LOG_INFO("Thread worker for device %d, stream %d has quit", device_index, stream_index);

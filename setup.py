@@ -114,6 +114,7 @@ append_to_sources("vkdispatch_native/", [
     "descriptor_set.cpp",
     "stream.cpp",
     "errors.cpp",
+    "signal.cpp",
     "VMAImpl.cpp",
     "VolkImpl.cpp"
 ])

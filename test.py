@@ -335,11 +335,11 @@ fftshift[shift_buffer.size, cmd_list](work_buffer, shift_buffer)
 
 template_index = update_max[work_buffer.size, cmd_list](max_cross, best_index, work_buffer)
 
-batch_size = 3
+batch_size = 10
 
 status_bar = tqdm.tqdm(total=test_values.shape[0])
 
-for i in range(10):#range(0, test_values.shape[0], batch_size):
+for i in range(0, test_values.shape[0], batch_size):
     data = b""
 
     for j in range(batch_size):

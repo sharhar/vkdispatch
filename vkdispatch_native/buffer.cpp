@@ -151,10 +151,10 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
             VK_PIPELINE_STAGE_TRANSFER_BIT
         });
 
-        Signal* signal = new Signal();
-        command_list_submit_extern(ctx->command_list, NULL, 1, &buffer_index, 1, buffer->per_device, signal);
-        signal->wait();
-        delete signal;
+        //Signal* signal = new Signal();
+        command_list_submit_extern(ctx->command_list, NULL, 1, &buffer_index, 1, buffer->per_device, NULL);
+        //signal->wait();
+        //delete signal;
 
         command_list_reset_extern(ctx->command_list);
         RETURN_ON_ERROR(;)
@@ -210,10 +210,10 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
         VK_PIPELINE_STAGE_TRANSFER_BIT
     });
 
-    Signal* signal = new Signal();
-    command_list_submit_extern(ctx->command_list, NULL, 1, &index, 1, buffer->per_device, signal);
-    signal->wait();
-    delete signal;
+    //Signal* signal = new Signal();
+    command_list_submit_extern(ctx->command_list, NULL, 1, &index, 1, buffer->per_device, NULL);
+    //signal->wait();
+    //delete signal;
 
     command_list_reset_extern(ctx->command_list);
     RETURN_ON_ERROR(;)
