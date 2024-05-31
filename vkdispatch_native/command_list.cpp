@@ -31,6 +31,8 @@ void command_list_get_instance_size_extern(struct CommandList* command_list, uns
 }
 
 void command_list_reset_extern(struct CommandList* command_list) {
+    LOG_INFO("Waiting for command list to be idle");
+
     context_wait_idle_extern(command_list->ctx);
 
     LOG_INFO("Resetting command list with handle %p", command_list);
@@ -59,9 +61,13 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
     LOG_INFO("Pushing work info to list for stream %d", indicies[0]);
     ctx->work_queue->push(work_info);
 
+    LOG_INFO("Waiting for signal");
 
     sig->wait();
-    delete sig;
+
+    LOG_INFO("Signal received");
+    
+    //delete sig;
 
     
     /*

@@ -25,7 +25,7 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
 
     VkFenceCreateInfo fenceInfo = {};
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    //fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
     VK_CALL(vkCreateFence(device, &fenceInfo, nullptr, &fence));
 
@@ -97,10 +97,10 @@ void Stream::destroy() {
 }
 
 void Stream::wait_idle() {
-    Signal* signal = new Signal();
-    command_list_submit_extern(this->command_list, NULL, 1, &stream_index, 1, 0, signal);
-    signal->wait();
-    delete signal;
+    //Signal* signal = new Signal();
+    //command_list_submit_extern(this->command_list, NULL, 1, &stream_index, 1, 0, signal);
+    //signal->wait();
+    //delete signal;
 }
 
 void Stream::thread_worker() {
@@ -168,7 +168,6 @@ void Stream::thread_worker() {
         //submitInfo.pSignalSemaphores = &semaphores[current_index];
 
         
-        
         LOG_INFO("Submitting command buffer %d", current_index);
         VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fence));
         LOG_INFO("submission done");
@@ -177,8 +176,9 @@ void Stream::thread_worker() {
         VK_CALL(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX));
         LOG_INFO("Got fence for fence");
         VK_CALL(vkResetFences(device, 1, &fence));
-
+        
         if(work_info.signal != NULL) {
+            LOG_INFO("signal signal");
         //    VK_CALL(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX));
             work_info.signal->notify();
         }
