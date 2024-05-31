@@ -116,7 +116,7 @@ public:
     /**
      * @brief Creates a new signal. Must be called from the main thread!!
      */
-    Signal(Signal* parent = nullptr);
+    Signal();
 
     /**
      * @brief Notifies the signal. Must be called from a stream thread!!
@@ -137,7 +137,6 @@ public:
     std::mutex mutex;
     std::condition_variable cv;
     bool state;
-    Signal* parent;
 };
 
 struct WorkInfo {
@@ -153,20 +152,20 @@ public:
     Queue(int max_size);
 
     void stop();
-    void push(struct WorkInfo* elem);
-    bool pop(struct WorkInfo** elem, std::function<bool(struct WorkInfo* arg)> check);
+    void push(struct WorkInfo elem);
+    bool pop(struct WorkInfo* elem, std::function<bool(struct WorkInfo arg)> check);
 
     std::mutex mutex;
     std::condition_variable cv_push;
     std::condition_variable cv_pop;
-    std::vector<struct WorkInfo*> data;
+    std::vector<struct WorkInfo> data;
     int max_size;
     bool running;
 };
 
 class Stream {
 public:
-    Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFamilyIndex, uint32_t command_buffer_count, int stream_index);
+    Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFamilyIndex, int stream_index);
     void destroy();
 
     void thread_worker();
@@ -178,12 +177,8 @@ public:
     VkQueue queue;
     VkCommandPool commandPool;
     
-    std::vector<VkFence> fences;
     std::vector<VkCommandBuffer> commandBuffers;
-    std::vector<Signal*> signals;
-
-    std::vector<VkSemaphore> semaphores;
-    std::vector<VkFence> wait_tasks;
+    VkFence fence;
     
     std::thread work_thread;
     int current_index;

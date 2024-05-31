@@ -8,7 +8,7 @@ import tqdm
 import typing
 
 
-vd.initialize(log_level=vd.LogLevel.INFO)
+#vd.initialize(log_level=vd.LogLevel.INFO)
 vd.make_context(devices=[0], queue_families=[[2]])
 
 current_time = time.time()

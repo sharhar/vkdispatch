@@ -1,17 +1,19 @@
 #include "internal.h"
 
-Signal::Signal(Signal* parent) : parent(parent), state(false) {}
+Signal::Signal() : state(false) {}
 
+/*
+* This function sets the state of the signal to true, indicating that the condition has occurred.
+*/
 void Signal::notify() {
-    if(parent != nullptr) {
-        parent->wait();
-    }
-
     std::unique_lock<std::mutex> lock(mutex);
     state = true;
     cv.notify_all();
 }
 
+/*
+* This function blocks the calling thread until the signal is notified.
+*/
 void Signal::wait() {
     std::unique_lock<std::mutex> lock(mutex);
     cv.wait(lock, [this] { return state; });
