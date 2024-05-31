@@ -1,12 +1,12 @@
 #include "internal.h"
 
-Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFamilyIndex, uint32_t command_buffer_count, int stream_index) {
+Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFamilyIndex, int stream_index) {
     this->ctx = ctx;
     this->device = device;
     this->queue = queue;
     this->stream_index = stream_index;
 
-    LOG_INFO("Creating stream with device %p, queue %p, queue family index %d, command buffer count %d", device, queue, queueFamilyIndex, command_buffer_count);
+    LOG_INFO("Creating stream with device %p, queue %p, queue family index %d", device, queue, queueFamilyIndex);
 
     VkCommandPoolCreateInfo poolInfo = {};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -18,51 +18,54 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.commandPool = commandPool;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = command_buffer_count;
+    allocInfo.commandBufferCount = 2;
 
-    commandBuffers.resize(command_buffer_count);
+    commandBuffers.resize(2);
     VK_CALL(vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()));
 
     VkFenceCreateInfo fenceInfo = {};
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    VkSemaphoreCreateInfo semaphoreInfo = {};
-    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-    fences.resize(command_buffer_count);
-    semaphores.resize(command_buffer_count);
+    VK_CALL(vkCreateFence(device, &fenceInfo, nullptr, &fence));
 
-    current_index = commandBuffers.size() - 1;
+    //VkSemaphoreCreateInfo semaphoreInfo = {};
+    //semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-    LOG_INFO("Creating %d fences and semaphores", command_buffer_count);
+    //fences.resize(command_buffer_count);
+    //semaphores.resize(command_buffer_count);
 
-    for(int i = 0; i < command_buffer_count; i++) {
-        VK_CALL(vkCreateFence(device, &fenceInfo, nullptr, &fences[i]));
-        VK_CALL(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &semaphores[i]));
-    }
+    current_index = 0; //commandBuffers.size() - 1;
 
-    LOG_INFO("Created stream with %d fences and semaphores", command_buffer_count);
+    //LOG_INFO("Creating %d fences and semaphores", command_buffer_count);
 
-    VkCommandBufferBeginInfo beginInfo = {};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    VK_CALL(vkBeginCommandBuffer(commandBuffers[0], &beginInfo));
-    VK_CALL(vkEndCommandBuffer(commandBuffers[0]));
+    //for(int i = 0; i < command_buffer_count; i++) {
+    //    VK_CALL(vkCreateFence(device, &fenceInfo, nullptr, &fences[i]));
+    //    VK_CALL(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &semaphores[i]));
+    //}
+
+    //LOG_INFO("Created stream with %d fences and semaphores", command_buffer_count);
+
+    //VkCommandBufferBeginInfo beginInfo = {};
+    //beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    //beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    //VK_CALL(vkBeginCommandBuffer(commandBuffers[0], &beginInfo));
+    //VK_CALL(vkEndCommandBuffer(commandBuffers[0]));
     
-    VkSubmitInfo submitInfo = {};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.signalSemaphoreCount = semaphores.size() - 1;
-    submitInfo.pSignalSemaphores = &semaphores.data()[1];
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffers[0];
+    //VkSubmitInfo submitInfo = {};
+    //submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    //submitInfo.signalSemaphoreCount = semaphores.size() - 1;
+    //submitInfo.pSignalSemaphores = &semaphores.data()[1];
+    //submitInfo.commandBufferCount = 1;
+    //submitInfo.pCommandBuffers = &commandBuffers[0];
 
-    LOG_INFO("Submitting initial command buffer");
+    //LOG_INFO("Submitting initial command buffer");
 
-    VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
+    //VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
 
-    LOG_INFO("Waiting for initial command buffer");
+    //LOG_INFO("Waiting for initial command buffer");
 
-    VK_CALL(vkQueueWaitIdle(queue));
+    //VK_CALL(vkQueueWaitIdle(queue));
 
     command_list = command_list_create_extern(ctx);
 
@@ -78,18 +81,19 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
 }
 
 void Stream::destroy() {
-    for(int i = 0; i < semaphores.size(); i++) {
-        vkDestroySemaphore(device, semaphores[i], nullptr);
-    }
+    //for(int i = 0; i < semaphores.size(); i++) {
+    //    vkDestroySemaphore(device, semaphores[i], nullptr);
+    //}
 
-    for(int i = 0; i < fences.size(); i++) {
-        vkDestroyFence(device, fences[i], nullptr);
-    }
+    //for(int i = 0; i < fences.size(); i++) {
+    //    vkDestroyFence(device, fences[i], nullptr);
+    //}
 
+    vkDestroyFence(device, fence, nullptr);
     vkFreeCommandBuffers(device, commandPool, commandBuffers.size(), commandBuffers.data());
     vkDestroyCommandPool(device, commandPool, nullptr);
 
-    fences.clear();
+    //fences.clear();
 }
 
 void Stream::wait_idle() {
@@ -102,19 +106,23 @@ void Stream::wait_idle() {
 void Stream::thread_worker() {
     struct Context* ctx = this->ctx;
     int device_index = ctx->stream_indicies[stream_index].first;
-    struct WorkInfo* work_info = NULL;
 
-    while (ctx->work_queue->pop(&work_info, [this] (struct WorkInfo* work_info) {
-        return work_info->index == stream_index || work_info->index == -1;
+    struct WorkInfo work_info = {};
+    while (ctx->work_queue->pop(&work_info, [this] (struct WorkInfo work_info) {
+        return work_info.index == stream_index || work_info.index == -1;
     })) {
-        VK_CALL(vkWaitForFences(device, 1, &fences[current_index], VK_TRUE, UINT64_MAX));
-        VK_CALL(vkResetFences(device, 1, &fences[current_index]));
+        //LOG_WARNING("Waiting for fence");
+        //VK_CALL(vkWaitForFences(device, 1, &fences[current_index], VK_TRUE, UINT64_MAX));
+        //LOG_WARNING("Got fence for fence");
+        //VK_CALL(vkResetFences(device, 1, &fences[current_index]));
 
         VkCommandBufferBeginInfo beginInfo = {};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         VK_CALL(vkBeginCommandBuffer(commandBuffers[current_index], &beginInfo));
 
+        LOG_INFO("Recording command buffer %d for stream %d", current_index, stream_index);
+
         VkMemoryBarrier memory_barrier = {
             VK_STRUCTURE_TYPE_MEMORY_BARRIER,
             0,
@@ -122,166 +130,61 @@ void Stream::thread_worker() {
             VK_ACCESS_MEMORY_READ_BIT,
         };
         
-        char* current_instance_data = work_info->instance_data;
-        for(size_t instance = 0; instance < work_info->instance_count; instance++) {
+        char* current_instance_data = work_info.instance_data;
+        for(size_t instance = 0; instance < work_info.instance_count; instance++) {
             LOG_VERBOSE("Recording instance %d", instance);
 
-            for (size_t i = 0; i < work_info->command_list->stages.size(); i++) {
+            for (size_t i = 0; i < work_info.command_list->stages.size(); i++) {
                 LOG_VERBOSE("Recording stage %d", i);
-                work_info->command_list->stages[i].record(commandBuffers[current_index], &work_info->command_list->stages[i], current_instance_data, device_index, stream_index);
+                work_info.command_list->stages[i].record(commandBuffers[current_index], &work_info.command_list->stages[i], current_instance_data, device_index, stream_index);
                 RETURN_ON_ERROR(;)
 
-                if(i < work_info->command_list->stages.size() - 1)
+                if(i < work_info.command_list->stages.size() - 1)
                     vkCmdPipelineBarrier(
                         commandBuffers[current_index], 
-                        work_info->command_list->stages[i].stage, 
-                        work_info->command_list->stages[i+1].stage, 
+                        work_info.command_list->stages[i].stage, 
+                        work_info.command_list->stages[i+1].stage, 
                         0, 1, 
                         &memory_barrier, 
                         0, 0, 0, 0);
-                current_instance_data += work_info->command_list->stages[i].instance_data_size;
+                current_instance_data += work_info.command_list->stages[i].instance_data_size;
             }
         }
 
         VK_CALL(vkEndCommandBuffer(commandBuffers[current_index]));
 
-        int last_index = current_index;
-        current_index = (current_index + 1) % commandBuffers.size();
+         //commandBuffers.size();
 
-        VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-
-        VkSubmitInfo submitInfo = {};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores = &semaphores[last_index];
-        submitInfo.pWaitDstStageMask = &waitStage;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffers[last_index];
-        submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores = &semaphores[current_index];
-        
-        VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[last_index]));
-
-        if(work_info->signal) {
-            VK_CALL(vkWaitForFences(device, 1, &fences[last_index], VK_TRUE, UINT64_MAX));
-            work_info->signal->notify();
-        }
-
-        delete work_info;
-    }
-
-    LOG_INFO("Thread worker for device %d, stream %d has quit", device_index, stream_index);
-    
-    
-    /*
-    while (!done) {
-        std::unique_lock<std::mutex> lock(*mutex);
-
-        int work_info_index = -1;
-        int* work_info_index_ptr = &work_info_index;
-        cv_push->wait(lock, [this, work_info_list, &work_info, work_info_index_ptr] () {
-            if(done) {
-                *work_info_index_ptr = 0;
-                return true;
-            }
-            
-            if(work_info_list->size() == 0) {
-                return false;
-            }
-
-            *work_info_index_ptr = -1;
-
-            for(int i = 0; i < work_info_list->size(); i++) {
-                if(work_info_list->at(i)->index == stream_index || work_info_list->at(i)->index == -1) {
-                    *work_info_index_ptr = i;
-                    work_info = work_info_list->at(i);
-                    return true;
-                }
-            }
-
-            return false;
-        });
-        
-        if(done) {
-            lock.unlock();
-            return;
-        }
-
-        work_info_list->erase(work_info_list->begin() + work_info_index);
-
-        VkCommandBuffer cmd_buffer = commandBuffers[current_index];
-
-        VkCommandBufferBeginInfo beginInfo = {};
-        
-        VK_GOTO(vkWaitForFences(device, 1, &fences[current_index], VK_TRUE, UINT64_MAX), notify_all);
-        VK_GOTO(vkResetFences(device, 1, &fences[current_index]), notify_all);
-
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        VK_GOTO(vkBeginCommandBuffer(cmd_buffer, &beginInfo), notify_all);
-        
-notify_all:
-        cv_pop->notify_all();
-
-        lock.unlock();
-
-        RETURN_ON_ERROR(;)
-
-        VkMemoryBarrier memory_barrier = {
-            VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-            0,
-            VK_ACCESS_MEMORY_WRITE_BIT,
-            VK_ACCESS_MEMORY_READ_BIT,
-        };
-        
-        char* current_instance_data = work_info->instance_data;
-        for(size_t instance = 0; instance < work_info->instance_count; instance++) {
-            LOG_VERBOSE("Recording instance %d", instance);
-
-            for (size_t i = 0; i < work_info->command_list->stages.size(); i++) {
-                LOG_VERBOSE("Recording stage %d", i);
-                work_info->command_list->stages[i].record(cmd_buffer, &work_info->command_list->stages[i], current_instance_data, device_index, stream_index);
-                RETURN_ON_ERROR(;)
-
-                if(i < work_info->command_list->stages.size() - 1)
-                    vkCmdPipelineBarrier(
-                        cmd_buffer, 
-                        work_info->command_list->stages[i].stage, 
-                        work_info->command_list->stages[i+1].stage, 
-                        0, 1, 
-                        &memory_barrier, 
-                        0, 0, 0, 0);
-                current_instance_data += work_info->command_list->stages[i].instance_data_size;
-            }
-        }
-
-        VK_CALL(vkEndCommandBuffer(commandBuffers[current_index]));
-
-        int last_index = current_index;
-        current_index = (current_index + 1) % commandBuffers.size();
-
-        VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+        //VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
         VkSubmitInfo submitInfo = {};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores = &semaphores[last_index];
-        submitInfo.pWaitDstStageMask = &waitStage;
+        //submitInfo.waitSemaphoreCount = 1;
+        //submitInfo.pWaitSemaphores = &semaphores[last_index];
+        //submitInfo.pWaitDstStageMask = &waitStage;
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffers[last_index];
-        submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores = &semaphores[current_index];
-        
-        VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[last_index]));
+        submitInfo.pCommandBuffers = &commandBuffers[current_index];
+        //submitInfo.signalSemaphoreCount = 1;
+        //submitInfo.pSignalSemaphores = &semaphores[current_index];
 
-        if(work_info->signal) {
-            VK_CALL(vkWaitForFences(device, 1, &fences[last_index], VK_TRUE, UINT64_MAX));
-            work_info->signal->notify();
+        
+        
+        LOG_INFO("Submitting command buffer %d", current_index);
+        VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fence));
+        LOG_INFO("submission done");
+
+        LOG_INFO("Waiting for fence");
+        VK_CALL(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX));
+        LOG_INFO("Got fence for fence");
+        VK_CALL(vkResetFences(device, 1, &fence));
+
+        if(work_info.signal != NULL) {
+        //    VK_CALL(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX));
+            work_info.signal->notify();
         }
 
-        delete work_info;
+        current_index = (current_index + 1) % 2;
     }
 
     LOG_INFO("Thread worker for device %d, stream %d has quit", device_index, stream_index);
-    */
 }

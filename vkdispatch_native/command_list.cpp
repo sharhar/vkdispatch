@@ -47,15 +47,21 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
 
     struct Context* ctx = command_list->ctx;
 
-    struct WorkInfo* work_info = new struct WorkInfo();
-    work_info->command_list = command_list;
-    work_info->instance_data = (char*)instance_buffer;
-    work_info->index = indicies[0];
-    work_info->instance_count = instance_count;
-    work_info->signal = reinterpret_cast<Signal*>(signal);
+    Signal* sig = new Signal();
+
+    struct WorkInfo work_info;// = new struct WorkInfo();
+    work_info.command_list = command_list;
+    work_info.instance_data = (char*)instance_buffer;
+    work_info.index = indicies[0];
+    work_info.instance_count = instance_count;
+    work_info.signal = sig;//reinterpret_cast<Signal*>(signal);
 
     LOG_INFO("Pushing work info to list for stream %d", indicies[0]);
     ctx->work_queue->push(work_info);
+
+
+    sig->wait();
+    delete sig;
 
     
     /*
