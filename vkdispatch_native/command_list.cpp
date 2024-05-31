@@ -55,6 +55,11 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
     work_info->signal = reinterpret_cast<Signal*>(signal);
 
     LOG_INFO("Pushing work info to list for stream %d", indicies[0]);
+    ctx->work_queue->push(work_info);
+
+    
+    /*
+    LOG_INFO("Pushing work info to list for stream %d", indicies[0]);
 
     std::unique_lock<std::mutex> lock(ctx->mutex);
 
@@ -76,5 +81,5 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
     ctx->cv_push.notify_all();
 
     LOG_INFO("unlocking");
-
+    */
 }

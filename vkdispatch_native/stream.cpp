@@ -64,14 +64,6 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
 
     VK_CALL(vkQueueWaitIdle(queue));
 
-    this->done = false;
-
-    thread_info = {};
-    thread_info.ctx = ctx;
-    thread_info.done = &done;
-    thread_info.index = stream_index;
-    thread_info.stream = this;
-
     command_list = command_list_create_extern(ctx);
 
     command_list->stages.push_back({[] (VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
@@ -83,7 +75,6 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
     });
 
     work_thread = std::thread([this]() { this->thread_worker(); });
-    //init_signal.wait();
 }
 
 void Stream::destroy() {
@@ -110,21 +101,79 @@ void Stream::wait_idle() {
 
 void Stream::thread_worker() {
     struct Context* ctx = this->ctx;
-
-    std::mutex* mutex = &ctx->mutex;
-    std::vector<struct WorkInfo*>* work_info_list = &ctx->work_info_list;
-
-    std::condition_variable* cv_push = &ctx->cv_push;
-    std::condition_variable* cv_pop = &ctx->cv_pop;
-
     int device_index = ctx->stream_indicies[stream_index].first;
-
-    //init_signal.notify();
-
-    LOG_INFO("Starting Thread worker for stream %d", stream_index);
-
     struct WorkInfo* work_info = NULL;
+
+    while (ctx->work_queue->pop(&work_info, [this] (struct WorkInfo* work_info) {
+        return work_info->index == stream_index || work_info->index == -1;
+    })) {
+        VK_CALL(vkWaitForFences(device, 1, &fences[current_index], VK_TRUE, UINT64_MAX));
+        VK_CALL(vkResetFences(device, 1, &fences[current_index]));
+
+        VkCommandBufferBeginInfo beginInfo = {};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        VK_CALL(vkBeginCommandBuffer(commandBuffers[current_index], &beginInfo));
+
+        VkMemoryBarrier memory_barrier = {
+            VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+            0,
+            VK_ACCESS_MEMORY_WRITE_BIT,
+            VK_ACCESS_MEMORY_READ_BIT,
+        };
+        
+        char* current_instance_data = work_info->instance_data;
+        for(size_t instance = 0; instance < work_info->instance_count; instance++) {
+            LOG_VERBOSE("Recording instance %d", instance);
+
+            for (size_t i = 0; i < work_info->command_list->stages.size(); i++) {
+                LOG_VERBOSE("Recording stage %d", i);
+                work_info->command_list->stages[i].record(commandBuffers[current_index], &work_info->command_list->stages[i], current_instance_data, device_index, stream_index);
+                RETURN_ON_ERROR(;)
+
+                if(i < work_info->command_list->stages.size() - 1)
+                    vkCmdPipelineBarrier(
+                        commandBuffers[current_index], 
+                        work_info->command_list->stages[i].stage, 
+                        work_info->command_list->stages[i+1].stage, 
+                        0, 1, 
+                        &memory_barrier, 
+                        0, 0, 0, 0);
+                current_instance_data += work_info->command_list->stages[i].instance_data_size;
+            }
+        }
+
+        VK_CALL(vkEndCommandBuffer(commandBuffers[current_index]));
+
+        int last_index = current_index;
+        current_index = (current_index + 1) % commandBuffers.size();
+
+        VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+
+        VkSubmitInfo submitInfo = {};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.pWaitSemaphores = &semaphores[last_index];
+        submitInfo.pWaitDstStageMask = &waitStage;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &commandBuffers[last_index];
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = &semaphores[current_index];
+        
+        VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[last_index]));
+
+        if(work_info->signal) {
+            VK_CALL(vkWaitForFences(device, 1, &fences[last_index], VK_TRUE, UINT64_MAX));
+            work_info->signal->notify();
+        }
+
+        delete work_info;
+    }
+
+    LOG_INFO("Thread worker for device %d, stream %d has quit", device_index, stream_index);
     
+    
+    /*
     while (!done) {
         std::unique_lock<std::mutex> lock(*mutex);
 
@@ -234,4 +283,5 @@ notify_all:
     }
 
     LOG_INFO("Thread worker for device %d, stream %d has quit", device_index, stream_index);
+    */
 }
