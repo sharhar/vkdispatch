@@ -148,29 +148,20 @@ struct WorkInfo {
     Signal* signal;
 };
 
-template <typename T>
 class Queue {
 public:
     Queue(int max_size);
 
-    void push(T elem, std::function<bool()> callback = nullptr);
-    bool pop(T* elem, std::function<bool(T* arg)> callback = nullptr);
-
+    void stop();
+    void push(struct WorkInfo* elem);
+    bool pop(struct WorkInfo** elem, std::function<bool(struct WorkInfo* arg)> check);
 
     std::mutex mutex;
     std::condition_variable cv_push;
     std::condition_variable cv_pop;
-    std::vector<T> data;
+    std::vector<struct WorkInfo*> data;
     int max_size;
-};
-
-class Stream;
-
-struct ThreadInfo {
-    struct Context* ctx;
-    Stream* stream;
-    int index;
-    std::atomic<bool>* done;
+    bool running;
 };
 
 class Stream {
@@ -194,8 +185,6 @@ public:
     std::vector<VkSemaphore> semaphores;
     std::vector<VkFence> wait_tasks;
     
-    std::atomic<bool> done;
-    struct ThreadInfo thread_info;
     std::thread work_thread;
     int current_index;
     int stream_index;
@@ -214,10 +203,12 @@ struct Context {
     std::vector<VmaAllocator> allocators;
 
     struct CommandList* command_list;
-    std::vector<struct WorkInfo*> work_info_list;
-    std::mutex mutex;
-    std::condition_variable cv_push;
-    std::condition_variable cv_pop;
+    Queue* work_queue;
+
+    //std::vector<struct WorkInfo*> work_info_list;
+    //std::mutex mutex;
+    //std::condition_variable cv_push;
+    //std::condition_variable cv_pop;
 };
 
 struct Buffer {

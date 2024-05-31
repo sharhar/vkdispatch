@@ -13,7 +13,10 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     ctx->devices.resize(device_count);
     ctx->streams.resize(device_count);
     ctx->allocators.resize(device_count);
-
+    
+    ctx->work_queue = new Queue(16);
+    ctx->command_list = command_list_create_extern(ctx);
+    
     LOG_INFO("Enumerating physical devices...");
 
     int queue_index_offset = 0;
@@ -107,6 +110,20 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
         LOG_INFO("Created device %p", static_cast<VkDevice>(ctx->devices[i]));
 
+        VmaVulkanFunctions vmaVulkanFunctions = {};
+        vmaVulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
+        vmaVulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
+
+        VmaAllocatorCreateInfo allocatorCreateInfo = {};
+        allocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_2;
+        allocatorCreateInfo.physicalDevice = ctx->physicalDevices[i];
+        allocatorCreateInfo.device = ctx->devices[i];
+        allocatorCreateInfo.instance = _instance.instance;
+        allocatorCreateInfo.pVulkanFunctions = &vmaVulkanFunctions;
+        VK_CALL_RETNULL(vmaCreateAllocator(&allocatorCreateInfo, &ctx->allocators[i]));
+
+        LOG_INFO("Created allocator %p", ctx->allocators[i]);
+
         ctx->streams[i] = {};
         for(int j = 0; j < queueCreateInfos.size(); j++) {
             LOG_INFO("Creating %d queues for family %d", queueCreateInfos[j].queueCount, queueCreateInfos[j].queueFamilyIndex);
@@ -121,25 +138,10 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
         }
 
         queue_index_offset += queue_counts[i];
-
-        VmaVulkanFunctions vmaVulkanFunctions = {};
-        vmaVulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
-        vmaVulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
-
-        VmaAllocatorCreateInfo allocatorCreateInfo = {};
-        allocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_2;
-        allocatorCreateInfo.physicalDevice = ctx->physicalDevices[i];
-        allocatorCreateInfo.device = ctx->devices[i];
-        allocatorCreateInfo.instance = _instance.instance;
-        allocatorCreateInfo.pVulkanFunctions = &vmaVulkanFunctions;
-        VK_CALL_RETNULL(vmaCreateAllocator(&allocatorCreateInfo, &ctx->allocators[i]));
-
-        LOG_INFO("Created allocator %p", ctx->allocators[i]);
     }
 
     LOG_INFO("Created context at %p with %d devices", ctx, device_count);
 
-    ctx->command_list = command_list_create_extern(ctx);
 
     return ctx;
 }
