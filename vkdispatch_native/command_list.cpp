@@ -49,23 +49,31 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
 
     struct Context* ctx = command_list->ctx;
 
-    Signal* sig = new Signal();
+    //Signal* sig = new Signal();
+
+    unsigned long long instance_size;
+    command_list_get_instance_size_extern(command_list, &instance_size);
+
+    char* instance_buffer_yolo = NULL;
+    
+    if(instance_size > 0) {
+        instance_buffer_yolo = (char*)malloc(instance_size * instance_count);
+        memcpy(instance_buffer_yolo, instance_buffer, instance_size * instance_count);
+    }
 
     struct WorkInfo work_info;// = new struct WorkInfo();
     work_info.command_list = command_list;
-    work_info.instance_data = (char*)instance_buffer;
+    work_info.instance_data = (char*)instance_buffer_yolo;
     work_info.index = indicies[0];
     work_info.instance_count = instance_count;
-    work_info.signal = sig;//reinterpret_cast<Signal*>(signal);
+    work_info.signal = reinterpret_cast<Signal*>(signal);
 
     LOG_INFO("Pushing work info to list for stream %d", indicies[0]);
     ctx->work_queue->push(work_info);
 
-    LOG_INFO("Waiting for signal");
 
-    sig->wait();
+    //sig->wait();
 
-    LOG_INFO("Signal received");
     
     //delete sig;
 

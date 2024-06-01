@@ -1,5 +1,7 @@
 #include "internal.h"
 
+#include <chrono>
+
 Queue::Queue(int max_size) {
     this->max_size = max_size;
     this->data.reserve(max_size);
@@ -13,13 +15,29 @@ void Queue::stop() {
 
 void Queue::push(struct WorkInfo elem) {
     std::unique_lock<std::mutex> lock(this->mutex);
+    
+    auto start = std::chrono::high_resolution_clock::now();
 
-    this->cv_pop.wait(lock, [this] () {
+    this->cv_pop.wait(lock, [this, start] () {
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
+        
+        if(elapsed.count() > 5) {
+            LOG_ERROR("Timed out waiting for room in queue");
+            return true;
+        }
+
+        LOG_INFO("Checking for room");
         return this->data.size() < this->max_size;
     });
 
-    this->data.push_back(elem);
-    this->cv_push.notify_all();
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+
+    if(elapsed.count() < 5) {
+        this->data.push_back(elem);
+        this->cv_push.notify_all();
+    }
 }
 
 bool Queue::pop(struct WorkInfo* elem, std::function<bool(struct WorkInfo arg)> check) {
