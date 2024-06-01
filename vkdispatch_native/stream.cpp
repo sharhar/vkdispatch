@@ -25,7 +25,7 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
 
     VkFenceCreateInfo fenceInfo = {};
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    //fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
     VK_CALL(vkCreateFence(device, &fenceInfo, nullptr, &fence));
 
@@ -97,10 +97,14 @@ void Stream::destroy() {
 }
 
 void Stream::wait_idle() {
-    //Signal* signal = new Signal();
-    //command_list_submit_extern(this->command_list, NULL, 1, &stream_index, 1, 0, signal);
-    //signal->wait();
-    //delete signal;
+    //std::unique_lock<std::mutex> lock(this->ctx->work_queue->mutex);
+
+    //VK_CALL(vkQueueWaitIdle(queue));
+    
+    Signal* signal = new Signal();
+    command_list_submit_extern(this->command_list, NULL, 1, &stream_index, 1, 0, signal);
+    signal->wait();
+    delete signal;
 }
 
 void Stream::thread_worker() {
@@ -111,11 +115,6 @@ void Stream::thread_worker() {
     while (ctx->work_queue->pop(&work_info, [this] (struct WorkInfo work_info) {
         return work_info.index == stream_index || work_info.index == -1;
     })) {
-        //LOG_WARNING("Waiting for fence");
-        //VK_CALL(vkWaitForFences(device, 1, &fences[current_index], VK_TRUE, UINT64_MAX));
-        //LOG_WARNING("Got fence for fence");
-        //VK_CALL(vkResetFences(device, 1, &fences[current_index]));
-
         VkCommandBufferBeginInfo beginInfo = {};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -153,8 +152,6 @@ void Stream::thread_worker() {
 
         VK_CALL(vkEndCommandBuffer(commandBuffers[current_index]));
 
-         //commandBuffers.size();
-
         //VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
         VkSubmitInfo submitInfo = {};
@@ -167,20 +164,19 @@ void Stream::thread_worker() {
         //submitInfo.signalSemaphoreCount = 1;
         //submitInfo.pSignalSemaphores = &semaphores[current_index];
 
-        
-        LOG_INFO("Submitting command buffer %d", current_index);
-        VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fence));
-        LOG_INFO("submission done");
 
-        LOG_INFO("Waiting for fence");
         VK_CALL(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX));
-        LOG_INFO("Got fence for fence");
         VK_CALL(vkResetFences(device, 1, &fence));
         
+        VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fence));        
+        
         if(work_info.signal != NULL) {
-            LOG_INFO("signal signal");
-        //    VK_CALL(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX));
+            VK_CALL(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX));
             work_info.signal->notify();
+        }
+
+        if (work_info.instance_data != NULL) {
+            free(work_info.instance_data);
         }
 
         current_index = (current_index + 1) % 2;
