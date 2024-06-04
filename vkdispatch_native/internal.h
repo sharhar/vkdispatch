@@ -239,8 +239,16 @@ struct Stage {
 struct CommandList {
     struct Context* ctx;
     std::vector<struct Stage> stages;
-    unsigned int instance_block_size;
+
+    size_t staging_count;
+    size_t max_batch_count;
+    size_t instance_size;
+    
+    int staging_index;
+    std::vector<char*> staging_spaces;
 };
+
+void command_list_record_stage(struct CommandList* command_list, struct Stage stage, bool sync = true);
 
 struct FFTPlan {
     struct Context* ctx;

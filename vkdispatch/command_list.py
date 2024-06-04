@@ -49,7 +49,7 @@ class CommandList:
         vkdispatch_native.command_list_reset(self._handle)
         vd.check_for_errors()
 
-    def submit(self, device_index: int = 0, data: bytes = None) -> None:
+    def submit(self, device_index: int = 0, data: bytes = None, stream_index: int = -2) -> None:
         """Submit the command list to the specified device with additional data to
         append to the front of the command list.
         
@@ -82,7 +82,7 @@ class CommandList:
             instances = len(data) // self.get_instance_size()
 
         vkdispatch_native.command_list_submit(
-            self._handle, data, instances, 1, [0], False
+            self._handle, data, instances, 1, [stream_index], False
         )
         vd.check_for_errors()
 

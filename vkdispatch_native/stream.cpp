@@ -68,14 +68,15 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
     //VK_CALL(vkQueueWaitIdle(queue));
 
     command_list = command_list_create_extern(ctx);
-
-    command_list->stages.push_back({[] (VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
+    
+    command_list_record_stage(command_list,{
+        [] (VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
 
         },
         NULL,
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT
-    });
+    }, false);
 
     work_thread = std::thread([this]() { this->thread_worker(); });
 }
@@ -175,9 +176,9 @@ void Stream::thread_worker() {
             work_info.signal->notify();
         }
 
-        if (work_info.instance_data != NULL) {
-            free(work_info.instance_data);
-        }
+        //if (work_info.instance_data != NULL) {
+        //    free(work_info.instance_data);
+        //}
 
         current_index = (current_index + 1) % 2;
     }

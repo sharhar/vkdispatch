@@ -5,6 +5,13 @@ struct CommandList* command_list_create_extern(struct Context* context) {
     LOG_INFO("Creating command list with handle %p", command_list);
 
     command_list->ctx = context;
+    command_list->staging_count = context->work_queue->max_size * 2;
+    command_list->instance_size = 0;
+    command_list->max_batch_count = 100;
+    command_list->staging_index = 0;
+
+    command_list->staging_spaces.resize(command_list->staging_count, nullptr);
+
     return command_list;
 }
 
@@ -16,6 +23,27 @@ void command_list_destroy_extern(struct CommandList* command_list) {
     }
 
     delete command_list;
+}
+
+void command_list_record_stage(struct CommandList* command_list, struct Stage stage, bool sync) {
+    if(sync)
+        context_wait_idle_extern(command_list->ctx);
+
+    command_list->stages.push_back(stage);
+
+    command_list->instance_size += stage.instance_data_size;
+
+    LOG_INFO("Recording stage with instance data size %d", stage.instance_data_size);
+
+    size_t new_size = command_list->instance_size * command_list->max_batch_count;
+
+    if(stage.instance_data_size != 0)
+        for(int i = 0; i < command_list->staging_spaces.size(); i++)
+            if(command_list->staging_spaces[i])
+                command_list->staging_spaces[i] = (char*)realloc(command_list->staging_spaces[i], new_size);
+            else 
+                command_list->staging_spaces[i] = (char*)malloc(new_size);
+        
 }
 
 void command_list_get_instance_size_extern(struct CommandList* command_list, unsigned long long* instance_size) {
@@ -42,64 +70,61 @@ void command_list_reset_extern(struct CommandList* command_list) {
     }
 
     command_list->stages.clear();
+    command_list->instance_size = 0;
+
+    for(int i = 0; i < command_list->staging_spaces.size(); i++) {
+        if(command_list->staging_spaces[i] != nullptr) {
+            free(command_list->staging_spaces[i]);
+            command_list->staging_spaces[i] = nullptr;
+        }
+    }
+
 }
 
 void command_list_submit_extern(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int* indicies, int count, int per_device, void* signal) {
+    if(instance_count > command_list->max_batch_count) {
+        set_error("Instance count (%d) exceeds max batch count (%d)", instance_count, command_list->max_batch_count);
+        return;
+    }
+
     LOG_INFO("Submitting command list with handle %p", command_list);
 
     struct Context* ctx = command_list->ctx;
 
-    //Signal* sig = new Signal();
-
-    unsigned long long instance_size;
-    command_list_get_instance_size_extern(command_list, &instance_size);
-
-    char* instance_buffer_yolo = NULL;
-    
-    if(instance_size > 0) {
-        instance_buffer_yolo = (char*)malloc(instance_size * instance_count);
-        memcpy(instance_buffer_yolo, instance_buffer, instance_size * instance_count);
+    char* instance_buffer_ptr = NULL;
+    if(command_list->instance_size > 0) {
+        instance_buffer_ptr = command_list->staging_spaces[command_list->staging_index];
+        LOG_INFO("Copying instance buffer to staging space %p with size %d and count %d", instance_buffer_ptr, command_list->instance_size, instance_count);
+        command_list->staging_index = (command_list->staging_index + 1) % command_list->staging_count;
+        memcpy(instance_buffer_ptr, instance_buffer, command_list->instance_size * instance_count);
     }
 
-    struct WorkInfo work_info;// = new struct WorkInfo();
-    work_info.command_list = command_list;
-    work_info.instance_data = (char*)instance_buffer_yolo;
-    work_info.index = indicies[0];
-    work_info.instance_count = instance_count;
-    work_info.signal = reinterpret_cast<Signal*>(signal);
+    if(indicies[0] == -2) {
+        if(signal != NULL) {
+            set_error("Signal is not supported for all streams");
+            return;
+        }
 
-    LOG_INFO("Pushing work info to list for stream %d", indicies[0]);
-    ctx->work_queue->push(work_info);
+        for(int i = 0; i < ctx->stream_indicies.size(); i++) {
+            struct WorkInfo work_info;
+            work_info.command_list = command_list;
+            work_info.instance_data = (char*)instance_buffer_ptr;
+            work_info.index = i;
+            work_info.instance_count = instance_count;
+            work_info.signal = NULL;
 
+            LOG_INFO("Pushing work info to list for stream %d", i);
+            ctx->work_queue->push(work_info);
+        }
+    } else {
+        struct WorkInfo work_info;
+        work_info.command_list = command_list;
+        work_info.instance_data = (char*)instance_buffer_ptr;
+        work_info.index = indicies[0];
+        work_info.instance_count = instance_count;
+        work_info.signal = reinterpret_cast<Signal*>(signal);
 
-    //sig->wait();
-
-    
-    //delete sig;
-
-    
-    /*
-    LOG_INFO("Pushing work info to list for stream %d", indicies[0]);
-
-    std::unique_lock<std::mutex> lock(ctx->mutex);
-
-    LOG_INFO("Thread %p: Submitting work to context", std::this_thread::get_id());
-
-    ctx->cv_pop.wait(lock, [ctx] () {
-        LOG_INFO("Thread %d: Checking for room", std::this_thread::get_id());
-        LOG_INFO("Work Info List Size: %d", ctx->work_info_list.size());
-        LOG_INFO("Stream Indicies Size: %d", ctx->stream_indicies.size());
-        return ctx->work_info_list.size() < ctx->stream_indicies.size() * 4;
-    });
-
-    LOG_INFO("Adding work info to list");
-
-    ctx->work_info_list.push_back(work_info);
-
-    LOG_INFO("Notifying all");
-
-    ctx->cv_push.notify_all();
-
-    LOG_INFO("unlocking");
-    */
+        LOG_INFO("Pushing work info to list for stream %d", indicies[0]);
+        ctx->work_queue->push(work_info);
+    }
 }
