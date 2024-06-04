@@ -178,15 +178,14 @@ public:
     VkCommandPool commandPool;
     
     std::vector<VkCommandBuffer> commandBuffers;
-    VkFence fence;
+    std::vector<VkFence> fences;
+    std::vector<VkSemaphore> semaphores;
     
     std::thread work_thread;
     int current_index;
     int stream_index;
 
     struct CommandList* command_list;
-
-    //Signal init_signal;
 };
 
 struct Context {
@@ -199,11 +198,6 @@ struct Context {
 
     struct CommandList* command_list;
     Queue* work_queue;
-
-    //std::vector<struct WorkInfo*> work_info_list;
-    //std::mutex mutex;
-    //std::condition_variable cv_push;
-    //std::condition_variable cv_pop;
 };
 
 struct Buffer {

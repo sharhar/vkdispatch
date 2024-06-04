@@ -74,7 +74,7 @@ def make_context(
     devices: Union[int, List[int]] = None,
     queue_families: List[List[int]] = None,
     use_cpu: bool = False,
-    max_queue_count: int = 2
+    max_queue_count: int = 1
 ) -> Context:
     global __context
 

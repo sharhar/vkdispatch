@@ -14,58 +14,56 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
     poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     VK_CALL(vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool));
 
+    int command_buffer_count = 4;
+
     VkCommandBufferAllocateInfo allocInfo = {};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.commandPool = commandPool;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = 2;
+    allocInfo.commandBufferCount = command_buffer_count;
 
-    commandBuffers.resize(2);
+    commandBuffers.resize(command_buffer_count);
     VK_CALL(vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()));
 
     VkFenceCreateInfo fenceInfo = {};
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    VK_CALL(vkCreateFence(device, &fenceInfo, nullptr, &fence));
+    VkSemaphoreCreateInfo semaphoreInfo = {};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-    //VkSemaphoreCreateInfo semaphoreInfo = {};
-    //semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    fences.resize(command_buffer_count);
+    semaphores.resize(command_buffer_count);
 
-    //fences.resize(command_buffer_count);
-    //semaphores.resize(command_buffer_count);
+    current_index = commandBuffers.size() - 1;
 
-    current_index = 0; //commandBuffers.size() - 1;
+    LOG_INFO("Creating %d fences and semaphores", command_buffer_count);
 
-    //LOG_INFO("Creating %d fences and semaphores", command_buffer_count);
+    for(int i = 0; i < command_buffer_count; i++) {
+        VK_CALL(vkCreateFence(device, &fenceInfo, nullptr, &fences[i]));
+        VK_CALL(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &semaphores[i]));
+    }
 
-    //for(int i = 0; i < command_buffer_count; i++) {
-    //    VK_CALL(vkCreateFence(device, &fenceInfo, nullptr, &fences[i]));
-    //    VK_CALL(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &semaphores[i]));
-    //}
+    LOG_INFO("Created stream with %d fences and semaphores", command_buffer_count);
 
-    //LOG_INFO("Created stream with %d fences and semaphores", command_buffer_count);
-
-    //VkCommandBufferBeginInfo beginInfo = {};
-    //beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    //beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    //VK_CALL(vkBeginCommandBuffer(commandBuffers[0], &beginInfo));
-    //VK_CALL(vkEndCommandBuffer(commandBuffers[0]));
+    VkCommandBufferBeginInfo beginInfo = {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    VK_CALL(vkBeginCommandBuffer(commandBuffers[0], &beginInfo));
+    VK_CALL(vkEndCommandBuffer(commandBuffers[0]));
     
-    //VkSubmitInfo submitInfo = {};
-    //submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    //submitInfo.signalSemaphoreCount = semaphores.size() - 1;
-    //submitInfo.pSignalSemaphores = &semaphores.data()[1];
-    //submitInfo.commandBufferCount = 1;
-    //submitInfo.pCommandBuffers = &commandBuffers[0];
+    VkSubmitInfo submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.signalSemaphoreCount = semaphores.size() - 1;
+    submitInfo.pSignalSemaphores = &semaphores.data()[1];
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffers[0];
 
-    //LOG_INFO("Submitting initial command buffer");
+    LOG_INFO("Submitting initial command buffer");
+    VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
 
-    //VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
-
-    //LOG_INFO("Waiting for initial command buffer");
-
-    //VK_CALL(vkQueueWaitIdle(queue));
+    LOG_INFO("Waiting for initial command buffer");
+    VK_CALL(vkQueueWaitIdle(queue));
 
     command_list = command_list_create_extern(ctx);
     
@@ -82,19 +80,20 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
 }
 
 void Stream::destroy() {
-    //for(int i = 0; i < semaphores.size(); i++) {
-    //    vkDestroySemaphore(device, semaphores[i], nullptr);
-    //}
+    for(int i = 0; i < semaphores.size(); i++) {
+        vkDestroySemaphore(device, semaphores[i], nullptr);
+    }
 
-    //for(int i = 0; i < fences.size(); i++) {
-    //    vkDestroyFence(device, fences[i], nullptr);
-    //}
+    for(int i = 0; i < fences.size(); i++) {
+        vkDestroyFence(device, fences[i], nullptr);
+    }
 
-    vkDestroyFence(device, fence, nullptr);
     vkFreeCommandBuffers(device, commandPool, commandBuffers.size(), commandBuffers.data());
     vkDestroyCommandPool(device, commandPool, nullptr);
 
-    //fences.clear();
+    fences.clear();
+    semaphores.clear();
+    commandBuffers.clear();
 }
 
 void Stream::wait_idle() {
@@ -116,6 +115,9 @@ void Stream::thread_worker() {
     while (ctx->work_queue->pop(&work_info, [this] (struct WorkInfo work_info) {
         return work_info.index == stream_index || work_info.index == -1;
     })) {
+        VK_CALL(vkWaitForFences(device, 1, &fences[current_index], VK_TRUE, UINT64_MAX));
+        VK_CALL(vkResetFences(device, 1, &fences[current_index]));
+
         VkCommandBufferBeginInfo beginInfo = {};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -153,34 +155,31 @@ void Stream::thread_worker() {
 
         VK_CALL(vkEndCommandBuffer(commandBuffers[current_index]));
 
-        //VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+        int last_index = current_index;
+        current_index = (current_index + 1) % commandBuffers.size();
+
+        VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
         VkSubmitInfo submitInfo = {};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        //submitInfo.waitSemaphoreCount = 1;
-        //submitInfo.pWaitSemaphores = &semaphores[last_index];
-        //submitInfo.pWaitDstStageMask = &waitStage;
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.pWaitSemaphores = &semaphores[last_index];
+        submitInfo.pWaitDstStageMask = &waitStage;
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffers[current_index];
-        //submitInfo.signalSemaphoreCount = 1;
-        //submitInfo.pSignalSemaphores = &semaphores[current_index];
-
-
-        VK_CALL(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX));
-        VK_CALL(vkResetFences(device, 1, &fence));
+        submitInfo.pCommandBuffers = &commandBuffers[last_index];
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = &semaphores[current_index];
         
-        VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fence));        
+        VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[last_index]));        
         
         if(work_info.signal != NULL) {
-            VK_CALL(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX));
+            VK_CALL(vkWaitForFences(device, 1, &fences[last_index], VK_TRUE, UINT64_MAX));
             work_info.signal->notify();
         }
 
         //if (work_info.instance_data != NULL) {
         //    free(work_info.instance_data);
         //}
-
-        current_index = (current_index + 1) % 2;
     }
 
     LOG_INFO("Thread worker for device %d, stream %d has quit", device_index, stream_index);

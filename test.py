@@ -9,7 +9,7 @@ import typing
 
 
 #vd.initialize(log_level=vd.LogLevel.INFO)
-vd.make_context(devices=[0], queue_families=[[1, 2]])
+vd.make_context(devices=[0, 1, 2, 3], queue_families=[[0, 2], [0, 2], [0, 2], [0, 2]])
 
 current_time = time.time()
 
@@ -335,7 +335,7 @@ fftshift[shift_buffer.size, cmd_list](work_buffer, shift_buffer)
 
 template_index = update_max[work_buffer.size, cmd_list](max_cross, best_index, work_buffer)
 
-batch_size = 50
+batch_size = 100
 
 status_bar = tqdm.tqdm(total=test_values.shape[0])
 
@@ -379,10 +379,6 @@ best_index_result = true_final_result[:, :, 1].astype(np.int32)
 
 index_of_max = np.unravel_index(np.argmax(final_max_cross), final_max_cross.shape)
 final_index = best_index_result[index_of_max]
-
-ref_mip = np.load("ref.npy")
-
-print("Ref diff:", np.sum(np.abs(final_max_cross - ref_mip)))
 
 print("Found max at:", index_of_max)
 print("Max cross correlation:", final_max_cross[index_of_max])
