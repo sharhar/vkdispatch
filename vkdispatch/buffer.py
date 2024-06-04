@@ -1,4 +1,6 @@
 from typing import Tuple
+from typing import List
+from typing import Union
 
 import numpy as np
 
@@ -62,7 +64,7 @@ class Buffer:
         )
         vd.check_for_errors()
 
-    def read(self, index: int = 0) -> np.ndarray:
+    def read(self, index: int = None) -> Union[np.ndarray, List[np.ndarray]]:
         """Read the data in the buffer at the specified device index and return it as a
         numpy array.
 
@@ -72,22 +74,29 @@ class Buffer:
         Returns:
         (np.ndarray): The data in the buffer as a numpy array.
         """
-        if index < 0:
-            raise ValueError(f"Invalid buffer index {index}!")
-        
-        if self.per_device and index >= len(self.ctx.devices):
-            raise ValueError(f"Invalid device index {index}!")
-        elif not self.per_device and index >= self.ctx.stream_count:
-            raise ValueError(f"Invalid stream index {index}!")
 
-        result = np.ndarray(
-            shape=(self.shape + self.var_type._true_numpy_shape),
-            dtype=vd.to_numpy_dtype(self.var_type.scalar),
-        )
-        vkdispatch_native.buffer_read(
-            self._handle, result, 0, self.mem_size, index
-        )
-        vd.check_for_errors()
+        if index is not None:
+            if index < 0:
+                raise ValueError(f"Invalid buffer index {index}!")
+            
+            if self.per_device and index >= len(self.ctx.devices):
+                raise ValueError(f"Invalid device index {index}!")
+            elif not self.per_device and index >= self.ctx.stream_count:
+                raise ValueError(f"Invalid stream index {index}!")
+
+            result = np.ndarray(
+                shape=(self.shape + self.var_type._true_numpy_shape),
+                dtype=vd.to_numpy_dtype(self.var_type.scalar),
+            )
+            vkdispatch_native.buffer_read(
+                self._handle, result, 0, self.mem_size, index
+            )
+            vd.check_for_errors()
+        else:
+            result = []
+
+            for i in range(len(self.ctx.devices) if self.per_device else self.ctx.stream_count):
+                result.append(self.read(i))
 
         return result
 

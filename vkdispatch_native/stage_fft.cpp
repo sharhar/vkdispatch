@@ -1,6 +1,8 @@
 #include "internal.h"
 
 struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long long dims, unsigned long long rows, unsigned long long cols, unsigned long long depth, unsigned long long buffer_size) {
+    LOG_INFO("Creating FFT plan with handle %p", ctx);
+    
     struct FFTPlan* plan = new struct FFTPlan();
     plan->ctx = ctx;
 
@@ -52,6 +54,8 @@ struct FFTRecordInfo {
 };
 
 void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* plan, struct Buffer* buffer, int inverse) {
+    LOG_INFO("Recording FFT");
+
     struct FFTRecordInfo* my_fft_info = (struct FFTRecordInfo*)malloc(sizeof(struct FFTRecordInfo));
     my_fft_info->plan = plan;
     my_fft_info->buffer = buffer;
@@ -62,7 +66,7 @@ void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* p
         return;
     }
 
-    command_list->stages.push_back({
+    command_list_record_stage(command_list, {
         [](VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
             LOG_VERBOSE("Executing FFT");
 

@@ -9,7 +9,7 @@ import typing
 
 
 #vd.initialize(log_level=vd.LogLevel.INFO)
-vd.make_context(devices=[0], queue_families=[[2]])
+vd.make_context(devices=[0], queue_families=[[1, 2]])
 
 current_time = time.time()
 
@@ -335,7 +335,7 @@ fftshift[shift_buffer.size, cmd_list](work_buffer, shift_buffer)
 
 template_index = update_max[work_buffer.size, cmd_list](max_cross, best_index, work_buffer)
 
-batch_size = 10
+batch_size = 50
 
 status_bar = tqdm.tqdm(total=test_values.shape[0])
 
@@ -353,16 +353,36 @@ for i in range(0, test_values.shape[0], batch_size):
         for pc_buffer in cmd_list.pc_buffers:
             data += pc_buffer.get_bytes()
     
-    cmd_list.submit(data=data)
+    cmd_list.submit(data=data, stream_index=-1)
 
     status_bar.update(batch_size)
 
 status_bar.close()
 
-final_max_cross = max_cross.read(0)
-best_index_result = best_index.read(0)
+
+max_crosses = max_cross.read()
+best_indicies = best_index.read()
+
+final_results = [np.zeros(shape=(work_buffer.shape[0], work_buffer.shape[1], 2), dtype=np.float64) for _ in max_crosses]
+
+for i in range(len(max_crosses)):
+    final_results[i][:, :, 0] = max_crosses[i]
+    final_results[i][:, :, 1] = best_indicies[i]
+
+true_final_result = final_results[0]
+
+for other_result in final_results[1:]:
+    true_final_result = np.where(other_result[:, :, 0:1] > true_final_result[:, :, 0:1], other_result, true_final_result)
+
+final_max_cross = true_final_result[:, :, 0]
+best_index_result = true_final_result[:, :, 1].astype(np.int32)
+
 index_of_max = np.unravel_index(np.argmax(final_max_cross), final_max_cross.shape)
 final_index = best_index_result[index_of_max]
+
+ref_mip = np.load("ref.npy")
+
+print("Ref diff:", np.sum(np.abs(final_max_cross - ref_mip)))
 
 print("Found max at:", index_of_max)
 print("Max cross correlation:", final_max_cross[index_of_max])
@@ -393,7 +413,7 @@ sum_buff = calc_sums[work_buffer.size](work_buffer)
 normalize_image[work_buffer.size](work_buffer, sum_buff)
 
 np.save(file_out + "_mip.npy", final_max_cross)
-np.save(file_out + "_match.npy", work_buffer.read(0))
+np.save(file_out + "_match.npy", work_buffer.read()[0])
 np.save(file_out + "_best_index.npy", best_index_result)
 np.save(file_out + "_phi.npy", params_result[:, :, 0])
 np.save(file_out + "_theta.npy", params_result[:, :, 1])

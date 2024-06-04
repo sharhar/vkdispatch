@@ -13,7 +13,7 @@ void stage_transfer_record_copy_buffer_extern(struct CommandList* command_list, 
 
     LOG_INFO("Recording copy buffer stage");
 
-    command_list->stages.push_back({
+    command_list_record_stage(command_list, {
         [](VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
             LOG_VERBOSE("Executing copy buffer stage");
 

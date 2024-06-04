@@ -179,7 +179,7 @@ void stage_compute_record_extern(struct CommandList* command_list, struct Comput
     my_compute_info->blocks_z = blocks_z;
     my_compute_info->pc_size = plan->pc_size;
 
-    command_list->stages.push_back({
+    command_list_record_stage(command_list, {
         [](VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
             LOG_VERBOSE("Executing Compute");
 
