@@ -5,7 +5,7 @@ struct CommandList* command_list_create_extern(struct Context* context) {
     LOG_INFO("Creating command list with handle %p", command_list);
 
     command_list->ctx = context;
-    command_list->staging_count = context->work_queue->max_size * 2;
+    command_list->staging_count = context->work_queue->max_size * 3;
     command_list->instance_size = 0;
     command_list->max_batch_count = 100;
     command_list->staging_index = 0;
