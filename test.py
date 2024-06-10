@@ -284,7 +284,9 @@ def normalize_image(image, sum_buff):
     sum_vec = (sum_buff[0] / work_buffer.size).copy()
     sum_vec[1] = vd.shader.sqrt(sum_vec[1] - sum_vec[0] * sum_vec[0])
 
-    image[ind][0] = (image[ind][0] - sum_vec[0]) / sum_vec[1]
+    #image[ind][0] = (image[ind][0] - sum_vec[0]) / sum_vec[1]
+    image[ind][0] = (image[ind][0] - 1) / sum_vec[1]
+
 
 @vd.compute_shader(vd.complex64[0], vd.complex64[0])
 def cross_correlate(input, reference):
@@ -309,7 +311,7 @@ def fftshift_and_crop(output, input):
                     vd.shader.logical_and(
                         out_y >= work_buffer.shape[1] // 2,
                         out_y < shift_buffer.shape[1] - work_buffer.shape[1] // 2))
-    output[ind][0] = 1.0
+    output[ind][0] = 0.0
     output[ind][1] = 0.0
     vd.shader.return_statement()
     vd.shader.end()
@@ -364,7 +366,7 @@ batch_size = 4
 
 status_bar = tqdm.tqdm(total=test_values.shape[0])
 
-for i in range(0, test_values.shape[0], batch_size):
+for i in range(0, 8, 4): #test_values.shape[0], batch_size):
     data = b""
 
     for j in range(batch_size):
@@ -427,12 +429,18 @@ mult_by_mask[work_buffer.size](work_buffer)
 apply_transfer_function[work_buffer.size](work_buffer, tf_data_buffer, defocus=test_values[final_index][3])
 vd.ifft(work_buffer)
 
-fftshift_and_crop[shift_buffer.size](shift_buffer, work_buffer)
-
-params_result = test_values[best_index_result]
-
 sum_buff = calc_sums[work_buffer.size](work_buffer)
 normalize_image[work_buffer.size](work_buffer, sum_buff)
+
+fftshift_and_crop[shift_buffer.size](shift_buffer, work_buffer)
+
+init_accumulators[max_cross.size](max_cross, best_index)
+
+vd.fft(shift_buffer)
+cross_correlate[shift_buffer.size](shift_buffer, match_image_buffer)
+vd.ifft(shift_buffer)
+
+params_result = test_values[best_index_result]
 
 np.save(file_out + "_mip.npy", final_max_cross)
 np.save(file_out + "_match.npy", work_buffer.read()[0])
