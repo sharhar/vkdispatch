@@ -16,7 +16,7 @@ class FFTPlan:
         )  # currently only support complex64
 
         self._handle = vkdispatch_native.stage_fft_plan_create(
-            vd.get_context_handle(), list(self.shape), self.mem_size
+            vd.get_context_handle(), list(reversed(self.shape)), self.mem_size
         )
         vd.check_for_errors()
 
