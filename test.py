@@ -9,7 +9,7 @@ import typing
 
 
 #vd.initialize(log_level=vd.LogLevel.INFO)
-vd.make_context() #devices=[0, 1, 2, 3], queue_families=[[0, 2], [0, 2], [0, 2], [0, 2]])
+vd.make_context(devices=[0], queue_families=[[0, 2]]) #devices=[0, 1, 2, 3], queue_families=[[0, 2], [0, 2], [0, 2], [0, 2]])
 
 current_time = time.time()
 
@@ -27,7 +27,7 @@ test_image_normalized: np.ndarray = (input_image_raw - input_image_raw.mean()) /
 test_image_normalized = np.fft.fftshift(test_image_normalized)
 
 mag = 200
-sigma=0.025
+sigma = 0.3
 
 #phi_values = np.arange(0, 360, 2.5)
 #theta_values = np.arange(0, 180, 2.5)
@@ -36,6 +36,15 @@ sigma=0.025
 phi_values = np.arange(100, 200, 2.5)
 theta_values = np.arange(70, 100, 2.5)
 psi_values = np.arange(280, 340, 1.5)
+
+template_size = (512, 512)# (380, 380)
+
+if len(sys.argv) > 4:
+    template_size = int(sys.argv[4])
+
+#phi_values = np.arange(180, 190, 2.5)
+#theta_values = np.arange(75, 85, 2.5)
+#psi_values = np.arange(320, 330, 1.5)
 
 defocus_values = np.arange(11000, 13000, 400)
 test_values = (np.array(np.meshgrid(phi_values, theta_values, psi_values, defocus_values)).T.reshape(-1, 4))
@@ -46,7 +55,9 @@ atom_proton_counts: np.ndarray = atom_data["proton_counts"].astype(np.float32)
 
 atom_coords -= np.sum(atom_coords, axis=0) / atom_coords.shape[0]
 
-tf_data: typing.Tuple[np.ndarray] = tf_calc.prepareTF(input_image_raw.shape, 1.056, 0)
+pix_size = 1.056
+
+tf_data: typing.Tuple[np.ndarray] = tf_calc.prepareTF(template_size, pix_size, 0)
 
 tf_data_array = np.zeros(shape=(tf_data[0].shape[0], tf_data[0].shape[1], 9), dtype=np.float32) #vd.asbuffer(tf_data)
 tf_data_array[:, :, 0] = tf_data[0]
@@ -71,7 +82,7 @@ vd.fft(match_image_buffer)
 
 print("Done doing fft")
 
-work_buffer = vd.Buffer(input_image_raw.shape, vd.complex64)
+work_buffer = vd.Buffer(template_size, vd.complex64)
 shift_buffer = vd.Buffer(input_image_raw.shape, vd.complex64)
 max_cross = vd.Buffer(input_image_raw.shape, vd.float32)
 best_index = vd.Buffer(input_image_raw.shape, vd.int32)
@@ -139,8 +150,8 @@ def place_atoms(image, atom_coords):
     pos[:] = rotation_matrix * pos
 
     image_ind = vd.shader.new(vd.ivec2)
-    image_ind[0] = vd.shader.ceil(pos[1]).cast_to(vd.int32) + (work_buffer.shape[0] // 2)
-    image_ind[1] = vd.shader.ceil(-pos[0]).cast_to(vd.int32) + (work_buffer.shape[1] // 2)
+    image_ind[1] = vd.shader.ceil(pos[1]).cast_to(vd.int32) + (work_buffer.shape[0] // 2)
+    image_ind[0] = vd.shader.ceil(-pos[0]).cast_to(vd.int32) + (work_buffer.shape[1] // 2)
 
     vd.shader.if_any(image_ind[0] < 0, image_ind[0] >= work_buffer.shape[0], image_ind[1] < 0, image_ind[1] >= work_buffer.shape[1])
     vd.shader.return_statement()
@@ -170,8 +181,11 @@ def apply_gaussian_filter(buf):
     x[:] = x - work_buffer.shape[0] // 2
     y[:] = y - work_buffer.shape[1] // 2
 
+    x_norm = (x.cast_to(vd.float32) / float(work_buffer.shape[0])).copy()
+    y_norm = (y.cast_to(vd.float32) / float(work_buffer.shape[1])).copy()
+
     my_dist = vd.shader.new(vd.float32)
-    my_dist[:] = (x*x + y*y) * sigma * sigma / 2
+    my_dist[:] = (x_norm*x_norm + y_norm*y_norm) / ( sigma * sigma / 2 )
 
     vd.shader.if_statement(my_dist > 100)
     buf[ind][0] = 0
@@ -283,16 +297,27 @@ def cross_correlate(input, reference):
     input[ind][1] = input_val[1] * reference[ind][0] - input_val[0] * reference[ind][1]
 
 @vd.compute_shader(vd.complex64[0], vd.complex64[0])
-def fftshift(output, input):
+def fftshift_and_crop(output, input):
     ind = vd.shader.global_x.cast_to(vd.int32).copy()
 
-    r = (ind / work_buffer.shape[1]).copy()
-    c = (ind % work_buffer.shape[1]).copy()
+    out_x = (ind / shift_buffer.shape[1]).copy()
+    out_y = (ind % shift_buffer.shape[1]).copy()
 
-    r[:] = (r + work_buffer.shape[0] // 2) % work_buffer.shape[0]
-    c[:] = (c + work_buffer.shape[1] // 2) % work_buffer.shape[1]
+    vd.shader.if_any(vd.shader.logical_and(
+                        out_x >= work_buffer.shape[0] // 2,
+                        out_x < shift_buffer.shape[0] - work_buffer.shape[0] // 2),
+                    vd.shader.logical_and(
+                        out_y >= work_buffer.shape[1] // 2,
+                        out_y < shift_buffer.shape[1] - work_buffer.shape[1] // 2))
+    output[ind][0] = 1.0
+    output[ind][1] = 0.0
+    vd.shader.return_statement()
+    vd.shader.end()
 
-    output[ind] = input[r * work_buffer.shape[1] + c]
+    in_x = ((out_x + work_buffer.shape[0] // 2) % shift_buffer.shape[0]).copy()
+    in_y = ((out_y + work_buffer.shape[1] // 2) % shift_buffer.shape[1]).copy()
+
+    output[ind] = input[in_x * work_buffer.shape[1] + in_y]
 
 @vd.compute_shader(vd.float32[0], vd.int32[0], vd.complex64[0])
 def update_max(max_cross, best_index, back_buffer):
@@ -325,15 +350,15 @@ vd.ifft[cmd_list](work_buffer)
 sum_buff = calc_sums[work_buffer.size, cmd_list](work_buffer) # The reduction returns a buffer with the result in the first value
 normalize_image[work_buffer.size, cmd_list](work_buffer, sum_buff)
 
-fftshift[work_buffer.size, cmd_list](shift_buffer, work_buffer)
+fftshift_and_crop[shift_buffer.size, cmd_list](shift_buffer, work_buffer)
 
 vd.fft[cmd_list](shift_buffer)
 cross_correlate[shift_buffer.size, cmd_list](shift_buffer, match_image_buffer)
 vd.ifft[cmd_list](shift_buffer)
 
-fftshift[shift_buffer.size, cmd_list](work_buffer, shift_buffer)
+#fftshift[shift_buffer.size, cmd_list](work_buffer, shift_buffer)
 
-template_index = update_max[work_buffer.size, cmd_list](max_cross, best_index, work_buffer)
+template_index = update_max[shift_buffer.size, cmd_list](max_cross, best_index, shift_buffer)
 
 batch_size = 4
 
@@ -359,11 +384,10 @@ for i in range(0, test_values.shape[0], batch_size):
 
 status_bar.close()
 
-
 max_crosses = max_cross.read()
 best_indicies = best_index.read()
 
-final_results = [np.zeros(shape=(work_buffer.shape[0], work_buffer.shape[1], 2), dtype=np.float64) for _ in max_crosses]
+final_results = [np.zeros(shape=(shift_buffer.shape[0], shift_buffer.shape[1], 2), dtype=np.float64) for _ in max_crosses]
 
 for i in range(len(max_crosses)):
     final_results[i][:, :, 0] = max_crosses[i]
@@ -374,8 +398,8 @@ true_final_result = final_results[0]
 for other_result in final_results[1:]:
     true_final_result = np.where(other_result[:, :, 0:1] > true_final_result[:, :, 0:1], other_result, true_final_result)
 
-final_max_cross = true_final_result[:, :, 0]
-best_index_result = true_final_result[:, :, 1].astype(np.int32)
+final_max_cross = np.fft.ifftshift(true_final_result[:, :, 0])
+best_index_result = np.fft.ifftshift(true_final_result[:, :, 1].astype(np.int32))
 
 index_of_max = np.unravel_index(np.argmax(final_max_cross), final_max_cross.shape)
 final_index = best_index_result[index_of_max]
@@ -402,6 +426,8 @@ vd.fft(work_buffer)
 mult_by_mask[work_buffer.size](work_buffer)
 apply_transfer_function[work_buffer.size](work_buffer, tf_data_buffer, defocus=test_values[final_index][3])
 vd.ifft(work_buffer)
+
+fftshift_and_crop[shift_buffer.size](shift_buffer, work_buffer)
 
 params_result = test_values[best_index_result]
 
