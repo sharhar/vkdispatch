@@ -238,6 +238,12 @@ class ShaderBuilder:
 
     def else_statement(self):
         self.append_contents("} else {'\n")
+    
+    def logical_and(self, arg1: vd.ShaderVariable, arg2: vd.ShaderVariable):
+        return self.make_var(vd.int32, f"({arg1} && {arg2})")
+
+    def logical_or(self, arg1: vd.ShaderVariable, arg2: vd.ShaderVariable):
+        return self.make_var(vd.int32, f"({arg1} || {arg2})")
 
     def return_statement(self, arg=None):
         arg = arg if arg is not None else ""
