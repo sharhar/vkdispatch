@@ -47,13 +47,36 @@ def get_compute_queue_family_index(device_index: int) -> int:
 
     raise ValueError(f"Device {device_index} does not have a compute queue family!")
 
+def get_graphics_queue_family_index(device_index: int) -> int:
+    device = vd.get_devices()[device_index]
+
+    # First check if we have a pure compute queue family with (sparse) transfer capabilities
+    for i, queue_family in enumerate(device.queue_properties):
+        if queue_family[1] == 7 or queue_family == 15:
+            return i
+
+    # If not, check if we have a compute queue family without graphics capabilities
+    for i, queue_family in enumerate(device.queue_properties):
+        if queue_family[1] & 2 and queue_family[1] & 1:
+            return i
+        
+    # Finnally, return any queue with compute capabilities
+    for i, queue_family in enumerate(device.queue_properties):
+        if queue_family[1] & 2:
+            return i
+
+    raise ValueError(f"Device {device_index} does not have a compute queue family!")
 
 def get_device_queues(device_index: int, max_queue_count: int) -> List[int]:
     device = vd.get_devices()[device_index]
 
-    device_queue_family = get_compute_queue_family_index(device_index)
+    compute_queue_family = get_compute_queue_family_index(device_index)
+    graphics_queue_family = get_graphics_queue_family_index(device_index)
 
-    return [device_queue_family] * min(device.queue_properties[device_queue_family][0], max_queue_count)
+    if compute_queue_family == graphics_queue_family:
+        return [compute_queue_family]
+
+    return [compute_queue_family, graphics_queue_family] #[device_queue_family] * min(device.queue_properties[device_queue_family][0], max_queue_count)
 
 
 def select_devices(use_cpu: bool) -> List[int]:

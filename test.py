@@ -9,7 +9,7 @@ import typing
 
 
 #vd.initialize(log_level=vd.LogLevel.INFO)
-vd.make_context(devices=[0, 1, 2, 3], queue_families=[[0, 2], [0, 2], [0, 2], [0, 2]])
+vd.make_context() #devices=[0, 1, 2, 3], queue_families=[[0, 2], [0, 2], [0, 2], [0, 2]])
 
 current_time = time.time()
 
@@ -146,7 +146,7 @@ def place_atoms(image, atom_coords):
     vd.shader.return_statement()
     vd.shader.end()
 
-    vd.shader.atomic_add(image[2 * image_ind[1] * work_buffer.shape[0] + 2 * image_ind[0]], 1)
+    vd.shader.atomic_add(image[2 * (image_ind[0] * work_buffer.shape[1] + image_ind[1])], 1)
 
 @vd.compute_shader(vd.float32[0])
 def convert_int_to_float(image):
@@ -158,8 +158,8 @@ def convert_int_to_float(image):
 def apply_gaussian_filter(buf):
     ind = vd.shader.global_x.cast_to(vd.int32).copy()
 
-    x = (ind % work_buffer.shape[0]).copy()
-    y = (ind / work_buffer.shape[1]).copy()
+    x = (ind / work_buffer.shape[1]).copy()
+    y = (ind % work_buffer.shape[1]).copy()
 
     x[:] = x + work_buffer.shape[0] // 2
     y[:] = y + work_buffer.shape[1] // 2
@@ -335,7 +335,7 @@ fftshift[shift_buffer.size, cmd_list](work_buffer, shift_buffer)
 
 template_index = update_max[work_buffer.size, cmd_list](max_cross, best_index, work_buffer)
 
-batch_size = 100
+batch_size = 4
 
 status_bar = tqdm.tqdm(total=test_values.shape[0])
 
