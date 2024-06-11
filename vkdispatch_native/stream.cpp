@@ -54,8 +54,8 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
     
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.signalSemaphoreCount = semaphores.size() - 1;
-    submitInfo.pSignalSemaphores = &semaphores.data()[1];
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = &semaphores.data()[current_index];
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffers[0];
 
@@ -165,6 +165,8 @@ void Stream::thread_worker() {
         submitInfo.pCommandBuffers = &commandBuffers[last_index];
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = &semaphores[current_index];
+
+        LOG_INFO("Submitting command buffer waiting on sempahore %p and signaling semaphore %p", semaphores[last_index], semaphores[current_index]);
         
         VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[last_index]));        
         
