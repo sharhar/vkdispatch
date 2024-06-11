@@ -9,7 +9,7 @@ import typing
 
 
 #vd.initialize(log_level=vd.LogLevel.INFO)
-vd.make_context() #devices=[0, 1, 2, 3], queue_families=[[0, 2], [0, 2], [0, 2], [0, 2]])
+vd.make_context(devices=[0], queue_families=[[0]])
 
 current_time = time.time()
 
