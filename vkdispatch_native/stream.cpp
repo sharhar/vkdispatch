@@ -97,10 +97,6 @@ void Stream::destroy() {
 }
 
 void Stream::wait_idle() {
-    //std::unique_lock<std::mutex> lock(this->ctx->work_queue->mutex);
-
-    //VK_CALL(vkQueueWaitIdle(queue));
-    
     Signal* signal = new Signal();
     command_list_submit_extern(this->command_list, NULL, 1, &stream_index, 1, 0, signal);
     signal->wait();
@@ -176,10 +172,6 @@ void Stream::thread_worker() {
             VK_CALL(vkWaitForFences(device, 1, &fences[last_index], VK_TRUE, UINT64_MAX));
             work_info.signal->notify();
         }
-
-        //if (work_info.instance_data != NULL) {
-        //    free(work_info.instance_data);
-        //}
     }
 
     LOG_INFO("Thread worker for device %d, stream %d has quit", device_index, stream_index);

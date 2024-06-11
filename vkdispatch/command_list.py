@@ -88,6 +88,35 @@ class CommandList:
 
         if self._reset_on_submit:
             self.reset()
+    
+    def iter_batched_params(self, mapping_function, param_iter, batch_size: int = 10):
+        data = b""
+        bsize = 0
+
+        for param in param_iter:
+            #for j in range(batch_size):
+            #    if i + j >= test_values.shape[0]:
+            #        break
+                
+            #rotation_matrix["rot_matrix"] = get_rotation_matrix(test_values[i + j][:3], [0, 0])
+            #defocus["defocus"] = test_values[i + j][3]
+            #template_index["index"] = i + j
+
+            mapping_function(param)
+
+            for pc_buffer in self.pc_buffers:
+                data += pc_buffer.get_bytes()
+
+            bsize += 1
+
+            if bsize == batch_size:
+                yield data
+                data = b""
+                bsize = 0
+            
+        if bsize > 0:
+            yield data
+        
 
 
 __cmd_list = None

@@ -19,7 +19,6 @@ class Context:
         self.device_infos = [vd.get_devices()[dev] for dev in devices]
         self.queue_families = queue_families
         self.stream_count = sum([len(i) for i in queue_families])
-        print("Stream count: ", self.stream_count)
         self._handle = vkdispatch_native.context_create(devices, queue_families)
         vd.check_for_errors()
 
@@ -68,8 +67,6 @@ def get_graphics_queue_family_index(device_index: int) -> int:
     raise ValueError(f"Device {device_index} does not have a compute queue family!")
 
 def get_device_queues(device_index: int, max_queue_count: int) -> List[int]:
-    device = vd.get_devices()[device_index]
-
     compute_queue_family = get_compute_queue_family_index(device_index)
     graphics_queue_family = get_graphics_queue_family_index(device_index)
 

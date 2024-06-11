@@ -9,7 +9,7 @@ import typing
 
 
 #vd.initialize(log_level=vd.LogLevel.INFO)
-vd.make_context(devices=[0], queue_families=[[0, 2]]) #devices=[0, 1, 2, 3], queue_families=[[0, 2], [0, 2], [0, 2], [0, 2]])
+vd.make_context() #devices=[0, 1, 2, 3], queue_families=[[0, 2], [0, 2], [0, 2], [0, 2]])
 
 current_time = time.time()
 
@@ -46,7 +46,7 @@ if len(sys.argv) > 4:
 #theta_values = np.arange(75, 85, 2.5)
 #psi_values = np.arange(320, 330, 1.5)
 
-defocus_values = np.arange(11000, 13000, 400)
+defocus_values = np.arange(10000, 15000, 50)
 test_values = (np.array(np.meshgrid(phi_values, theta_values, psi_values, defocus_values)).T.reshape(-1, 4))
 
 atom_data = np.load(sys.argv[3])
@@ -70,17 +70,11 @@ tf_data_array[:, :, 6] = tf_data[6]
 tf_data_array[:, :, 7] = tf_data[7]
 tf_data_array[:, :, 8] = tf_data[8]
 
-print("Copying buffers")
 atom_coords_buffer = vd.asbuffer(atom_coords)
-print("Done copying buffer 1")
 tf_data_buffer = vd.asbuffer(tf_data_array)
-print("Done copying buffer 2")
 match_image_buffer = vd.asbuffer(test_image_normalized.astype(np.complex64))
-print("Done copying buffer 3")
 
 vd.fft(match_image_buffer)
-
-print("Done doing fft")
 
 work_buffer = vd.Buffer(template_size, vd.complex64)
 shift_buffer = vd.Buffer(input_image_raw.shape, vd.complex64)
@@ -366,22 +360,13 @@ batch_size = 4
 
 status_bar = tqdm.tqdm(total=test_values.shape[0])
 
-for i in range(0, 8, 4): #test_values.shape[0], batch_size):
-    data = b""
+def set_params(in_val):
+    rotation_matrix["rot_matrix"] = get_rotation_matrix(test_values[in_val][:3], [0, 0])
+    defocus["defocus"] = test_values[in_val][3]
+    template_index["index"] = in_val
 
-    for j in range(batch_size):
-        if i + j >= test_values.shape[0]:
-            break
-        
-        rotation_matrix["rot_matrix"] = get_rotation_matrix(test_values[i + j][:3], [0, 0])
-        defocus["defocus"] = test_values[i + j][3]
-        template_index["index"] = i + j
-
-        for pc_buffer in cmd_list.pc_buffers:
-            data += pc_buffer.get_bytes()
-    
+for data in cmd_list.iter_batched_params(set_params, range(test_values.shape[0]), batch_size=batch_size):
     cmd_list.submit(data=data, stream_index=-1)
-
     status_bar.update(batch_size)
 
 status_bar.close()
