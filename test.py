@@ -9,7 +9,7 @@ import typing
 
 
 #vd.initialize(log_level=vd.LogLevel.INFO)
-vd.make_context(devices=[0], queue_families=[[0]])
+#vd.make_context(devices=[0, 1, 2, 3], queue_families=[[0, 2, 2, 2]])
 
 current_time = time.time()
 
@@ -33,9 +33,9 @@ sigma = 0.3
 #theta_values = np.arange(0, 180, 2.5)
 #psi_values = np.arange(0, 360, 1.5)
 
-phi_values = np.arange(100, 200, 2.5)
-theta_values = np.arange(70, 100, 2.5)
-psi_values = np.arange(280, 340, 1.5)
+phi_values = np.arange(100, 200, 1)
+theta_values = np.arange(70, 100, 1)
+psi_values = np.arange(280, 340, 1)
 
 template_size = (512, 512)# (380, 380)
 
@@ -46,7 +46,7 @@ if len(sys.argv) > 4:
 #theta_values = np.arange(75, 85, 2.5)
 #psi_values = np.arange(320, 330, 1.5)
 
-defocus_values = np.arange(10000, 15000, 50)
+defocus_values = np.arange(10000, 16000, 50)
 test_values = (np.array(np.meshgrid(phi_values, theta_values, psi_values, defocus_values)).T.reshape(-1, 4))
 
 atom_data = np.load(sys.argv[3])
@@ -278,8 +278,8 @@ def normalize_image(image, sum_buff):
     sum_vec = (sum_buff[0] / work_buffer.size).copy()
     sum_vec[1] = vd.shader.sqrt(sum_vec[1] - sum_vec[0] * sum_vec[0])
 
-    #image[ind][0] = (image[ind][0] - sum_vec[0]) / sum_vec[1]
-    image[ind][0] = (image[ind][0] - 1) / sum_vec[1]
+    image[ind][0] = (image[ind][0] - sum_vec[0]) / sum_vec[1]
+    #image[ind][0] = (image[ind][0] - 1) / sum_vec[1]
 
 
 @vd.compute_shader(vd.complex64[0], vd.complex64[0])
@@ -356,16 +356,16 @@ vd.ifft[cmd_list](shift_buffer)
 
 template_index = update_max[shift_buffer.size, cmd_list](max_cross, best_index, shift_buffer)
 
-batch_size = 4
+batch_size = 10
 
 status_bar = tqdm.tqdm(total=test_values.shape[0])
 
-def set_params(in_val):
-    rotation_matrix["rot_matrix"] = get_rotation_matrix(test_values[in_val][:3], [0, 0])
-    defocus["defocus"] = test_values[in_val][3]
-    template_index["index"] = in_val
+def set_params(params):
+    rotation_matrix["rot_matrix"] = get_rotation_matrix(params[1][:3], [0, 0])
+    defocus["defocus"] = params[1][3]
+    template_index["index"] = params[0]
 
-for data in cmd_list.iter_batched_params(set_params, range(test_values.shape[0]), batch_size=batch_size):
+for data in cmd_list.iter_batched_params(set_params, enumerate(test_values), batch_size=batch_size):
     cmd_list.submit(data=data, stream_index=-1)
     status_bar.update(batch_size)
 
@@ -407,23 +407,23 @@ vd.fft(work_buffer)
 apply_gaussian_filter[work_buffer.size](work_buffer)
 vd.ifft(work_buffer)
 
-potential_to_wave[work_buffer.size](work_buffer)
+#potential_to_wave[work_buffer.size](work_buffer)
 
-vd.fft(work_buffer)
-mult_by_mask[work_buffer.size](work_buffer)
-apply_transfer_function[work_buffer.size](work_buffer, tf_data_buffer, defocus=test_values[final_index][3])
-vd.ifft(work_buffer)
+#vd.fft(work_buffer)
+#mult_by_mask[work_buffer.size](work_buffer)
+#apply_transfer_function[work_buffer.size](work_buffer, tf_data_buffer, defocus=test_values[final_index][3])
+#vd.ifft(work_buffer)
 
-sum_buff = calc_sums[work_buffer.size](work_buffer)
-normalize_image[work_buffer.size](work_buffer, sum_buff)
+#sum_buff = calc_sums[work_buffer.size](work_buffer)
+#normalize_image[work_buffer.size](work_buffer, sum_buff)
 
-fftshift_and_crop[shift_buffer.size](shift_buffer, work_buffer)
+#fftshift_and_crop[shift_buffer.size](shift_buffer, work_buffer)
 
-init_accumulators[max_cross.size](max_cross, best_index)
+#init_accumulators[max_cross.size](max_cross, best_index)
 
-vd.fft(shift_buffer)
-cross_correlate[shift_buffer.size](shift_buffer, match_image_buffer)
-vd.ifft(shift_buffer)
+#vd.fft(shift_buffer)
+#cross_correlate[shift_buffer.size](shift_buffer, match_image_buffer)
+#vd.ifft(shift_buffer)
 
 params_result = test_values[best_index_result]
 

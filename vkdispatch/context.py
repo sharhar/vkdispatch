@@ -26,9 +26,7 @@ class Context:
         pass  # vkdispatch_native.context_destroy(self._handle)
 
 
-def get_compute_queue_family_index(device_index: int) -> int:
-    device = vd.get_devices()[device_index]
-
+def get_compute_queue_family_index(device: vd.DeviceInfo, device_index: int) -> int:
     # First check if we have a pure compute queue family with (sparse) transfer capabilities
     for i, queue_family in enumerate(device.queue_properties):
         if queue_family[1] == 6 or queue_family == 14:
@@ -46,9 +44,7 @@ def get_compute_queue_family_index(device_index: int) -> int:
 
     raise ValueError(f"Device {device_index} does not have a compute queue family!")
 
-def get_graphics_queue_family_index(device_index: int) -> int:
-    device = vd.get_devices()[device_index]
-
+def get_graphics_queue_family_index(device: vd.DeviceInfo, device_index: int) -> int:
     # First check if we have a pure compute queue family with (sparse) transfer capabilities
     for i, queue_family in enumerate(device.queue_properties):
         if queue_family[1] == 7 or queue_family == 15:
@@ -67,13 +63,18 @@ def get_graphics_queue_family_index(device_index: int) -> int:
     raise ValueError(f"Device {device_index} does not have a compute queue family!")
 
 def get_device_queues(device_index: int, max_queue_count: int) -> List[int]:
-    compute_queue_family = get_compute_queue_family_index(device_index)
-    graphics_queue_family = get_graphics_queue_family_index(device_index)
+    device = vd.get_devices()[device_index]
+
+    compute_queue_family = get_compute_queue_family_index(device, device_index)
+    graphics_queue_family = get_graphics_queue_family_index(device, device_index)
 
     if compute_queue_family == graphics_queue_family:
         return [compute_queue_family]
+    
+    if "NVIDIA" in device.device_name:
+        return [compute_queue_family, compute_queue_family, graphics_queue_family]
 
-    return [compute_queue_family, graphics_queue_family] #[device_queue_family] * min(device.queue_properties[device_queue_family][0], max_queue_count)
+    return [compute_queue_family, graphics_queue_family]
 
 
 def select_devices(use_cpu: bool) -> List[int]:
