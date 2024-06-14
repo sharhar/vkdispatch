@@ -18,6 +18,7 @@ class PushConstantBuffer:
     var_types: List[vd.dtype]
     numpy_dtypes: List
     size: int
+    index: int
 
     def __init__(self, pc_dict: dict) -> None:
         self.pc_dict = copy.deepcopy(pc_dict)
@@ -26,6 +27,7 @@ class PushConstantBuffer:
         self.var_types = [None] * len(self.pc_dict)
         self.numpy_dtypes = [None] * len(self.pc_dict)
         self.size = 0
+        self.index = 0
 
         # Populate the push constant buffer with the given dictionary
         for key, val in self.pc_dict.items():
@@ -66,6 +68,15 @@ class PushConstantBuffer:
             )
 
         self.pc_list[ii] = arr
+
+    def __repr__(self) -> str:
+        result = "Push Constant Buffer:\n"
+
+        for key, val in self.pc_dict.items():
+            ii, var_type = val
+            result += f"\t{key} ({var_type.name}): {self.pc_list[ii]}\n"
+
+        return result[:-1]
 
     def get_bytes(self):
         return b"".join([elem.tobytes() for elem in self.pc_list])
