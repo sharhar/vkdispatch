@@ -89,9 +89,7 @@ def init_accumulators(max_cross, best_index):
 
 init_accumulators[max_cross.size](max_cross, best_index)
 
-print(init_accumulators)
-
-exit()
+print("Time to setup:")
 
 def get_rotation_matrix(angles: typing.List[int], offsets: typing.List[int] = [0, 0]):
     in_matricies = np.zeros(shape=(4, 4), dtype=np.float32)
@@ -128,6 +126,8 @@ def get_rotation_matrix(angles: typing.List[int], offsets: typing.List[int] = [0
     in_matricies[1, 3] = offsets[1]
 
     return in_matricies.T
+
+print("Time to setup:")
 
 @vd.compute_shader(vd.complex64[0])
 def fill_buffer(buf):
