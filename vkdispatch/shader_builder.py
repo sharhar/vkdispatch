@@ -95,8 +95,6 @@ class BufferStructureProxy:
         return result[:-1]
 
     def get_bytes(self):
-        print("Prolog:", self.prologue)
-
         return b"".join([elem.tobytes() for elem in self.pc_list]) + self.prologue
 
 

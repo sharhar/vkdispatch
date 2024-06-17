@@ -8,7 +8,7 @@ import tqdm
 import typing
 
 
-vd.initialize(log_level=vd.LogLevel.INFO)
+#vd.initialize(log_level=vd.LogLevel.INFO)
 #vd.make_context(devices=[0, 1, 2, 3], queue_families=[[0, 2, 2, 2]])
 
 current_time = time.time()
@@ -89,7 +89,11 @@ def init_accumulators(max_cross, best_index):
 
 init_accumulators[max_cross.size](max_cross, best_index)
 
-print("Time to setup:")
+print(init_accumulators)
+
+time.sleep(4)
+
+exit()
 
 def get_rotation_matrix(angles: typing.List[int], offsets: typing.List[int] = [0, 0]):
     in_matricies = np.zeros(shape=(4, 4), dtype=np.float32)
@@ -126,8 +130,6 @@ def get_rotation_matrix(angles: typing.List[int], offsets: typing.List[int] = [0
     in_matricies[1, 3] = offsets[1]
 
     return in_matricies.T
-
-print("Time to setup:")
 
 @vd.compute_shader(vd.complex64[0])
 def fill_buffer(buf):

@@ -29,7 +29,7 @@ static VkBool32 VKAPI_PTR vulkan_custom_debug_callback(
         // Remove the prefix and substring
         size_t start_index = substring_location + shader_print_substring.size();
 
-        log_message(LOG_LEVEL_ERROR, "[SHADER PRINT] ", "\n", "%s", NULL, 0, message_str.substr(start_index).c_str());
+        log_message(LOG_LEVEL_ERROR, "[SHADER PRINT] ", "\n", NULL, 0, message_str.substr(start_index).c_str());
         return VK_FALSE;
     }
 
