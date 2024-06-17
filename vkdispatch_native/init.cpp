@@ -277,6 +277,7 @@ void init_extern(bool debug, LogLevel log_level) {
         _instance.device_details[i].max_push_constant_size = properties.limits.maxPushConstantsSize;
         _instance.device_details[i].max_storage_buffer_range = properties.limits.maxStorageBufferRange;
         _instance.device_details[i].max_uniform_buffer_range = properties.limits.maxUniformBufferRange;
+        _instance.device_details[i].uniform_buffer_alignment = properties.limits.minUniformBufferOffsetAlignment;
 
         _instance.device_details[i].subgroup_size = subgroupProperties.subgroupSize;
         _instance.device_details[i].supported_stages = subgroupProperties.supportedStages;

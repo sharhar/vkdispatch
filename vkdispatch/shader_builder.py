@@ -9,7 +9,7 @@ import numpy as np
 import vkdispatch as vd
 
 
-class PushConstantBuffer:
+class BufferStructureProxy:
     """TODO: Docstring"""
 
     pc_dict: Dict[str, Tuple[int, vd.dtype]]
@@ -18,16 +18,25 @@ class PushConstantBuffer:
     var_types: List[vd.dtype]
     numpy_dtypes: List
     size: int
+    data_size: int
+    prologue: bytes
     index: int
+    alignment: int
 
-    def __init__(self, pc_dict: dict) -> None:
+    def __init__(self, pc_dict: dict, alignment: int) -> None:
         self.pc_dict = copy.deepcopy(pc_dict)
         self.ref_dict = {}
         self.pc_list = [None] * len(self.pc_dict)
         self.var_types = [None] * len(self.pc_dict)
         self.numpy_dtypes = [None] * len(self.pc_dict)
+        self.data_size = 0
+        self.prologue = b""
         self.size = 0
         self.index = 0
+        self.alignment = alignment
+
+        #uniform_alignment = vd.get_context().device_infos[0].uniform_buffer_alignment
+        #self.static_constants_size = int(np.ceil(uniform_buffer.size / float(uniform_alignment))) * int(uniform_alignment)
 
         # Populate the push constant buffer with the given dictionary
         for key, val in self.pc_dict.items():
@@ -42,7 +51,14 @@ class PushConstantBuffer:
             )
             self.var_types[ii] = var_type
 
-            self.size += var_type.item_size
+            self.data_size += var_type.item_size
+        
+        if self.alignment == 0:
+            self.size = self.data_size
+        else:
+            self.size = int(np.ceil(self.data_size / self.alignment)) * self.alignment
+
+            self.prologue = b"\x00" * (self.size - self.data_size)
 
     def __setitem__(
         self, key: str, value: Union[np.ndarray, list, tuple, int, float]
@@ -79,7 +95,35 @@ class PushConstantBuffer:
         return result[:-1]
 
     def get_bytes(self):
-        return b"".join([elem.tobytes() for elem in self.pc_list])
+        return b"".join([elem.tobytes() for elem in self.pc_list]) + self.prologue
+
+
+class BufferStructure:
+    my_dict: Dict[str, Tuple[int, vd.dtype]]
+    my_list: List[Tuple[str, vd.dtype, str]]
+    my_size: int
+
+    def __init__(self, ) -> None:
+        self.my_dict = {}
+        self.my_list = []
+        self.my_size = 0
+    
+    def register_element(self, var_name: str, var_type: vd.dtype, var_decleration: str):
+        self.my_list.append((var_name, var_type, var_decleration))
+        self.my_size += var_type.item_size
+
+    def build(self) -> Tuple[str, Dict[str, Tuple[int, vd.dtype]]]:
+        self.my_list.sort(key=lambda x: x[1].alignment_size, reverse=True)
+        self.my_dict = {elem[0]: (ii, elem[1]) for ii, elem in enumerate(self.my_list)}
+
+        if len(self.my_list) == 0:
+            return "", None
+
+        buffer_decleration_contents = "\n".join(
+            [f"\t{elem[2]}" for elem in self.my_list]
+        )
+
+        return buffer_decleration_contents, self.my_dict
 
 
 class ShaderBuilder:
@@ -87,12 +131,11 @@ class ShaderBuilder:
 
     var_count: int
     binding_count: int
-    pc_dict: Dict[str, Tuple[int, vd.dtype]]
-    pc_list: List[Tuple[str, vd.dtype, str]]
     binding_list: List[Tuple[str, str]]
     shared_buffers: List[Tuple[vd.dtype, int, vd.ShaderVariable]]
-    pc_size: int
     scope_num: int
+    pc_struct: BufferStructure
+    uniform_struct: BufferStructure
 
     global_x: vd.ShaderVariable
     global_y: vd.ShaderVariable
@@ -125,12 +168,11 @@ class ShaderBuilder:
 
     def __init__(self) -> None:
         self.var_count = 0
-        self.binding_count = 0
-        self.pc_dict = {}
-        self.pc_list = []
+        self.binding_count = 1
+        self.pc_struct = BufferStructure()
+        self.uniform_struct = BufferStructure()
         self.binding_list = []
         self.shared_buffers = []
-        self.pc_size = 0
         self.scope_num = 1
 
         self.global_x = self.make_var(vd.uint32, "gl_GlobalInvocationID.x")
@@ -169,12 +211,11 @@ class ShaderBuilder:
 
     def reset(self) -> None:
         self.var_count = 0
-        self.binding_count = 0
-        self.pc_dict = {}
-        self.pc_list = []
+        self.binding_count = 1
+        self.pc_struct = BufferStructure()
+        self.uniform_struct = BufferStructure()
         self.binding_list = []
         self.shared_buffers = []
-        self.pc_size = 0
         self.scope_num = 1
         self.contents = ""
 
@@ -205,16 +246,23 @@ class ShaderBuilder:
 
         return f"{var_type.glsl_type} {var_name}{is_buffer}{suffix};"
 
-    def push_constant(self, var_type: vd.dtype, var_name: str):
-        new_var = self.make_var(var_type, f"PC.{var_name}")
-        self.pc_list.append((var_name, var_type, self.get_variable_decleration(var_name, var_type, []))) #f"{var_type.glsl_type} {var_name};"))
-        self.pc_size += var_type.item_size
+    def static_constant(self, var_type: vd.dtype, var_name: str):
+        new_var = self.make_var(var_type, f"UBO.{var_name}")
+        self.uniform_struct.register_element(var_name, var_type, self.get_variable_decleration(var_name, var_type, []))
         return new_var
 
+    def dynamic_constant(self, var_type: vd.dtype, var_name: str):
+        new_var = self.make_var(var_type, f"PC.{var_name}")
+        self.pc_struct.register_element(var_name, var_type, self.get_variable_decleration(var_name, var_type, []))
+        return new_var
+    
     def new(self, var_type: vd.dtype, *args, var_name: str = None):
         new_var = self.make_var(var_type, var_name)
         self.append_contents(self.get_variable_decleration(new_var, var_type, args))
         return new_var
+    
+    def push_constant(self, var_type: vd.dtype, var_name: str):
+        return self.dynamic_constant(var_type, var_name)
 
     def dynamic_buffer(self, var_type: vd.dtype, var_name: str = None):
         buffer_name = f"buf{self.binding_count}" if var_name is None else var_name
@@ -351,28 +399,28 @@ class ShaderBuilder:
     def append_contents(self, contents: str) -> None:
         self.contents += ("\t" * self.scope_num) + contents
 
-    def build(self, x: int, y: int, z: int) -> str:
-        self.pc_list.sort(key=lambda x: x[1].alignment_size, reverse=True)
-        self.pc_dict = {elem[0]: (ii, elem[1]) for ii, elem in enumerate(self.pc_list)}
-
+    def build(self, x: int, y: int, z: int) -> Tuple[str, int, Dict[str, Tuple[int, vd.dtype]], Dict[str, Tuple[int, vd.dtype]]]:
         header = "" + self.pre_header
 
         for shared_buffer in self.shared_buffers:
             header += f"shared {shared_buffer[0].glsl_type} {shared_buffer[2]}[{shared_buffer[1]}];\n"
 
+        uniform_decleration_contents, uniform_dict = self.uniform_struct.build()
+        
+        if len(uniform_decleration_contents) > 0:
+            header += f"\nlayout(set = 0, binding = 0) uniform UniformObjectBuffer {{\n { uniform_decleration_contents } \n}} UBO;\n"
+        
         for ii, binding in enumerate(self.binding_list):
-            header += f"layout(set = 0, binding = {ii}) buffer Buffer{ii} {{ {self.get_variable_decleration('data', binding[0], [])} }} {binding[1]};\n"
-
-        if self.pc_list:
-            push_constant_contents = "\n".join(
-                [f"\t{elem[2]}" for elem in self.pc_list]
-            )
-
-            header += f"\nlayout(push_constant) uniform PushConstant {{\n { push_constant_contents } \n}} PC;\n"
-
+            header += f"layout(set = 0, binding = {ii + 1}) buffer Buffer{ii + 1} {{ {self.get_variable_decleration('data', binding[0], [])} }} {binding[1]};\n"
+        
+        pc_decleration_contents, pc_dict = self.pc_struct.build()
+        
+        if len(pc_decleration_contents) > 0:
+            header += f"\nlayout(push_constant) uniform PushConstant {{\n { pc_decleration_contents } \n}} PC;\n"
+        
         layout_str = f"layout(local_size_x = {x}, local_size_y = {y}, local_size_z = {z}) in;"
 
-        return f"{header}\n{layout_str}\nvoid main() {{\n{self.contents}\n}}\n"
+        return f"{header}\n{layout_str}\nvoid main() {{\n{self.contents}\n}}\n", self.pc_struct.my_size, pc_dict, uniform_dict
 
 
 shader = ShaderBuilder()

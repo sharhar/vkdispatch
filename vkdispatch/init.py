@@ -77,6 +77,7 @@ class DeviceInfo:
         max_push_constant_size: int,
         max_storage_buffer_range: int,
         max_uniform_buffer_range: int,
+        uniform_buffer_alignment: int,
         sub_group_size: int,
         supported_stages: int,
         supported_operations: int,
@@ -111,6 +112,7 @@ class DeviceInfo:
         self.max_push_constant_size = max_push_constant_size
         self.max_storage_buffer_range = max_storage_buffer_range
         self.max_uniform_buffer_range = max_uniform_buffer_range
+        self.uniform_buffer_alignment = uniform_buffer_alignment
 
         self.sub_group_size = sub_group_size
         self.supported_stages = supported_stages
@@ -144,6 +146,7 @@ class DeviceInfo:
         result += f"\tMax Push Constant Size: {self.max_push_constant_size}\n"
         result += f"\tMax Storage Buffer Range: {self.max_storage_buffer_range}\n"
         result += f"\tMax Uniform Buffer Range: {self.max_uniform_buffer_range}\n"
+        result += f"\tUniform Buffer Alignment: {self.uniform_buffer_alignment}\n"
 
         result += f"\tSubgroup Size: {self.sub_group_size}\n"
         result += f"\tSupported Stages: {hex(self.supported_stages)}\n"

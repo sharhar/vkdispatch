@@ -1,6 +1,7 @@
 from typing import Any
 from typing import Callable
 from typing import List
+from typing import Dict
 
 import copy
 
@@ -15,15 +16,21 @@ class CommandList:
 
     _handle: int
     _reset_on_submit: bool
-    pc_buffers: List
-    descriptor_sets: List
+    pc_buffers: "List[vd.BufferStructureProxy]"
+    uniform_buffers: "List[vd.BufferStructureProxy]"
+    descriptor_sets: "List[vd.DescriptorSet]"
 
     def __init__(self, reset_on_submit: bool = False) -> None:
         self._handle = vkdispatch_native.command_list_create(vd.get_context_handle())
         vd.check_for_errors()
         self.pc_buffers = []
+        self.uniform_buffers = []
         self.descriptor_sets = []
         self._reset_on_submit = reset_on_submit
+
+        self.static_constants_size = 0
+        self.static_constants_valid = False
+        self.static_constant_buffer = vd.Buffer(shape=(1024,), var_type=vd.uint32) # Create a base static constants buffer at size 4k bytes
 
     def __del__(self) -> None:
         pass  # vkdispatch_native.command_list_destroy(self._handle)
@@ -34,14 +41,23 @@ class CommandList:
         vd.check_for_errors()
         return result
 
-    def add_pc_buffer(self, pc_buffer: "vd.PushConstantBuffer") -> None:
+    def add_pc_buffer(self, pc_buffer: "vd.BufferStructureProxy") -> None:
         """Add a push constant buffer to the command list."""
         pc_buffer.index = len(self.pc_buffers)
         self.pc_buffers.append(pc_buffer)
 
-    def add_desctiptor_set(self, descriptor_set: "vd.descriptor_set") -> None:
+    def add_desctiptor_set_and_static_constants(self, descriptor_set: "vd.DescriptorSet", constants_buffer_proxy: "vd.BufferStructureProxy") -> None:
         """Add a descriptor set to the command list."""
         self.descriptor_sets.append(descriptor_set)
+
+        self.static_constants_size += constants_buffer_proxy.size
+        self.uniform_buffers.append(constants_buffer_proxy)
+
+        if(self.static_constants_size > self.static_constant_buffer.size):
+            new_size = int(np.ceil(self.static_constants_size / 4))
+            self.static_constant_buffer = vd.Buffer(shape=(new_size,), var_type=vd.uint32)
+        
+        self.static_constants_valid = False
 
     def reset(self) -> None:
         """Reset the command list by clearing the push constant buffer and descriptor
@@ -49,10 +65,15 @@ class CommandList:
         """
         self.pc_buffers = []
         self.descriptor_sets = []
+        self.uniform_buffers = []
+
+        self.static_constants_size = 0
+        self.static_constants_valid = False
+
         vkdispatch_native.command_list_reset(self._handle)
         vd.check_for_errors()
 
-    def submit(self, device_index: int = 0, data: bytes = None, stream_index: int = -2) -> None:
+    def submit(self, data: bytes = None, stream_index: int = -2) -> None:
         """Submit the command list to the specified device with additional data to
         append to the front of the command list.
         
@@ -61,6 +82,18 @@ class CommandList:
                 Default is 0.
         data (bytes): The additional data to append to the front of the command list.
         """
+        if not self.static_constants_valid:
+            static_data = b""
+            for ii, uniform_buffer in enumerate(self.uniform_buffers):
+                #print(ii, uniform_buffer.get_bytes())
+                self.descriptor_sets[ii].bind_buffer(self.static_constant_buffer, 0, len(static_data), uniform_buffer.size)
+                static_data += uniform_buffer.get_bytes()
+
+            self.static_constant_buffer.write(static_data)
+            self.static_constants_valid = True
+
+            #print("Static Constants Buffer", len(static_data))
+
         instances = None
 
         if data is None:

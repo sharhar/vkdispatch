@@ -31,9 +31,9 @@ inline void log_message(LogLevel log_level, const char* prefix, const char* post
         va_start(args, format);
 
         if(file_str != NULL) {
-            printf("[%s %s:%d]", prefix, file_str, line_str);
+            printf("[%s %s:%d] ", prefix, file_str, line_str);
         } else {
-            printf("[%s]", prefix);
+            printf("[%s] ", prefix);
         }
 
         vprintf(format, args);
@@ -149,6 +149,7 @@ struct WorkInfo {
     char* instance_data;
     int index;
     unsigned int instance_count;
+    unsigned int instance_size;
     Signal* signal;
 };
 
@@ -158,7 +159,7 @@ public:
 
     void stop();
     void push(struct WorkInfo elem);
-    bool pop(struct WorkInfo* elem, std::function<bool(struct WorkInfo arg)> check);
+    bool pop(struct WorkInfo* elem, std::function<bool(const struct WorkInfo& arg)> check, std::function<void(const struct WorkInfo& arg)> finalize);
 
     std::mutex mutex;
     std::condition_variable cv_push;
@@ -181,6 +182,8 @@ public:
     VkDevice device;
     VkQueue queue;
     VkCommandPool commandPool;
+    void* data_buffer;
+    size_t data_buffer_size;
     
     std::vector<VkCommandBuffer> commandBuffers;
     std::vector<VkFence> fences;
