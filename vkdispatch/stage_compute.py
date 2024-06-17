@@ -12,9 +12,11 @@ class ComputePlan:
         self.binding_count = binding_count
         self.pc_size = pc_size
         self.shader_source = shader_source
+        self.binding_list = [1] * self.binding_count
+        self.binding_list[0] = 3
 
         self._handle = vkdispatch_native.stage_compute_plan_create(
-            vd.get_context_handle(), shader_source.encode(), binding_count, pc_size
+            vd.get_context_handle(), shader_source.encode(), self.binding_list, pc_size
         )
         vd.check_for_errors()
 

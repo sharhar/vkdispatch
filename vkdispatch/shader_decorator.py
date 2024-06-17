@@ -127,11 +127,9 @@ def compute_shader(*args, local_size: Tuple[int, int, int] = None):
 
         pc_exec_count_var = builder.static_constant(vd.uvec4, "exec_count")
 
-        vd.shader.print("Hello") #pc_exec_count_var)
-
-        #builder.if_statement(pc_exec_count_var[0] <= builder.global_x)
-        #builder.return_statement()
-        #builder.end()
+        builder.if_statement(pc_exec_count_var[0] <= builder.global_x)
+        builder.return_statement()
+        builder.end()
 
         func_args = []
 
