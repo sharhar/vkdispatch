@@ -99,6 +99,7 @@ void Stream::destroy() {
 }
 
 void Stream::wait_idle() {
+    LOG_INFO("Waiting for stream %d to be idle", stream_index);
     Signal* signal = new Signal();
     command_list_submit_extern(this->command_list, NULL, 1, &stream_index, 1, 0, signal);
     signal->wait();
@@ -117,6 +118,8 @@ void Stream::thread_worker() {
             data_buffer_size = work_info.instance_count * work_info.instance_size;
             data_buffer = realloc(data_buffer, data_buffer_size);
         }
+
+        printf("Copying %d bytes of data to buffer %p\n", work_info.instance_count * work_info.instance_size, data_buffer);
 
         memcpy(data_buffer, work_info.instance_data, work_info.instance_count * work_info.instance_size);
     })) {

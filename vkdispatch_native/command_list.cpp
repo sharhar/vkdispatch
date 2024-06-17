@@ -59,21 +59,26 @@ void command_list_get_instance_size_extern(struct CommandList* command_list, uns
 }
 
 void command_list_reset_extern(struct CommandList* command_list) {
-    LOG_VERBOSE("Waiting for command list to be idle");
+    LOG_INFO("Waiting for command list to be idle");
 
     context_wait_idle_extern(command_list->ctx);
 
-    LOG_VERBOSE("Resetting command list with handle %p", command_list);
+    LOG_INFO("Resetting command list with handle %p", command_list);
 
     for(int i = 0; i < command_list->stages.size(); i++) {
         free(command_list->stages[i].user_data);
     }
 
+    LOG_INFO("Clearing command list stages and staging spaces");
+
     command_list->stages.clear();
     command_list->instance_size = 0;
 
+    LOG_INFO("Clearing staging spaces");
+
     for(int i = 0; i < command_list->staging_spaces.size(); i++) {
         if(command_list->staging_spaces[i] != nullptr) {
+            LOG_INFO("Freeing staging space %p", command_list->staging_spaces[i]);
             free(command_list->staging_spaces[i]);
             command_list->staging_spaces[i] = nullptr;
         }
@@ -94,7 +99,7 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
     char* instance_buffer_ptr = NULL;
     if(command_list->instance_size > 0) {
         instance_buffer_ptr = command_list->staging_spaces[command_list->staging_index];
-        LOG_VERBOSE("Copying instance buffer to staging space %p with size %d and count %d", instance_buffer_ptr, command_list->instance_size, instance_count);
+        LOG_INFO("Copying instance buffer to staging space %p with size %d and count %d", instance_buffer_ptr, command_list->instance_size, instance_count);
         command_list->staging_index = (command_list->staging_index + 1) % command_list->staging_count;
         memcpy(instance_buffer_ptr, instance_buffer, command_list->instance_size * instance_count);
     }
