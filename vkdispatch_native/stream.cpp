@@ -119,8 +119,6 @@ void Stream::thread_worker() {
             data_buffer = realloc(data_buffer, data_buffer_size);
         }
 
-        printf("Copying %d bytes of data to buffer %p\n", work_info.instance_count * work_info.instance_size, data_buffer);
-
         memcpy(data_buffer, work_info.instance_data, work_info.instance_count * work_info.instance_size);
     })) {
         VK_CALL(vkWaitForFences(device, 1, &fences[current_index], VK_TRUE, UINT64_MAX));

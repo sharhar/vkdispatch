@@ -98,9 +98,7 @@ class ShaderDispatcher:
                     cmd_list.add_pc_buffer(pc_buff)
                 cmd_list.add_desctiptor_set_and_static_constants(descriptor_set, static_constant_buffer)
                 self.plan.record(cmd_list, descriptor_set, my_blocks)
-                print("Submitting Command List")
                 cmd_list.submit()
-                print("Command List Submitted")
                 return
 
             if my_cmd_list[0] is None:

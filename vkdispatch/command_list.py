@@ -70,10 +70,7 @@ class CommandList:
         self.static_constants_size = 0
         self.static_constants_valid = False
 
-        print("Resetting Command List 22222")
-
         vkdispatch_native.command_list_reset(self._handle)
-        print("Reset 22222")
         vd.check_for_errors()
 
     def submit(self, data: bytes = None, stream_index: int = -2) -> None:
@@ -120,18 +117,14 @@ class CommandList:
 
             instances = len(data) // self.get_instance_size()
 
-        print("Instances", instances)
 
         vkdispatch_native.command_list_submit(
             self._handle, data, instances, 1, [stream_index], False
         )
-        print("Submit")
         vd.check_for_errors()
 
         if self._reset_on_submit:
-            print("Resetting")
             self.reset()
-            print("Reset")
     
     def iter_batched_params(self, mapping_function, param_iter, batch_size: int = 10):
         data = b""
