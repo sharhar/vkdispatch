@@ -103,22 +103,27 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
 
         std::vector<VkDescriptorSetLayoutBinding> bindings;
         for (int j = 0; j < create_info->binding_count; j++) {
-            if(create_info->descriptorTypes[j] != DESCRIPTOR_TYPE_STORAGE_BUFFER) {
-                LOG_ERROR("Only storage buffers are supported for now");
+            if(create_info->descriptorTypes[j] != DESCRIPTOR_TYPE_STORAGE_BUFFER &&
+               create_info->descriptorTypes[j] != DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
+                LOG_ERROR("Only storage and uniform buffers are supported for now");
                 return NULL;
             }
+
+            VkDescriptorType descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            if(create_info->descriptorTypes[j] == DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+                descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
             VkDescriptorSetLayoutBinding binding;
             memset(&binding, 0, sizeof(VkDescriptorSetLayoutBinding));
             binding.binding = j;
-            binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            binding.descriptorType = descriptorType;
             binding.descriptorCount = 1;
             binding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
             bindings.push_back(binding);
 
             VkDescriptorPoolSize poolSize;
             memset(&poolSize, 0, sizeof(VkDescriptorPoolSize));
-            poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            poolSize.type = descriptorType;
             poolSize.descriptorCount = 1;
             plan->poolSizes[i].push_back(poolSize);
         }
