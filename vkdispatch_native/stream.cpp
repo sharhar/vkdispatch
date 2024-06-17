@@ -5,6 +5,8 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
     this->device = device;
     this->queue = queue;
     this->stream_index = stream_index;
+    this->data_buffer = malloc(1024 * 1024);
+    this->data_buffer_size = 1024 * 1024;
 
     LOG_INFO("Creating stream with device %p, queue %p, queue family index %d", device, queue, queueFamilyIndex);
 
@@ -108,8 +110,15 @@ void Stream::thread_worker() {
     int device_index = ctx->stream_indicies[stream_index].first;
 
     struct WorkInfo work_info = {};
-    while (ctx->work_queue->pop(&work_info, [this] (struct WorkInfo work_info) {
+    while (ctx->work_queue->pop(&work_info, [this] (const struct WorkInfo& work_info) {
         return work_info.index == stream_index || work_info.index == -1;
+    }, [this] (const struct WorkInfo& work_info) {
+        if(data_buffer_size < work_info.instance_count * work_info.instance_size) {
+            data_buffer_size = work_info.instance_count * work_info.instance_size;
+            data_buffer = realloc(data_buffer, data_buffer_size);
+        }
+
+        memcpy(data_buffer, work_info.instance_data, work_info.instance_count * work_info.instance_size);
     })) {
         VK_CALL(vkWaitForFences(device, 1, &fences[current_index], VK_TRUE, UINT64_MAX));
         VK_CALL(vkResetFences(device, 1, &fences[current_index]));
@@ -119,7 +128,7 @@ void Stream::thread_worker() {
         beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         VK_CALL(vkBeginCommandBuffer(commandBuffers[current_index], &beginInfo));
 
-        LOG_INFO("Recording command buffer %d for stream %d", current_index, stream_index);
+        LOG_VERBOSE("Recording command buffer %d for stream %d", current_index, stream_index);
 
         VkMemoryBarrier memory_barrier = {
             VK_STRUCTURE_TYPE_MEMORY_BARRIER,
@@ -128,7 +137,7 @@ void Stream::thread_worker() {
             VK_ACCESS_MEMORY_READ_BIT,
         };
         
-        char* current_instance_data = work_info.instance_data;
+        char* current_instance_data = (char*)data_buffer;// work_info.instance_data;
         for(size_t instance = 0; instance < work_info.instance_count; instance++) {
             LOG_VERBOSE("Recording instance %d", instance);
 
@@ -166,7 +175,7 @@ void Stream::thread_worker() {
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = &semaphores[current_index];
 
-        LOG_INFO("Submitting command buffer waiting on sempahore %p and signaling semaphore %p", semaphores[last_index], semaphores[current_index]);
+        LOG_VERBOSE("Submitting command buffer waiting on sempahore %p and signaling semaphore %p", semaphores[last_index], semaphores[current_index]);
         
         VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[last_index]));        
         

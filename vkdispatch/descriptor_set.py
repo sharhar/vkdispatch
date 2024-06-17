@@ -13,6 +13,6 @@ class DescriptorSet:
 
     def bind_buffer(self, buffer: vd.Buffer, binding: int, offset: int = 0, range: int = 0) -> None:
         vkdispatch_native.descriptor_set_write_buffer(
-            self._handle, binding, buffer._handle, offset, range
+            self._handle, binding, buffer._handle, offset, range, 0
         )
         vd.check_for_errors()

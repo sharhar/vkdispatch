@@ -8,7 +8,7 @@ import tqdm
 import typing
 
 
-#vd.initialize(log_level=vd.LogLevel.INFO)
+vd.initialize(log_level=vd.LogLevel.INFO)
 #vd.make_context(devices=[0, 1, 2, 3], queue_families=[[0, 2, 2, 2]])
 
 current_time = time.time()
@@ -33,9 +33,9 @@ sigma = 0.3
 #theta_values = np.arange(0, 180, 2.5)
 #psi_values = np.arange(0, 360, 1.5)
 
-phi_values = np.arange(100, 200, 1)
-theta_values = np.arange(70, 100, 1)
-psi_values = np.arange(280, 340, 1)
+phi_values = np.arange(100, 200, 2.5)
+theta_values = np.arange(70, 100, 2.5)
+psi_values = np.arange(280, 340, 1.5)
 
 template_size = (512, 512)# (380, 380)
 
@@ -46,7 +46,7 @@ if len(sys.argv) > 4:
 #theta_values = np.arange(75, 85, 2.5)
 #psi_values = np.arange(320, 330, 1.5)
 
-defocus_values = np.arange(10000, 16000, 50)
+defocus_values = np.arange(10000, 16000, 100)
 test_values = (np.array(np.meshgrid(phi_values, theta_values, psi_values, defocus_values)).T.reshape(-1, 4))
 
 atom_data = np.load(sys.argv[3])
@@ -88,6 +88,10 @@ def init_accumulators(max_cross, best_index):
     best_index[ind] = -1
 
 init_accumulators[max_cross.size](max_cross, best_index)
+
+print(init_accumulators)
+
+exit()
 
 def get_rotation_matrix(angles: typing.List[int], offsets: typing.List[int] = [0, 0]):
     in_matricies = np.zeros(shape=(4, 4), dtype=np.float32)

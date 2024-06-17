@@ -27,7 +27,7 @@ void Queue::push(struct WorkInfo elem) {
             return true;
         }
 
-        LOG_INFO("Checking for room");
+        LOG_VERBOSE("Checking for room");
         return this->data.size() < this->max_size;
     });
 
@@ -40,7 +40,7 @@ void Queue::push(struct WorkInfo elem) {
     }
 }
 
-bool Queue::pop(struct WorkInfo* elem, std::function<bool(struct WorkInfo arg)> check) {
+bool Queue::pop(struct WorkInfo* elem, std::function<bool(const struct WorkInfo& arg)> check, std::function<void(const struct WorkInfo& arg)> finalize) {
     std::unique_lock<std::mutex> lock(this->mutex);
 
     int found_index = -1;
@@ -70,6 +70,9 @@ bool Queue::pop(struct WorkInfo* elem, std::function<bool(struct WorkInfo arg)> 
         return false;
 
     *elem = this->data[found_index];
+
+    finalize(this->data[found_index]);
+
     this->data.erase(this->data.begin() + found_index);
     this->cv_pop.notify_all();
 

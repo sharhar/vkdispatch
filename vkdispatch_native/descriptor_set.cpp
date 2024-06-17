@@ -40,7 +40,7 @@ void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set) {
     delete descriptor_set;
 }
 
-void descriptor_set_write_buffer_extern(struct DescriptorSet* descriptor_set, unsigned int binding, void* object, unsigned long long offset, unsigned long long range) {
+void descriptor_set_write_buffer_extern(struct DescriptorSet* descriptor_set, unsigned int binding, void* object, unsigned long long offset, unsigned long long range, int uniform) {
     struct Buffer* buffer = (struct Buffer*)object;
 
     for (int i = 0; i < descriptor_set->plan->ctx->stream_indicies.size(); i++) {
@@ -61,7 +61,7 @@ void descriptor_set_write_buffer_extern(struct DescriptorSet* descriptor_set, un
         writeDescriptor.dstBinding = binding;
         writeDescriptor.dstArrayElement = 0;
         writeDescriptor.descriptorCount = 1;
-        writeDescriptor.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writeDescriptor.descriptorType = uniform == 1 ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         writeDescriptor.pImageInfo = NULL;
         writeDescriptor.pBufferInfo = &buffDesc;
         writeDescriptor.pTexelBufferView = NULL;

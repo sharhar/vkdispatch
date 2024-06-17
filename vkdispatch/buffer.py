@@ -34,7 +34,7 @@ class Buffer:
     def __del__(self) -> None:
         pass  # vkdispatch_native.buffer_destroy(self._handle)
 
-    def write(self, data: np.ndarray, index: int = -1) -> None:
+    def write(self, data: Union[bytes, np.ndarray], index: int = -1) -> None:
         """Given data in some numpy array, write that data to the buffer at the
         specified index. The default index of -1 will write to
         all buffers.
@@ -56,11 +56,21 @@ class Buffer:
             raise ValueError(f"Invalid stream index {index}!")
 
 
-        if data.size * np.dtype(data.dtype).itemsize != self.mem_size:
-            raise ValueError("Numpy buffer sizes must match!")
+        true_data_object = None
+
+        if isinstance(data, np.ndarray):
+            if data.size * np.dtype(data.dtype).itemsize != self.mem_size:
+                raise ValueError("Numpy buffer sizes must match!")
+
+            true_data_object = np.ascontiguousarray(data).tobytes()
+        else:
+            if len(data) > self.mem_size:
+                raise ValueError("Data Size must be less than buffer size")
+
+            true_data_object = data
 
         vkdispatch_native.buffer_write(
-            self._handle, np.ascontiguousarray(data), 0, self.mem_size, index
+            self._handle, true_data_object, 0, len(true_data_object), index
         )
         vd.check_for_errors()
 
