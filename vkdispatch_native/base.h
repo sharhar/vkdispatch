@@ -27,4 +27,6 @@ struct FFTPlan;
 struct ComputePlan;
 struct DescriptorSet;
 
- #endif // BASE_H
+class Signal;
+
+#endif // BASE_H

@@ -74,15 +74,6 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
     command.pipeline_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
     command_list_record_command(command_list, command, false);    
-    
-    //command_list_record_stage(command_list,{
-    //    [] (VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
-
-    //    },
-    //    NULL,
-    //    0,
-    //    VK_PIPELINE_STAGE_TRANSFER_BIT
-    //}, false);
 
     work_thread = std::thread([this]() { this->thread_worker(); });
 }

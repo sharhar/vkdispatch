@@ -168,14 +168,6 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
 
 
 void stage_compute_record_extern(struct CommandList* command_list, struct ComputePlan* plan, struct DescriptorSet* descriptor_set, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z) {
-    //struct ComputeRecordInfo* my_compute_info = (struct ComputeRecordInfo*)malloc(sizeof(struct ComputeRecordInfo));
-    //my_compute_info->plan = plan;
-    //my_compute_info->descriptor_set = descriptor_set;
-    //my_compute_info->blocks_x = blocks_x;
-    //my_compute_info->blocks_y = blocks_y;
-    //my_compute_info->blocks_z = blocks_z;
-    //my_compute_info->pc_size = plan->pc_size;
-
     struct CommandInfo command = {};
     command.type = COMMAND_TYPE_COMPUTE;
     command.pipeline_stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
@@ -187,47 +179,6 @@ void stage_compute_record_extern(struct CommandList* command_list, struct Comput
     command.info.compute_info.pc_size = plan->pc_size;
 
     command_list_record_command(command_list, command);
-
-/*
-    command_list_record_stage(command_list, {
-        [](VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
-            LOG_VERBOSE("Executing Compute");
-
-            struct ComputeRecordInfo* my_compute_info = (struct ComputeRecordInfo*)stage->user_data;
-
-            //int device_index = my_compute_info->plan->ctx->stream_indicies[stream_index].first;
-
-            vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, my_compute_info->plan->pipelines[device_index]);
-
-            if(my_compute_info->descriptor_set != NULL)
-                vkCmdBindDescriptorSets(
-                    cmd_buffer,
-                    VK_PIPELINE_BIND_POINT_COMPUTE,
-                    my_compute_info->plan->pipelineLayouts[device_index],
-                    0,
-                    1,
-                    &my_compute_info->descriptor_set->sets[stream_index],
-                    0,
-                    NULL
-                );
-
-            if(my_compute_info->pc_size > 0)
-                vkCmdPushConstants(
-                    cmd_buffer, 
-                    my_compute_info->plan->pipelineLayouts[device_index],
-                    VK_SHADER_STAGE_COMPUTE_BIT,
-                    0,
-                    my_compute_info->pc_size,
-                    instance_data
-                );
-
-            vkCmdDispatch(cmd_buffer, my_compute_info->blocks_x, my_compute_info->blocks_y, my_compute_info->blocks_z);
-        },
-        my_compute_info,
-        plan->pc_size,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
-    });
-    */
 }
 
 void stage_compute_plan_exec_internal(VkCommandBuffer cmd_buffer, const struct ComputeRecordInfo& info, void* instance_data, int device_index, int stream_index) {

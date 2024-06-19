@@ -47,16 +47,8 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
     return plan;
 }
 
-
-
 void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* plan, struct Buffer* buffer, int inverse) {
     LOG_INFO("Recording FFT");
-
-    //struct FFTRecordInfo* my_fft_info = (struct FFTRecordInfo*)malloc(sizeof(struct FFTRecordInfo));
-    //my_fft_info->plan = plan;
-    //my_fft_info->buffer = buffer;
-    //my_fft_info->inverse = inverse;
-    
 
     if (buffer->per_device) {
         set_error("FFT cannot be performed on per-device buffer!");
@@ -71,32 +63,6 @@ void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* p
     command.info.fft_info.inverse = inverse;
 
     command_list_record_command(command_list, command);
-
-    //command_list_record_command(command_list, {
-    //    COMMAND_TYPE_FFT,
-    //    .fft_info = *my_fft_info
-    //});
-    
-    /*
-    command_list_record_stage(command_list, {
-        [](VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
-            LOG_VERBOSE("Executing FFT");
-
-            struct FFTRecordInfo* my_fft_info = (struct FFTRecordInfo*)stage->user_data;
-
-            my_fft_info->plan->launchParams[stream_index].buffer = &my_fft_info->buffer->buffers[stream_index];
-            my_fft_info->plan->launchParams[stream_index].commandBuffer = &cmd_buffer;
-
-            VkFFTResult fftRes = VkFFTAppend(&my_fft_info->plan->apps[stream_index], my_fft_info->inverse, &my_fft_info->plan->launchParams[stream_index]);
-            if (fftRes != VKFFT_SUCCESS) {
-                set_error("(VkFFTResult is %d) VkFFTAppend inside '%s' at %s:%d\n", fftRes, __FUNCTION__, __FILE__, __LINE__);
-            }
-        },
-        my_fft_info,
-        0,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
-    });
-    */
 }
 
 void stage_fft_plan_exec_internal(VkCommandBuffer cmd_buffer, const struct FFTRecordInfo& info, int device_index, int stream_index) {
