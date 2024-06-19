@@ -47,25 +47,37 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
     return plan;
 }
 
-struct FFTRecordInfo {
-    struct FFTPlan* plan;
-    struct Buffer* buffer;
-    int inverse;
-};
+
 
 void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* plan, struct Buffer* buffer, int inverse) {
     LOG_INFO("Recording FFT");
 
-    struct FFTRecordInfo* my_fft_info = (struct FFTRecordInfo*)malloc(sizeof(struct FFTRecordInfo));
-    my_fft_info->plan = plan;
-    my_fft_info->buffer = buffer;
-    my_fft_info->inverse = inverse;
+    //struct FFTRecordInfo* my_fft_info = (struct FFTRecordInfo*)malloc(sizeof(struct FFTRecordInfo));
+    //my_fft_info->plan = plan;
+    //my_fft_info->buffer = buffer;
+    //my_fft_info->inverse = inverse;
+    
 
     if (buffer->per_device) {
         set_error("FFT cannot be performed on per-device buffer!");
         return;
     }
 
+    struct CommandInfo command = {};
+    command.type = COMMAND_TYPE_FFT;
+    command.pipeline_stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    command.info.fft_info.plan = plan;
+    command.info.fft_info.buffer = buffer;
+    command.info.fft_info.inverse = inverse;
+
+    command_list_record_command(command_list, command);
+
+    //command_list_record_command(command_list, {
+    //    COMMAND_TYPE_FFT,
+    //    .fft_info = *my_fft_info
+    //});
+    
+    /*
     command_list_record_stage(command_list, {
         [](VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
             LOG_VERBOSE("Executing FFT");
@@ -84,4 +96,15 @@ void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* p
         0,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
     });
+    */
+}
+
+void stage_fft_plan_exec_internal(VkCommandBuffer cmd_buffer, const struct FFTRecordInfo& info, int device_index, int stream_index) {
+    info.plan->launchParams[stream_index].buffer = &info.buffer->buffers[stream_index];
+    info.plan->launchParams[stream_index].commandBuffer = &cmd_buffer;
+
+    VkFFTResult fftRes = VkFFTAppend(&info.plan->apps[stream_index], info.inverse, &info.plan->launchParams[stream_index]);
+    if (fftRes != VKFFT_SUCCESS) {
+        set_error("(VkFFTResult is %d) VkFFTAppend inside '%s' at %s:%d\n", fftRes, __FUNCTION__, __FILE__, __LINE__);
+    }
 }

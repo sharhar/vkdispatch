@@ -68,15 +68,21 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
     VK_CALL(vkQueueWaitIdle(queue));
 
     command_list = command_list_create_extern(ctx);
-    
-    command_list_record_stage(command_list,{
-        [] (VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
 
-        },
-        NULL,
-        0,
-        VK_PIPELINE_STAGE_TRANSFER_BIT
-    }, false);
+    struct CommandInfo command = {};
+    command.type = COMMAND_TYPE_NOOP;
+    command.pipeline_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+
+    command_list_record_command(command_list, command, false);    
+    
+    //command_list_record_stage(command_list,{
+    //    [] (VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
+
+    //    },
+    //    NULL,
+    //    0,
+    //    VK_PIPELINE_STAGE_TRANSFER_BIT
+    //}, false);
 
     work_thread = std::thread([this]() { this->thread_worker(); });
 }
@@ -142,21 +148,70 @@ void Stream::thread_worker() {
         for(size_t instance = 0; instance < work_info.instance_count; instance++) {
             LOG_VERBOSE("Recording instance %d", instance);
 
-            for (size_t i = 0; i < work_info.command_list->stages.size(); i++) {
-                LOG_VERBOSE("Recording stage %d", i);
-                work_info.command_list->stages[i].record(commandBuffers[current_index], &work_info.command_list->stages[i], current_instance_data, device_index, stream_index);
+            for (size_t i = 0; i < work_info.command_list->commands.size(); i++) {
+                LOG_VERBOSE("Recording command %d of %d", i, work_info.command_list->commands.size());
+                switch(work_info.command_list->commands[i].type) {
+                    case COMMAND_TYPE_NOOP: {
+                        break;
+                    }
+                    case COMMAND_TYPE_BUFFER_COPY: {
+                        stage_transfer_copy_buffer_exec_internal(commandBuffers[current_index], work_info.command_list->commands[i].info.buffer_copy_info, device_index, stream_index);
+                        break;
+                    }
+                    case COMMAND_TYPE_BUFFER_READ: {
+                        buffer_read_exec_internal(commandBuffers[current_index], work_info.command_list->commands[i].info.buffer_read_info, device_index, stream_index);
+                        break;
+                    }
+                    case COMMAND_TYPE_BUFFER_WRITE: {
+                        buffer_write_exec_internal(commandBuffers[current_index], work_info.command_list->commands[i].info.buffer_write_info, device_index, stream_index);
+                        break;   
+                    }
+                    case COMMAND_TYPE_FFT: {
+                        stage_fft_plan_exec_internal(commandBuffers[current_index], work_info.command_list->commands[i].info.fft_info, device_index, stream_index);
+                        break;
+                    }
+                    case COMMAND_TYPE_COMPUTE: {
+                        stage_compute_plan_exec_internal(commandBuffers[current_index], work_info.command_list->commands[i].info.compute_info, current_instance_data, device_index, stream_index);
+                        current_instance_data += work_info.command_list->commands[i].info.compute_info.pc_size;
+                        break;   
+                    }
+                    default: {
+                        //set_error("Unknown command type %d", work_info.command_list->commands[i].type);
+                        LOG_ERROR("Unknown command type %d", work_info.command_list->commands[i].type);
+                        return;
+                    }
+                }
+
                 RETURN_ON_ERROR(;)
 
-                if(i < work_info.command_list->stages.size() - 1)
+                if(i < work_info.command_list->commands.size() - 1)
                     vkCmdPipelineBarrier(
                         commandBuffers[current_index], 
-                        work_info.command_list->stages[i].stage, 
-                        work_info.command_list->stages[i+1].stage, 
+                        work_info.command_list->commands[i].pipeline_stage, 
+                        work_info.command_list->commands[i+1].pipeline_stage, 
                         0, 1, 
                         &memory_barrier, 
                         0, 0, 0, 0);
-                current_instance_data += work_info.command_list->stages[i].instance_data_size;
+                
+                
             }
+
+
+            //for (size_t i = 0; i < work_info.command_list->stages.size(); i++) {
+            //    LOG_VERBOSE("Recording stage %d", i);
+            //    work_info.command_list->stages[i].record(commandBuffers[current_index], &work_info.command_list->stages[i], current_instance_data, device_index, stream_index);
+            //    RETURN_ON_ERROR(;)
+
+            //    if(i < work_info.command_list->stages.size() - 1)
+            //        vkCmdPipelineBarrier(
+            //            commandBuffers[current_index], 
+            //            work_info.command_list->stages[i].stage, 
+            //            work_info.command_list->stages[i+1].stage, 
+            //            0, 1, 
+            //            &memory_barrier, 
+            //            0, 0, 0, 0);
+            //    current_instance_data += work_info.command_list->stages[i].instance_data_size;
+            //}
         }
 
         VK_CALL(vkEndCommandBuffer(commandBuffers[current_index]));

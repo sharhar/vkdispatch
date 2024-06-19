@@ -92,8 +92,6 @@ class CommandList:
                 self.static_constant_buffer.write(static_data)
             self.static_constants_valid = True
 
-            #print("Static Constants Buffer", len(static_data))
-
         instances = None
 
         if data is None:

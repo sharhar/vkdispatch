@@ -19,6 +19,8 @@ void Queue::push(struct WorkInfo elem) {
     auto start = std::chrono::high_resolution_clock::now();
 
     this->cv_pop.wait(lock, [this, start] () {
+        LOG_VERBOSE("Checking push");
+
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         
@@ -45,6 +47,8 @@ bool Queue::pop(struct WorkInfo* elem, std::function<bool(const struct WorkInfo&
 
     int found_index = -1;
     this->cv_push.wait(lock, [this, check, &found_index] () {
+        LOG_VERBOSE("Checking pop");
+
         if(!running)
             return true;
 
