@@ -18,12 +18,14 @@ struct CommandList* command_list_create_extern(struct Context* context) {
 void command_list_destroy_extern(struct CommandList* command_list) {
     LOG_INFO("Destroying command list with handle %p", command_list);
 
-    for(int i = 0; i < command_list->stages.size(); i++) {
-        free(command_list->stages[i].user_data);
-    }
+    //for(int i = 0; i < command_list->stages.size(); i++) {
+    //    free(command_list->stages[i].user_data);
+    //}
 
     delete command_list;
 }
+
+/*
 
 void command_list_record_stage(struct CommandList* command_list, struct Stage stage, bool sync) {
     if(sync)
@@ -46,11 +48,51 @@ void command_list_record_stage(struct CommandList* command_list, struct Stage st
         
 }
 
+*/
+
+void command_list_record_command(struct CommandList* command_list, struct CommandInfo command, bool sync) {
+    if(sync)
+        context_wait_idle_extern(command_list->ctx);
+
+    command_list->commands.push_back(command);
+    //command_list->stages.push_back(stage);
+
+    if(command.type == COMMAND_TYPE_COMPUTE) {
+        command_list->instance_size += command.info.compute_info.pc_size;
+
+        size_t new_size = command_list->instance_size * command_list->max_batch_count;
+        if(command.info.compute_info.pc_size != 0)
+            for(int i = 0; i < command_list->staging_spaces.size(); i++)
+                if(command_list->staging_spaces[i])
+                    command_list->staging_spaces[i] = (char*)realloc(command_list->staging_spaces[i], new_size);
+                else 
+                    command_list->staging_spaces[i] = (char*)malloc(new_size);
+
+        
+    }
+
+    //command_list->instance_size += stage.instance_data_size;
+    //LOG_VERBOSE("Recording stage with instance data size %d", stage.instance_data_size);    
+
+    //if(stage.instance_data_size != 0)
+    //    for(int i = 0; i < command_list->staging_spaces.size(); i++)
+    //        if(command_list->staging_spaces[i])
+    //            command_list->staging_spaces[i] = (char*)realloc(command_list->staging_spaces[i], new_size);
+    //        else 
+    //            command_list->staging_spaces[i] = (char*)malloc(new_size);
+}
+
 void command_list_get_instance_size_extern(struct CommandList* command_list, unsigned long long* instance_size) {
     size_t instance_data_size = 0;
 
-    for(int i = 0; i < command_list->stages.size(); i++) {
-        instance_data_size += command_list->stages[i].instance_data_size;
+    //for(int i = 0; i < command_list->stages.size(); i++) {
+    //    instance_data_size += command_list->stages[i].instance_data_size;
+    //}
+
+    for(int i = 0; i < command_list->commands.size(); i++) {
+        if(command_list->commands[i].type == COMMAND_TYPE_COMPUTE) {
+            instance_data_size += command_list->commands[i].info.compute_info.pc_size;
+        }
     }
 
     *instance_size = instance_data_size;
@@ -65,13 +107,14 @@ void command_list_reset_extern(struct CommandList* command_list) {
 
     LOG_INFO("Resetting command list with handle %p", command_list);
 
-    for(int i = 0; i < command_list->stages.size(); i++) {
-        free(command_list->stages[i].user_data);
-    }
+    //for(int i = 0; i < command_list->stages.size(); i++) {
+    //    free(command_list->stages[i].user_data);
+    //}
 
     LOG_INFO("Clearing command list stages and staging spaces");
 
-    command_list->stages.clear();
+    //command_list->stages.clear();
+    command_list->commands.clear();
     command_list->instance_size = 0;
 
     LOG_INFO("Clearing staging spaces");

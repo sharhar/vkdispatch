@@ -119,42 +119,65 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
         memcpy(mapped, data, size);
         vmaUnmapMemory(ctx->allocators[device_index], buffer->stagingAllocations[buffer_index]);
 
-        struct BufferWriteInfo {
-            struct Buffer* buffer;
-            unsigned long long offset;
-            unsigned long long size;
-        };
+        struct CommandInfo command = {};
+        command.type = COMMAND_TYPE_BUFFER_WRITE;
+        command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        command.info.buffer_write_info.buffer = buffer;
+        command.info.buffer_write_info.offset = offset;
+        command.info.buffer_write_info.size = size;
 
-        struct BufferWriteInfo* buffer_write_info = (struct BufferWriteInfo*)malloc(sizeof(*buffer_write_info));
-        buffer_write_info->buffer = buffer;
-        buffer_write_info->offset = offset;
-        buffer_write_info->size = size;
+        command_list_record_command(ctx->command_list, command);
 
-        command_list_record_stage(ctx->command_list, {
-            [] (VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
-                struct BufferWriteInfo* info = (struct BufferWriteInfo*)stage->user_data;
+        // struct BufferWriteInfo {
+        //     struct Buffer* buffer;
+        //     unsigned long long offset;
+        //     unsigned long long size;
+        // };
 
-                VkBufferCopy bufferCopy;
-                bufferCopy.size = info->size;
-                bufferCopy.dstOffset = info->offset;
-                bufferCopy.srcOffset = 0;
+        // struct BufferWriteInfo* buffer_write_info = (struct BufferWriteInfo*)malloc(sizeof(*buffer_write_info));
+        // buffer_write_info->buffer = buffer;
+        // buffer_write_info->offset = offset;
+        // buffer_write_info->size = size;
+
+        // command_list_record_stage(ctx->command_list, {
+        //     [] (VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
+        //         struct BufferWriteInfo* info = (struct BufferWriteInfo*)stage->user_data;
+
+        //         VkBufferCopy bufferCopy;
+        //         bufferCopy.size = info->size;
+        //         bufferCopy.dstOffset = info->offset;
+        //         bufferCopy.srcOffset = 0;
                 
-                int buffer_index = stream_index;
-                if(info->buffer->per_device) {
-                    buffer_index = device_index;
-                }
+        //         int buffer_index = stream_index;
+        //         if(info->buffer->per_device) {
+        //             buffer_index = device_index;
+        //         }
 
-                vkCmdCopyBuffer(cmd_buffer, info->buffer->stagingBuffers[buffer_index], info->buffer->buffers[buffer_index], 1, &bufferCopy);
-            },
-            buffer_write_info,
-            0,
-            VK_PIPELINE_STAGE_TRANSFER_BIT
-        });
+        //         vkCmdCopyBuffer(cmd_buffer, info->buffer->stagingBuffers[buffer_index], info->buffer->buffers[buffer_index], 1, &bufferCopy);
+        //     },
+        //     buffer_write_info,
+        //     0,
+        //     VK_PIPELINE_STAGE_TRANSFER_BIT
+        // });
 
         command_list_submit_extern(ctx->command_list, NULL, 1, &buffer_index, 1, buffer->per_device, NULL);
         command_list_reset_extern(ctx->command_list);
         RETURN_ON_ERROR(;)
     }
+}
+
+void buffer_write_exec_internal(VkCommandBuffer cmd_buffer, const struct BufferWriteInfo& info, int device_index, int stream_index) {
+    VkBufferCopy bufferCopy;
+    bufferCopy.size = info.size;
+    bufferCopy.dstOffset = info.offset;
+    bufferCopy.srcOffset = 0;
+
+    int buffer_index = stream_index;
+    if(info.buffer->per_device) {
+        buffer_index = device_index;
+    }
+
+    vkCmdCopyBuffer(cmd_buffer, info.buffer->stagingBuffers[buffer_index], info.buffer->buffers[buffer_index], 1, &bufferCopy);
 }
 
 void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int index) {
@@ -174,37 +197,41 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
     context_wait_idle_extern(ctx);
     RETURN_ON_ERROR(;)
 
-    struct BufferReadInfo {
-        struct Buffer* buffer;
-        unsigned long long offset;
-        unsigned long long size;
-    };
+    struct CommandInfo command = {};
+    command.type = COMMAND_TYPE_BUFFER_READ;
+    command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    command.info.buffer_read_info.buffer = buffer;
+    command.info.buffer_read_info.offset = offset;
+    command.info.buffer_read_info.size = size;
 
-    struct BufferReadInfo* buffer_read_info = (struct BufferReadInfo*)malloc(sizeof(*buffer_read_info));
-    buffer_read_info->buffer = buffer;
-    buffer_read_info->offset = offset;
-    buffer_read_info->size = size;
+    command_list_record_command(ctx->command_list, command);
 
-    command_list_record_stage(ctx->command_list, {
-        [] (VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
-            struct BufferReadInfo* info = (struct BufferReadInfo*)stage->user_data;
+    
+    //struct BufferReadInfo* buffer_read_info = (struct BufferReadInfo*)malloc(sizeof(*buffer_read_info));
+    //buffer_read_info->buffer = buffer;
+    //buffer_read_info->offset = offset;
+    //buffer_read_info->size = size;
 
-            VkBufferCopy bufferCopy;
-            bufferCopy.size = info->size;
-            bufferCopy.dstOffset = 0;
-            bufferCopy.srcOffset = info->offset;
+    //command_list_record_stage(ctx->command_list, {
+    //    [] (VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
+    //        struct BufferReadInfo* info = (struct BufferReadInfo*)stage->user_data;
+
+    //         VkBufferCopy bufferCopy;
+    //         bufferCopy.size = info->size;
+    //         bufferCopy.dstOffset = 0;
+    //         bufferCopy.srcOffset = info->offset;
             
-            int buffer_index = stream_index;
-            if(info->buffer->per_device) {
-                buffer_index = device_index;
-            }
+    //         int buffer_index = stream_index;
+    //         if(info->buffer->per_device) {
+    //             buffer_index = device_index;
+    //         }
 
-            vkCmdCopyBuffer(cmd_buffer, info->buffer->buffers[buffer_index], info->buffer->stagingBuffers[buffer_index], 1, &bufferCopy);
-        },
-        buffer_read_info,
-        0,
-        VK_PIPELINE_STAGE_TRANSFER_BIT
-    });
+    //         vkCmdCopyBuffer(cmd_buffer, info->buffer->buffers[buffer_index], info->buffer->stagingBuffers[buffer_index], 1, &bufferCopy);
+    //     },
+    //     buffer_read_info,
+    //     0,
+    //     VK_PIPELINE_STAGE_TRANSFER_BIT
+    // });
 
     command_list_submit_extern(ctx->command_list, NULL, 1, &index, 1, buffer->per_device, NULL);
     command_list_reset_extern(ctx->command_list);
@@ -214,7 +241,21 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
     VK_CALL(vmaMapMemory(ctx->allocators[device_index], buffer->stagingAllocations[index], &mapped));
     memcpy(data, mapped, size);
     vmaUnmapMemory(ctx->allocators[device_index], buffer->stagingAllocations[index]);
-} 
+}
+
+void buffer_read_exec_internal(VkCommandBuffer cmd_buffer, const struct BufferReadInfo& info, int device_index, int stream_index) {
+    VkBufferCopy bufferCopy;
+    bufferCopy.size = info.size;
+    bufferCopy.dstOffset = 0;
+    bufferCopy.srcOffset = info.offset;
+
+    int buffer_index = stream_index;
+    if(info.buffer->per_device) {
+        buffer_index = device_index;
+    }
+
+    vkCmdCopyBuffer(cmd_buffer, info.buffer->buffers[buffer_index], info.buffer->stagingBuffers[buffer_index], 1, &bufferCopy);
+}
 
 void buffer_copy_extern(struct Buffer* src, struct Buffer* dst, unsigned long long src_offset, unsigned long long dst_offset, unsigned long long size, int device_index) {
     /*

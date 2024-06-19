@@ -45,6 +45,8 @@ inline void log_message(LogLevel log_level, const char* prefix, const char* post
     }
 }
 
+//#define LOG_VERBOSE_ENABLED
+
 #ifdef LOG_VERBOSE_ENABLED
 #define LOG_VERBOSE(format, ...) log_message(LOG_LEVEL_VERBOSE, "VERBOSE", "\n", __FILE__, __LINE__, format, ##__VA_ARGS__)
 #else
@@ -238,9 +240,31 @@ struct Stage {
     VkPipelineStageFlags stage;
 };
 
+enum CommandType {
+    COMMAND_TYPE_NOOP = 0,
+    COMMAND_TYPE_BUFFER_COPY = 1,
+    COMMAND_TYPE_BUFFER_READ = 2,
+    COMMAND_TYPE_BUFFER_WRITE = 3,
+    COMMAND_TYPE_FFT = 4,
+    COMMAND_TYPE_COMPUTE = 5
+};
+
+struct CommandInfo {
+    enum CommandType type;
+    VkPipelineStageFlags pipeline_stage;
+    union {
+        struct BufferCopyInfo buffer_copy_info;
+        struct BufferReadInfo buffer_read_info;
+        struct BufferWriteInfo buffer_write_info;
+        struct FFTRecordInfo fft_info;
+        struct ComputeRecordInfo compute_info;
+    } info;
+};
+
 struct CommandList {
     struct Context* ctx;
-    std::vector<struct Stage> stages;
+    std::vector<struct CommandInfo> commands;
+    //std::vector<struct Stage> stages;
 
     size_t staging_count;
     size_t max_batch_count;
@@ -250,7 +274,9 @@ struct CommandList {
     std::vector<char*> staging_spaces;
 };
 
-void command_list_record_stage(struct CommandList* command_list, struct Stage stage, bool sync = true);
+//void command_list_record_stage(struct CommandList* command_list, struct Stage stage, bool sync = true);
+
+void command_list_record_command(struct CommandList* command_list, struct CommandInfo command, bool sync = true);
 
 struct FFTPlan {
     struct Context* ctx;

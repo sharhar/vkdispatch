@@ -13,6 +13,19 @@ void stage_transfer_record_copy_buffer_extern(struct CommandList* command_list, 
 
     LOG_INFO("Recording copy buffer stage");
 
+    struct CommandInfo command = {};
+    command.type = COMMAND_TYPE_BUFFER_COPY;
+    command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    command.info.buffer_copy_info.src = copy_info->src;
+    command.info.buffer_copy_info.dst = copy_info->dst;
+    command.info.buffer_copy_info.src_offset = copy_info->src_offset;
+    command.info.buffer_copy_info.dst_offset = copy_info->dst_offset;
+    command.info.buffer_copy_info.size = copy_info->size;
+
+    command_list_record_command(command_list, command);
+
+    /*
+
     command_list_record_stage(command_list, {
         [](VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
             LOG_VERBOSE("Executing copy buffer stage");
@@ -42,6 +55,26 @@ void stage_transfer_record_copy_buffer_extern(struct CommandList* command_list, 
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT
     });
+    */
+}
+
+void stage_transfer_copy_buffer_exec_internal(VkCommandBuffer cmd_buffer, const struct BufferCopyInfo& info, int device_index, int stream_index) {
+    VkBufferCopy bufferCopy = {};
+    bufferCopy.srcOffset = info.src_offset;
+    bufferCopy.dstOffset = info.dst_offset;
+    bufferCopy.size = info.size;
+
+    int src_index = stream_index;
+    int dst_index = stream_index;
+
+    if(info.src->per_device)
+        src_index = info.src->ctx->streams[device_index][0]->stream_index;
+
+    if(info.dst->per_device)
+        dst_index = info.dst->ctx->streams[device_index][0]->stream_index;
+
+
+    vkCmdCopyBuffer(cmd_buffer, info.src->buffers[src_index], info.dst->buffers[dst_index], 1, &bufferCopy);
 }
 
 void stage_transfer_record_copy_image_extern(struct CommandList* command_list, struct ImageCopyInfo* copy_info) {
