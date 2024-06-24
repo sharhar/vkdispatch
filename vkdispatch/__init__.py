@@ -33,7 +33,7 @@ from .dtype import vec4
 #from .image import image2d_array
 #from .image import image3d
 from .shader_variable import ShaderVariable
-from .shader_builder import PushConstantBuffer
+from .shader_builder import BufferStructureProxy
 from .shader_builder import shader
 from .shader_builder import ShaderBuilder
 from .stage_compute import ComputePlan

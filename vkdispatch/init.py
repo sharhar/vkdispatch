@@ -1,5 +1,6 @@
 import typing
 from enum import Enum
+import os
 
 import vkdispatch as vd
 
@@ -13,6 +14,14 @@ device_type_id_to_str_dict = {
     4: "CPU",
 }
 
+device_type_ranks_dict = {
+    0: 0,
+    1: 2,
+    2: 4,
+    3: 3,
+    4: 1
+}
+
 def get_queue_type_strings(queue_type: int) -> typing.List[str]:
     result = []
 
@@ -24,14 +33,14 @@ def get_queue_type_strings(queue_type: int) -> typing.List[str]:
         result.append("Transfer")
     if queue_type & 0x008:
         result.append("Sparse Binding")
-    #if queue_type & 0x010:
-    #    result.append("Protected")
-    #if queue_type & 0x020:
-    #    result.append("Video Decode")
-    #if queue_type & 0x040:
-    #    result.append("Video Encode")
-    #if queue_type & 0x100:
-    #    result.append("Optical Flow (NV)")
+    if queue_type & 0x010:
+        result.append("Protected")
+    if queue_type & 0x020:
+        result.append("Video Decode")
+    if queue_type & 0x040:
+        result.append("Video Encode")
+    if queue_type & 0x100:
+        result.append("Optical Flow (NV)")
 
     return result
 
@@ -68,6 +77,7 @@ class DeviceInfo:
         max_push_constant_size: int,
         max_storage_buffer_range: int,
         max_uniform_buffer_range: int,
+        uniform_buffer_alignment: int,
         sub_group_size: int,
         supported_stages: int,
         supported_operations: int,
@@ -102,6 +112,7 @@ class DeviceInfo:
         self.max_push_constant_size = max_push_constant_size
         self.max_storage_buffer_range = max_storage_buffer_range
         self.max_uniform_buffer_range = max_uniform_buffer_range
+        self.uniform_buffer_alignment = uniform_buffer_alignment
 
         self.sub_group_size = sub_group_size
         self.supported_stages = supported_stages
@@ -135,6 +146,7 @@ class DeviceInfo:
         result += f"\tMax Push Constant Size: {self.max_push_constant_size}\n"
         result += f"\tMax Storage Buffer Range: {self.max_storage_buffer_range}\n"
         result += f"\tMax Uniform Buffer Range: {self.max_uniform_buffer_range}\n"
+        result += f"\tUniform Buffer Alignment: {self.uniform_buffer_alignment}\n"
 
         result += f"\tSubgroup Size: {self.sub_group_size}\n"
         result += f"\tSupported Stages: {hex(self.supported_stages)}\n"
@@ -144,11 +156,7 @@ class DeviceInfo:
         result += f"\tQueues:\n"
         for ii, queue in enumerate(self.queue_properties):
             result += f"\t\t{ii} (count={queue[0]}, flags={hex(queue[1])}): "
-
             result += " | ".join(get_queue_type_strings(queue[1])) + "\n"
-
-            #for flag_str in get_queue_type_strings(queue[1]):
-            #    result += f"\t\t\t{flag_str}\n"
 
         return result
 
@@ -156,11 +164,14 @@ class DeviceInfo:
 __initilized_instance: bool = False
 
 
-def initialize(debug_mode: bool = True, log_level: LogLevel = LogLevel.WARNING):
+def initialize(debug_mode: bool = True, log_level: LogLevel = LogLevel.WARNING, loader_debug_logs: bool = False):
     global __initilized_instance
 
     if __initilized_instance:
         return
+    
+    if loader_debug_logs:
+        os.environ["VK_LOADER_DEBUG"] = "all"
 
     vkdispatch_native.init(debug_mode, log_level.value)
     vd.check_for_errors()

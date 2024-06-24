@@ -47,6 +47,7 @@ cdef extern from "init.h":
         unsigned int max_push_constant_size
         unsigned int max_storage_buffer_range
         unsigned int max_uniform_buffer_range
+        unsigned int uniform_buffer_alignment
 
         unsigned int subgroup_size
         unsigned int supported_stages
@@ -95,6 +96,7 @@ cpdef inline get_devices():
             device.max_push_constant_size,
             device.max_storage_buffer_range,
             device.max_uniform_buffer_range,
+            device.uniform_buffer_alignment,
             device.subgroup_size,
             device.supported_stages,
             device.supported_operations,

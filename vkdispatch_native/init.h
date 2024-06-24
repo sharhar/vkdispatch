@@ -40,6 +40,7 @@ struct PhysicalDeviceDetails {
     unsigned int max_push_constant_size;
     unsigned int max_storage_buffer_range;
     unsigned int max_uniform_buffer_range;
+    unsigned int uniform_buffer_alignment;
 
     unsigned int subgroup_size;
     unsigned int supported_stages;
