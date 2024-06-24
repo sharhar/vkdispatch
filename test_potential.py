@@ -77,9 +77,14 @@ class TemplatePotential:
         self.atom_coords_buffer = vd.asbuffer(atom_coords)
         self.rotation_matrix = None
     
-    def record(self, cmd_list: vd.CommandList, work_buffer: vd.Buffer):
+    def record(self, cmd_list: vd.CommandList, work_buffer: vd.Buffer, rot_matrix: np.ndarray = None):
         self.fill_buffer[self.exec_size, cmd_list](work_buffer, val=0)
-        self.rotation_matrix = self.place_atoms[self.atom_coords.shape[0], cmd_list](work_buffer, self.atom_coords_buffer)
+
+        if rot_matrix is not None:
+            self.place_atoms[self.atom_coords.shape[0], cmd_list](work_buffer, self.atom_coords_buffer, rot_matrix=rot_matrix)
+        else:
+            self.rotation_matrix = self.place_atoms[self.atom_coords.shape[0], cmd_list](work_buffer, self.atom_coords_buffer)
+
         self.convert_int_to_float[work_buffer.size * 2, cmd_list](work_buffer)
 
         vd.fft[cmd_list](work_buffer)
