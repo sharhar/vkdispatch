@@ -115,8 +115,8 @@ ivec4 = dtype( "ivec4", 16, "ivec4", dtype_structure.DATA_STRUCTURE_VECTOR, 4, "
 uvec2 = dtype( "uvec2", 8, "uvec2", dtype_structure.DATA_STRUCTURE_VECTOR, 2, "(%u, %u)", uint32)
 uvec4 = dtype( "uvec4", 16, "uvec4", dtype_structure.DATA_STRUCTURE_VECTOR, 4, "(%u, %u, %u, %u)", uint32)
 
-mat2 = dtype( "mat2", 16, "mat2", dtype_structure.DATA_STRUCTURE_MATRIX, 2, "\n[%f, %f]\n[%f, %f]\n", vec2)
-mat4 = dtype( "mat4", 64, "mat4", dtype_structure.DATA_STRUCTURE_MATRIX, 4, "\n[%f, %f, %f, %f]\n[%f, %f, %f, %f]\n[%f, %f, %f, %f]\n[%f, %f, %f, %f]\n", vec4)
+mat2 = dtype( "mat2", 16, "mat2", dtype_structure.DATA_STRUCTURE_MATRIX, 2, "\\\\n[%f, %f]\\\\n[%f, %f]\\\\n", vec2)
+mat4 = dtype( "mat4", 64, "mat4", dtype_structure.DATA_STRUCTURE_MATRIX, 4, "\\\\n[%f, %f, %f, %f]\\\\n[%f, %f, %f, %f]\\\\n[%f, %f, %f, %f]\\\\n[%f, %f, %f, %f]\\\\n", vec4)
 
 
 def from_numpy_dtype(dtype: type) -> dtype:
