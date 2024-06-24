@@ -62,6 +62,10 @@ void command_list_record_command(struct CommandList* command_list, struct Comman
     program_id += 1;
 
     command_list->commands.push_back(command);
+
+    if(command.type == COMMAND_TYPE_COMPUTE)
+        command_list->instance_size += command.info.compute_info.pc_size;
+
     //command_list->stages.push_back(stage);
 
     /*

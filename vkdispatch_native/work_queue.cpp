@@ -141,7 +141,9 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
     work_header->instance_size = command_list->instance_size;
     work_header->signal = signal;
     work_header->program_header = program_header;
-    memcpy(&work_header[1], instance_buffer, work_size);
+    
+    if(work_size > 0)
+        memcpy(&work_header[1], instance_buffer, work_size);
     
     this->program_infos[found_indicies[0]].ref_count.fetch_add(1, std::memory_order_relaxed);
 
