@@ -41,11 +41,11 @@ class ReductionDispatcher:
         if len(exec_dims) > 2:
             raise ValueError("Only two arguments can be given for the execution dimensions!")
         
-        if not isinstance(exec_dims[0], int):
+        if not isinstance(exec_dims[0], (int, np.integer)):
             raise ValueError("First excution dimention must be an int!")
         
         if len(exec_dims) == 2:
-            if not isinstance(exec_dims[1], vd.CommandList):
+            if not isinstance(exec_dims[1], vd.CommandList) and exec_dims[1] is not None:
                 raise ValueError("Second excution dimention must be a CommandList!")
             
         if len(exec_dims) == 1:
@@ -60,6 +60,11 @@ class ReductionDispatcher:
             
             data_size = my_exec_dims[0][0]
             stage1_blocks = int(np.ceil(data_size / self.group_size))
+            
+            if stage1_blocks > self.group_size:
+                reduction_scale = int(np.ceil(stage1_blocks / self.group_size))
+                stage_scale = np.ceil(np.sqrt(reduction_scale))
+                stage1_blocks = int(np.ceil(stage1_blocks / stage_scale))
 
             reduction_buffer = vd.Buffer((stage1_blocks + 1,), self.out_type)
 
@@ -86,10 +91,10 @@ def make_reduction(
     if len(var_types) > 1 and map is None:
         raise ValueError("A map function must be provided for multiple buffer types!")
     
-    subgroup_size = vd.get_devices()[0].sub_group_size
+    subgroup_size = vd.get_context().device_infos[0].sub_group_size
     
     if group_size is None:
-        group_size = vd.get_devices()[0].max_workgroup_size[0]
+        group_size = vd.get_context().device_infos[0].max_workgroup_size[0]
     
     if group_size % subgroup_size != 0:
         raise ValueError("Group size must be a multiple of the sub-group size!")

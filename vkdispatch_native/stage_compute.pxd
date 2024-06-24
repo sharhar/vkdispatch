@@ -28,17 +28,17 @@ cdef extern from "stage_compute.h":
     ComputePlan* stage_compute_plan_create_extern(Context* ctx, ComputePlanCreateInfo* create_info)
     void stage_compute_record_extern(CommandList* command_list, ComputePlan* plan, DescriptorSet* descriptor_set, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z)
 
-cpdef inline stage_compute_plan_create(unsigned long long context, bytes shader_source, unsigned int binding_count, unsigned int pc_size):
+cpdef inline stage_compute_plan_create(unsigned long long context, bytes shader_source, list bindings, unsigned int pc_size):
     cdef Context* ctx = <Context*>context
 
     cdef ComputePlanCreateInfo create_info
     create_info.shader_source = shader_source
-    create_info.descriptorTypes = <DescriptorType*>malloc(binding_count * sizeof(DescriptorType))
-    create_info.binding_count = binding_count
+    create_info.descriptorTypes = <DescriptorType*>malloc(len(bindings) * sizeof(DescriptorType))
+    create_info.binding_count = len(bindings)
     create_info.pc_size = pc_size
 
-    for i in range(binding_count):
-        create_info.descriptorTypes[i] = DESCRIPTOR_TYPE_STORAGE_BUFFER
+    for i in range(len(bindings)):
+        create_info.descriptorTypes[i] = bindings[i]
 
     cdef ComputePlan* plan = stage_compute_plan_create_extern(ctx, &create_info)
 

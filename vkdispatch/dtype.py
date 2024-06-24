@@ -27,6 +27,11 @@ class dtype:
         self.name = name
         self.glsl_type = glsl_type
         self.item_size = item_size
+        self.alignment_size = item_size
+
+        if structure == dtype_structure.DATA_STRUCTURE_BUFFER:
+            self.alignment_size = parent.alignment_size
+
         self.structure = structure
         self.format_str = format_str
         self.parent = self if parent is None else parent
@@ -90,7 +95,7 @@ class dtype:
             dtype_structure.DATA_STRUCTURE_BUFFER,
             index,
             self.format_str,
-            self,
+            parent=self
         )
 
 
@@ -110,8 +115,8 @@ ivec4 = dtype( "ivec4", 16, "ivec4", dtype_structure.DATA_STRUCTURE_VECTOR, 4, "
 uvec2 = dtype( "uvec2", 8, "uvec2", dtype_structure.DATA_STRUCTURE_VECTOR, 2, "(%u, %u)", uint32)
 uvec4 = dtype( "uvec4", 16, "uvec4", dtype_structure.DATA_STRUCTURE_VECTOR, 4, "(%u, %u, %u, %u)", uint32)
 
-mat2 = dtype( "mat2", 16, "mat2", dtype_structure.DATA_STRUCTURE_MATRIX, 2, "\n[%f, %f]\n[%f, %f]\n", vec2)
-mat4 = dtype( "mat4", 64, "mat4", dtype_structure.DATA_STRUCTURE_MATRIX, 4, "\n[%f, %f, %f, %f]\n[%f, %f, %f, %f]\n[%f, %f, %f, %f]\n[%f, %f, %f, %f]\n", vec4)
+mat2 = dtype( "mat2", 16, "mat2", dtype_structure.DATA_STRUCTURE_MATRIX, 2, "\\\\n[%f, %f]\\\\n[%f, %f]\\\\n", vec2)
+mat4 = dtype( "mat4", 64, "mat4", dtype_structure.DATA_STRUCTURE_MATRIX, 4, "\\\\n[%f, %f, %f, %f]\\\\n[%f, %f, %f, %f]\\\\n[%f, %f, %f, %f]\\\\n[%f, %f, %f, %f]\\\\n", vec4)
 
 
 def from_numpy_dtype(dtype: type) -> dtype:

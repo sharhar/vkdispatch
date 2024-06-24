@@ -23,7 +23,7 @@ platform_name_dict = {
 }
 
 platform_library_dirs = []
-platform_define_macros = [(f"__VKDISPATCH_PLATFORM_{platform_name_dict[system]}__", 1)]
+platform_define_macros = [(f"__VKDISPATCH_PLATFORM_{platform_name_dict[system]}__", 1), ("LOG_VERBOSE_ENABLED", 1)]
 platform_link_libraries = []
 platform_extra_link_args = []
 platform_extra_compile_args = (
@@ -34,7 +34,6 @@ platform_extra_compile_args = (
 
 include_directories = [
     numpy_include,
-    proj_root + "/deps/VKL/include",
     proj_root + "/deps/VMA/include",
     proj_root + "/deps/volk",
     proj_root + "/deps/VkFFT/vkFFT",
@@ -114,29 +113,13 @@ append_to_sources("vkdispatch_native/", [
     "stage_compute.cpp",
     "descriptor_set.cpp",
     "stream.cpp",
+    "errors.cpp",
+    "signal.cpp",
+    "queue.cpp",
+    "work_queue.cpp",
     "VMAImpl.cpp",
     "VolkImpl.cpp"
 ])
-
-append_to_sources('deps/VKL/src/', [
-    'VKLBuffer.cpp',
-    'VKLCommandBuffer.cpp',
-    'VKLDescriptorSet.cpp',
-    'VKLDevice.cpp',
-    'VKLFramebuffer.cpp',
-    'VKLImage.cpp',
-    'VKLImageView.cpp',
-    'VKLInstance.cpp',
-    'VKLPhysicalDevice.cpp',
-    'VKLPipeline.cpp',
-    'VKLPipelineLayout.cpp',
-    'VKLQueue.cpp',
-    'VKLRenderPass.cpp',
-    'VKLSurface.cpp',
-    'VKLStaticAllocator.cpp',
-    'VKLSwapChain.cpp'
-])
-
 
 if vulkan_sdk_root is None:
     append_to_sources("deps/glslang/glslang/", [

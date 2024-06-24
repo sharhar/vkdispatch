@@ -24,6 +24,7 @@ class ShaderVariable:
         var_type: vd.dtype,
         name: str = None,
         binding: int = None,
+        shape: Tuple[int] = None,
     ) -> None:
         self.append_func = append_func
         self.name_func = name_func
@@ -31,6 +32,9 @@ class ShaderVariable:
         self.name = self.name_func(name)
         self.binding = binding
         self.format = var_type.format_str
+
+        if shape is not None:
+            self.shape = shape
 
     def new(self, var_type: vd.dtype, name: str = None):
         return ShaderVariable(self.append_func, self.name_func, var_type, name)

@@ -5,7 +5,17 @@ from libcpp cimport bool
 import sys
 
 cdef extern from "init.h":
-    struct PhysicalDeviceProperties:
+    enum LogLevel:
+        LOG_LEVEL_VERBOSE = 0
+        LOG_LEVEL_INFO = 1
+        LOG_LEVEL_WARNING = 2
+        LOG_LEVEL_ERROR = 3
+
+    struct QueueFamilyProperties:
+        unsigned int queueCount
+        unsigned int queueFlags
+
+    struct PhysicalDeviceDetails:
         int version_variant;
         int version_major;
         int version_minor;
@@ -37,6 +47,7 @@ cdef extern from "init.h":
         unsigned int max_push_constant_size
         unsigned int max_storage_buffer_range
         unsigned int max_uniform_buffer_range
+        unsigned int uniform_buffer_alignment
 
         unsigned int subgroup_size
         unsigned int supported_stages
@@ -44,16 +55,19 @@ cdef extern from "init.h":
         unsigned int quad_operations_in_all_stages
 
         unsigned int max_compute_shared_memory_size
-    
-    void init_extern(bool debug)
-    PhysicalDeviceProperties* get_devices_extern(int* count)
 
-cpdef inline init(bool debug):
-    init_extern(debug)
+        unsigned int queue_family_count
+        QueueFamilyProperties* queue_family_properties
+    
+    void init_extern(bool debug, LogLevel log_level)
+    PhysicalDeviceDetails* get_devices_extern(int* count)
+
+cpdef inline init(bool debug, int log_level):
+    init_extern(debug, <LogLevel>(log_level))
 
 cpdef inline get_devices():
     cdef int count = 0
-    cdef PhysicalDeviceProperties* devices = get_devices_extern(&count)
+    cdef PhysicalDeviceDetails* devices = get_devices_extern(&count)
 
     if not devices:
         return []
@@ -82,11 +96,13 @@ cpdef inline get_devices():
             device.max_push_constant_size,
             device.max_storage_buffer_range,
             device.max_uniform_buffer_range,
+            device.uniform_buffer_alignment,
             device.subgroup_size,
             device.supported_stages,
             device.supported_operations,
             device.quad_operations_in_all_stages,
-            device.max_compute_shared_memory_size
+            device.max_compute_shared_memory_size,
+            [(device.queue_family_properties[j].queueCount, device.queue_family_properties[j].queueFlags) for j in range(device.queue_family_count)]
         )
         device_list.append(device_info)
 

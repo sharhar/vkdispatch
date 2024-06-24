@@ -1,7 +1,14 @@
 #ifndef SRC_INIT_H
 #define SRC_INIT_H
 
-struct PhysicalDeviceProperties {
+#include "base.h"
+
+struct QueueFamilyProperties {
+    unsigned int queueCount;
+    unsigned int queueFlags;
+};
+
+struct PhysicalDeviceDetails {
     int version_variant;
     int version_major;
     int version_minor;
@@ -33,6 +40,7 @@ struct PhysicalDeviceProperties {
     unsigned int max_push_constant_size;
     unsigned int max_storage_buffer_range;
     unsigned int max_uniform_buffer_range;
+    unsigned int uniform_buffer_alignment;
 
     unsigned int subgroup_size;
     unsigned int supported_stages;
@@ -40,9 +48,12 @@ struct PhysicalDeviceProperties {
     unsigned int quad_operations_in_all_stages;
 
     unsigned int max_compute_shared_memory_size;
+
+    unsigned int queue_family_count;
+    struct QueueFamilyProperties* queue_family_properties;
 };
 
-void init_extern(bool debug);
-struct PhysicalDeviceProperties* get_devices_extern(int* count);
+void init_extern(bool debug, LogLevel log_level);
+struct PhysicalDeviceDetails* get_devices_extern(int* count);
 
 #endif // INIT_H
