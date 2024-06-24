@@ -16,8 +16,9 @@ class FFTPlan:
         )  # currently only support complex64
 
         self._handle = vkdispatch_native.stage_fft_plan_create(
-            vd.get_context_handle(), list(self.shape), self.mem_size
+            vd.get_context_handle(), list(reversed(self.shape)), self.mem_size
         )
+        vd.check_for_errors()
 
     def record(self, command_list: vd.CommandList, buffer: vd.Buffer, inverse: bool = False):
         assert buffer.var_type == vd.complex64, "buffer must be of dtype complex64"
@@ -26,6 +27,7 @@ class FFTPlan:
         vkdispatch_native.stage_fft_record(
             command_list._handle, self._handle, buffer._handle, 1 if inverse else -1
         )
+        vd.check_for_errors()
 
     def record_forward(self, command_list: vd.CommandList, buffer: vd.Buffer):
         self.record(command_list, buffer, False)
@@ -57,9 +59,14 @@ class FFTDispatcher:
 
     def __getitem__(self, cmd_list: vd.CommandList):
 
+        if cmd_list is None:
+            return self.__call__
+
+        my_cmd_list: typing.List[vd.CommandList] = [cmd_list]
+
         def wrapper_func(buffer: vd.Buffer):
             plan = get_fft_plan(buffer._handle, buffer.shape)
-            plan.record(cmd_list, buffer, self.__inverse)
+            plan.record(my_cmd_list[0], buffer, self.__inverse)
 
         return wrapper_func
 

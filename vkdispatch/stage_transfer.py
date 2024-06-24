@@ -2,14 +2,14 @@ import typing
 
 import numpy as np
 
-import vkdispatch
+import vkdispatch as vd
 import vkdispatch_native
 
 
 def stage_transfer_copy_buffers(
-    command_list: vkdispatch.CommandList,
-    src: vkdispatch.Buffer,
-    dst: vkdispatch.Buffer,
+    command_list: vd.CommandList,
+    src: vd.Buffer,
+    dst: vd.Buffer,
     size: int = None,
     src_offset: int = 0,
     dst_offset: int = 0,
@@ -29,7 +29,9 @@ def stage_transfer_copy_buffers(
     vkdispatch_native.stage_transfer_record_copy_buffer(
         command_list._handle, src._handle, dst._handle, src_offset, dst_offset, size
     )
+    vd.check_for_errors()
 
+"""
 
 def stage_transfer_copy_image(
     command_list: vkdispatch.CommandList,
@@ -236,3 +238,5 @@ def stage_transfer_copy_image_to_buffer(
         image_baseLayer,
         image_layerCount,
     )
+
+"""

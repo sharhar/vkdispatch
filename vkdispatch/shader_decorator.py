@@ -14,7 +14,8 @@ class ShaderDispatcher:
 
     plan: vd.ComputePlan
     source: str
-    pc_buff_dict: Dict[str, vd.PushConstantBuffer]
+    pc_buff_dict: Dict[str, Tuple[int, vd.dtype]]
+    uniform_buff_dict: Dict[str, Tuple[int, vd.dtype]]
     my_local_size: Tuple[int, int, int]
     func_args: List[vd.ShaderVariable]
 
@@ -23,11 +24,13 @@ class ShaderDispatcher:
         plan: vd.ComputePlan,
         source: str,
         pc_buff_dict: dict,
+        uniform_buff_dict: dict,
         my_local_size: Tuple[int, int, int],
         func_args: List[vd.ShaderVariable],
     ):
         self.plan = plan
         self.pc_buff_dict = copy.deepcopy(pc_buff_dict)
+        self.uniform_buff_dict = copy.deepcopy(uniform_buff_dict)
         self.my_local_size = my_local_size
         self.func_args = func_args
         self.source = source
@@ -74,20 +77,26 @@ class ShaderDispatcher:
                 )
 
             descriptor_set = vd.DescriptorSet(self.plan._handle)
-            pc_buff = vd.PushConstantBuffer(self.pc_buff_dict)
 
-            pc_buff["exec_count"] = [my_limits_x, my_limits_y, my_limits_z, 0]
+            pc_buff = None if self.pc_buff_dict is None else vd.BufferStructureProxy(self.pc_buff_dict, 0)
+            static_constant_buffer = vd.BufferStructureProxy(self.uniform_buff_dict, vd.get_context().device_infos[0].uniform_buffer_alignment)
+
+            static_constant_buffer["exec_count"] = [my_limits_x, my_limits_y, my_limits_z, 0]
 
             for ii, arg in enumerate(self.func_args):
                 descriptor_set.bind_buffer(args[ii], arg.binding)
 
-            for key, val in kwargs.items():
-                pc_buff[key] = val
+            if pc_buff is not None:
+                for key, val in kwargs.items():
+                    pc_buff[key] = val
+            elif len(kwargs) > 0:
+                raise ValueError("No push constant buffer was provided!")
 
-            if len(kwargs) == len(pc_buff.pc_dict) - 1 and my_cmd_list[0] is None:
+            if my_cmd_list[0] is None:
                 cmd_list = vd.get_command_list()
-                cmd_list.add_pc_buffer(pc_buff)
-                cmd_list.add_desctiptor_set(descriptor_set)
+                if pc_buff is not None:
+                    cmd_list.add_pc_buffer(pc_buff)
+                cmd_list.add_desctiptor_set_and_static_constants(descriptor_set, static_constant_buffer)
                 self.plan.record(cmd_list, descriptor_set, my_blocks)
                 cmd_list.submit()
                 return
@@ -96,9 +105,9 @@ class ShaderDispatcher:
                 raise ValueError(
                     "Must provide all dynamic constants if no command list is specified!"
                 )
-
-            my_cmd_list[0].add_pc_buffer(pc_buff)
-            my_cmd_list[0].add_desctiptor_set(descriptor_set)
+            if pc_buff is not None:
+                my_cmd_list[0].add_pc_buffer(pc_buff)
+            my_cmd_list[0].add_desctiptor_set_and_static_constants(descriptor_set, static_constant_buffer)
             self.plan.record(my_cmd_list[0], descriptor_set, my_blocks)
 
             return pc_buff
@@ -110,13 +119,13 @@ def compute_shader(*args, local_size: Tuple[int, int, int] = None):
     my_local_size = (
         local_size
         if local_size is not None
-        else [vd.get_devices()[0].max_workgroup_size[0], 1, 1]
+        else [vd.get_context().device_infos[0].max_workgroup_size[0], 1, 1]
     )
 
     def decorator(build_func):
         builder = vd.shader
 
-        pc_exec_count_var = builder.push_constant(vd.uvec4, "exec_count")
+        pc_exec_count_var = builder.static_constant(vd.uvec4, "exec_count")
 
         builder.if_statement(pc_exec_count_var[0] <= builder.global_x)
         builder.return_statement()
@@ -136,13 +145,13 @@ def compute_shader(*args, local_size: Tuple[int, int, int] = None):
         else:
             build_func()
 
-        shader_source = builder.build(
+        shader_source, pc_size, pc_dict, uniform_dict = builder.build(
             my_local_size[0], my_local_size[1], my_local_size[2]
         )
 
-        plan = vd.ComputePlan(shader_source, builder.binding_count, builder.pc_size)
+        plan = vd.ComputePlan(shader_source, builder.binding_count, pc_size)
 
-        wrapper = ShaderDispatcher(plan, shader_source, builder.pc_dict, my_local_size, func_args)
+        wrapper = ShaderDispatcher(plan, shader_source, pc_dict, uniform_dict, my_local_size, func_args)
 
         builder.reset()
 
