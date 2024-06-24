@@ -5,22 +5,43 @@
 
 #include <mutex>
 #include <condition_variable>
-#include <vector>
+#include <atomic>
+//#include <vector>
 
-struct WorkItemHead {
-    Signal* signal;
-    unsigned int ref_count;
-    int program_index;
-    int stream_index;
-    unsigned int instance_count;
-    unsigned int instance_size;
+struct ProgramHeader {
+    unsigned int command_count;
+    int info_index;
     size_t array_size;
 };
 
-struct ProgramArrayHead {
-    unsigned int ref_count;
-    unsigned int command_count;
+struct ProgramInfo {
+    struct ProgramHeader* header;
+    std::atomic<int> ref_count;
+    size_t program_id;
+};
+
+struct WorkHeader {
+    Signal* signal;
+    struct ProgramHeader* program_header;
     size_t array_size;
+    int info_index;
+    unsigned int instance_count;
+    unsigned int instance_size;
+};
+
+enum WorkState {
+    //WORK_STATE_AVAILABLE = 0,
+    WORK_STATE_PENDING = 1,
+    WORK_STATE_ACTIVE = 2,
+};
+
+struct WorkInfo2 {
+    struct WorkHeader* header;
+    WorkState state;
+    std::atomic<bool> dirty;
+    int stream_index;
+    int program_index;
+    size_t work_id;
 };
 
 class WorkQueue {
@@ -29,13 +50,19 @@ public:
 
     void stop();
     void push(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int stream_index, Signal* signal);
-    bool pop(struct WorkItemHead** elem, int stream_index);
-    void finalize(struct WorkItemHead* elem);
+    bool pop(struct WorkHeader** header, int stream_index);
+    void finish(struct WorkHeader* header);
 
     std::mutex mutex;
     std::condition_variable cv_push;
     std::condition_variable cv_pop;
-    std::vector<struct WorkItem> data;
+
+    struct WorkInfo2* work_infos;
+    struct ProgramInfo* program_infos;
+    int work_info_count;
+    int program_info_count;
+
+    //std::vector<struct WorkItem> data;
     int max_size;
     bool running;
 };

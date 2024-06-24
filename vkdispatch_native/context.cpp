@@ -14,7 +14,7 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     ctx->streams.resize(device_count);
     ctx->allocators.resize(device_count);
     
-    ctx->work_queue = new Queue(16);
+    ctx->work_queue = new WorkQueue(64, 4);
     ctx->command_list = command_list_create_extern(ctx);
     
     LOG_INFO("Enumerating physical devices...");

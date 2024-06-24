@@ -111,8 +111,8 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
 
         LOG_INFO("Writing data to buffer %d in device %d", buffer_index, device_index); //, stream);
 
-        context_wait_idle_extern(ctx);
-        RETURN_ON_ERROR(;)
+        //context_wait_idle_extern(ctx);
+        //RETURN_ON_ERROR(;)
 
         void* mapped;
         VK_CALL(vmaMapMemory(ctx->allocators[device_index], buffer->stagingAllocations[buffer_index], &mapped));
@@ -128,41 +128,12 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
 
         command_list_record_command(ctx->command_list, command);
 
-        // struct BufferWriteInfo {
-        //     struct Buffer* buffer;
-        //     unsigned long long offset;
-        //     unsigned long long size;
-        // };
-
-        // struct BufferWriteInfo* buffer_write_info = (struct BufferWriteInfo*)malloc(sizeof(*buffer_write_info));
-        // buffer_write_info->buffer = buffer;
-        // buffer_write_info->offset = offset;
-        // buffer_write_info->size = size;
-
-        // command_list_record_stage(ctx->command_list, {
-        //     [] (VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
-        //         struct BufferWriteInfo* info = (struct BufferWriteInfo*)stage->user_data;
-
-        //         VkBufferCopy bufferCopy;
-        //         bufferCopy.size = info->size;
-        //         bufferCopy.dstOffset = info->offset;
-        //         bufferCopy.srcOffset = 0;
-                
-        //         int buffer_index = stream_index;
-        //         if(info->buffer->per_device) {
-        //             buffer_index = device_index;
-        //         }
-
-        //         vkCmdCopyBuffer(cmd_buffer, info->buffer->stagingBuffers[buffer_index], info->buffer->buffers[buffer_index], 1, &bufferCopy);
-        //     },
-        //     buffer_write_info,
-        //     0,
-        //     VK_PIPELINE_STAGE_TRANSFER_BIT
-        // });
-
-        command_list_submit_extern(ctx->command_list, NULL, 1, &buffer_index, 1, buffer->per_device, NULL);
+        Signal signal;
+        command_list_submit_extern(ctx->command_list, NULL, 1, &buffer_index, 1, buffer->per_device, &signal);
         command_list_reset_extern(ctx->command_list);
         RETURN_ON_ERROR(;)
+        
+        signal.wait();
     }
 }
 
@@ -194,8 +165,8 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
         device_index = stream_index.first;
     }
 	
-    context_wait_idle_extern(ctx);
-    RETURN_ON_ERROR(;)
+    //context_wait_idle_extern(ctx);
+    //RETURN_ON_ERROR(;)
 
     struct CommandInfo command = {};
     command.type = COMMAND_TYPE_BUFFER_READ;
@@ -205,37 +176,13 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
     command.info.buffer_read_info.size = size;
 
     command_list_record_command(ctx->command_list, command);
-
     
-    //struct BufferReadInfo* buffer_read_info = (struct BufferReadInfo*)malloc(sizeof(*buffer_read_info));
-    //buffer_read_info->buffer = buffer;
-    //buffer_read_info->offset = offset;
-    //buffer_read_info->size = size;
-
-    //command_list_record_stage(ctx->command_list, {
-    //    [] (VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index) {
-    //        struct BufferReadInfo* info = (struct BufferReadInfo*)stage->user_data;
-
-    //         VkBufferCopy bufferCopy;
-    //         bufferCopy.size = info->size;
-    //         bufferCopy.dstOffset = 0;
-    //         bufferCopy.srcOffset = info->offset;
-            
-    //         int buffer_index = stream_index;
-    //         if(info->buffer->per_device) {
-    //             buffer_index = device_index;
-    //         }
-
-    //         vkCmdCopyBuffer(cmd_buffer, info->buffer->buffers[buffer_index], info->buffer->stagingBuffers[buffer_index], 1, &bufferCopy);
-    //     },
-    //     buffer_read_info,
-    //     0,
-    //     VK_PIPELINE_STAGE_TRANSFER_BIT
-    // });
-
-    command_list_submit_extern(ctx->command_list, NULL, 1, &index, 1, buffer->per_device, NULL);
+    Signal signal;
+    command_list_submit_extern(ctx->command_list, NULL, 1, &index, 1, buffer->per_device, &signal);
     command_list_reset_extern(ctx->command_list);
     RETURN_ON_ERROR(;)
+
+    signal.wait();
 
     void* mapped;
     VK_CALL(vmaMapMemory(ctx->allocators[device_index], buffer->stagingAllocations[index], &mapped));

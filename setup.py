@@ -116,6 +116,7 @@ append_to_sources("vkdispatch_native/", [
     "errors.cpp",
     "signal.cpp",
     "queue.cpp",
+    "work_queue.cpp",
     "VMAImpl.cpp",
     "VolkImpl.cpp"
 ])

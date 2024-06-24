@@ -33,14 +33,14 @@ def get_queue_type_strings(queue_type: int) -> typing.List[str]:
         result.append("Transfer")
     if queue_type & 0x008:
         result.append("Sparse Binding")
-    #if queue_type & 0x010:
-    #    result.append("Protected")
-    #if queue_type & 0x020:
-    #    result.append("Video Decode")
-    #if queue_type & 0x040:
-    #    result.append("Video Encode")
-    #if queue_type & 0x100:
-    #    result.append("Optical Flow (NV)")
+    if queue_type & 0x010:
+        result.append("Protected")
+    if queue_type & 0x020:
+        result.append("Video Decode")
+    if queue_type & 0x040:
+        result.append("Video Encode")
+    if queue_type & 0x100:
+        result.append("Optical Flow (NV)")
 
     return result
 
@@ -156,11 +156,7 @@ class DeviceInfo:
         result += f"\tQueues:\n"
         for ii, queue in enumerate(self.queue_properties):
             result += f"\t\t{ii} (count={queue[0]}, flags={hex(queue[1])}): "
-
             result += " | ".join(get_queue_type_strings(queue[1])) + "\n"
-
-            #for flag_str in get_queue_type_strings(queue[1]):
-            #    result += f"\t\t\t{flag_str}\n"
 
         return result
 
