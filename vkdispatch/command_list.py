@@ -30,7 +30,7 @@ class CommandList:
 
         self.static_constants_size = 0
         self.static_constants_valid = False
-        self.static_constant_buffer = vd.Buffer(shape=(1024,), var_type=vd.uint32) # Create a base static constants buffer at size 4k bytes
+        self.static_constant_buffer = vd.Buffer(shape=(4096,), var_type=vd.uint32) # Create a base static constants buffer at size 4k bytes
 
     def __del__(self) -> None:
         pass  # vkdispatch_native.command_list_destroy(self._handle)

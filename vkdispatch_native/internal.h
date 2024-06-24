@@ -96,6 +96,7 @@ void set_error(const char* format, ...);
 #include "stage_compute.h"
 #include "command_list.h"
 #include "descriptor_set.h"
+#include "work_queue.h"
 
 typedef struct {
     VkInstance instance;
@@ -207,7 +208,7 @@ struct Context {
     std::vector<VmaAllocator> allocators;
 
     struct CommandList* command_list;
-    Queue* work_queue;
+    WorkQueue* work_queue;
 };
 
 struct Buffer {
@@ -266,12 +267,13 @@ struct CommandList {
     std::vector<struct CommandInfo> commands;
     //std::vector<struct Stage> stages;
 
-    size_t staging_count;
-    size_t max_batch_count;
+    //size_t staging_count;
+    //size_t max_batch_count;
     size_t instance_size;
+    size_t program_id;
     
-    int staging_index;
-    std::vector<char*> staging_spaces;
+    //int staging_index;
+    //std::vector<char*> staging_spaces;
 };
 
 //void command_list_record_stage(struct CommandList* command_list, struct Stage stage, bool sync = true);
