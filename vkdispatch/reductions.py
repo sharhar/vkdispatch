@@ -45,7 +45,7 @@ class ReductionDispatcher:
             raise ValueError("First excution dimention must be an int!")
         
         if len(exec_dims) == 2:
-            if not isinstance(exec_dims[1], vd.CommandList):
+            if not isinstance(exec_dims[1], vd.CommandList) and exec_dims[1] is not None:
                 raise ValueError("Second excution dimention must be a CommandList!")
             
         if len(exec_dims) == 1:

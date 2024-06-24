@@ -4,6 +4,7 @@
 #include <string>
 #include <stdio.h>
 
+std::mutex __log_mutex = {};
 LogLevel __log_level_limit = LOG_LEVEL_WARNING;
 MyInstance _instance;
 
@@ -28,7 +29,7 @@ static VkBool32 VKAPI_PTR vulkan_custom_debug_callback(
         // Remove the prefix and substring
         size_t start_index = substring_location + shader_print_substring.size();
 
-        log_message(LOG_LEVEL_ERROR, "[SHADER PRINT] ", "\n", "%s", message_str.substr(start_index).c_str());
+        log_message(LOG_LEVEL_ERROR, "[SHADER PRINT] ", "\n", NULL, 0, message_str.substr(start_index).c_str());
         return VK_FALSE;
     }
 
@@ -57,7 +58,11 @@ static VkBool32 VKAPI_PTR vulkan_custom_debug_callback(
         break;
     }
 
-    log_message(log_level, prefix, "\n", pCallbackData->pMessage);
+    log_message(log_level, prefix, "\n", NULL, 0, pCallbackData->pMessage);
+
+    if(log_level == LOG_LEVEL_ERROR) {
+        exit(1);
+    }
 
     //printf("%s", pCallbackData->pMessage);
     return VK_FALSE;
@@ -272,6 +277,7 @@ void init_extern(bool debug, LogLevel log_level) {
         _instance.device_details[i].max_push_constant_size = properties.limits.maxPushConstantsSize;
         _instance.device_details[i].max_storage_buffer_range = properties.limits.maxStorageBufferRange;
         _instance.device_details[i].max_uniform_buffer_range = properties.limits.maxUniformBufferRange;
+        _instance.device_details[i].uniform_buffer_alignment = properties.limits.minUniformBufferOffsetAlignment;
 
         _instance.device_details[i].subgroup_size = subgroupProperties.subgroupSize;
         _instance.device_details[i].supported_stages = subgroupProperties.supportedStages;

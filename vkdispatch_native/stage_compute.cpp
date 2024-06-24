@@ -70,6 +70,8 @@ static uint32_t* glsl_to_spirv_util(glslang_stage_t stage, size_t* size, const c
 
 struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct ComputePlanCreateInfo* create_info) {
     struct ComputePlan* plan = new struct ComputePlan();
+    LOG_INFO("Creating Compute Plan with handle %p", plan);
+    
     plan->ctx = ctx;
     plan->pc_size = create_info->pc_size;
     plan->binding_count = create_info->binding_count;
@@ -80,6 +82,8 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
     plan->pipelines.resize(ctx->deviceCount);
 
     for (int i = 0; i < ctx->deviceCount; i++) {
+        LOG_INFO("Creating Compute Plan for device %d", i);
+
         size_t code_size;
         uint32_t* code = glsl_to_spirv_util(GLSLANG_STAGE_COMPUTE, &code_size, create_info->shader_source, "compute_shader");
         
@@ -99,22 +103,27 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
 
         std::vector<VkDescriptorSetLayoutBinding> bindings;
         for (int j = 0; j < create_info->binding_count; j++) {
-            if(create_info->descriptorTypes[j] != DESCRIPTOR_TYPE_STORAGE_BUFFER) {
-                LOG_ERROR("Only storage buffers are supported for now");
+            if(create_info->descriptorTypes[j] != DESCRIPTOR_TYPE_STORAGE_BUFFER &&
+               create_info->descriptorTypes[j] != DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
+                LOG_ERROR("Only storage and uniform buffers are supported for now");
                 return NULL;
             }
+
+            VkDescriptorType descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            if(create_info->descriptorTypes[j] == DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+                descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
             VkDescriptorSetLayoutBinding binding;
             memset(&binding, 0, sizeof(VkDescriptorSetLayoutBinding));
             binding.binding = j;
-            binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            binding.descriptorType = descriptorType;
             binding.descriptorCount = 1;
             binding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
             bindings.push_back(binding);
 
             VkDescriptorPoolSize poolSize;
             memset(&poolSize, 0, sizeof(VkDescriptorPoolSize));
-            poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            poolSize.type = descriptorType;
             poolSize.descriptorCount = 1;
             plan->poolSizes[i].push_back(poolSize);
         }
@@ -157,58 +166,45 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
     return plan;
 }
 
-struct ComputeRecordInfo {
-    struct ComputePlan* plan;
-    struct DescriptorSet* descriptor_set;
-    unsigned int blocks_x;
-    unsigned int blocks_y;
-    unsigned int blocks_z;
-    unsigned int pc_size;
-};
 
 void stage_compute_record_extern(struct CommandList* command_list, struct ComputePlan* plan, struct DescriptorSet* descriptor_set, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z) {
-    struct ComputeRecordInfo* my_compute_info = (struct ComputeRecordInfo*)malloc(sizeof(struct ComputeRecordInfo));
-    my_compute_info->plan = plan;
-    my_compute_info->descriptor_set = descriptor_set;
-    my_compute_info->blocks_x = blocks_x;
-    my_compute_info->blocks_y = blocks_y;
-    my_compute_info->blocks_z = blocks_z;
-    my_compute_info->pc_size = plan->pc_size;
+    struct CommandInfo command = {};
+    command.type = COMMAND_TYPE_COMPUTE;
+    command.pipeline_stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    command.info.compute_info.plan = plan;
+    command.info.compute_info.descriptor_set = descriptor_set;
+    command.info.compute_info.blocks_x = blocks_x;
+    command.info.compute_info.blocks_y = blocks_y;
+    command.info.compute_info.blocks_z = blocks_z;
+    command.info.compute_info.pc_size = plan->pc_size;
 
-    command_list->stages.push_back({
-        [](VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device) {
-            LOG_VERBOSE("Executing Compute");
+    command_list_record_command(command_list, command);
+}
 
-            struct ComputeRecordInfo* my_compute_info = (struct ComputeRecordInfo*)stage->user_data;
+void stage_compute_plan_exec_internal(VkCommandBuffer cmd_buffer, const struct ComputeRecordInfo& info, void* instance_data, int device_index, int stream_index) {
+    vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, info.plan->pipelines[device_index]);
 
-            vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, my_compute_info->plan->pipelines[device]);
+    if(info.descriptor_set != NULL)
+        vkCmdBindDescriptorSets(
+            cmd_buffer,
+            VK_PIPELINE_BIND_POINT_COMPUTE,
+            info.plan->pipelineLayouts[device_index],
+            0,
+            1,
+            &info.descriptor_set->sets[stream_index],
+            0,
+            NULL
+        );
 
-            if(my_compute_info->descriptor_set != NULL)
-                vkCmdBindDescriptorSets(
-                    cmd_buffer,
-                    VK_PIPELINE_BIND_POINT_COMPUTE,
-                    my_compute_info->plan->pipelineLayouts[device],
-                    0,
-                    1,
-                    &my_compute_info->descriptor_set->sets[device],
-                    0,
-                    NULL
-                );
+    if(info.pc_size > 0)
+        vkCmdPushConstants(
+            cmd_buffer, 
+            info.plan->pipelineLayouts[device_index],
+            VK_SHADER_STAGE_COMPUTE_BIT,
+            0,
+            info.pc_size,
+            instance_data
+        );
 
-            if(my_compute_info->pc_size > 0)
-                vkCmdPushConstants(
-                    cmd_buffer, 
-                    my_compute_info->plan->pipelineLayouts[device],
-                    VK_SHADER_STAGE_COMPUTE_BIT,
-                    0,
-                    my_compute_info->pc_size,
-                    instance_data
-                );
-
-            vkCmdDispatch(cmd_buffer, my_compute_info->blocks_x, my_compute_info->blocks_y, my_compute_info->blocks_z);
-        },
-        my_compute_info,
-        plan->pc_size,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
-    });
+    vkCmdDispatch(cmd_buffer, info.blocks_x, info.blocks_y, info.blocks_z);
 }

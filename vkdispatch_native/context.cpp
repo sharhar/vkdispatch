@@ -13,7 +13,10 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     ctx->devices.resize(device_count);
     ctx->streams.resize(device_count);
     ctx->allocators.resize(device_count);
-
+    
+    ctx->work_queue = new WorkQueue(64, 4);
+    ctx->command_list = command_list_create_extern(ctx);
+    
     LOG_INFO("Enumerating physical devices...");
 
     int queue_index_offset = 0;
@@ -29,29 +32,6 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
         //}
 
         LOG_INFO("Creating physical device %p...", static_cast<VkPhysicalDevice>(ctx->physicalDevices[i]));
-
-/*
-        int foundIndex = -1;
-
-        for(int queueIndex = 0; queueIndex < _instance.queue_family_properties[device_indicies[i]].size(); queueIndex++) {
-            LOG_INFO("Queue Index: %d", queueIndex);
-            LOG_INFO("Queue Count: %d", _instance.queue_family_properties[device_indicies[i]][queueIndex].queueCount);
-            LOG_INFO("Queue Flags:  %p", _instance.queue_family_properties[device_indicies[i]][queueIndex].queueFlags);
-
-            if(_instance.queue_family_properties[device_indicies[i]][queueIndex].queueFlags & VK_QUEUE_COMPUTE_BIT) {
-                foundIndex = queueIndex;
-                break;
-            }
-        }
-
-        if(foundIndex == -1) {
-            LOG_ERROR("Failed to find queue family index");
-            return nullptr;
-        }
-
-        LOG_INFO("Queue Family Index: %d", foundIndex);
-
-       */ 
 
         std::vector<const char*> desiredExtensions =  {
             "VK_KHR_shader_non_semantic_info",
@@ -130,19 +110,6 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
         LOG_INFO("Created device %p", static_cast<VkDevice>(ctx->devices[i]));
 
-        ctx->streams[i] = {};
-        for(int j = 0; j < queueCreateInfos.size(); j++) {
-            LOG_INFO("Creating %d queues for family %d", queueCreateInfos[j].queueCount, queueCreateInfos[j].queueFamilyIndex);
-            for(int k = 0; k < queueCreateInfos[j].queueCount; k++) {
-                VkQueue queue;
-                vkGetDeviceQueue(ctx->devices[i], queueCreateInfos[j].queueFamilyIndex, k, &queue);
-                LOG_INFO("Creating queue %d with handle %p", k, queue);
-                ctx->streams[i].push_back(new Stream(ctx->devices[i], queue, queueCreateInfos[j].queueFamilyIndex, 2));
-            }            
-        }
-
-        queue_index_offset += queue_counts[i];
-
         VmaVulkanFunctions vmaVulkanFunctions = {};
         vmaVulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
         vmaVulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
@@ -156,11 +123,35 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
         VK_CALL_RETNULL(vmaCreateAllocator(&allocatorCreateInfo, &ctx->allocators[i]));
 
         LOG_INFO("Created allocator %p", ctx->allocators[i]);
+
+        ctx->streams[i] = {};
+        for(int j = 0; j < queueCreateInfos.size(); j++) {
+            LOG_INFO("Creating %d queues for family %d", queueCreateInfos[j].queueCount, queueCreateInfos[j].queueFamilyIndex);
+            for(int k = 0; k < queueCreateInfos[j].queueCount; k++) {
+                VkQueue queue;
+                vkGetDeviceQueue(ctx->devices[i], queueCreateInfos[j].queueFamilyIndex, k, &queue);
+                LOG_INFO("Creating queue %d with handle %p", k, queue);
+
+                ctx->stream_indicies.push_back(std::make_pair(i, ctx->streams[i].size()));
+                ctx->streams[i].push_back(new Stream(ctx, ctx->devices[i], queue, queueCreateInfos[j].queueFamilyIndex, ctx->stream_indicies.size() - 1));
+            }            
+        }
+
+        queue_index_offset += queue_counts[i];
     }
 
     LOG_INFO("Created context at %p with %d devices", ctx, device_count);
 
+
     return ctx;
+}
+
+void context_wait_idle_extern(struct Context* context) {
+    for(int i = 0; i < context->deviceCount; i++) {
+        for(int j = 0; j < context->streams[i].size(); j++) {
+            context->streams[i][j]->wait_idle();
+        }
+    }
 }
 
 void context_destroy_extern(struct Context* context) {
