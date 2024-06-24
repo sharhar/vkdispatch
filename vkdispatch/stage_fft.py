@@ -59,9 +59,14 @@ class FFTDispatcher:
 
     def __getitem__(self, cmd_list: vd.CommandList):
 
+        if cmd_list is None:
+            return self.__call__
+
+        my_cmd_list: typing.List[vd.CommandList] = [cmd_list]
+
         def wrapper_func(buffer: vd.Buffer):
             plan = get_fft_plan(buffer._handle, buffer.shape)
-            plan.record(cmd_list, buffer, self.__inverse)
+            plan.record(my_cmd_list[0], buffer, self.__inverse)
 
         return wrapper_func
 
