@@ -10,12 +10,12 @@ def potential_to_wave(image):
     sigma_e = vd.shader.push_constant(vd.float32, "sigma_e")
     amp_ratio = vd.shader.push_constant(vd.float32, "amp_ratio")
 
-    potential = (image[ind][0] * sigma_e).copy()
+    potential = (image[ind].real * sigma_e).copy()
 
     A = vd.shader.exp(amp_ratio * potential).copy()
 
-    image[ind][0] = A * vd.shader.cos(potential)
-    image[ind][1] = A * vd.shader.sin(potential)
+    image[ind].real = A * vd.shader.cos(potential)
+    image[ind].imag = A * vd.shader.sin(potential)
 
 @vd.compute_shader(vd.complex64[0])
 def mult_by_mask(image):
@@ -37,8 +37,8 @@ def mult_by_mask(image):
     rad_sq = (r*r + c*c).copy()
 
     vd.shader.if_statement(rad_sq > (template_shape[0] * template_shape[1] / 16))
-    image[ind][0] = 0
-    image[ind][1] = 0
+    image[ind].real = 0
+    image[ind].imag = 0
     vd.shader.end()
 
 @vd.compute_shader(vd.complex64[0], vd.float32[0])
@@ -78,8 +78,8 @@ def apply_transfer_function(image, tf_data):
 
     wv = vd.shader.new(vd.vec2)
     wv[:] = image[ind]
-    image[ind][0] = mag * (wv[0] * rot_vec[0] - wv[1] * rot_vec[1])
-    image[ind][1] = mag * (wv[0] * rot_vec[1] + wv[1] * rot_vec[0])
+    image[ind].real = mag * (wv[0] * rot_vec[0] - wv[1] * rot_vec[1])
+    image[ind].imag = mag * (wv[0] * rot_vec[1] + wv[1] * rot_vec[0])
 
 @vd.map_reduce(vd.vec2, vd.vec2[0], reduction="subgroupAdd") # We define the reduction function here
 def calc_sums(wave): # so this is the mapping function

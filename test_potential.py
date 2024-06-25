@@ -63,8 +63,8 @@ def apply_gaussian_filter(buf):
     my_dist[:] = (x_norm*x_norm + y_norm*y_norm) / ( sigma * sigma / 2 )
 
     vd.shader.if_statement(my_dist > 100)
-    buf[ind][0] = 0
-    buf[ind][1] = 0
+    buf[ind].real = 0
+    buf[ind].imag = 0
     vd.shader.return_statement()
     vd.shader.end()
 

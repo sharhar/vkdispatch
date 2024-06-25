@@ -24,7 +24,6 @@ class ShaderVariable:
         var_type: vd.dtype,
         name: str = None,
         binding: int = None,
-        shape: Tuple[int] = None,
     ) -> None:
         self.append_func = append_func
         self.name_func = name_func
@@ -33,8 +32,27 @@ class ShaderVariable:
         self.binding = binding
         self.format = var_type.format_str
 
-        if shape is not None:
-            self.shape = shape
+        self.can_index = var_type.structure != vd.dtype_structure.DATA_STRUCTURE_SCALAR
+
+        if self.var_type.is_complex and self.var_type.structure == vd.dtype_structure.DATA_STRUCTURE_SCALAR:
+            self.real = self.new(self.var_type.parent, f"{self}.x")
+            self.imag = self.new(self.var_type.parent, f"{self}.y")
+            self.x = self.real
+            self.y = self.imag
+        
+        if self.var_type.structure == vd.dtype_structure.DATA_STRUCTURE_VECTOR:
+            self.x = self.new(self.var_type.parent, f"{self}.x")
+            
+            if self.var_type.child_count >= 2:
+                self.y = self.new(self.var_type.parent, f"{self}.y")
+
+            if self.var_type.child_count >= 3:
+                self.z = self.new(self.var_type.parent, f"{self}.z")
+
+            if self.var_type.child_count == 4:
+                self.w = self.new(self.var_type.parent, f"{self}.w")
+
+        self._initilized = True
 
     def new(self, var_type: vd.dtype, name: str = None):
         return ShaderVariable(self.append_func, self.name_func, var_type, name)
@@ -211,13 +229,16 @@ class ShaderVariable:
         self.append_func(f"{self} |= {other};\n")
         return self
 
-    def __getitem__(self, index: "Union[Tuple[ShaderVariable, ...], ShaderVariable]"):
+    def __getitem__(self, index: "Union[Tuple[ShaderVariable, ...], ShaderVariable, Tuple[int, ...], int]"):
+        if not self.can_index:
+            raise ValueError("Unsupported indexing!")
+
         if isinstance(index, ShaderVariable) or isinstance(index, (int, np.integer)):
             return self.new(self.var_type.parent, f"{self}[{index}]")
         else:
             raise ValueError("Unsupported index type!")
 
-    def __setitem__(self, index, value: "ShaderVariable") -> None:
+    def __setitem__(self, index, value: "ShaderVariable") -> None:        
         if isinstance(index, slice):
             if index.start is None and index.stop is None and index.step is None:
                 self.append_func(f"{self} = {value};\n")
@@ -225,7 +246,96 @@ class ShaderVariable:
             else:
                 raise ValueError("Unsupported slice!")
 
+        if not self.can_index:
+            raise ValueError("Unsupported indexing!")
+        
         if f"{self}[{index}]" == str(value):
             return
 
         self.append_func(f"{self}[{index}] = {value};\n")
+    
+    def __setattr__(self, name: str, value: "ShaderVariable") -> "ShaderVariable":
+        try:
+            if self._initilized:
+                if self.var_type.structure == vd.dtype_structure.DATA_STRUCTURE_SCALAR and self.var_type.is_complex:
+                    if name == "real":
+                        self.append_func(f"{self}.x = {value};\n")
+                        return
+                    
+                    if name == "imag":
+                        self.append_func(f"{self}.y = {value};\n")
+                        return
+                
+                    if name == "x" or name == "y":
+                        self.append_func(f"{self}.{name} = {value};\n")
+                        return
+                
+                if self.var_type.structure == vd.dtype_structure.DATA_STRUCTURE_VECTOR:
+                    if name == "x" or name == "y" or name == "z" or name == "w":
+                        self.append_func(f"{self}.{name} = {value};\n")
+                        return
+        except:
+            super().__setattr__(name, value)
+            return
+        
+        
+        if hasattr(self, name):
+            super().__setattr__(name, value)
+            return
+
+        raise AttributeError(f"Cannot set attribute '{name}'")
+    
+    
+    # def __getattr__(self, name: str) -> "ShaderVariable":
+    #     print(f"Getting attribute {name}")
+
+    #     if self.var_type.structure == vd.dtype_structure.DATA_STRUCTURE_SCALAR and self.var_type.is_complex:
+    #         if name == "real":
+    #             return self.new(self.var_type.parent, f"{self}.x")
+            
+    #         if name == "imag":
+    #             return self.new(self.var_type.parent, f"{self}.y")
+        
+    #         if name == "x" or name == "y":
+    #             return self.new(self.var_type.parent, f"{self}.{name}")
+        
+    #     if self.var_type.structure == vd.dtype_structure.DATA_STRUCTURE_VECTOR:
+    #         if name == "x" or name == "y" or name == "z" or name == "w":
+    #             return self.new(self.var_type.parent, f"{self}.{name}")
+        
+    #     #if name == "conj":
+    #     #    return self.new(self.var_type.parent, f"conj({self})")
+        
+    #     #if name == "abs":
+    #     #    return self.new(self.var_type.parent, f"abs({self})")
+
+    #     raise AttributeError(f"'{self.var_type.glsl_type}' object has no attribute '{name}'")
+
+    # def __setattr__(self, name: str, value: "ShaderVariable") -> "ShaderVariable":
+    #     print(getattr(self, '_initialized', False))
+
+    #     if getattr(self, '_initialized', False):
+    #         super().__setattr__(name, value)
+    #         return
+        
+    #     if self.var_type.structure == vd.dtype_structure.DATA_STRUCTURE_SCALAR and self.var_type.is_complex:
+    #         if name == "real":
+    #             self.append_func(f"{self}.x = {value};\n")
+    #             return
+            
+    #         if name == "imag":
+    #             self.append_func(f"{self}.y = {value};\n")
+    #             return
+        
+    #         if name == "x" or name == "y":
+    #             self.append_func(f"{self}.{name} = {value};\n")
+    #             return
+        
+    #     if self.var_type.structure == vd.dtype_structure.DATA_STRUCTURE_VECTOR:
+    #         if name == "x" or name == "y" or name == "z" or name == "w":
+    #             self.append_func(f"{self}.{name} = {value};\n")
+    #             return
+
+    #     raise AttributeError(f"Cannot set attribute '{name}'")
+            
+        
