@@ -85,6 +85,7 @@ class CommandList:
         if not self.static_constants_valid:
             static_data = b""
             for ii, uniform_buffer in enumerate(self.uniform_buffers):
+                #print(uniform_buffer.pc_dict)
                 self.descriptor_sets[ii].bind_buffer(self.static_constant_buffer, 0, len(static_data), uniform_buffer.data_size, 1)
                 static_data += uniform_buffer.get_bytes()
 

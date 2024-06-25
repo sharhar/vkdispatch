@@ -16,8 +16,8 @@ def cross_correlate(input, reference):
     input_val = vd.shader.new(vd.complex64)
     input_val[:] = input[ind] / (template_shape[0] * template_shape[1])
 
-    input[ind][0] = input_val[0] * reference[ind][0] + input_val[1] * reference[ind][1]
-    input[ind][1] = input_val[1] * reference[ind][0] - input_val[0] * reference[ind][1]
+    input[ind].real = input_val.real * reference[ind].real + input_val.imag * reference[ind].imag
+    input[ind].imag = input_val.imag * reference[ind].real - input_val.real * reference[ind].imag
 
 @vd.compute_shader(vd.complex64[0], vd.complex64[0])
 def fftshift_and_crop(output, input):
@@ -35,8 +35,8 @@ def fftshift_and_crop(output, input):
                     vd.shader.logical_and(
                         out_y >= template_shape[1] / 2,
                         out_y < reference_shape[1] - template_shape[1] / 2))
-    output[ind][0] = 0.0
-    output[ind][1] = 0.0
+    output[ind].real = 0.0
+    output[ind].imag = 0.0
     vd.shader.return_statement()
     vd.shader.end()
 
@@ -49,7 +49,7 @@ def fftshift_and_crop(output, input):
 def update_max(max_cross, best_index, back_buffer):
     ind = vd.shader.global_x.copy()
 
-    current_cross_correlation = back_buffer[ind][0]
+    current_cross_correlation = back_buffer[ind].real
 
     vd.shader.if_statement(current_cross_correlation > max_cross[ind])
     max_cross[ind] = current_cross_correlation

@@ -35,7 +35,7 @@ class dtype:
         self.structure = structure
         self.format_str = format_str
         self.parent = self if parent is None else parent
-        self.is_complex = is_complex if parent is None else parent.is_complex
+        self.is_complex = is_complex if self.structure == dtype_structure.DATA_STRUCTURE_SCALAR else parent.is_complex
         self.scalar = (
             self
             if self.structure == dtype_structure.DATA_STRUCTURE_SCALAR
