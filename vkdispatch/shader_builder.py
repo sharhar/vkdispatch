@@ -269,6 +269,8 @@ class ShaderBuilder:
         new_var = self.make_var(var_type, f"{buffer_name}.data")
         self.binding_list.append((var_type, buffer_name))
         new_var.binding = self.binding_count
+        shape_name = f"{buffer_name}_shape"
+        new_var._register_shape(self.static_constant(vd.ivec4, shape_name), shape_name)
         self.binding_count += 1
         return new_var
 

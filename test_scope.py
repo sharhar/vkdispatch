@@ -21,22 +21,20 @@ def potential_to_wave(image):
 def mult_by_mask(image):
     ind = vd.shader.global_x.copy()
 
-    template_shape = vd.shader.static_constant(vd.ivec2, "template_shape")
+    r = (ind / image.shape.y).copy()
+    c = (ind % image.shape.y).copy()
 
-    r = (ind / template_shape[1]).copy()
-    c = (ind % template_shape[1]).copy()
-
-    vd.shader.if_statement(r > template_shape[0] / 2)
-    r -= template_shape[0]
+    vd.shader.if_statement(r > image.shape.x / 2)
+    r -= image.shape.x
     vd.shader.end()
 
-    vd.shader.if_statement(c > template_shape[1] / 2)
-    c -= template_shape[1]
+    vd.shader.if_statement(c > image.shape.y / 2)
+    c -= image.shape.y
     vd.shader.end()
 
     rad_sq = (r*r + c*c).copy()
 
-    vd.shader.if_statement(rad_sq > (template_shape[0] * template_shape[1] / 16))
+    vd.shader.if_statement(rad_sq > (image.shape.x * image.shape.y / 16))
     image[ind].real = 0
     image[ind].imag = 0
     vd.shader.end()
@@ -46,8 +44,6 @@ def apply_transfer_function(image, tf_data):
     ind = vd.shader.global_x.copy()
 
     defocus = vd.shader.push_constant(vd.float32, "defocus")
-
-    template_shape = vd.shader.static_constant(vd.ivec2, "template_shape")
 
     V1_r_scaler = tf_data[9 * ind + 0]
     V1_c_scaler = tf_data[9 * ind + 1]
@@ -67,28 +63,28 @@ def apply_transfer_function(image, tf_data):
     V1_c = V1_c_scaler * defocus + V1_c_adder
 
     mag = (mag_pre * vd.shader.exp(V_scaler * (V1_r * V1_r + V1_c * V1_c))).copy()
-    mag /= template_shape[0] * template_shape[1]
+    mag /= image.shape.x * image.shape.y
     gamma = gamma_pre_scaler * defocus + gamma_pre_adder
 
     phase = (-gamma - eta_tot).copy()
 
     rot_vec = vd.shader.new(vd.vec2)
-    rot_vec[0] = vd.shader.cos(phase)
-    rot_vec[1] = vd.shader.sin(phase)
+    rot_vec.x = vd.shader.cos(phase)
+    rot_vec.y = vd.shader.sin(phase)
 
     wv = vd.shader.new(vd.vec2)
     wv[:] = image[ind]
-    image[ind].real = mag * (wv[0] * rot_vec[0] - wv[1] * rot_vec[1])
-    image[ind].imag = mag * (wv[0] * rot_vec[1] + wv[1] * rot_vec[0])
+    image[ind].real = mag * (wv.x * rot_vec.x - wv.y * rot_vec.y)
+    image[ind].imag = mag * (wv.x * rot_vec.y + wv.y * rot_vec.x)
 
 @vd.map_reduce(vd.vec2, vd.vec2[0], reduction="subgroupAdd") # We define the reduction function here
 def calc_sums(wave): # so this is the mapping function
     result = vd.shader.new(vd.vec2)
-    result[0] = wave[0] * wave[0] + wave[1] * wave[1]
-    result[1] = result[0] * result[0]
+    result.x = wave.x * wave.x + wave.y * wave.y
+    result.y = result.x * result.x
 
-    wave[0] = result[0]
-    wave[1] = 0
+    wave.x = result.x
+    wave.y = 0
 
     return result
 
@@ -96,12 +92,10 @@ def calc_sums(wave): # so this is the mapping function
 def normalize_image(image, sum_buff):
     ind = vd.shader.global_x.copy()
 
-    template_shape = vd.shader.static_constant(vd.ivec2, "template_shape")
+    sum_vec = (sum_buff[0] / (image.shape.x * image.shape.y)).copy()
+    sum_vec.y = vd.shader.sqrt(sum_vec.y - sum_vec.x * sum_vec.x)
 
-    sum_vec = (sum_buff[0] / (template_shape[0] * template_shape[1])).copy()
-    sum_vec[1] = vd.shader.sqrt(sum_vec[1] - sum_vec[0] * sum_vec[0])
-
-    image[ind][0] = (image[ind][0] - sum_vec[0]) / sum_vec[1]
+    image[ind].x = (image[ind].x - sum_vec.x) / sum_vec.y
 
 
 class Scope:
@@ -132,17 +126,17 @@ class Scope:
         potential_to_wave[self.exec_size, cmd_list](work_buffer, sigma_e=self.sigma_e, amp_ratio=self.amp_ratio)
 
         vd.fft[cmd_list](work_buffer)
-        mult_by_mask[work_buffer.size, cmd_list](work_buffer, template_shape=self.template_shape)
+        mult_by_mask[work_buffer.size, cmd_list](work_buffer)
         
         if defocus is not None:
-            apply_transfer_function[work_buffer.size, cmd_list](work_buffer, self.tf_data_buffer, template_shape=self.template_shape, defocus=defocus)
+            apply_transfer_function[work_buffer.size, cmd_list](work_buffer, self.tf_data_buffer, defocus=defocus)
         else:
-            self.defocus = apply_transfer_function[work_buffer.size, cmd_list](work_buffer, self.tf_data_buffer, template_shape=self.template_shape)
+            self.defocus = apply_transfer_function[work_buffer.size, cmd_list](work_buffer, self.tf_data_buffer)
         
         vd.ifft[cmd_list](work_buffer)
 
         self.sum_buff = calc_sums[work_buffer.size, cmd_list](work_buffer) # The reduction returns a buffer with the result in the first value
-        normalize_image[work_buffer.size, cmd_list](work_buffer, self.sum_buff, template_shape=self.template_shape)
+        normalize_image[work_buffer.size, cmd_list](work_buffer, self.sum_buff)
     
     def set_defocus(self, defocus: float):
         self.defocus["defocus"] = defocus
