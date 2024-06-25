@@ -124,6 +124,9 @@ class CommandList:
         if self._reset_on_submit:
             self.reset()
     
+    def submit_any(self, data: bytes) -> None:
+        self.submit(data=data, stream_index=-1)
+    
     def iter_batched_params(self, mapping_function, param_iter, batch_size: int = 10):
         data = b""
         bsize = 0
