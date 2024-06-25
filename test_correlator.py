@@ -11,10 +11,8 @@ def init_accumulators(max_cross, best_index):
 def cross_correlate(input, reference):
     ind = vd.shader.global_x.copy()
 
-    template_shape = vd.shader.static_constant(vd.ivec2, "template_shape")
-
     input_val = vd.shader.new(vd.complex64)
-    input_val[:] = input[ind] / (template_shape[0] * template_shape[1])
+    input_val[:] = input[ind] / (input.shape.x * input.shape.y)
 
     input[ind].real = input_val.real * reference[ind].real + input_val.imag * reference[ind].imag
     input[ind].imag = input_val.imag * reference[ind].real - input_val.real * reference[ind].imag
@@ -23,27 +21,24 @@ def cross_correlate(input, reference):
 def fftshift_and_crop(output, input):
     ind = vd.shader.global_x.cast_to(vd.int32).copy()
 
-    reference_shape = vd.shader.static_constant(vd.ivec2, "reference_shape")
-    template_shape = vd.shader.static_constant(vd.ivec2, "template_shape")
-
-    out_x = (ind / reference_shape[1]).copy()
-    out_y = (ind % reference_shape[1]).copy()
+    out_x = (ind / output.shape.y).copy()
+    out_y = (ind % output.shape.y).copy()
 
     vd.shader.if_any(vd.shader.logical_and(
-                        out_x >= template_shape[0] / 2,
-                        out_x < reference_shape[0] - template_shape[0] / 2),
+                        out_x >= input.shape.x / 2,
+                        out_x < output.shape.x - input.shape.x / 2),
                     vd.shader.logical_and(
-                        out_y >= template_shape[1] / 2,
-                        out_y < reference_shape[1] - template_shape[1] / 2))
+                        out_y >= input.shape.y / 2,
+                        out_y < output.shape.y - input.shape.y / 2))
     output[ind].real = 0.0
     output[ind].imag = 0.0
     vd.shader.return_statement()
     vd.shader.end()
 
-    in_x = ((out_x + template_shape[0] / 2) % reference_shape[0]).copy()
-    in_y = ((out_y + template_shape[1] / 2) % reference_shape[1]).copy()
+    in_x = ((out_x + input.shape.x / 2) % output.shape.x).copy()
+    in_y = ((out_y + input.shape.y / 2) % output.shape.y).copy()
 
-    output[ind] = input[in_x * template_shape[1] + in_y]
+    output[ind] = input[in_x * input.shape.y + in_y]
 
 @vd.compute_shader(vd.float32[0], vd.int32[0], vd.complex64[0])
 def update_max(max_cross, best_index, back_buffer):
@@ -73,10 +68,10 @@ class Correlator:
         self.template_index = None
     
     def record(self, cmd_list: vd.CommandList, work_buffer: vd.Buffer, index: int = None):
-        fftshift_and_crop[self.shift_buffer.size, cmd_list](self.shift_buffer, work_buffer, template_shape=self.template_shape, reference_shape=self.match_image_buffer.shape)
+        fftshift_and_crop[self.shift_buffer.size, cmd_list](self.shift_buffer, work_buffer)
 
         vd.fft[cmd_list](self.shift_buffer)
-        cross_correlate[self.shift_buffer.size, cmd_list](self.shift_buffer, self.match_image_buffer, template_shape=self.template_shape)
+        cross_correlate[self.shift_buffer.size, cmd_list](self.shift_buffer, self.match_image_buffer)
         vd.ifft[cmd_list](self.shift_buffer)
 
         if index is not None:

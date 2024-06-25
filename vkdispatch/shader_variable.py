@@ -32,7 +32,9 @@ class ShaderVariable:
         self.binding = binding
         self.format = var_type.format_str
 
-        self.can_index = var_type.structure != vd.dtype_structure.DATA_STRUCTURE_SCALAR
+        #self._shape = None
+
+        self.can_index = var_type.structure == vd.dtype_structure.DATA_STRUCTURE_BUFFER or var_type.structure == vd.dtype_structure.DATA_STRUCTURE_MATRIX
 
         if self.var_type.is_complex and self.var_type.structure == vd.dtype_structure.DATA_STRUCTURE_SCALAR:
             self.real = self.new(self.var_type.parent, f"{self}.x")
@@ -253,6 +255,10 @@ class ShaderVariable:
             return
 
         self.append_func(f"{self}[{index}] = {value};\n")
+
+    def _register_shape(self, shape_var: "ShaderVariable", shape_name: str):
+        super().__setattr__("shape", shape_var)
+        super().__setattr__("shape_name", shape_name)
     
     def __setattr__(self, name: str, value: "ShaderVariable") -> "ShaderVariable":
         try:
@@ -284,58 +290,4 @@ class ShaderVariable:
             return
 
         raise AttributeError(f"Cannot set attribute '{name}'")
-    
-    
-    # def __getattr__(self, name: str) -> "ShaderVariable":
-    #     print(f"Getting attribute {name}")
-
-    #     if self.var_type.structure == vd.dtype_structure.DATA_STRUCTURE_SCALAR and self.var_type.is_complex:
-    #         if name == "real":
-    #             return self.new(self.var_type.parent, f"{self}.x")
-            
-    #         if name == "imag":
-    #             return self.new(self.var_type.parent, f"{self}.y")
-        
-    #         if name == "x" or name == "y":
-    #             return self.new(self.var_type.parent, f"{self}.{name}")
-        
-    #     if self.var_type.structure == vd.dtype_structure.DATA_STRUCTURE_VECTOR:
-    #         if name == "x" or name == "y" or name == "z" or name == "w":
-    #             return self.new(self.var_type.parent, f"{self}.{name}")
-        
-    #     #if name == "conj":
-    #     #    return self.new(self.var_type.parent, f"conj({self})")
-        
-    #     #if name == "abs":
-    #     #    return self.new(self.var_type.parent, f"abs({self})")
-
-    #     raise AttributeError(f"'{self.var_type.glsl_type}' object has no attribute '{name}'")
-
-    # def __setattr__(self, name: str, value: "ShaderVariable") -> "ShaderVariable":
-    #     print(getattr(self, '_initialized', False))
-
-    #     if getattr(self, '_initialized', False):
-    #         super().__setattr__(name, value)
-    #         return
-        
-    #     if self.var_type.structure == vd.dtype_structure.DATA_STRUCTURE_SCALAR and self.var_type.is_complex:
-    #         if name == "real":
-    #             self.append_func(f"{self}.x = {value};\n")
-    #             return
-            
-    #         if name == "imag":
-    #             self.append_func(f"{self}.y = {value};\n")
-    #             return
-        
-    #         if name == "x" or name == "y":
-    #             self.append_func(f"{self}.{name} = {value};\n")
-    #             return
-        
-    #     if self.var_type.structure == vd.dtype_structure.DATA_STRUCTURE_VECTOR:
-    #         if name == "x" or name == "y" or name == "z" or name == "w":
-    #             self.append_func(f"{self}.{name} = {value};\n")
-    #             return
-
-    #     raise AttributeError(f"Cannot set attribute '{name}'")
-            
         

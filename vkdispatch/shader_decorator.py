@@ -3,6 +3,7 @@ from typing import Dict
 from typing import List
 from typing import Tuple
 from typing import Union
+from typing import Callable
 
 import numpy as np
 
@@ -85,6 +86,7 @@ class ShaderDispatcher:
 
             for ii, arg in enumerate(self.func_args):
                 descriptor_set.bind_buffer(args[ii], arg.binding)
+                static_constant_buffer[arg.shape_name] = args[ii].shader_shape
 
             pc_check_dict = {}
             
@@ -135,7 +137,7 @@ def compute_shader(*args, local_size: Tuple[int, int, int] = None):
 
         pc_exec_count_var = builder.static_constant(vd.uvec4, "exec_count")
 
-        builder.if_statement(pc_exec_count_var[0] <= builder.global_x)
+        builder.if_statement(pc_exec_count_var.x <= builder.global_x)
         builder.return_statement()
         builder.end()
 
