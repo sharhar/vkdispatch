@@ -231,14 +231,28 @@ class ShaderVariable:
         self.append_func(f"{self} |= {other};\n")
         return self
 
-    def __getitem__(self, index: "Union[Tuple[ShaderVariable, ...], ShaderVariable, Tuple[int, ...], int]"):
+    def __getitem__(self, index):
         if not self.can_index:
             raise ValueError("Unsupported indexing!")
 
         if isinstance(index, ShaderVariable) or isinstance(index, (int, np.integer)):
             return self.new(self.var_type.parent, f"{self}[{index}]")
-        else:
-            raise ValueError("Unsupported index type!")
+        
+        if isinstance(index, tuple):
+            if len(index) == 1:
+                return self.new(self.var_type.parent, f"{self}[{index[0]}]")
+            elif len(index) == 2:
+                true_index = f"{index[0]} * {self.shape.y} + {index[1]}"
+                return self.new(self.var_type.parent, f"{self}[{true_index}]")
+            elif len(index) == 3:
+                true_index = f"{index[0]} * {self.shape.y} + {index[1]}"
+                true_index = f"{true_index} * {self.shape.z} + {index[2]}"
+                return self.new(self.var_type.parent, f"{self}[{true_index}]")
+            else:
+                raise ValueError(f"Unsupported number of indicies {len(index)}!")
+
+        #else:
+        #    raise ValueError(f"Unsupported index type {index}!")
 
     def __setitem__(self, index, value: "ShaderVariable") -> None:        
         if isinstance(index, slice):
@@ -249,7 +263,7 @@ class ShaderVariable:
                 raise ValueError("Unsupported slice!")
 
         if not self.can_index:
-            raise ValueError("Unsupported indexing!")
+            raise ValueError(f"Unsupported indexing {index}!")
         
         if f"{self}[{index}]" == str(value):
             return
