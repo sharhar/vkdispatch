@@ -3,7 +3,7 @@ import numpy as np
 
 @vd.compute_shader(vd.complex64[0])
 def fill_buffer(buf):
-    buf[vd.shader.global_x] = vd.shader.push_constant(vd.complex64, "val")
+    buf[vd.shader.global_x] = vd.shader.static_constant(vd.complex64, "val")
 
 @vd.compute_shader(vd.int32[0], vd.float32[0])
 def place_atoms(image, atom_coords):
@@ -27,7 +27,7 @@ def place_atoms(image, atom_coords):
     vd.shader.return_statement()
     vd.shader.end()
 
-    vd.shader.atomic_add(image[2 * (image_ind.x * image.shape.y + image_ind.y)], 1)
+    vd.shader.atomic_add(image[2 * image_ind.x, 2 * image_ind.y], 1)
 
 @vd.compute_shader(vd.float32[0])
 def convert_int_to_float(image):

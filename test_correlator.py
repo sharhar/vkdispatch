@@ -38,7 +38,7 @@ def fftshift_and_crop(output, input):
     in_x = ((out_x + input.shape.x / 2) % output.shape.x).copy()
     in_y = ((out_y + input.shape.y / 2) % output.shape.y).copy()
 
-    output[ind] = input[in_x * input.shape.y + in_y]
+    output[ind] = input[in_x, in_y]
 
 @vd.compute_shader(vd.float32[0], vd.int32[0], vd.complex64[0])
 def update_max(max_cross, best_index, back_buffer):
