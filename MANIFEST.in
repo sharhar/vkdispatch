@@ -6,6 +6,8 @@ include deps/volk/volk/volk.h
 include deps/volk/volk/volk.c
 include deps/volk/volk/LICENSE.md
 
+include include_ext/glslang/build_info.h
+
 include deps/MoltenVK/MoltenVK/MoltenVK/static/MoltenVK.xcframework/macos-arm64_x86_64/libMoltenVK.a
 include deps/MoltenVK/MoltenVK/LICENSE
 
