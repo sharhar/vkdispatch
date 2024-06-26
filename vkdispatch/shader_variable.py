@@ -16,6 +16,7 @@ class ShaderVariable:
     var_type: vd.dtype
     name: str
     binding: int
+    shape: "ShaderVariable"
 
     def __init__(
         self,
@@ -60,6 +61,7 @@ class ShaderVariable:
         return ShaderVariable(self.append_func, self.name_func, var_type, name)
 
     def copy(self, var_name: str = None):
+        """Create a new variable with the same value as the current variable."""
         new_var = self.new(self.var_type, var_name)
         self.append_func(f"{self.var_type.glsl_type} {new_var} = {self};\n")
         return new_var
@@ -246,7 +248,7 @@ class ShaderVariable:
                 return self.new(self.var_type.parent, f"{self}[{true_index}]")
             elif len(index) == 3:
                 true_index = f"{index[0]} * {self.shape.y} + {index[1]}"
-                true_index = f"{true_index} * {self.shape.z} + {index[2]}"
+                true_index = f"({true_index}) * {self.shape.z} + {index[2]}"
                 return self.new(self.var_type.parent, f"{self}[{true_index}]")
             else:
                 raise ValueError(f"Unsupported number of indicies {len(index)}!")

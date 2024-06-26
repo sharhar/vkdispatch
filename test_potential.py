@@ -35,7 +35,7 @@ def convert_int_to_float(image):
     image[ind] = vd.shader.float_bits_to_int(image[ind]).cast_to(vd.float32)
 
 @vd.compute_shader(vd.complex64[0])
-def apply_gaussian_filter(buf):
+def apply_gaussian_filter(buf: vd.ShaderVariable):
     ind = vd.shader.global_x.cast_to(vd.int32).copy()
 
     sigma = vd.shader.static_constant(vd.float32, "sigma")
