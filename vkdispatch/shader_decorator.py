@@ -3,6 +3,7 @@ from typing import Dict
 from typing import List
 from typing import Tuple
 from typing import Union
+from typing import Callable
 
 import numpy as np
 
@@ -85,12 +86,21 @@ class ShaderDispatcher:
 
             for ii, arg in enumerate(self.func_args):
                 descriptor_set.bind_buffer(args[ii], arg.binding)
+                static_constant_buffer[arg.shape_name] = args[ii].shader_shape
+
+            pc_check_dict = {}
+            
+            for key, val in kwargs.items():
+                if key in self.uniform_buff_dict:
+                    static_constant_buffer[key] = val
+                else:
+                    pc_check_dict[key] = val
 
             if pc_buff is not None:
-                for key, val in kwargs.items():
+                for key, val in pc_check_dict.items():
                     pc_buff[key] = val
-            elif len(kwargs) > 0:
-                raise ValueError("No push constant buffer was provided!")
+            elif len(pc_check_dict) > 0:
+                raise ValueError("No push constants were provided even though the cmd_list is None!")
 
             if my_cmd_list[0] is None:
                 cmd_list = vd.get_command_list()
@@ -127,7 +137,7 @@ def compute_shader(*args, local_size: Tuple[int, int, int] = None):
 
         pc_exec_count_var = builder.static_constant(vd.uvec4, "exec_count")
 
-        builder.if_statement(pc_exec_count_var[0] <= builder.global_x)
+        builder.if_statement(pc_exec_count_var.x <= builder.global_x)
         builder.return_statement()
         builder.end()
 

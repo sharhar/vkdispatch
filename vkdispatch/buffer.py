@@ -19,12 +19,27 @@ class Buffer:
     mem_size: int
 
     def __init__(self, shape: Tuple[int], var_type: dtype, per_device: bool = False) -> None:
+        if len(shape) > 3:
+            raise ValueError("Buffer shape must be 1, 2, or 3 dimensions!")
+
         self.var_type: dtype = var_type
         self.shape: Tuple[int] = shape
         self.size: int = int(np.prod(shape))
         self.mem_size: int = self.size * self.var_type.item_size
         self.per_device: bool = per_device
         self.ctx = vd.get_context()
+
+        if self.size > 2 ** 30:
+            raise ValueError("Cannot allocate buffers larger than 2^30 elements!")
+
+        shader_shape_internal = [1, 1, 1, 1]
+
+        for ii, axis_size in enumerate(shape):
+            shader_shape_internal[ii] = axis_size
+        
+        shader_shape_internal[3] = shader_shape_internal[0] * shader_shape_internal[1] * shader_shape_internal[2]
+
+        self.shader_shape = tuple(shader_shape_internal)
 
         self._handle: int = vkdispatch_native.buffer_create(
             vd.get_context_handle(), self.mem_size, 1 if self.per_device else 0

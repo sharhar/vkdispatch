@@ -24,6 +24,4 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
 void buffer_write_exec_internal(VkCommandBuffer cmd_buffer, const struct BufferWriteInfo& info, int device_index, int stream_index);
 void buffer_read_exec_internal(VkCommandBuffer cmd_buffer, const struct BufferReadInfo& info, int device_index, int stream_index);
 
-//void buffer_copy_extern(struct Buffer* src, struct Buffer* dst, unsigned long long src_offset, unsigned long long dst_offset, unsigned long long size, int device_index);
-
 #endif // SRC_BUFFER_H_

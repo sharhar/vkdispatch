@@ -4,6 +4,7 @@ import numpy as np
 import sys
 import tf_calc
 import tqdm
+import time
 
 import test_potential as tp
 import test_scope as ts
@@ -26,11 +27,17 @@ test_values = (np.array(np.meshgrid(phi_values, theta_values, psi_values, defocu
 
 template_size = (512, 512)# (380, 380)
 
+sss = time.time()
+
 potential_generator = tp.TemplatePotential(tu.load_coords(sys.argv[3]), template_size, 200, 0.3)
 scope = ts.Scope(template_size, tf_calc.prepareTF(template_size, 1.056, 0), tf_calc.get_sigmaE(300e3), -0.07)
 correlator = tc.Correlator(template_size, tu.load_image(sys.argv[2]))
 
+print("Init time:", time.time() - sss)
+
 work_buffer = vd.Buffer(template_size, vd.complex64)
+
+sss = time.time()
 
 cmd_list = vd.CommandList()
 
@@ -38,15 +45,17 @@ potential_generator.record(cmd_list, work_buffer)
 scope.record(cmd_list, work_buffer)
 correlator.record(cmd_list, work_buffer)
 
+print("Record time:", time.time() - sss)
+
 def set_params(params):
     potential_generator.set_rotation_matrix(tu.get_rotation_matrix(params[1][:3], [0, 0]))
     scope.set_defocus(params[1][3])
     correlator.set_index(params[0])
 
-batch_size = 10
+batch_size = 100
 status_bar = tqdm.tqdm(total=test_values.shape[0])
 for data in cmd_list.iter_batched_params(set_params, enumerate(test_values), batch_size=batch_size):
-    cmd_list.submit(data=data, stream_index=-1)
+    cmd_list.submit_any(data)
     status_bar.update(batch_size)
 status_bar.close()
 
@@ -60,14 +69,16 @@ print("Theta:", test_values[final_index][1])
 print("Psi:", test_values[final_index][2])
 print("Defocus:", test_values[final_index][3])
 
-potential_generator.record(None, work_buffer, rot_matrix=tu.get_rotation_matrix([118, 95, 294]))
-#scope.record(None, work_buffer, defocus=12000)
+file_out = sys.argv[1]
+
+potential_generator.record(None, work_buffer, rot_matrix=tu.get_rotation_matrix([test_values[final_index][0], test_values[final_index][1], test_values[final_index][2]]))
+np.save(file_out + "_match.npy", work_buffer.read()[0])
+scope.record(None, work_buffer, defocus=test_values[final_index][3])
+np.save(file_out + "_match_defocused.npy", work_buffer.read()[0])
 
 params_result = test_values[best_index_result]
 
-file_out = sys.argv[1]
 np.save(file_out + "_mip.npy", final_max_cross)
-np.save(file_out + "_match.npy", work_buffer.read()[0])
 np.save(file_out + "_best_index.npy", best_index_result)
 np.save(file_out + "_phi.npy", params_result[:, :, 0])
 np.save(file_out + "_theta.npy", params_result[:, :, 1])
