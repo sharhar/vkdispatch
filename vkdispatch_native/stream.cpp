@@ -67,13 +67,15 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
     LOG_INFO("Waiting for initial command buffer");
     VK_CALL(vkQueueWaitIdle(queue));
 
+    /*
     command_list = command_list_create_extern(ctx);
 
     struct CommandInfo command = {};
     command.type = COMMAND_TYPE_NOOP;
     command.pipeline_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
-    command_list_record_command(command_list, command, false);    
+    command_list_record_command(command_list, command, false);   
+    */
 
     work_thread = std::thread([this]() { this->thread_worker(); });
 }
@@ -95,6 +97,7 @@ void Stream::destroy() {
     commandBuffers.clear();
 }
 
+/*
 void Stream::wait_idle() {
     LOG_INFO("Waiting for stream %d to be idle", stream_index);
     Signal* signal = new Signal();
@@ -102,27 +105,16 @@ void Stream::wait_idle() {
     signal->wait();
     delete signal;
 }
+*/
 
 void Stream::thread_worker() {
     struct Context* ctx = this->ctx;
     WorkQueue* work_queue = ctx->work_queue;
     int device_index = ctx->stream_indicies[stream_index].first;
-/*
-    struct WorkInfo work_info = {};
-    while (ctx->work_queue->pop(&work_info, [this] (const struct WorkInfo& work_info) {
-        return work_info.index == stream_index || work_info.index == -1;
-    }, [this] (const struct WorkInfo& work_info) {
-        if(data_buffer_size < work_info.instance_count * work_info.instance_size) {
-            data_buffer_size = work_info.instance_count * work_info.instance_size;
-            data_buffer = realloc(data_buffer, data_buffer_size);
-        }
-
-        memcpy(data_buffer, work_info.instance_data, work_info.instance_count * work_info.instance_size);
-    })) {
-
-    */
     struct WorkHeader* work_header = NULL;
-    while(work_queue->pop(&work_header, stream_index)) {
+
+    bool run_stream = true;
+    while(run_stream) {
         VK_CALL(vkWaitForFences(device, 1, &fences[current_index], VK_TRUE, UINT64_MAX));
         VK_CALL(vkResetFences(device, 1, &fences[current_index]));
 
@@ -140,8 +132,15 @@ void Stream::thread_worker() {
             VK_ACCESS_MEMORY_READ_BIT,
         };
 
+        if(!work_queue->pop(&work_header, stream_index)) {
+            LOG_INFO("Thread worker for device %d, stream %d has no more work", device_index, stream_index);
+            run_stream = false;
+            break;
+        }
+
         struct ProgramHeader* program_header = work_header->program_header;
         struct CommandInfo* command_info_buffer = (struct CommandInfo*)&program_header[1];
+        Signal* signal = work_header->signal;
 
         char* current_instance_data = (char*)&work_header[1];
         
@@ -199,24 +198,9 @@ void Stream::thread_worker() {
                 
                 
             }
-
-
-            //for (size_t i = 0; i < work_info.command_list->stages.size(); i++) {
-            //    LOG_VERBOSE("Recording stage %d", i);
-            //    work_info.command_list->stages[i].record(commandBuffers[current_index], &work_info.command_list->stages[i], current_instance_data, device_index, stream_index);
-            //    RETURN_ON_ERROR(;)
-
-            //    if(i < work_info.command_list->stages.size() - 1)
-            //        vkCmdPipelineBarrier(
-            //            commandBuffers[current_index], 
-            //            work_info.command_list->stages[i].stage, 
-            //            work_info.command_list->stages[i+1].stage, 
-            //            0, 1, 
-            //            &memory_barrier, 
-            //            0, 0, 0, 0);
-            //    current_instance_data += work_info.command_list->stages[i].instance_data_size;
-            //}
         }
+
+        ctx->work_queue->finish(work_header);
 
         VK_CALL(vkEndCommandBuffer(commandBuffers[current_index]));
 
@@ -239,13 +223,11 @@ void Stream::thread_worker() {
         
         VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[last_index]));        
         
-        //if(work_info.signal != NULL) {
-        if(work_header->signal != NULL) {
+        if(signal != NULL) {
             VK_CALL(vkWaitForFences(device, 1, &fences[last_index], VK_TRUE, UINT64_MAX));
-            work_header->signal->notify();
+            signal->notify();
         }
 
-        ctx->work_queue->finish(work_header);
     }
 
     LOG_INFO("Thread worker for device %d, stream %d has quit", device_index, stream_index);
