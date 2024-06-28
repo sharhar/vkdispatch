@@ -17,6 +17,12 @@ class ShaderVariable:
     name: str
     binding: int
     shape: "ShaderVariable"
+    real: "ShaderVariable"
+    imag: "ShaderVariable"
+    x: "ShaderVariable"
+    y: "ShaderVariable"
+    z: "ShaderVariable"
+    w: "ShaderVariable"
 
     def __init__(
         self,

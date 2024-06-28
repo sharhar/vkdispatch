@@ -156,22 +156,6 @@ struct WorkInfo {
     Signal* signal;
 };
 
-class Queue {
-public:
-    Queue(int max_size);
-
-    void stop();
-    void push(struct WorkInfo elem);
-    bool pop(struct WorkInfo* elem, std::function<bool(const struct WorkInfo& arg)> check, std::function<void(const struct WorkInfo& arg)> finalize);
-
-    std::mutex mutex;
-    std::condition_variable cv_push;
-    std::condition_variable cv_pop;
-    std::vector<struct WorkInfo> data;
-    int max_size;
-    bool running;
-};
-
 class Stream {
 public:
     Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFamilyIndex, int stream_index);
@@ -179,7 +163,7 @@ public:
 
     void thread_worker();
 
-    void wait_idle();
+    //void wait_idle();
 
     struct Context* ctx;
     VkDevice device;
@@ -196,7 +180,7 @@ public:
     int current_index;
     int stream_index;
 
-    struct CommandList* command_list;
+    //struct CommandList* command_list;
 };
 
 struct Context {
@@ -265,20 +249,11 @@ struct CommandInfo {
 struct CommandList {
     struct Context* ctx;
     std::vector<struct CommandInfo> commands;
-    //std::vector<struct Stage> stages;
-
-    //size_t staging_count;
-    //size_t max_batch_count;
     size_t instance_size;
     size_t program_id;
-    
-    //int staging_index;
-    //std::vector<char*> staging_spaces;
 };
 
-//void command_list_record_stage(struct CommandList* command_list, struct Stage stage, bool sync = true);
-
-void command_list_record_command(struct CommandList* command_list, struct CommandInfo command, bool sync = true);
+void command_list_record_command(struct CommandList* command_list, struct CommandInfo command);
 
 struct FFTPlan {
     struct Context* ctx;

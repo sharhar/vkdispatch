@@ -6,23 +6,27 @@ import tf_calc
 import tqdm
 import time
 
+#vd.initialize(log_level=vd.LogLevel.INFO)
+vd.make_context(devices=[0], queue_families=[[0]])
+
 import test_potential as tp
 import test_scope as ts
 import test_correlator as tc
 import test_utils as tu
 
-#vd.initialize(log_level=vd.LogLevel.INFO)
-#vd.make_context(devices=[0], queue_families=[[0]])
-
 #phi_values = np.arange(0, 360, 2.5)
 #theta_values = np.arange(0, 180, 2.5)
 #psi_values = np.arange(0, 360, 1.5)
 
-phi_values = np.arange(100, 200, 2.5)
-theta_values = np.arange(70, 100, 2.5)
-psi_values = np.arange(280, 340, 1.5)
+#phi_values = np.arange(100, 200, 2.5)
+#theta_values = np.arange(70, 100, 2.5)
+#psi_values = np.arange(280, 340, 1.5)
 
-defocus_values = np.arange(10000, 16000, 100)
+phi_values = np.arange(150, 200, 2.5)
+theta_values = np.arange(70, 90, 2.5)
+psi_values = np.arange(320, 340, 1.5)
+
+defocus_values = np.arange(10000, 16000, 400)
 test_values = (np.array(np.meshgrid(phi_values, theta_values, psi_values, defocus_values)).T.reshape(-1, 4))
 
 template_size = (512, 512)# (380, 380)

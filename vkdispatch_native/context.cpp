@@ -14,7 +14,7 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     ctx->streams.resize(device_count);
     ctx->allocators.resize(device_count);
     
-    ctx->work_queue = new WorkQueue(64, 4);
+    ctx->work_queue = new WorkQueue(device_count * 4, 4);
     ctx->command_list = command_list_create_extern(ctx);
     
     LOG_INFO("Enumerating physical devices...");
@@ -146,6 +146,7 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     return ctx;
 }
 
+/*
 void context_wait_idle_extern(struct Context* context) {
     for(int i = 0; i < context->deviceCount; i++) {
         for(int j = 0; j < context->streams[i].size(); j++) {
@@ -153,6 +154,7 @@ void context_wait_idle_extern(struct Context* context) {
         }
     }
 }
+*/
 
 void context_destroy_extern(struct Context* context) {
     for(int i = 0; i < context->deviceCount; i++) {
