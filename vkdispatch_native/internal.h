@@ -146,6 +146,7 @@ struct Image {
     uint32_t block_size;
 
     std::vector<VkImageMemoryBarrier> barriers;
+    std::vector<VkSampler> samplers;
 };
 
 typedef void (*PFN_stage_record)(VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index);

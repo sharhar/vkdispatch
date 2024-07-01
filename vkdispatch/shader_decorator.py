@@ -71,13 +71,17 @@ class ShaderDispatcher:
         my_blocks[1] = (my_blocks[1] + self.my_local_size[1] - 1) // self.my_local_size[1]
         my_blocks[2] = (my_blocks[2] + self.my_local_size[2] - 1) // self.my_local_size[2]
 
-        def wrapper_func(*args, **kwargs):
+        def wrapper_func(*args, image_bindings: list = None, **kwargs):
             if len(args) != len(self.func_args):
                 raise ValueError(
                     f"Expected {len(self.func_args)} arguments, got {len(args)}!"
                 )
 
             descriptor_set = vd.DescriptorSet(self.plan._handle)
+
+            if image_bindings is not None:
+                for binding, image in image_bindings:
+                    descriptor_set.bind_image(image, binding)
 
             pc_buff = None if self.pc_buff_dict is None else vd.BufferStructureProxy(self.pc_buff_dict, 0)
             static_constant_buffer = vd.BufferStructureProxy(self.uniform_buff_dict, vd.get_context().device_infos[0].uniform_buffer_alignment)
@@ -155,11 +159,11 @@ def compute_shader(*args, local_size: Tuple[int, int, int] = None):
         else:
             build_func()
 
-        shader_source, pc_size, pc_dict, uniform_dict = builder.build(
+        shader_source, pc_size, pc_dict, uniform_dict, binding_type_list = builder.build(
             my_local_size[0], my_local_size[1], my_local_size[2]
         )
 
-        plan = vd.ComputePlan(shader_source, builder.binding_count, pc_size)
+        plan = vd.ComputePlan(shader_source, binding_type_list, pc_size)
 
         wrapper = ShaderDispatcher(plan, shader_source, pc_dict, uniform_dict, my_local_size, func_args)
 

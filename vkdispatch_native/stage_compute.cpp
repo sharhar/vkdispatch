@@ -104,7 +104,8 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
         std::vector<VkDescriptorSetLayoutBinding> bindings;
         for (int j = 0; j < create_info->binding_count; j++) {
             if(create_info->descriptorTypes[j] != DESCRIPTOR_TYPE_STORAGE_BUFFER &&
-               create_info->descriptorTypes[j] != DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
+               create_info->descriptorTypes[j] != DESCRIPTOR_TYPE_UNIFORM_BUFFER &&
+               create_info->descriptorTypes[j] != DESCRIPTOR_TYPE_SAMPLER) {
                 LOG_ERROR("Only storage and uniform buffers are supported for now");
                 return NULL;
             }
@@ -112,6 +113,8 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
             VkDescriptorType descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
             if(create_info->descriptorTypes[j] == DESCRIPTOR_TYPE_UNIFORM_BUFFER)
                 descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            else if(create_info->descriptorTypes[j] == DESCRIPTOR_TYPE_SAMPLER)
+                descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 
             VkDescriptorSetLayoutBinding binding;
             memset(&binding, 0, sizeof(VkDescriptorSetLayoutBinding));

@@ -69,3 +69,39 @@ void descriptor_set_write_buffer_extern(struct DescriptorSet* descriptor_set, un
         vkUpdateDescriptorSets(descriptor_set->plan->ctx->devices[device_index], 1, &writeDescriptor, 0, NULL);
     }
 }
+
+
+void descriptor_set_write_image_extern(struct DescriptorSet* descriptor_set, unsigned int binding, void* object) {
+    struct Image* image = (struct Image*)object;
+
+    for (int i = 0; i < descriptor_set->plan->ctx->stream_indicies.size(); i++) {
+        int device_index = descriptor_set->plan->ctx->stream_indicies[i].first;
+
+        //VkDescriptorBufferInfo buffDesc;
+        //buffDesc.buffer = buffer->buffers[i];
+        //if(buffer->per_device)
+        //    buffDesc.buffer = buffer->buffers[device_index];
+
+        //buffDesc.offset = offset;
+        //buffDesc.range = range == 0 ? VK_WHOLE_SIZE : range;
+
+        VkDescriptorImageInfo imageDesc;
+        imageDesc.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageDesc.imageView = image->imageViews[i];
+        imageDesc.sampler = image->samplers[i];
+
+        VkWriteDescriptorSet writeDescriptor;
+        memset(&writeDescriptor, 0, sizeof(VkWriteDescriptorSet));
+        writeDescriptor.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writeDescriptor.dstSet = descriptor_set->sets[i];
+        writeDescriptor.dstBinding = binding;
+        writeDescriptor.dstArrayElement = 0;
+        writeDescriptor.descriptorCount = 1;
+        writeDescriptor.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writeDescriptor.pImageInfo = &imageDesc;
+        writeDescriptor.pBufferInfo = NULL;
+        writeDescriptor.pTexelBufferView = NULL;
+
+        vkUpdateDescriptorSets(descriptor_set->plan->ctx->devices[device_index], 1, &writeDescriptor, 0, NULL);
+    }
+}

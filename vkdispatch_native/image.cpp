@@ -12,6 +12,7 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
     image->stagingBuffers.resize(ctx->stream_indicies.size());
     image->stagingAllocations.resize(ctx->stream_indicies.size());
     image->barriers.resize(ctx->stream_indicies.size());
+    image->samplers.resize(ctx->stream_indicies.size());
     image->block_size = image_format_block_size_extern(format);
 
     for(int i = 0; i < ctx->deviceCount; i++) {
@@ -58,7 +59,7 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
         VmaAllocationCreateInfo vmaAllocationCreateInfo = {};
         vmaAllocationCreateInfo.flags = 0;
         vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-        vmaCreateImage(ctx->allocators[ctx->stream_indicies[i].first], &imageCreateInfo, &vmaAllocationCreateInfo, &image->images[i], &image->allocations[i], NULL);
+        VK_CALL_RETNULL(vmaCreateImage(ctx->allocators[ctx->stream_indicies[i].first], &imageCreateInfo, &vmaAllocationCreateInfo, &image->images[i], &image->allocations[i], NULL));
 
         VkImageViewCreateInfo imageViewCreateInfo;
         memset(&imageViewCreateInfo, 0, sizeof(VkImageViewCreateInfo));
@@ -84,10 +85,30 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
         vmaAllocationCreateInfo = {};
 		vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
 		vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-        vmaCreateBuffer(ctx->allocators[ctx->stream_indicies[i].first], &bufferCreateInfo, &vmaAllocationCreateInfo, &image->stagingBuffers[i], &image->stagingAllocations[i], NULL);
+        VK_CALL_RETNULL(vmaCreateBuffer(ctx->allocators[ctx->stream_indicies[i].first], &bufferCreateInfo, &vmaAllocationCreateInfo, &image->stagingBuffers[i], &image->stagingAllocations[i], NULL));
 
+        VkSamplerCreateInfo samplerCreateInfo;
+        memset(&samplerCreateInfo, 0, sizeof(VkSamplerCreateInfo));
+        samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+        samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+        samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerCreateInfo.mipLodBias = 0.0f;
+        samplerCreateInfo.anisotropyEnable = VK_FALSE;
+        samplerCreateInfo.maxAnisotropy = 1.0f;
+        samplerCreateInfo.compareEnable = VK_FALSE;
+        samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+        samplerCreateInfo.minLod = 0.0f;
+        samplerCreateInfo.maxLod = 0.0f;
+        samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+        samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+
+        VK_CALL_RETNULL(vkCreateSampler(ctx->devices[ctx->stream_indicies[i].first], &samplerCreateInfo, NULL, &image->samplers[i]));
+        
         memset(&image->barriers[i], 0, sizeof(VkImageMemoryBarrier));
-
         image->barriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         image->barriers[i].pNext = NULL;
         image->barriers[i].srcAccessMask = 0;
@@ -103,6 +124,8 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
         image->barriers[i].subresourceRange.baseArrayLayer = 0;
         image->barriers[i].subresourceRange.layerCount = layers;
     }
+
+    image_write_extern(image, NULL, {0, 0, 0}, extent, 0, 0, -1);
 
     return image;
 }
@@ -156,10 +179,12 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
 
         LOG_INFO("Writing data to buffer %d in device %d", buffer_index, device_index);
 
-        void* mapped;
-        VK_CALL(vmaMapMemory(ctx->allocators[device_index], image->stagingAllocations[buffer_index], &mapped));
-        memcpy(mapped, data, data_size);
-        vmaUnmapMemory(ctx->allocators[device_index], image->stagingAllocations[buffer_index]);
+        if(data != NULL) {
+            void* mapped;
+            VK_CALL(vmaMapMemory(ctx->allocators[device_index], image->stagingAllocations[buffer_index], &mapped));
+            memcpy(mapped, data, data_size);
+            vmaUnmapMemory(ctx->allocators[device_index], image->stagingAllocations[buffer_index]);
+        }
 
         struct CommandInfo command = {};
         command.type = COMMAND_TYPE_IMAGE_WRITE;
@@ -193,17 +218,29 @@ void image_write_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageWri
     bufferImageCopy.imageOffset = info.offset;
     bufferImageCopy.imageExtent = info.extent;
 
+    if(info.layerCount > 0) {
+        image_memory_barrier_internal(
+            info.image,
+            stream_index, 
+            cmd_buffer, 
+            VK_ACCESS_TRANSFER_WRITE_BIT, 
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+            VK_PIPELINE_STAGE_TRANSFER_BIT
+        );
+
+        vkCmdCopyBufferToImage(cmd_buffer, info.image->stagingBuffers[stream_index], info.image->images[stream_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferImageCopy);
+    }
+
     image_memory_barrier_internal(
         info.image,
         stream_index, 
         cmd_buffer, 
-        VK_ACCESS_TRANSFER_WRITE_BIT, 
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
+        VK_ACCESS_SHADER_READ_BIT, 
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
         VK_PIPELINE_STAGE_TRANSFER_BIT, 
-        VK_PIPELINE_STAGE_TRANSFER_BIT
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
     );
-    
-    vkCmdCopyBufferToImage(cmd_buffer, info.image->stagingBuffers[stream_index], info.image->images[stream_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferImageCopy);
 }
 
 void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExtent3D extent, unsigned int baseLayer, unsigned int layerCount, int index) {
@@ -245,8 +282,6 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
 }
 
 void image_read_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageReadInfo& info, int device_index, int stream_index) {
-    LOG_INFO("(EXEC) Reading data from image (%p) at offset (%d, %d, %d) with extent (%d, %d, %d)", info.image, info.offset.x, info.offset.y, info.offset.z, info.extent.width, info.extent.height, info.extent.depth);
-
     VkBufferImageCopy bufferImageCopy;
     memset(&bufferImageCopy, 0, sizeof(VkBufferImageCopy));
     bufferImageCopy.bufferOffset = 0;
@@ -258,23 +293,27 @@ void image_read_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageRead
     bufferImageCopy.imageOffset = info.offset;
     bufferImageCopy.imageExtent = info.extent;
 
-    LOG_INFO("(EXEC) Doing barrier"); 
-
     image_memory_barrier_internal(
         info.image,
         stream_index, 
         cmd_buffer, 
         VK_ACCESS_TRANSFER_READ_BIT, 
         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
-        VK_PIPELINE_STAGE_TRANSFER_BIT, 
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
         VK_PIPELINE_STAGE_TRANSFER_BIT
     );
 
-    LOG_INFO("(EXEC) Copying data");
-
     vkCmdCopyImageToBuffer(cmd_buffer, info.image->images[stream_index], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, info.image->stagingBuffers[stream_index], 1, &bufferImageCopy);
 
-    LOG_INFO("(EXEC)Read DONE");
+    image_memory_barrier_internal(
+        info.image,
+        stream_index, 
+        cmd_buffer, 
+        VK_ACCESS_SHADER_READ_BIT, 
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+        VK_PIPELINE_STAGE_TRANSFER_BIT, 
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
+    );
 }
 
 void image_copy_extern(struct Image* src, struct Image* dst, VkOffset3D src_offset, unsigned int src_baseLayer, unsigned int src_layerCount, 
