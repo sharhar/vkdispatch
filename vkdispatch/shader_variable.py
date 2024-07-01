@@ -16,6 +16,7 @@ class ShaderVariable:
     var_type: vd.dtype
     name: str
     binding: int
+    dimentions: int
     shape: "ShaderVariable"
     real: "ShaderVariable"
     imag: "ShaderVariable"
@@ -38,6 +39,7 @@ class ShaderVariable:
         self.name = self.name_func(name)
         self.binding = binding
         self.format = var_type.format_str
+        self.dimentions = 0
 
         #self._shape = None
 
@@ -282,6 +284,21 @@ class ShaderVariable:
         super().__setattr__("shape", shape_var)
         super().__setattr__("shape_name", shape_name)
     
+    def sample(self, coord: "ShaderVariable"):
+        if self.dimentions == 0:
+            raise ValueError("Cannot sample something other than a texture!")
+        
+        sample_coord_string = ""
+
+        if self.dimentions == 2:
+            sample_coord_string = f"(vec2({coord}.xy) / vec2(textureSize({self}, 0)))"
+        elif self.dimentions == 3:
+            sample_coord_string = f"(vec3({coord}.xyz) / vec3(textureSize({self}, 0)))"
+        else:
+            raise ValueError("Unsupported number of dimentions!")
+
+        return self.new(vd.vec4, f"texture({self}, {sample_coord_string})")
+
     def __setattr__(self, name: str, value: "ShaderVariable") -> "ShaderVariable":
         try:
             if self._initilized:

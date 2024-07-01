@@ -131,7 +131,7 @@ class ShaderBuilder:
 
     var_count: int
     binding_count: int
-    binding_list: List[Tuple[str, str]]
+    binding_list: List[Tuple[str, str, int]]
     shared_buffers: List[Tuple[vd.dtype, int, vd.ShaderVariable]]
     scope_num: int
     pc_struct: BufferStructure
@@ -258,7 +258,7 @@ class ShaderBuilder:
     
     def new(self, var_type: vd.dtype, *args, var_name: str = None):
         new_var = self.make_var(var_type, var_name)
-        self.append_contents(self.get_variable_decleration(new_var, var_type, args))
+        self.append_contents(self.get_variable_decleration(new_var, var_type, args) + "\n")
         return new_var
     
     def push_constant(self, var_type: vd.dtype, var_name: str):
@@ -267,10 +267,21 @@ class ShaderBuilder:
     def dynamic_buffer(self, var_type: vd.dtype, var_name: str = None):
         buffer_name = f"buf{self.binding_count}" if var_name is None else var_name
         new_var = self.make_var(var_type, f"{buffer_name}.data")
-        self.binding_list.append((var_type, buffer_name))
+        self.binding_list.append((var_type, buffer_name, 0))
         new_var.binding = self.binding_count
         shape_name = f"{buffer_name}_shape"
         new_var._register_shape(self.static_constant(vd.ivec4, shape_name), shape_name)
+        self.binding_count += 1
+        return new_var
+    
+    def texture_sampler(self, dimentions: int, var_name: str = None):
+        texture_name = f"tex{self.binding_count}" if var_name is None else var_name
+        new_var = self.make_var(vd.vec4, f"{texture_name}")
+        self.binding_list.append((vd.vec4, texture_name, dimentions))
+        new_var.binding = self.binding_count
+        new_var.dimentions = dimentions
+        #shape_name = f"{texture_name}_shape"
+        #new_var._register_shape(self.static_constant(vd.ivec4, shape_name), shape_name)
         self.binding_count += 1
         return new_var
 
@@ -377,6 +388,14 @@ class ShaderBuilder:
     def int_bits_to_float(self, arg: vd.ShaderVariable):
         return self.make_var(vd.float32, f"intBitsToFloat({arg})")
 
+    def printf(self, format: str, *args: Union[vd.ShaderVariable, str], seperator=" "):
+        args_string = ""
+
+        for arg in args:
+            args_string += f", {arg}"
+
+        self.append_contents(f'debugPrintfEXT("{format}" {args_string});\n')
+
     def print(self, *args: Union[vd.ShaderVariable, str], seperator=" "):
         args_list = []
 
@@ -411,9 +430,16 @@ class ShaderBuilder:
         
         if len(uniform_decleration_contents) > 0:
             header += f"\nlayout(set = 0, binding = 0) uniform UniformObjectBuffer {{\n { uniform_decleration_contents } \n}} UBO;\n"
+
+        binding_type_list = [3]
         
         for ii, binding in enumerate(self.binding_list):
-            header += f"layout(set = 0, binding = {ii + 1}) buffer Buffer{ii + 1} {{ {self.get_variable_decleration('data', binding[0], [])} }} {binding[1]};\n"
+            if binding[2] == 0:
+                header += f"layout(set = 0, binding = {ii + 1}) buffer Buffer{ii + 1} {{ {self.get_variable_decleration('data', binding[0], [])} }} {binding[1]};\n"
+                binding_type_list.append(1)
+            else:
+                header += f"layout(set = 0, binding = {ii + 1}) uniform sampler{binding[2]}D {binding[1]};\n"
+                binding_type_list.append(5)
         
         pc_decleration_contents, pc_dict = self.pc_struct.build()
         
@@ -422,7 +448,7 @@ class ShaderBuilder:
         
         layout_str = f"layout(local_size_x = {x}, local_size_y = {y}, local_size_z = {z}) in;"
 
-        return f"{header}\n{layout_str}\nvoid main() {{\n{self.contents}\n}}\n", self.pc_struct.my_size, pc_dict, uniform_dict
+        return f"{header}\n{layout_str}\nvoid main() {{\n{self.contents}\n}}\n", self.pc_struct.my_size, pc_dict, uniform_dict, binding_type_list
 
 
 shader = ShaderBuilder()

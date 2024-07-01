@@ -3,7 +3,7 @@ from enum import Enum
 
 import numpy as np
 
-import vkdispatch
+import vkdispatch as vd
 import vkdispatch_native
 
 
@@ -67,7 +67,7 @@ class image_format(Enum):  # TODO: Fix class naming scheme to adhere to conventi
 
 
 # TODO: This can be moved into the enum class as an indexing method
-def select_image_format(dtype: np.dtype, channels: int) -> image_format:
+def select_image_format(dtype: vd.dtype, channels: int) -> image_format:
     assert channels in [1, 2, 3, 4], f"Unsupported number of channels ({channels})! Must be 1, 2, 3 or 4!"
 
     # NOTE: These large if-else statements can be better indexed and maintained by a
@@ -80,6 +80,8 @@ def select_image_format(dtype: np.dtype, channels: int) -> image_format:
     #     ...
     # }
     # return __MAPPING__[(dtype, channels)]
+
+    """
 
     if dtype == np.uint8:
         if channels == 1:
@@ -117,7 +119,9 @@ def select_image_format(dtype: np.dtype, channels: int) -> image_format:
             return image_format.R16G16B16_SINT
         elif channels == 4:
             return image_format.R16G16B16A16_SINT
-    elif dtype == np.uint32:
+    el """
+    
+    if dtype == vd.uint32:
         if channels == 1:
             return image_format.R32_UINT
         elif channels == 2:
@@ -126,7 +130,7 @@ def select_image_format(dtype: np.dtype, channels: int) -> image_format:
             return image_format.R32G32B32_UINT
         elif channels == 4:
             return image_format.R32G32B32A32_UINT
-    elif dtype == np.int32:
+    elif dtype == vd.int32:
         if channels == 1:
             return image_format.R32_SINT
         elif channels == 2:
@@ -135,16 +139,16 @@ def select_image_format(dtype: np.dtype, channels: int) -> image_format:
             return image_format.R32G32B32_SINT
         elif channels == 4:
             return image_format.R32G32B32A32_SINT
-    elif dtype == np.float16:
-        if channels == 1:
-            return image_format.R16_SFLOAT
-        elif channels == 2:
-            return image_format.R16G16_SFLOAT
-        elif channels == 3:
-            return image_format.R16G16B16_SFLOAT
-        elif channels == 4:
-            return image_format.R16G16B16A16_SFLOAT
-    elif dtype == np.float32:
+    #elif dtype == np.float16:
+    #    if channels == 1:
+    #        return image_format.R16_SFLOAT
+    #    elif channels == 2:
+    #        return image_format.R16G16_SFLOAT
+    #    elif channels == 3:
+    #        return image_format.R16G16B16_SFLOAT
+    #    elif channels == 4:
+    #        return image_format.R16G16B16A16_SFLOAT
+    elif dtype == vd.float32:
         if channels == 1:
             return image_format.R32_SFLOAT
         elif channels == 2:
@@ -153,15 +157,15 @@ def select_image_format(dtype: np.dtype, channels: int) -> image_format:
             return image_format.R32G32B32_SFLOAT
         elif channels == 4:
             return image_format.R32G32B32A32_SFLOAT
-    elif dtype == np.float64:
-        if channels == 1:
-            return image_format.R64_SFLOAT
-        elif channels == 2:
-            return image_format.R64G64_SFLOAT
-        elif channels == 3:
-            return image_format.R64G64B64_SFLOAT
-        elif channels == 4:
-            return image_format.R64G64B64A64_SFLOAT
+    #elif dtype == vd.float64:
+    #    if channels == 1:
+    #        return image_format.R64_SFLOAT
+    #    elif channels == 2:
+    #        return image_format.R64G64_SFLOAT
+    #    elif channels == 3:
+    #        return image_format.R64G64B64_SFLOAT
+    #    elif channels == 4:
+    #        return image_format.R64G64B64A64_SFLOAT
     else:
         raise ValueError(f"Unsupported dtype ({dtype})!")
 
@@ -182,7 +186,7 @@ class Image:
         self,
         shape: typing.Tuple[int],
         layers: int,
-        dtype: type,
+        dtype: vd.dtype,
         channels: int,
         view_type: image_view_type,
     ) -> None:
@@ -194,7 +198,7 @@ class Image:
         if len(shape) == 3:
             assert type(shape[2]) == int, "Shape must be a tuple of integers!"
 
-        assert type(dtype) == type, "Dtype must be a numpy dtype!"
+        assert type(dtype) == vd.dtype, "Dtype must be a dtype!"
         assert type(channels) == int, "Channels must be an integer!"
 
         self.type = (
@@ -204,7 +208,7 @@ class Image:
         )
         self.view_type = view_type
         self.format: image_format = select_image_format(dtype, channels)
-        self.dtype: type = dtype
+        self.dtype: vd.dtype = dtype
         self.layers: int = layers
         self.channels: int = channels
 
@@ -216,13 +220,17 @@ class Image:
         )
         self.array_shape: typing.Tuple[int] = (*self.shape, channels)
 
+        if channels == 1:
+            self.array_shape = self.array_shape[:-1]
+
         self.block_size: int = vkdispatch_native.image_format_block_size(
             self.format.value
         )
+
         self.mem_size: int = np.prod(self.shape) * self.block_size
 
         self._handle: int = vkdispatch_native.image_create(
-            vkdispatch.get_context_handle(),
+            vd.get_context_handle(),
             self.extent,
             self.layers,
             self.format.value,
@@ -246,8 +254,8 @@ class Image:
             device_index,
         )
 
-    def read(self, device_index: int = -1) -> np.ndarray:
-        result = np.ndarray(shape=self.array_shape, dtype=self.dtype)
+    def read(self, device_index: int = 0) -> np.ndarray:
+        result = np.ndarray(shape=self.array_shape, dtype=vd.to_numpy_dtype(self.dtype.scalar))
         vkdispatch_native.image_read(
             self._handle, result, [0, 0, 0], self.extent, 0, self.layers, device_index
         )

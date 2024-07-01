@@ -202,7 +202,6 @@ void Stream::thread_worker() {
         VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[last_index]));
         
         if(signal != NULL) {
-            LOG_INFO("Waiting for signal %p", signal);
             VK_CALL(vkWaitForFences(device, 1, &fences[last_index], VK_TRUE, UINT64_MAX));
             signal->notify();
         }
