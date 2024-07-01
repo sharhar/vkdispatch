@@ -6,6 +6,11 @@ import numpy as np
 import vkdispatch as vd
 import vkdispatch_native
 
+class ImageKernelArgument:
+    def __init__(self, var_type: vd.dtype, dimentions: int, layers: int) -> None:
+        self.var_type = var_type
+        self.dimensions = dimentions
+        self.layers = layers
 
 __MAPPING__ = {
     (np.uint8, 1),
@@ -260,7 +265,9 @@ class Image:
             self._handle, result, [0, 0, 0], self.extent, 0, self.layers, device_index
         )
         return result
-
+    
+    def sample(self, coords: "vd.ShaderVariable") -> "vd.ShaderVariable":
+        raise RuntimeError("Cannot sample an image object outside of shader!")
 
 class Image2D(Image):
     def __init__(
@@ -268,6 +275,10 @@ class Image2D(Image):
     ) -> None:
         assert len(shape) == 2, "Shape must be 2D!"
         super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_2D)
+    
+    @classmethod
+    def __class_getitem__(cls, arg: vd.dtype) -> type:
+        return ImageKernelArgument(arg, 2, 1) 
 
 
 class Image2DArray(Image):
@@ -282,6 +293,10 @@ class Image2DArray(Image):
         super().__init__(
             shape, layers, dtype, channels, image_view_type.VIEW_TYPE_2D_ARRAY
         )
+    
+    @classmethod
+    def __class_getitem__(cls, arg: tuple) -> type:
+        return ImageKernelArgument(arg[0], 2, arg[1]) 
 
 
 class Image3D(Image):
@@ -290,3 +305,7 @@ class Image3D(Image):
     ) -> None:
         assert len(shape) == 3, "Shape must be 3D!"
         super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_3D)
+    
+    @classmethod
+    def __class_getitem__(cls, arg: vd.dtype) -> type:
+        return ImageKernelArgument(arg, 3, 1) 
