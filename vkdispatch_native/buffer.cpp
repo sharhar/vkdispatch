@@ -14,7 +14,6 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
         buffer->buffers.resize(ctx->deviceCount);
         buffer->stagingAllocations.resize(ctx->deviceCount);
         buffer->stagingBuffers.resize(ctx->deviceCount);
-        buffer->fences.resize(ctx->deviceCount);
         buffer->per_device = true;
     } else {
         LOG_INFO("Creating %d buffers (one per stream)", ctx->stream_indicies.size());
@@ -23,7 +22,6 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
         buffer->buffers.resize(ctx->stream_indicies.size());
         buffer->stagingAllocations.resize(ctx->stream_indicies.size());
         buffer->stagingBuffers.resize(ctx->stream_indicies.size());
-        buffer->fences.resize(ctx->stream_indicies.size());
         buffer->per_device = false;
     }
 
@@ -55,12 +53,6 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
 		vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
 		vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
         VK_CALL_RETNULL(vmaCreateBuffer(ctx->allocators[device_index], &stagingBufferCreateInfo, &vmaAllocationCreateInfo, &buffer->stagingBuffers[i], &buffer->stagingAllocations[i], NULL));        
-
-        VkFenceCreateInfo fenceCreateInfo;
-        memset(&fenceCreateInfo, 0, sizeof(VkFenceCreateInfo));
-        fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-        VK_CALL_RETNULL(vkCreateFence(ctx->devices[device_index], &fenceCreateInfo, NULL, &buffer->fences[i]));
     }
 
     return buffer;
@@ -76,7 +68,6 @@ void buffer_destroy_extern(struct Buffer* buffer) {
             device_index = buffer->ctx->stream_indicies[i].first;
         }
 
-        vkDestroyFence(buffer->ctx->devices[device_index], buffer->fences[i], NULL);
         vmaDestroyBuffer(buffer->ctx->allocators[device_index], buffer->buffers[i], buffer->allocations[i]);
         vmaDestroyBuffer(buffer->ctx->allocators[device_index], buffer->stagingBuffers[i], buffer->stagingAllocations[i]);
     }

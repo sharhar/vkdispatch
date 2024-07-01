@@ -28,10 +28,13 @@ from .dtype import uvec2
 from .dtype import uvec4
 from .dtype import vec2
 from .dtype import vec4
-#from .image import image
-#from .image import image2d
-#from .image import image2d_array
-#from .image import image3d
+from .image import image_format
+from .image import image_type
+from .image import image_view_type
+from .image import Image
+from .image import Image2D
+from .image import Image2DArray
+from .image import Image3D
 from .shader_variable import ShaderVariable
 from .shader_builder import BufferStructureProxy
 from .shader_builder import shader

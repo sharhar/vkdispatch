@@ -177,7 +177,7 @@ class image_view_type(Enum):
     VIEW_TYPE_2D_ARRAY = (5,)
 
 
-class image:
+class Image:
     def __init__(
         self,
         shape: typing.Tuple[int],
@@ -217,7 +217,7 @@ class image:
         self.array_shape: typing.Tuple[int] = (*self.shape, channels)
 
         self.block_size: int = vkdispatch_native.image_format_block_size(
-            self.format.value[0]
+            self.format.value
         )
         self.mem_size: int = np.prod(self.shape) * self.block_size
 
@@ -225,7 +225,7 @@ class image:
             vkdispatch.get_context_handle(),
             self.extent,
             self.layers,
-            self.format.value[0],
+            self.format.value,
             self.type.value[0],
             self.view_type.value[0],
         )
@@ -253,25 +253,8 @@ class image:
         )
         return result
 
-    # TODO: Update the 'other' argument to reference a Image class
-    def copy_to(self, other: "image", device_index: int = -1) -> None:
-        if other.shape != self.shape or other.channels != self.channels:
-            raise ValueError("Buffer memory sizes must match!")
-        vkdispatch_native.image_copy(
-            self._handle,
-            other._handle,
-            [0, 0, 0],
-            0,
-            self.layers,
-            [0, 0, 0],
-            0,
-            self.layers,
-            self.extent,
-            device_index,
-        )
 
-
-class image2d(image):
+class Image2D(Image):
     def __init__(
         self, shape: typing.Tuple[int], dtype: type = np.float32, channels: int = 1
     ) -> None:
@@ -279,7 +262,7 @@ class image2d(image):
         super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_2D)
 
 
-class image2d_array(image):
+class Image2DArray(Image):
     def __init__(
         self,
         shape: typing.Tuple[int],
@@ -293,7 +276,7 @@ class image2d_array(image):
         )
 
 
-class image3d(image):
+class Image3D(Image):
     def __init__(
         self, shape: typing.Tuple[int], dtype: type = np.float32, channels: int = 1
     ) -> None:

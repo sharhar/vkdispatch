@@ -146,16 +146,6 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     return ctx;
 }
 
-/*
-void context_wait_idle_extern(struct Context* context) {
-    for(int i = 0; i < context->deviceCount; i++) {
-        for(int j = 0; j < context->streams[i].size(); j++) {
-            context->streams[i][j]->wait_idle();
-        }
-    }
-}
-*/
-
 void context_destroy_extern(struct Context* context) {
     for(int i = 0; i < context->deviceCount; i++) {
         for(int j = 0; j < context->streams[i].size(); j++) {

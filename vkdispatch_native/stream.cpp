@@ -67,16 +67,6 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
     LOG_INFO("Waiting for initial command buffer");
     VK_CALL(vkQueueWaitIdle(queue));
 
-    /*
-    command_list = command_list_create_extern(ctx);
-
-    struct CommandInfo command = {};
-    command.type = COMMAND_TYPE_NOOP;
-    command.pipeline_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-
-    command_list_record_command(command_list, command, false);   
-    */
-
     work_thread = std::thread([this]() { this->thread_worker(); });
 }
 
@@ -96,16 +86,6 @@ void Stream::destroy() {
     semaphores.clear();
     commandBuffers.clear();
 }
-
-/*
-void Stream::wait_idle() {
-    LOG_INFO("Waiting for stream %d to be idle", stream_index);
-    Signal* signal = new Signal();
-    command_list_submit_extern(this->command_list, NULL, 1, &stream_index, 1, 0, signal);
-    signal->wait();
-    delete signal;
-}
-*/
 
 void Stream::thread_worker() {
     struct Context* ctx = this->ctx;
@@ -143,16 +123,8 @@ void Stream::thread_worker() {
         Signal* signal = work_header->signal;
 
         char* current_instance_data = (char*)&work_header[1];
-        
-        //char* current_instance_data = (char*)data_buffer;// work_info.instance_data;
-        //for(size_t instance = 0; instance < work_info.instance_count; instance++) {
         for(size_t instance = 0; instance < work_header->instance_count; instance++) {
-            LOG_VERBOSE("Recording instance %d", instance);
-
-            //for (size_t i = 0; i < work_info.command_list->commands.size(); i++) {
             for (size_t i = 0; i < program_header->command_count; i++) {
-                LOG_VERBOSE("Recording command %d of %d", i, program_header->command_count);
-                //switch(work_info.command_list->commands[i].type) {
                 switch(command_info_buffer[i].type) {
                     case COMMAND_TYPE_NOOP: {
                         break;
@@ -168,6 +140,14 @@ void Stream::thread_worker() {
                     case COMMAND_TYPE_BUFFER_WRITE: {
                         buffer_write_exec_internal(commandBuffers[current_index], command_info_buffer[i].info.buffer_write_info, device_index, stream_index);
                         break;   
+                    }
+                    case COMMAND_TYPE_IMAGE_READ: {
+                        image_read_exec_internal(commandBuffers[current_index], command_info_buffer[i].info.image_read_info, device_index, stream_index);
+                        break;
+                    }
+                    case COMMAND_TYPE_IMAGE_WRITE: {
+                        image_write_exec_internal(commandBuffers[current_index], command_info_buffer[i].info.image_write_info, device_index, stream_index);
+                        break;
                     }
                     case COMMAND_TYPE_FFT: {
                         stage_fft_plan_exec_internal(commandBuffers[current_index], command_info_buffer[i].info.fft_info, device_index, stream_index);
@@ -195,13 +175,11 @@ void Stream::thread_worker() {
                         0, 1, 
                         &memory_barrier, 
                         0, 0, 0, 0);
-                
-                
             }
         }
 
         ctx->work_queue->finish(work_header);
-
+        
         VK_CALL(vkEndCommandBuffer(commandBuffers[current_index]));
 
         int last_index = current_index;
@@ -221,13 +199,13 @@ void Stream::thread_worker() {
 
         LOG_VERBOSE("Submitting command buffer waiting on sempahore %p and signaling semaphore %p", semaphores[last_index], semaphores[current_index]);
         
-        VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[last_index]));        
+        VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[last_index]));
         
         if(signal != NULL) {
+            LOG_INFO("Waiting for signal %p", signal);
             VK_CALL(vkWaitForFences(device, 1, &fences[last_index], VK_TRUE, UINT64_MAX));
             signal->notify();
         }
-
     }
 
     LOG_INFO("Thread worker for device %d, stream %d has quit", device_index, stream_index);
