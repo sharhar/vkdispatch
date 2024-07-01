@@ -1,3 +1,4 @@
+from typing import Any
 from .errors import check_for_errors
 from .init import DeviceInfo
 from .init import LogLevel
@@ -5,6 +6,7 @@ from .init import get_devices
 from .init import initialize
 from .buffer import asbuffer
 from .buffer import Buffer
+from .buffer import BufferKernelArgument
 from .command_list import CommandList
 from .command_list import get_command_list
 from .command_list import get_command_list_handle
@@ -42,6 +44,7 @@ from .shader_builder import ShaderBuilder
 from .stage_compute import ComputePlan
 from .shader_decorator import compute_shader
 from .shader_decorator import ShaderDispatcher
+from .kernel_decorator import kernel
 from .reductions import make_reduction
 from .reductions import map_reduce
 from .stage_fft import fft
@@ -52,3 +55,11 @@ from .stage_fft import reset_fft_plans
 from .stage_transfer import stage_transfer_copy_buffers
 #from .stage_transfer import stage_transfer_copy_image
 #from .stage_transfer import stage_transfer_copy_image_to_buffer
+
+class Constant(ShaderVariable):
+    def __init__(self) -> None:
+        pass
+
+class Variable(ShaderVariable):
+    def __init__(self) -> None:
+        pass

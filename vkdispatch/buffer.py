@@ -8,6 +8,9 @@ import vkdispatch as vd
 import vkdispatch_native
 from vkdispatch.dtype import dtype
 
+class BufferKernelArgument:
+    def __init__(self, var_type: vd.dtype) -> None:
+        self.var_type = var_type
 
 class Buffer:
     """TODO: Docstring"""
@@ -124,6 +127,13 @@ class Buffer:
                 result.append(self.read(i))
 
         return result
+    
+    def __getitem__(self, index: "vd.ShaderVariable") -> "vd.ShaderVariable":
+        raise RuntimeError("Cannot index into a buffer object outside of shader!")
+
+    @classmethod
+    def __class_getitem__(cls, params: vd.dtype) -> "Buffer":
+        return BufferKernelArgument(params)
 
 
 # TODO: Move this to a class method of Buffer
