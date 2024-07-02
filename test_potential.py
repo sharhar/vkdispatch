@@ -10,11 +10,12 @@ def place_atoms(image, atom_coords):
     ind = vd.shader.global_x.copy()
 
     rotation_matrix = vd.shader.push_constant(vd.mat4, "rot_matrix")
+    pix_size = vd.shader.push_constant(vd.float32, "pix_size")
 
     pos = vd.shader.new(vd.vec4)
-    pos.x = -atom_coords[3*ind + 1] 
-    pos.y = atom_coords[3*ind + 0]
-    pos.z = atom_coords[3*ind + 2]
+    pos.x = -atom_coords[3*ind + 1] / pix_size
+    pos.y = atom_coords[3*ind + 0] / pix_size
+    pos.z = atom_coords[3*ind + 2] / pix_size
     pos.w = 1
 
     pos[:] = rotation_matrix * pos
@@ -40,6 +41,7 @@ def apply_gaussian_filter(buf: vd.ShaderVariable):
 
     sigma = vd.shader.static_constant(vd.float32, "sigma")
     mag = vd.shader.static_constant(vd.float32, "mag")
+    pix_size = vd.shader.push_constant(vd.float32, "pix_size")
 
     x = (ind / buf.shape.y).copy()
     y = (ind % buf.shape.y).copy()
@@ -57,6 +59,7 @@ def apply_gaussian_filter(buf: vd.ShaderVariable):
     y_norm = (y.cast_to(vd.float32) / buf.shape.y.cast_to(vd.float32)).copy()
 
     my_dist = vd.shader.new(vd.float32)
+    sigma_pix = sigma / pix_size # convert sigma from angstroms to pixels
     my_dist[:] = (x_norm*x_norm + y_norm*y_norm) / ( sigma * sigma / 2 )
 
     vd.shader.if_statement(my_dist > 100)
@@ -68,10 +71,11 @@ def apply_gaussian_filter(buf: vd.ShaderVariable):
     buf[ind] *= mag * vd.shader.exp(-my_dist) / (buf.shape.x * buf.shape.y)
 
 class TemplatePotential:
-    def __init__(self, atom_coords: np.ndarray, template_shape, mag, sigma) -> None:
+    def __init__(self, atom_coords: np.ndarray, template_shape, mag, sigma, pix_size) -> None:
         self.template_shape = template_shape
         self.mag = mag
         self.sigma = sigma
+        self.pix_size = pix_size
 
         self.exec_size = template_shape[0] * template_shape[1]
 
@@ -83,9 +87,9 @@ class TemplatePotential:
         fill_buffer[self.exec_size, cmd_list](work_buffer, val=0)
 
         if rot_matrix is not None:
-            place_atoms[self.atom_coords.shape[0], cmd_list](work_buffer, self.atom_coords_buffer, rot_matrix=rot_matrix)
+            place_atoms[self.atom_coords.shape[0], cmd_list](work_buffer, self.atom_coords_buffer, pix_size=self.pix_size, rot_matrix=rot_matrix)
         else:
-            self.rotation_matrix = place_atoms[self.atom_coords.shape[0], cmd_list](work_buffer, self.atom_coords_buffer)
+            self.rotation_matrix = place_atoms[self.atom_coords.shape[0], cmd_list](work_buffer, self.atom_coords_buffer, pix_size=self.pix_size)
 
         convert_int_to_float[work_buffer.size * 2, cmd_list](work_buffer)
 
