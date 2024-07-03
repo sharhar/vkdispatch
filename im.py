@@ -16,12 +16,15 @@ image = vd.Image3D(arr.shape, vd.float32, 1) #(vd.image_format.R32_SFLOAT, (512,
 
 #@vd.compute_shader(vd.float32[0])
 
-@vd.kernel
+
+@vd.shader
 def test_shader(buff: vd.Buffer[vd.float32],
                 img: vd.Image3D[vd.float32],
                 sigma: vd.Constant[vd.float32],
                 mag: vd.Variable[vd.float32]):
-    
+    pass
+
+"""
     ind = vd.shader.global_x.copy()
     #img = vd.shader.texture_sampler(3)
 
@@ -38,6 +41,7 @@ def test_shader(buff: vd.Buffer[vd.float32],
     tester = img.sample(sample_coords).x * sigma + mag
 
     print(tester)
+"""
 
 
 test_shader(arr_buff, image, 1.0, 1.0)
