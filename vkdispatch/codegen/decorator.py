@@ -5,7 +5,7 @@ import inspect
 
 from typing import Callable
 
-def kernel(func):
+def shader(func):
     signature = inspect.signature(func)
 
     for param in signature.parameters.values():

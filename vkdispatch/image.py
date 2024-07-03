@@ -6,12 +6,6 @@ import numpy as np
 import vkdispatch as vd
 import vkdispatch_native
 
-class ImageKernelArgument:
-    def __init__(self, var_type: vd.dtype, dimentions: int, layers: int) -> None:
-        self.var_type = var_type
-        self.dimensions = dimentions
-        self.layers = layers
-
 __MAPPING__ = {
     (np.uint8, 1),
     (np.uint8, 1),
@@ -278,7 +272,7 @@ class Image2D(Image):
     
     @classmethod
     def __class_getitem__(cls, arg: vd.dtype) -> type:
-        return ImageKernelArgument(arg, 2, 1) 
+        return vdc.ImageKernelArgument(arg, 2, 1) 
 
 
 class Image2DArray(Image):
@@ -296,7 +290,7 @@ class Image2DArray(Image):
     
     @classmethod
     def __class_getitem__(cls, arg: tuple) -> type:
-        return ImageKernelArgument(arg[0], 2, arg[1]) 
+        return vdc.ImageKernelArgument(arg[0], 2, arg[1]) 
 
 
 class Image3D(Image):
@@ -308,4 +302,4 @@ class Image3D(Image):
     
     @classmethod
     def __class_getitem__(cls, arg: vd.dtype) -> type:
-        return ImageKernelArgument(arg, 3, 1) 
+        return vd.ImageKernelArgument(arg, 3, 1) 

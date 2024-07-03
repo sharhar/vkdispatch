@@ -6,26 +6,21 @@ import numpy as np
 
 import vkdispatch as vd
 import vkdispatch_native
-from vkdispatch.dtype import dtype
-
-class BufferKernelArgument:
-    def __init__(self, var_type: vd.dtype) -> None:
-        self.var_type = var_type
 
 class Buffer:
     """TODO: Docstring"""
 
     _handle: int
-    var_type: dtype
+    var_type: "vd.dtype"
     shape: Tuple[int]
     size: int
     mem_size: int
 
-    def __init__(self, shape: Tuple[int], var_type: dtype, per_device: bool = False) -> None:
+    def __init__(self, shape: Tuple[int], var_type: "vd.dtype", per_device: bool = False) -> None:
         if len(shape) > 3:
             raise ValueError("Buffer shape must be 1, 2, or 3 dimensions!")
 
-        self.var_type: dtype = var_type
+        self.var_type: "vd.dtype" = var_type
         self.shape: Tuple[int] = shape
         self.size: int = int(np.prod(shape))
         self.mem_size: int = self.size * self.var_type.item_size
@@ -128,12 +123,13 @@ class Buffer:
 
         return result
     
+    # This function exists so python LSPs correctly autocomplete inside of a shader function
     def __getitem__(self, index: "vd.ShaderVariable") -> "vd.ShaderVariable":
         raise RuntimeError("Cannot index into a buffer object outside of shader!")
 
     @classmethod
-    def __class_getitem__(cls, params: vd.dtype) -> "Buffer":
-        return BufferKernelArgument(params)
+    def __class_getitem__(cls, params: "vd.dtype") -> "vd.Image2D":
+       return vd.BufferKernelArgument(params)
 
 
 # TODO: Move this to a class method of Buffer
