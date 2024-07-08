@@ -39,9 +39,7 @@ def convert_int_to_float(image):
 def apply_gaussian_filter(buf: vd.ShaderVariable):
     ind = vd.shader.global_x.cast_to(vd.int32).copy()
 
-    sigma = vd.shader.static_constant(vd.float32, "sigma")
-    mag = vd.shader.static_constant(vd.float32, "mag")
-    pix_size = vd.shader.push_constant(vd.float32, "pix_size")
+    var = vd.shader.static_constant(vd.float32, "var")
 
     x = (ind / buf.shape.y).copy()
     y = (ind % buf.shape.y).copy()
@@ -59,8 +57,7 @@ def apply_gaussian_filter(buf: vd.ShaderVariable):
     y_norm = (y.cast_to(vd.float32) / buf.shape.y.cast_to(vd.float32)).copy()
 
     my_dist = vd.shader.new(vd.float32)
-    sigma_pix = sigma / pix_size # convert sigma from angstroms to pixels
-    my_dist[:] = (x_norm*x_norm + y_norm*y_norm) / ( sigma * sigma / 2 )
+    my_dist[:] = (x_norm*x_norm + y_norm*y_norm) / (2 * var)
 
     vd.shader.if_statement(my_dist > 100)
     buf[ind].real = 0
@@ -68,20 +65,23 @@ def apply_gaussian_filter(buf: vd.ShaderVariable):
     vd.shader.return_statement()
     vd.shader.end()
 
-    buf[ind] *= mag * vd.shader.exp(-my_dist) / (buf.shape.x * buf.shape.y)
+    buf[ind] *= vd.shader.exp(-my_dist) / (buf.shape.x * buf.shape.y)
 
 class TemplatePotential:
-    def __init__(self, atom_coords: np.ndarray, template_shape, mag, sigma, pix_size) -> None:
+    def __init__(self, atom_coords: np.ndarray, template_shape, B, pix_size, A=3909) -> None:
         self.template_shape = template_shape
-        self.mag = mag
-        self.sigma = sigma
-        self.pix_size = pix_size
+        self.pix_size = pix_size # [A]
+        self.A = A # amplitude for potential scaling
+
+        self.B = B + 8 * (np.pi * 0.27)**2 + (self.pix_size)**2 / 12 # [A^2] blurring B-factor with contributions from pixel size and physical PSF
 
         self.exec_size = template_shape[0] * template_shape[1]
 
         self.atom_coords = atom_coords
         self.atom_coords_buffer = vd.asbuffer(atom_coords)
         self.rotation_matrix = None
+
+        self.var = 2 * pix_size**2 / self.B # [dimensionless] gaussian blur variance
     
     def record(self, cmd_list: vd.CommandList, work_buffer: vd.Buffer, rot_matrix: np.ndarray = None):
         fill_buffer[self.exec_size, cmd_list](work_buffer, val=0)
@@ -94,7 +94,7 @@ class TemplatePotential:
         convert_int_to_float[work_buffer.size * 2, cmd_list](work_buffer)
 
         vd.fft[cmd_list](work_buffer)
-        apply_gaussian_filter[work_buffer.size, cmd_list](work_buffer, sigma=self.sigma, mag=self.mag)
+        apply_gaussian_filter[work_buffer.size, cmd_list](work_buffer, var=self.var)
         vd.ifft[cmd_list](work_buffer)
 
     def set_rotation_matrix(self, rot_matrix: np.ndarray):
