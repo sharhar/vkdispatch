@@ -7,6 +7,7 @@ import numpy as np
 import vkdispatch as vd
 import vkdispatch_native
 
+
 class Buffer:
     """TODO: Docstring"""
 
@@ -128,8 +129,8 @@ class Buffer:
         raise RuntimeError("Cannot index into a buffer object outside of shader!")
 
     @classmethod
-    def __class_getitem__(cls, params: "vd.dtype") -> "vd.Image2D":
-       return vd.BufferKernelArgument(params)
+    def __class_getitem__(cls, params):
+       raise RuntimeError("Cannot index into vd.Buffer! Perhaps you meant to use vc.Buffer?")
 
 
 # TODO: Move this to a class method of Buffer

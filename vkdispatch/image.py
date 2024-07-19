@@ -183,7 +183,7 @@ class image_view_type(Enum):
 class Image:
     def __init__(
         self,
-        shape: typing.Tuple[int],
+        shape: typing.Tuple[int, ...],
         layers: int,
         dtype: vd.dtype,
         channels: int,
@@ -265,20 +265,20 @@ class Image:
 
 class Image2D(Image):
     def __init__(
-        self, shape: typing.Tuple[int], dtype: type = np.float32, channels: int = 1
+        self, shape: typing.Tuple[int, int], dtype: type = np.float32, channels: int = 1
     ) -> None:
         assert len(shape) == 2, "Shape must be 2D!"
         super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_2D)
     
     @classmethod
     def __class_getitem__(cls, arg: vd.dtype) -> type:
-        return vdc.ImageKernelArgument(arg, 2, 1) 
+        raise RuntimeError("Cannot index into vd.Image2D! Perhaps you meant to use vc.Image2D?")
 
 
 class Image2DArray(Image):
     def __init__(
         self,
-        shape: typing.Tuple[int],
+        shape: typing.Tuple[int, int],
         layers: int,
         dtype: type = np.float32,
         channels: int = 1,
@@ -290,16 +290,16 @@ class Image2DArray(Image):
     
     @classmethod
     def __class_getitem__(cls, arg: tuple) -> type:
-        return vdc.ImageKernelArgument(arg[0], 2, arg[1]) 
+        raise RuntimeError("Cannot index into vd.Image2DArray! Perhaps you meant to use vc.Image2DArray?")
 
 
 class Image3D(Image):
     def __init__(
-        self, shape: typing.Tuple[int], dtype: type = np.float32, channels: int = 1
+        self, shape: typing.Tuple[int, int, int], dtype: type = np.float32, channels: int = 1
     ) -> None:
         assert len(shape) == 3, "Shape must be 3D!"
         super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_3D)
     
     @classmethod
     def __class_getitem__(cls, arg: vd.dtype) -> type:
-        return vd.ImageKernelArgument(arg, 3, 1) 
+        raise RuntimeError("Cannot index into vd.Image3D! Perhaps you meant to use vc.Image3D?")
