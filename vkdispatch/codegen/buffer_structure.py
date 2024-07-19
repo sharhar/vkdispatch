@@ -43,7 +43,7 @@ class BufferStructureProxy:
 
             self.ref_dict[key] = ii
 
-            dtype = vd.to_numpy_dtype(var_type.scalar)
+            dtype = vd.to_numpy_dtype(var_type if var_type.scalar is None else var_type.scalar)
             self.numpy_dtypes[ii] = dtype
             self.pc_list[ii] = np.zeros(
                 shape=var_type.numpy_shape, dtype=self.numpy_dtypes[ii]
@@ -71,6 +71,7 @@ class BufferStructureProxy:
             not isinstance(value, np.ndarray)
             and not isinstance(value, list)
             and not isinstance(value, tuple)
+            and self.pc_list[ii].shape == (1,)
         ):
             self.pc_list[ii][0] = value
             return
@@ -78,11 +79,17 @@ class BufferStructureProxy:
         arr = np.array(value, dtype=self.numpy_dtypes[ii])
 
         if arr.shape != self.var_types[ii].numpy_shape:
-            raise ValueError(
-                f"The shape of {key} is {self.var_types[ii].numpy_shape} but {arr.shape} was given!"
-            )
+            if arr.shape != ():
+                raise ValueError(
+                    f"The shape of {key} is {self.var_types[ii].numpy_shape} but {arr.shape} was given!"
+                )
+            else:
+                raise ValueError(
+                    f"The shape of {key} is {self.var_types[ii].numpy_shape} but a scalar was given!"
+                )
 
         self.pc_list[ii] = arr
+
 
     def __repr__(self) -> str:
         result = "Push Constant Buffer:\n"

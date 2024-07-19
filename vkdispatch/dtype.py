@@ -7,12 +7,20 @@ class dtype:
     glsl_type: str
     dimentions: int
     format_str: str
-    child_type: "vd.dtype"
+    child_type: "dtype"
     child_count: int
+    scalar: "dtype"
+    shape: tuple
+    numpy_shape: tuple
+    true_numpy_shape: tuple
 
 class _Scalar(dtype):
     dimentions = 0
     child_count = 0
+    shape = (1,)
+    numpy_shape = (1,)
+    true_numpy_shape = ()
+    scalar = None
 
 class _I32(_Scalar):
     name = "int32"
@@ -46,6 +54,10 @@ class _CF64(_Complex):
     glsl_type = "vec2"
     format_str = "(%f, %f)"
     child_type = float32
+    shape = (2,)
+    numpy_shape = (1,)
+    true_numpy_shape = (1,)
+    scalar = float32
 
 complex64 = _CF64
 
@@ -59,6 +71,10 @@ class _V2F32(_Vector):
     format_str = "(%f, %f)"
     child_type = float32
     child_count = 2
+    shape = (2,)
+    numpy_shape = (2,)
+    true_numpy_shape = (2,)
+    scalar = float32
 
 class _V4F32(_Vector):
     name = "vec4"
@@ -67,6 +83,10 @@ class _V4F32(_Vector):
     format_str = "(%f, %f, %f, %f)"
     child_type = float32
     child_count = 4
+    shape = (4,)
+    numpy_shape = (4,)
+    true_numpy_shape = (4,)
+    scalar = float32
 
 class _V2I32(_Vector):
     name = "ivec2"
@@ -75,6 +95,10 @@ class _V2I32(_Vector):
     format_str = "(%d, %d)"
     child_type = int32
     child_count = 2
+    shape = (2,)
+    numpy_shape = (2,)
+    true_numpy_shape = (2,)
+    scalar = int32
 
 class _V4I32(_Vector):
     name = "ivec4"
@@ -83,6 +107,10 @@ class _V4I32(_Vector):
     format_str = "(%d, %d, %d, %d)"
     child_type = int32
     child_count = 4
+    shape = (4,)
+    numpy_shape = (4,)
+    true_numpy_shape = (4,)
+    scalar = int32
 
 class _V2U32(_Vector):
     name = "uvec2"
@@ -91,6 +119,10 @@ class _V2U32(_Vector):
     format_str = "(%u, %u)"
     child_type = uint32
     child_count = 2
+    shape = (2,)
+    numpy_shape = (2,)
+    true_numpy_shape = (2,)
+    scalar = uint32
 
 class _V4U32(_Vector):
     name = "uvec4"
@@ -99,6 +131,10 @@ class _V4U32(_Vector):
     format_str = "(%u, %u, %u, %u)"
     child_type = uint32
     child_count = 4
+    shape = (4,)
+    numpy_shape = (4,)
+    true_numpy_shape = (4,)
+    scalar = uint32
 
 vec2 = _V2F32
 vec4 = _V4F32
@@ -117,6 +153,10 @@ class _M2F32(_Matrix):
     format_str = "\\\\n[%f, %f]\\\\n[%f, %f]\\\\n"
     child_type = vec2
     child_count = 2
+    shape = (2, 2)
+    numpy_shape = (2, 2)
+    true_numpy_shape = (2, 2)
+    scalar = float32
 
 class _M4F32(_Matrix):
     name = "mat4"
@@ -125,6 +165,10 @@ class _M4F32(_Matrix):
     format_str = "\\\\n[%f, %f, %f, %f]\\\\n[%f, %f, %f, %f]\\\\n[%f, %f, %f, %f]\\\\n[%f, %f, %f, %f]\\\\n"
     child_type = vec4
     child_count = 4
+    shape = (4, 4)
+    numpy_shape = (4, 4)
+    true_numpy_shape = (4, 4)
+    scalar = float32
 
 mat2 = _M2F32
 mat4 = _M4F32

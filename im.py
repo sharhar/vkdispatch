@@ -5,33 +5,40 @@ import numpy as np
 
 from matplotlib import pyplot as plt
 
-#arr = np.load("data/bronwyn/template_3d.npy") # np.random.rand(512, 512, 512).astype(np.float32)
+arr = np.load("data/bronwyn/template_3d.npy") # np.random.rand(512, 512, 512).astype(np.float32)
 
 #vd.initialize(log_level=vd.LogLevel.INFO)
 
 #print(arr.shape)
 
-#arr_buff = vd.Buffer(arr.shape, vd.float32)
-
-#image = vd.Image3D(arr.shape, vd.float32, 1)
+arr_buff = vd.Buffer(arr.shape, vd.float32)
+image = vd.Image3D(arr.shape, vd.float32, 1)
 
 #@vd.compute_shader(vd.float32[0]
 
-@vc.shader(local_size=(1, 1, 1))
+@vc.shader
 def my_shader(buff: vc.Buffer[vd.float32],
               img: vc.Image3D[vd.float32],
-              sigma: vc.Constant[vd.mat4],
-              mag: vc.Variable[vd.float32]):
+              sigma: vc.Constant[vd.vec4],
+              mag: vc.Variable[vd.float32],
+              dif: vc.Variable[vd.float32] = 1000):
 
     ind = vc.global_invocation.x
 
-    buff[ind] = img.sample(vc.global_invocation)
+    buff[ind] = mag + sigma.y + dif #img.sample(vc.global_invocation).x
 
+print(arr_buff.read()[0][0, 0, 0])
 
+pc_vars = vd.LaunchVariables()
+my_list = vd.CommandList()
 
-print(my_shader)
+my_shader(arr_buff, image, [1, 2, 3, 4], pc_vars["mag"], exec_size=arr_buff.size, cmd_list=my_list)
 
+pc_vars["mag"] = 7
 
+my_list.submit()
+
+print(arr_buff.read()[0][0, 0, 0])
 
 #@vd.shader
 #def test_shader(buff: vd.Buffer[vd.float32],

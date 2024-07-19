@@ -147,12 +147,14 @@ class ShaderVariable(BaseVariable):
         return self.new(var_type, f"{var_type.glsl_type}({self})")
 
     def printf_args(self) -> str:
-        if self.var_type.total_count == 1:
+        total_count = np.prod(self.var_type.shape)
+
+        if total_count == 1:
             return self.name
 
         args_list = []
 
-        for i in range(0, self.var_type.total_count):
+        for i in range(0, total_count):
             args_list.append(f"{self.name}[{i}]")
 
         return ",".join(args_list)

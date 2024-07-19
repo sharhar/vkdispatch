@@ -9,6 +9,7 @@ from .dtype import float32, int32, uint32, complex64
 from .dtype import vec2, vec4, ivec2, ivec4, uvec2, uvec4
 from .dtype import mat2, mat4
 from .dtype import is_scalar, is_complex, is_vector, is_matrix
+from .dtype import to_numpy_dtype, from_numpy_dtype
 
 from .buffer import asbuffer
 from .buffer import Buffer
@@ -36,13 +37,13 @@ from .descriptor_set import DescriptorSet
 # from .dtype import vec2
 # from .dtype import vec4
 
-#from .image import image_format
-#from .image import image_type
-#from .image import image_view_type
-#from .image import Image
-#from .image import Image2D
-#from .image import Image2DArray
-#from .image import Image3D
+from .image import image_format
+from .image import image_type
+from .image import image_view_type
+from .image import Image
+from .image import Image2D
+from .image import Image2DArray
+from .image import Image3D
 
 #from .shader_variable import ShaderVariable
 #from .shader_builder import BufferStructureProxy
@@ -65,3 +66,5 @@ from .stage_fft import reset_fft_plans
 from .stage_transfer import stage_transfer_copy_buffers
 #from .stage_transfer import stage_transfer_copy_image
 #from .stage_transfer import stage_transfer_copy_image_to_buffer
+
+from .launcher import ShaderLauncher, LaunchVariables

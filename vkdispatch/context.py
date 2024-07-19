@@ -89,7 +89,7 @@ def select_devices(use_cpu: bool) -> List[int]:
     return result
 
 
-__context: Context = None
+__context = None
 
 def make_context(
     devices: Union[int, List[int]] = None,
