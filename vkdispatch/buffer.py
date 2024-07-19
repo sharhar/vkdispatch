@@ -17,7 +17,7 @@ class Buffer:
     size: int
     mem_size: int
 
-    def __init__(self, shape: Tuple[int], var_type: "vd.dtype", per_device: bool = False) -> None:
+    def __init__(self, shape: Tuple[int, ...], var_type: "vd.dtype", per_device: bool = False) -> None:
         if len(shape) > 3:
             raise ValueError("Buffer shape must be 1, 2, or 3 dimensions!")
 
@@ -88,7 +88,7 @@ class Buffer:
         )
         vd.check_for_errors()
 
-    def read(self, index: int = None) -> Union[np.ndarray, List[np.ndarray]]:
+    def read(self, index: Union[int, None] = None) -> Union[np.ndarray, List[np.ndarray]]:
         """Read the data in the buffer at the specified device index and return it as a
         numpy array.
 
@@ -107,10 +107,15 @@ class Buffer:
                 raise ValueError(f"Invalid device index {index}!")
             elif not self.per_device and index >= self.ctx.stream_count:
                 raise ValueError(f"Invalid stream index {index}!")
+            
+            true_scalar = self.var_type.scalar
+
+            if true_scalar is None:
+                true_scalar = self.var_type
 
             result = np.ndarray(
-                shape=(self.shape + self.var_type._true_numpy_shape),
-                dtype=vd.to_numpy_dtype(self.var_type.scalar),
+                shape=(self.shape + self.var_type.true_numpy_shape),
+                dtype=vd.to_numpy_dtype(true_scalar),
             )
             vkdispatch_native.buffer_read(
                 self._handle, result, 0, self.mem_size, index
@@ -123,17 +128,12 @@ class Buffer:
                 result.append(self.read(i))
 
         return result
-    
-    # This function exists so python LSPs correctly autocomplete inside of a shader function
-    def __getitem__(self, index: "vd.ShaderVariable") -> "vd.ShaderVariable":
-        raise RuntimeError("Cannot index into a buffer object outside of shader!")
 
     @classmethod
     def __class_getitem__(cls, params):
        raise RuntimeError("Cannot index into vd.Buffer! Perhaps you meant to use vc.Buffer?")
 
 
-# TODO: Move this to a class method of Buffer
 def asbuffer(array: np.ndarray) -> Buffer:
     """Cast a numpy array to a buffer object."""
 

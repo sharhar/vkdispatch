@@ -1,14 +1,9 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
-import functools
-import numpy as np
-
 import inspect
 
-from typing import Callable
-
-def shader(*args, local_size=None):
+def shader(*args, local_size=None, workgroups=None, exec_size=None):
     def process_function(func):
         signature = inspect.signature(func)
 
@@ -27,6 +22,8 @@ def shader(*args, local_size=None):
         vc.end()
 
         func_args = []
+        arg_names = []
+        default_values = []
 
         for param in signature.parameters.values():
             if param.annotation == inspect.Parameter.empty:
@@ -41,15 +38,22 @@ def shader(*args, local_size=None):
             type_arg: vd.dtype = param.annotation.__args__[0]
 
             if(issubclass(param.annotation.__origin__, vc.Buffer)):
-                func_args.append(vc.builder_obj.declare_buffer(type_arg, var_name=f"__{param.name}"))
+                func_args.append(vc.builder_obj.declare_buffer(type_arg, var_name=f"{param.name}"))
             elif(issubclass(param.annotation.__origin__, vc.Image2D)):
-                func_args.append(vc.builder_obj.declare_image(2, var_name=f"__{param.name}"))
+                func_args.append(vc.builder_obj.declare_image(2, var_name=f"{param.name}"))
             elif(issubclass(param.annotation.__origin__, vc.Image3D)):
-                func_args.append(vc.builder_obj.declare_image(3, var_name=f"__{param.name}"))
+                func_args.append(vc.builder_obj.declare_image(3, var_name=f"{param.name}"))
             elif(issubclass(param.annotation.__origin__, vc.Constant)):
-                func_args.append(vc.builder_obj.declare_constant(type_arg, var_name=f"__{param.name}"))
+                func_args.append(vc.builder_obj.declare_constant(type_arg, var_name=f"{param.name}"))
             elif(issubclass(param.annotation.__origin__, vc.Variable)):
-                func_args.append(vc.builder_obj.declare_variable(type_arg, var_name=f"__{param.name}"))
+                func_args.append(vc.builder_obj.declare_variable(type_arg, var_name=f"{param.name}"))
+
+            arg_names.append(param.name)
+
+            if param.default != inspect.Parameter.empty:
+                default_values.append(param.default)
+            else:
+                default_values.append(None)
         
         func(*func_args)
 
@@ -57,17 +61,15 @@ def shader(*args, local_size=None):
             my_local_size[0], my_local_size[1], my_local_size[2]
         )
 
-        class Wrapper:
-            def __init__(self, func):
-                self.func = func
-
-            def __repr__(self):
-                return shader_source
-
-            def __call__(self, *args, **kwargs):
-                pass #self.func(*args, **kwargs)
-
-        wrapper: str = Wrapper(func)
+        wrapper: str = vd.ShaderLauncher(
+            shader_source,
+            pc_size,
+            pc_dict,
+            uniform_dict,
+            binding_type_list,
+            my_local_size,
+            list(zip(func_args, arg_names, default_values))
+        )
 
         return wrapper
     

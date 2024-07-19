@@ -185,7 +185,7 @@ class Image:
         self,
         shape: typing.Tuple[int, ...],
         layers: int,
-        dtype: vd.dtype,
+        dtype: type,
         channels: int,
         view_type: image_view_type,
     ) -> None:
@@ -197,7 +197,7 @@ class Image:
         if len(shape) == 3:
             assert type(shape[2]) == int, "Shape must be a tuple of integers!"
 
-        assert type(dtype) == vd.dtype, "Dtype must be a dtype!"
+        assert issubclass(dtype, vd.dtype), "Dtype must be a dtype!"
         assert type(channels) == int, "Channels must be an integer!"
 
         self.type = (
