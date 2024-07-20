@@ -56,6 +56,7 @@ class BaseVariable:
         if not isinstance(index, ShaderVariable) or isinstance(index, (int, np.integer)):
             return self.new(return_type, f"{self}[{index}]")
         
+
         if isinstance(index, tuple):
             if len(index) == 1:
                 return self.new(return_type, f"{self}[{index[0]}]")
@@ -76,6 +77,11 @@ class BaseVariable:
         #    raise ValueError(f"Unsupported index type {index}!")
 
     def __setitem__(self, index, value: "ShaderVariable") -> None:        
+        print(index)
+        print(type(index))
+        
+        
+        
         if isinstance(index, slice):
             if index.start is None and index.stop is None and index.step is None:
                 self.append_func(f"{self} = {value};\n")
