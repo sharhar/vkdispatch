@@ -40,34 +40,38 @@ class LaunchVariables:
     def __setitem__(self, name: str, value):
         self.pc_dict[name][0][self.pc_dict[name][1]] = value
 
+class LaunchParametersHolder:
+    def __init__(self, func_args, args, kwargs) -> None:
+        self.ref_dict = {}
 
-def sanitize_dims_tuple(in_val):
-    if isinstance(in_val, int) or np.issubdtype(type(in_val), np.integer):
-        return (in_val, 1, 1)
+        for ii, arg_var in enumerate(func_args):
+            arg = None
+            
+            if ii < len(args):
+                arg = args[ii]
+            else:
+                if arg_var[1] not in kwargs:
+                    if arg_var[2] is None:
+                        raise ValueError(f"Missing argument '{arg_var[1]}'!")
+                    
+                    arg = arg_var[2]
+                else:
+                    arg = kwargs[arg_var[1]]
+            
+            self.ref_dict[arg_var[1]] = arg
 
-    if not isinstance(in_val, tuple):
-        raise ValueError("Must provide a tuple of dimensions!")
-    
-    if len(in_val) > 0 and len(in_val) < 4:
-        raise ValueError("Must provide a tuple of length 1, 2, or 3!")
-    
-    return_val = (1, 1, 1)
-
-    for ii, val in enumerate(in_val):
-        if not isinstance(val, int) and not np.issubdtype(type(val), np.integer):
-            raise ValueError("All dimensions must be integers!")
-        
-        return_val[ii] = val
-    
-    return return_val
+    def __getattr__(self, name: str):
+        return self.ref_dict[name]
 
 class ShaderLauncher:
     plan: vd.ComputePlan
     source: str
     pc_buff_dict: Dict[str, Tuple[int, vd.dtype]]
     uniform_buff_dict: Dict[str, Tuple[int, vd.dtype]]
-    my_local_size: Tuple[int, int, int]
     func_args: List[Tuple[vc.BaseVariable, str, typing.Any]]
+    my_local_size: Tuple[int, int, int]
+    my_workgroups: Tuple[int, int, int]
+    my_exec_size: Tuple[int, int, int]
 
     def __init__(
         self,
@@ -76,15 +80,19 @@ class ShaderLauncher:
         pc_buff_dict: dict,
         uniform_buff_dict: dict,
         binding_type_list: List[int],
-        my_local_size: Tuple[int, int, int],
         func_args: List[Tuple[vc.BaseVariable, str, typing.Any]],
+        my_local_size: Tuple[int, int, int],
+        my_workgroups: Tuple[int, int, int],
+        my_exec_size: Tuple[int, int, int],
     ):
         self.plan = vd.ComputePlan(shader_source, binding_type_list, pc_size)
         self.pc_buff_dict = copy.deepcopy(pc_buff_dict)
         self.uniform_buff_dict = copy.deepcopy(uniform_buff_dict)
-        self.my_local_size = my_local_size
         self.func_args = func_args
         self.source = shader_source
+        self.my_local_size = my_local_size
+        self.my_workgroups = my_workgroups
+        self.my_exec_size = my_exec_size
 
     def __repr__(self) -> str:
         result = ""
@@ -94,22 +102,54 @@ class ShaderLauncher:
 
         return result
 
+    def sanitize_dims_tuple(self, in_val, args, kwargs):
+        if callable(in_val):
+            in_val = in_val(LaunchParametersHolder(self.func_args, args, kwargs))
+
+        if isinstance(in_val, int) or np.issubdtype(type(in_val), np.integer):
+            return (in_val, 1, 1)
+
+        if not isinstance(in_val, tuple):
+            raise ValueError("Must provide a tuple of dimensions!")
+        
+        if len(in_val) > 0 and len(in_val) < 4:
+            raise ValueError("Must provide a tuple of length 1, 2, or 3!")
+        
+        return_val = (1, 1, 1)
+
+        for ii, val in enumerate(in_val):
+            if not isinstance(val, int) and not np.issubdtype(type(val), np.integer):
+                raise ValueError("All dimensions must be integers!")
+            
+            return_val[ii] = val
+        
+        return return_val
+
     def __call__(self, *args, **kwargs):
         my_blocks = None
         my_limits = None
         my_cmd_list = None
-        submit_on_record = False
 
-        if "workgroups" in kwargs:
-            true_dims = sanitize_dims_tuple(kwargs["workgroups"])
+        if "workgroups" in kwargs or self.my_workgroups is not None:
+            true_dims = self.sanitize_dims_tuple(
+                kwargs["workgroups"]
+                if "workgroups" in kwargs
+                else self.my_workgroups,
+                args, kwargs
+            )
 
             my_blocks = true_dims
             my_limits = (true_dims[0] * self.my_local_size[0],
                          true_dims[1] * self.my_local_size[1],
                          true_dims[2] * self.my_local_size[2])
         
-        if "exec_size" in kwargs:
-            true_dims = sanitize_dims_tuple(kwargs["exec_size"])
+        if "exec_size" in kwargs or self.my_exec_size is not None:
+            true_dims = self.sanitize_dims_tuple(
+                kwargs["exec_size"]
+                if "exec_size" in kwargs
+                else self.my_exec_size,
+                args, kwargs
+            )
 
             my_limits = true_dims
             my_blocks = ((true_dims[0] + self.my_local_size[0] - 1) // self.my_local_size[0],
@@ -123,7 +163,6 @@ class ShaderLauncher:
             my_cmd_list = kwargs["cmd_list"]
         
         if my_cmd_list is None:
-            submit_on_record = True
             my_cmd_list = vd.get_command_list()
         
         descriptor_set = vd.DescriptorSet(self.plan._handle)
@@ -170,7 +209,7 @@ class ShaderLauncher:
                         raise ValueError("Something went wrong with push constants!!")
                     
                     if isinstance(arg, LaunchBindObject):
-                        if submit_on_record:
+                        if my_cmd_list.submit_on_record:
                             raise ValueError("Cannot bind Variables for default cmd list!")
 
                         arg.register_pc_var(pc_buff, arg_var[0].name[3:])
@@ -186,5 +225,5 @@ class ShaderLauncher:
         my_cmd_list.add_desctiptor_set_and_static_constants(descriptor_set, static_constant_buffer)
         self.plan.record(my_cmd_list, descriptor_set, my_blocks)
 
-        if submit_on_record:
+        if my_cmd_list.submit_on_record:
             my_cmd_list.submit()
