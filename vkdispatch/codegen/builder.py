@@ -14,7 +14,7 @@ class ShaderBuilder:
     scope_num: int
     pc_struct: vc.BufferStructure
     uniform_struct: vc.BufferStructure
-
+    exec_count: vc.ShaderVariable
     contents: str
     pre_header: str
 
@@ -35,6 +35,7 @@ class ShaderBuilder:
         self.binding_list = []
         self.shared_buffers = []
         self.scope_num = 1
+        self.exec_count = None
         self.contents = ""
 
     def append_contents(self, contents: str) -> None:

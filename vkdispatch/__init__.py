@@ -16,6 +16,7 @@ from .buffer import Buffer
 from .command_list import CommandList
 from .command_list import get_command_list
 from .command_list import get_command_list_handle
+from .command_list import set_global_command_list
 from .context import get_context
 from .context import get_context_handle
 from .context import make_context

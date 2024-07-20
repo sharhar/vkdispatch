@@ -9,14 +9,10 @@ arr = np.load("data/bronwyn/template_3d.npy") # np.random.rand(512, 512, 512).as
 
 #vd.initialize(log_level=vd.LogLevel.INFO)
 
-#print(arr.shape)
-
 arr_buff = vd.Buffer(arr.shape, vd.float32)
 image = vd.Image3D(arr.shape, vd.float32, 1)
 
-#@vd.compute_shader(vd.float32[0]
-
-@vc.shader
+@vc.shader(exec_size=lambda args: args.buff.size)
 def my_shader(buff: vc.Buffer[vd.float32],
               img: vc.Image3D[vd.float32],
               sigma: vc.Constant[vd.vec4],
@@ -32,7 +28,9 @@ print(arr_buff.read()[0][0, 0, 0])
 pc_vars = vd.LaunchVariables()
 my_list = vd.CommandList()
 
-my_shader(arr_buff, image, [1, 2, 3, 4], pc_vars["mag"], exec_size=arr_buff.size, cmd_list=my_list)
+vd.set_global_command_list(my_list)
+
+my_shader(arr_buff, image, [1, 2, 3, 4], pc_vars["mag"])
 
 pc_vars["mag"] = 7
 

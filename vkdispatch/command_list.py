@@ -2,6 +2,7 @@ from typing import Any
 from typing import Callable
 from typing import List
 from typing import Dict
+from typing import Union
 
 import copy
 
@@ -16,17 +17,19 @@ class CommandList:
 
     _handle: int
     _reset_on_submit: bool
+    submit_on_record: bool
     pc_buffers: "List[vd.BufferStructureProxy]"
     uniform_buffers: "List[vd.BufferStructureProxy]"
     descriptor_sets: "List[vd.DescriptorSet]"
 
-    def __init__(self, reset_on_submit: bool = False) -> None:
+    def __init__(self, reset_on_submit: bool = False, submit_on_record: bool = False) -> None:
         self._handle = vkdispatch_native.command_list_create(vd.get_context_handle())
         vd.check_for_errors()
         self.pc_buffers = []
         self.uniform_buffers = []
         self.descriptor_sets = []
         self._reset_on_submit = reset_on_submit
+        self.submit_on_record = submit_on_record
 
         self.static_constants_size = 0
         self.static_constants_valid = False
@@ -73,7 +76,7 @@ class CommandList:
         vkdispatch_native.command_list_reset(self._handle)
         vd.check_for_errors()
 
-    def submit(self, data: bytes = None, stream_index: int = -2) -> None:
+    def submit(self, data: Union[bytes, None] = None, stream_index: int = -2) -> None:
         """Submit the command list to the specified device with additional data to
         append to the front of the command list.
         
@@ -224,16 +227,25 @@ class CommandList:
 
 
 __cmd_list = None
+__custom_list = None
 
 
 def get_command_list() -> CommandList:
     global __cmd_list
+    global __custom_list
+
+    if __custom_list is not None:
+        return __custom_list
 
     if __cmd_list is None:
-        __cmd_list = CommandList(reset_on_submit=True)
+        __cmd_list = CommandList(reset_on_submit=True, submit_on_record=True)
 
     return __cmd_list
 
 
 def get_command_list_handle() -> int:
     return get_command_list()._handle
+
+def set_global_command_list(cmd_list: CommandList = None) -> None:
+    global __custom_list
+    __custom_list = cmd_list 

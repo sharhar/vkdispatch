@@ -4,6 +4,9 @@ import vkdispatch.codegen as vc
 import inspect
 
 def shader(*args, local_size=None, workgroups=None, exec_size=None):
+    if workgroups is not None and exec_size is not None:
+        raise ValueError("Cannot specify both 'workgroups' and 'exec_size'")
+
     def process_function(func):
         signature = inspect.signature(func)
 
@@ -15,9 +18,9 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None):
 
         vc.builder_obj.reset()
 
-        pc_exec_count_var = vc.builder_obj.declare_constant(vd.uvec4, "exec_count")
+        vc.builder_obj.exec_count = vc.builder_obj.declare_constant(vd.uvec4, "exec_count")
 
-        vc.if_statement(pc_exec_count_var.x <= vc.global_invocation.x)
+        vc.if_statement(vc.builder_obj.exec_count.x <= vc.global_invocation.x)
         vc.return_statement()
         vc.end()
 
@@ -67,8 +70,10 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None):
             pc_dict,
             uniform_dict,
             binding_type_list,
+            list(zip(func_args, arg_names, default_values)),
             my_local_size,
-            list(zip(func_args, arg_names, default_values))
+            workgroups,
+            exec_size
         )
 
         return wrapper
