@@ -41,11 +41,11 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None):
             type_arg: vd.dtype = param.annotation.__args__[0]
 
             if(issubclass(param.annotation.__origin__, vc.Buffer)):
-                func_args.append(vc.builder_obj.declare_buffer(type_arg, var_name=f"{param.name}"))
+                func_args.append(vc.builder_obj.declare_buffer(type_arg)) #, var_name=f"{param.name}"))
             elif(issubclass(param.annotation.__origin__, vc.Image2D)):
-                func_args.append(vc.builder_obj.declare_image(2, var_name=f"{param.name}"))
+                func_args.append(vc.builder_obj.declare_image(2)) #, var_name=f"{param.name}"))
             elif(issubclass(param.annotation.__origin__, vc.Image3D)):
-                func_args.append(vc.builder_obj.declare_image(3, var_name=f"{param.name}"))
+                func_args.append(vc.builder_obj.declare_image(3)) #, var_name=f"{param.name}"))
             elif(issubclass(param.annotation.__origin__, vc.Constant)):
                 func_args.append(vc.builder_obj.declare_constant(type_arg, var_name=f"{param.name}"))
             elif(issubclass(param.annotation.__origin__, vc.Variable)):

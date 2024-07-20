@@ -191,6 +191,7 @@ class ShaderLauncher:
                     raise ValueError(f"Expected a buffer for argument '{arg_var[1]}'!")
                 
                 descriptor_set.bind_buffer(arg, arg_var[0].binding)
+                static_constant_buffer[arg_var[0].shape_name] = arg.shader_shape
 
             elif isinstance(arg_var[0], vc.ImageVariable):
                 if not isinstance(arg, vd.Image):
