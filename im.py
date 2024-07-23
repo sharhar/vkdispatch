@@ -81,7 +81,7 @@ smol_buff = vd.asbuffer(np.array([[1, 2], [3, 4], [5, 6]], dtype=np.float32))
 
 sum_buff = calc_sums(smol_buff)
 
-print(calc_sums)
+#print(calc_sums)
 
 print(sum_buff.read(0))
 print(smol_buff.read(0))

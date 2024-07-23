@@ -75,8 +75,11 @@ class ReductionDispatcher:
 
         reduction_buffer = vd.Buffer((stage1_blocks + 1,), self.out_type)
 
-        self.stage1(reduction_buffer, *args, N=data_size, exec_size=stage1_blocks * self.group_size, cmd_list=my_cmd_list)
-        self.stage2(reduction_buffer, N=stage1_blocks+1, exec_size=self.group_size, cmd_list=my_cmd_list)
+        print(reduction_buffer.shape)
+        print(stage1_blocks * self.group_size)
+
+        self.stage1(reduction_buffer, *args, data_size, exec_size=stage1_blocks * self.group_size, cmd_list=my_cmd_list)
+        self.stage2(reduction_buffer, stage1_blocks+1, exec_size=self.group_size, cmd_list=my_cmd_list)
 
         #self.stage1[stage1_blocks * self.group_size, my_exec_dims[0][1]](reduction_buffer, *args, N=data_size)
         #self.stage2[self.group_size, my_exec_dims[0][1]](reduction_buffer, N=stage1_blocks+1)
@@ -166,12 +169,15 @@ def make_reduction(
 
     def create_reduction_stage(reduction_map, first_input_index, stage_signature):
         @vc.shader(local_size=(group_size, 1, 1), signature=stage_signature)
-        def reduction_stage(*buffers, N: vc.Const[vc.i32] = 0):
+        def reduction_stage(*in_vars): #, N: vc.Const[vc.i32]):
             ind = vc.global_invocation.x.copy()
             
             offset = vc.new(vd.uint32, 1 - first_input_index)
 
             reduction_aggregate = vc.new(out_type, reduction_identity)
+
+            N = in_vars[-1]
+            buffers = in_vars[:-1]
 
             vc.while_statement(ind + offset < N)
 
@@ -234,8 +240,8 @@ def make_reduction(
         return reduction_stage
 
     return ReductionDispatcher(
-        create_reduction_stage(map, 1, (vc.Buffer[out_type], *var_types[1:])),
-        create_reduction_stage(None, 0, (vc.Buffer[out_type], )),
+        create_reduction_stage(map, 1, (vc.Buffer[out_type], *var_types[1:], vc.Const[vc.i32])),
+        create_reduction_stage(None, 0, (vc.Buffer[out_type], vc.Const[vc.i32])),
         len(var_types[1:]),
         group_size,
         out_type,

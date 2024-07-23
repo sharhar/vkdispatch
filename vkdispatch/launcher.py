@@ -181,6 +181,8 @@ class ShaderLauncher:
 
         static_constant_buffer[vc.builder_obj.exec_count.raw_name] = [my_limits[0], my_limits[1], my_limits[2], 0]
 
+        print(self.func_args)
+
         for ii, arg_var in enumerate(self.func_args):
             arg = None
             
