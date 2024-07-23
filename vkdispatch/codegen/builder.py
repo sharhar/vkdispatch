@@ -41,31 +41,51 @@ class ShaderBuilder:
     def append_contents(self, contents: str) -> None:
         self.contents += ("\t" * self.scope_num) + contents
     
-    def get_name_func(self, prefix: str = None) -> str:
+    def get_name_func(self, prefix: str = None, suffix: str = None):
         my_prefix = [prefix]
+        my_suffix = [suffix]
         def get_name_val(var_name: Union[str, None] = None):
             new_var = f"var{self.var_count}" if var_name is None else var_name
+            raw_name = new_var
+            
             if var_name is None:
                 self.var_count += 1
 
             if my_prefix[0] is not None:
                 new_var = f"{my_prefix[0]}{new_var}"
                 my_prefix[0] = None
+            
+            if my_suffix[0] is not None:
+                new_var = f"{new_var}{my_suffix[0]}"
+                my_suffix[0] = None
 
-            return new_var
+            return new_var, raw_name
         return get_name_val
 
-    def make_var(self, var_type: vd.dtype, var_name: str = None, prefix: str = None):
-        return vc.ShaderVariable(self.append_contents, self.get_name_func(prefix), var_type, var_name)
+    def make_var(self, var_type: vd.dtype, var_name: str = None, prefix: str = None, suffix: str = None):
+        return vc.ShaderVariable(self.append_contents, self.get_name_func(prefix, suffix), var_type, var_name)
     
     def declare_constant(self, var_type: vd.dtype, var_name: str = None):
-        new_var = self.make_var(var_type, var_name, "UBO.")
-        self.uniform_struct.register_element(var_name, var_type, f"{var_type.glsl_type} {var_name};")
+        decleration_type = f"{var_type.glsl_type}"
+        suffix = None
+        if var_type.glsl_type_extern is not None:
+            decleration_type = f"{var_type.glsl_type_extern}"
+            suffix = ".xyz"
+
+        new_var = self.make_var(var_type, var_name, "UBO.", suffix)
+
+        self.uniform_struct.register_element(new_var.raw_name, var_type, f"{decleration_type} {new_var.raw_name};")
         return new_var
 
     def declare_variable(self, var_type: vd.dtype, var_name: str = None):
-        new_var = self.make_var(var_type, var_name, "PC.")
-        self.pc_struct.register_element(var_name, var_type, f"{var_type.glsl_type} {var_name};")
+        decleration_type = f"{var_type.glsl_type}"
+        suffix = None
+        if var_type.glsl_type_extern is not None:
+            decleration_type = f"{var_type.glsl_type_extern}"
+            suffix = ".xyz"
+        
+        new_var = self.make_var(var_type, var_name, "PC.", suffix)
+        self.pc_struct.register_element(new_var.raw_name, var_type, f"{decleration_type} {new_var.raw_name};")
         return new_var
     
     def declare_buffer(self, var_type: vd.dtype, var_name: str = None):
@@ -116,7 +136,11 @@ class ShaderBuilder:
         
         for ii, binding in enumerate(self.binding_list):
             if binding[2] == 0:
-                header += f"layout(set = 0, binding = {ii + 1}) buffer Buffer{ii + 1} {{ {binding[0].glsl_type} data[]; }} {binding[1]};\n"
+                true_type = binding[0].glsl_type
+                if binding[0].glsl_type_extern is not None:
+                    true_type = binding[0].glsl_type_extern
+
+                header += f"layout(set = 0, binding = {ii + 1}) buffer Buffer{ii + 1} {{ {true_type} data[]; }} {binding[1]};\n"
                 binding_type_list.append(1)
             else:
                 header += f"layout(set = 0, binding = {ii + 1}) uniform sampler{binding[2]}D {binding[1]};\n"
@@ -147,8 +171,32 @@ subgroup_size = builder_obj.make_var(vd.uint32, "gl_SubgroupSize")
 subgroup_invocation = builder_obj.make_var(vd.uint32, "gl_SubgroupInvocationID")
 
 def shared_buffer(var_type: vd.dtype, size: int, var_name: str = None):
-    new_var = builder_obj.make_var(var_type[size], var_name)
-    builder_obj.shared_buffers.append((new_var.var_type, size, new_var))
+    #new_var = builder_obj.make_var(var_type[size], var_name)
+    #builder_obj.shared_buffers.append((new_var.var_type, size, new_var))
+    #return new_var
+
+    #self.binding_count += 1
+
+    #buffer_name = f"buf{self.binding_count}" if var_name is None else var_name
+    #shape_name = f"{buffer_name}_shape"
+    
+    #self.binding_list.append((var_type, buffer_name, 0))
+    
+    buffer_name = builder_obj.get_name_func()(var_name)[0]
+    shape_name = f"{buffer_name}_shape"
+
+    new_var = vc.BufferVariable(
+        builder_obj.append_contents, 
+        builder_obj.get_name_func(), 
+        var_type,
+        -1,
+        buffer_name,
+        builder_obj.declare_constant(vd.ivec4, shape_name),
+        shape_name
+    )
+
+    builder_obj.shared_buffers.append((var_type, size, new_var))
+
     return new_var
 
 def memory_barrier_shared():
@@ -269,17 +317,26 @@ def new_uint(*args, var_name: str = None):
 def new_vec2(*args, var_name: str = None):
     return new(vd.vec2, *args, var_name=var_name)
 
+def new_vec3(*args, var_name: str = None):
+    return new(vd.vec3, *args, var_name=var_name)
+
 def new_vec4(*args, var_name: str = None):
     return new(vd.vec4, *args, var_name=var_name)
 
 def new_uvec2(*args, var_name: str = None):
     return new(vd.uvec2, *args, var_name=var_name)
 
+def new_uvec3(*args, var_name: str = None):
+    return new(vd.uvec3, *args, var_name=var_name)
+
 def new_uvec4(*args, var_name: str = None):
     return new(vd.uvec4, *args, var_name=var_name)
 
 def new_ivec2(*args, var_name: str = None):
     return new(vd.ivec2, *args, var_name=var_name)
+
+def new_ivec3(*args, var_name: str = None):
+    return new(vd.ivec3, *args, var_name=var_name)
 
 def new_ivec4(*args, var_name: str = None):
     return new(vd.ivec4, *args, var_name=var_name)
@@ -306,7 +363,7 @@ def print_vars(*args: Union[vc.ShaderVariable, str], seperator=" "):
     for arg in args:
         if isinstance(arg, vc.ShaderVariable):
             args_list.append(arg.printf_args())
-            fmts.append(arg.format)
+            fmts.append(arg.var_type.format_str)
         else:
             fmts.append(str(arg))
 
@@ -320,7 +377,7 @@ def print_vars(*args: Union[vc.ShaderVariable, str], seperator=" "):
     builder_obj.append_contents(f'debugPrintfEXT("{fmt}"{args_argument});\n')
 
 def unravel_index(index: vc.ShaderVariable, shape: vc.ShaderVariable):
-    new_var = new_uvec4() #builder_obj.make_var(vd.ivec4)
+    new_var = new_uvec3() #builder_obj.make_var(vd.ivec4)
 
     new_var.x = index % shape.x
     new_var.y = (index / shape.x) % shape.y

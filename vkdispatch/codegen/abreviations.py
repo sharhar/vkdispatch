@@ -12,10 +12,13 @@ from vkdispatch.dtype import int32 as i32
 from vkdispatch.dtype import complex64 as c64
 
 from vkdispatch.dtype import vec2 as v2
+from vkdispatch.dtype import vec3 as v3
 from vkdispatch.dtype import vec4 as v4
 from vkdispatch.dtype import uvec2 as uv2
+from vkdispatch.dtype import uvec3 as uv3
 from vkdispatch.dtype import uvec4 as uv4
 from vkdispatch.dtype import ivec2 as iv2
+from vkdispatch.dtype import ivec3 as iv3
 from vkdispatch.dtype import ivec4 as iv4
 
 from vkdispatch.dtype import mat2 as m2

@@ -23,8 +23,10 @@ from .builder import int_bits_to_float, printf, unravel_index
 from .builder import print_vars as print
 from .builder import new, new_float, new_int, new_uint
 from .builder import new_vec2, new_ivec2, new_uvec2
+from .builder import new_vec3, new_ivec3, new_uvec3
 from .builder import new_vec4, new_ivec4, new_uvec4
 
 from .decorator import shader
+from .reductions import map_reduce
 
 from .abreviations import *

@@ -242,7 +242,7 @@ class Image:
 
     def write(self, data: np.ndarray, device_index: int = -1) -> None:
         if data.size * np.dtype(data.dtype).itemsize != self.mem_size:
-            raise ValueError("Numpy buffer sizes must match!")
+            raise ValueError(f"Numpy buffer sizes must match! {data.size * np.dtype(data.dtype).itemsize} != {self.mem_size}")
         vkdispatch_native.image_write(
             self._handle,
             np.ascontiguousarray(data),

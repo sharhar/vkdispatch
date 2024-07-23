@@ -13,6 +13,29 @@ from typing import Callable
 
 import numpy as np
 
+def sanitize_dims_tuple(func_args, in_val, args, kwargs):
+    if callable(in_val):
+        in_val = in_val(LaunchParametersHolder(func_args, args, kwargs))
+
+    if isinstance(in_val, int) or np.issubdtype(type(in_val), np.integer):
+        return (in_val, 1, 1)
+
+    if not isinstance(in_val, tuple):
+        raise ValueError("Must provide a tuple of dimensions!")
+    
+    if len(in_val) > 0 and len(in_val) < 4:
+        raise ValueError("Must provide a tuple of length 1, 2, or 3!")
+    
+    return_val = (1, 1, 1)
+
+    for ii, val in enumerate(in_val):
+        if not isinstance(val, int) and not np.issubdtype(type(val), np.integer):
+            raise ValueError("All dimensions must be integers!")
+        
+        return_val[ii] = val
+    
+    return return_val
+
 class LaunchBindObject:
     def __init__(self, parent: "LaunchVariables", name: str) -> None:
         self.parent = parent
@@ -44,6 +67,10 @@ class LaunchParametersHolder:
     def __init__(self, func_args, args, kwargs) -> None:
         self.ref_dict = {}
 
+        print(func_args)
+        print(args)
+        print(kwargs)
+
         for ii, arg_var in enumerate(func_args):
             arg = None
             
@@ -72,6 +99,7 @@ class ShaderLauncher:
     my_local_size: Tuple[int, int, int]
     my_workgroups: Tuple[int, int, int]
     my_exec_size: Tuple[int, int, int]
+    args_dict: Dict[str, str]
 
     def __init__(
         self,
@@ -84,6 +112,7 @@ class ShaderLauncher:
         my_local_size: Tuple[int, int, int],
         my_workgroups: Tuple[int, int, int],
         my_exec_size: Tuple[int, int, int],
+        args_dict: Dict[str, str]
     ):
         self.plan = vd.ComputePlan(shader_source, binding_type_list, pc_size)
         self.pc_buff_dict = copy.deepcopy(pc_buff_dict)
@@ -93,6 +122,7 @@ class ShaderLauncher:
         self.my_local_size = my_local_size
         self.my_workgroups = my_workgroups
         self.my_exec_size = my_exec_size
+        self.args_dict = args_dict
 
     def __repr__(self) -> str:
         result = ""
@@ -102,36 +132,14 @@ class ShaderLauncher:
 
         return result
 
-    def sanitize_dims_tuple(self, in_val, args, kwargs):
-        if callable(in_val):
-            in_val = in_val(LaunchParametersHolder(self.func_args, args, kwargs))
-
-        if isinstance(in_val, int) or np.issubdtype(type(in_val), np.integer):
-            return (in_val, 1, 1)
-
-        if not isinstance(in_val, tuple):
-            raise ValueError("Must provide a tuple of dimensions!")
-        
-        if len(in_val) > 0 and len(in_val) < 4:
-            raise ValueError("Must provide a tuple of length 1, 2, or 3!")
-        
-        return_val = (1, 1, 1)
-
-        for ii, val in enumerate(in_val):
-            if not isinstance(val, int) and not np.issubdtype(type(val), np.integer):
-                raise ValueError("All dimensions must be integers!")
-            
-            return_val[ii] = val
-        
-        return return_val
-
     def __call__(self, *args, **kwargs):
         my_blocks = None
         my_limits = None
         my_cmd_list = None
 
         if "workgroups" in kwargs or self.my_workgroups is not None:
-            true_dims = self.sanitize_dims_tuple(
+            true_dims = sanitize_dims_tuple(
+                self.func_args,
                 kwargs["workgroups"]
                 if "workgroups" in kwargs
                 else self.my_workgroups,
@@ -144,7 +152,8 @@ class ShaderLauncher:
                          true_dims[2] * self.my_local_size[2])
         
         if "exec_size" in kwargs or self.my_exec_size is not None:
-            true_dims = self.sanitize_dims_tuple(
+            true_dims = sanitize_dims_tuple(
+                self.func_args,
                 kwargs["exec_size"]
                 if "exec_size" in kwargs
                 else self.my_exec_size,
@@ -170,7 +179,7 @@ class ShaderLauncher:
         pc_buff = None if self.pc_buff_dict is None else vc.BufferStructureProxy(self.pc_buff_dict, 0)
         static_constant_buffer = vc.BufferStructureProxy(self.uniform_buff_dict, vd.get_context().device_infos[0].uniform_buffer_alignment)
 
-        static_constant_buffer["exec_count"] = [my_limits[0], my_limits[1], my_limits[2], 0]
+        static_constant_buffer[vc.builder_obj.exec_count.raw_name] = [my_limits[0], my_limits[1], my_limits[2], 0]
 
         for ii, arg_var in enumerate(self.func_args):
             arg = None
@@ -200,24 +209,22 @@ class ShaderLauncher:
                 descriptor_set.bind_image(arg, arg_var[0].binding)
             
             elif isinstance(arg_var[0], vc.ShaderVariable):
-                if arg_var[0].name.startswith("UBO."):
+                if not arg_var[0]._varying:
                     if isinstance(arg, LaunchBindObject):
                         raise ValueError("Cannot use LaunchVariables for Constants")
 
-                    static_constant_buffer[arg_var[0].name[4:]] = arg
-                elif arg_var[0].name.startswith("PC."):
+                    static_constant_buffer[arg_var[0].raw_name] = arg
+                else:
                     if pc_buff is None:
                         raise ValueError("Something went wrong with push constants!!")
-                    
+
                     if isinstance(arg, LaunchBindObject):
                         if my_cmd_list.submit_on_record:
                             raise ValueError("Cannot bind Variables for default cmd list!")
 
-                        arg.register_pc_var(pc_buff, arg_var[0].name[3:])
+                        arg.register_pc_var(pc_buff, arg_var[0].raw_name)
                     else:
-                        pc_buff[arg_var[0].name[3:]] = arg
-                else:
-                    raise ValueError(f"Unknown variable type '{arg_var[0].name}'!")
+                        pc_buff[arg_var[0].raw_name] = arg
             else:
                 raise ValueError(f"Something very wrong happened!")
 

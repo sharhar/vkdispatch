@@ -5,6 +5,7 @@ class dtype:
     name: str
     item_size: int
     glsl_type: str
+    glsl_type_extern: str = None
     dimentions: int
     format_str: str
     child_type: "dtype"
@@ -56,8 +57,8 @@ class _CF64(_Complex):
     child_type = float32
     shape = (2,)
     numpy_shape = (1,)
-    true_numpy_shape = (1,)
-    scalar = float32
+    true_numpy_shape = ()
+    scalar = None
 
 complex64 = _CF64
 
@@ -74,6 +75,19 @@ class _V2F32(_Vector):
     shape = (2,)
     numpy_shape = (2,)
     true_numpy_shape = (2,)
+    scalar = float32
+
+class _V3F32(_Vector):
+    name = "vec3"
+    item_size = 16
+    glsl_type = "vec3"
+    glsl_type_extern = "vec4"
+    format_str = "(%f, %f, %f)"
+    child_type = float32
+    child_count = 3
+    shape = (3,)
+    numpy_shape = (3,)
+    true_numpy_shape = (3,)
     scalar = float32
 
 class _V4F32(_Vector):
@@ -100,6 +114,19 @@ class _V2I32(_Vector):
     true_numpy_shape = (2,)
     scalar = int32
 
+class _V3I32(_Vector):
+    name = "ivec3"
+    item_size = 16
+    glsl_type = "ivec3"
+    glsl_type_extern = "ivec4"
+    format_str = "(%d, %d, %d)"
+    child_type = int32
+    child_count = 3
+    shape = (3,)
+    numpy_shape = (3,)
+    true_numpy_shape = (3,)
+    scalar = int32
+
 class _V4I32(_Vector):
     name = "ivec4"
     item_size = 16
@@ -124,6 +151,19 @@ class _V2U32(_Vector):
     true_numpy_shape = (2,)
     scalar = uint32
 
+class _V3U32(_Vector):
+    name = "uvec3"
+    item_size = 16
+    glsl_type = "uvec3"
+    glsl_type_extern = "uvec4"
+    format_str = "(%u, %u, %u)"
+    child_type = uint32
+    child_count = 3
+    shape = (3,)
+    numpy_shape = (3,)
+    true_numpy_shape = (3,)
+    scalar = uint32
+
 class _V4U32(_Vector):
     name = "uvec4"
     item_size = 16
@@ -137,10 +177,13 @@ class _V4U32(_Vector):
     scalar = uint32
 
 vec2 = _V2F32
+vec3 = _V3F32
 vec4 = _V4F32
 ivec2 = _V2I32
+ivec3 = _V3I32
 ivec4 = _V4I32
 uvec2 = _V2U32
+uvec3 = _V3U32
 uvec4 = _V4U32
 
 class _Matrix(dtype):
@@ -172,6 +215,34 @@ class _M4F32(_Matrix):
 
 mat2 = _M2F32
 mat4 = _M4F32
+
+def to_vector(dtype: "vd.dtype", count: int) -> "vd.dtype":
+    if count < 2 or count > 4:
+        raise ValueError(f"Unsupported count ({count})!")
+
+    if dtype == int32:
+        if count == 2:
+            return ivec2
+        elif count == 3:
+            return ivec3
+        elif count == 4:
+            return ivec4
+    elif dtype == uint32:
+        if count == 2:
+            return uvec2
+        elif count == 3:
+            return uvec3
+        elif count == 4:
+            return uvec4
+    elif dtype == float32:
+        if count == 2:
+            return vec2
+        elif count == 3:
+            return vec3
+        elif count == 4:
+            return vec4
+    else:
+        raise ValueError(f"Unsupported dtype ({dtype})!")
 
 def is_scalar(dtype: "vd.dtype") -> bool:
     return issubclass(dtype, _Scalar)
