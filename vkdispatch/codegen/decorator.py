@@ -29,10 +29,6 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None, signature: t
         default_values = []
         args_dict = {}
 
-        #func_sig_params = list(func_signature.parameters.values())
-
-        #print(func_sig_params)
-
         my_type_annotations = (
             [(
                 param.annotation, param.name, 
@@ -43,8 +39,6 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None, signature: t
                 sign, f"param{ii}", None
             ) for ii, sign in enumerate(signature)]
         )
-
-        print(my_type_annotations)
 
         for my_annotation, my_name, my_default in my_type_annotations:
             #my_annotation = param #.annotation if signature is None else signature[ii]

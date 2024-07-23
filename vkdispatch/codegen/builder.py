@@ -85,6 +85,7 @@ class ShaderBuilder:
             suffix = ".xyz"
         
         new_var = self.make_var(var_type, var_name, "PC.", suffix)
+        new_var._varying = True
         self.pc_struct.register_element(new_var.raw_name, var_type, f"{decleration_type} {new_var.raw_name};")
         return new_var
     

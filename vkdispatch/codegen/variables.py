@@ -16,6 +16,7 @@ class BaseVariable:
     can_index: bool = False
     use_child_type: bool = True
     index_suffix: str = ""
+    _varying: bool = False
 
     def __init__(
         self,
@@ -92,8 +93,6 @@ class BaseVariable:
         self.use_child_type = use_child_type
 
 class ShaderVariable(BaseVariable):
-    _varying: bool = False
-
     def __init__(self, 
                  append_func: Callable[[str], None], 
                  name_func: Callable[[str], Tuple[str, str]], 
@@ -128,9 +127,6 @@ class ShaderVariable(BaseVariable):
             self._register_shape()
 
         self._initilized = True
-    
-    def _register_varying(self, varying: bool = False):
-        self._varying = varying
 
     def new(self, var_type: vd.dtype, name: str = None):
         return ShaderVariable(self.append_func, self.name_func, var_type, name)
@@ -181,12 +177,14 @@ class ShaderVariable(BaseVariable):
             super().__setattr__(name, value)
             return
         
-        
-        if hasattr(self, name):
-            super().__setattr__(name, value)
-            return
 
-        raise AttributeError(f"Cannot set attribute '{name}'")
+        super().__setattr__(name, value)
+        
+        #if hasattr(self, name):
+        #    super().__setattr__(name, value)
+        #    return
+
+        #raise AttributeError(f"Cannot set attribute '{name}'")
 
     def __getattr__(self, name: str) -> "ShaderVariable":
         if not set(name).issubset(set("xyzw")):
