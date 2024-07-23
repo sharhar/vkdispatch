@@ -3,12 +3,12 @@ import vkdispatch.codegen as vc
 
 import inspect
 
-def shader(*args, local_size=None, workgroups=None, exec_size=None):
+def shader(*args, local_size=None, workgroups=None, exec_size=None, signature: tuple = None):
     if workgroups is not None and exec_size is not None:
         raise ValueError("Cannot specify both 'workgroups' and 'exec_size'")
 
     def process_function(func):
-        signature = inspect.signature(func)
+        func_signature = inspect.signature(func)
 
         my_local_size = (
             local_size
@@ -18,7 +18,7 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None):
 
         vc.builder_obj.reset()
 
-        vc.builder_obj.exec_count = vc.builder_obj.declare_constant(vd.uvec4, "exec_count")
+        vc.builder_obj.exec_count = vc.builder_obj.declare_constant(vd.uvec4)
 
         vc.if_statement(vc.builder_obj.exec_count.x <= vc.global_invocation.x)
         vc.return_statement()
@@ -27,29 +27,44 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None):
         func_args = []
         arg_names = []
         default_values = []
+        args_dict = {}
 
-        for param in signature.parameters.values():
-            if param.annotation == inspect.Parameter.empty:
+        func_sig_params = list(func_signature.parameters.values())
+
+        my_type_annotations = (
+            [param.annotation for param in func_signature.parameters.values()]
+            if signature is None else signature)
+
+        for ii, my_annotation in enumerate(my_type_annotations):
+            #my_annotation = param #.annotation if signature is None else signature[ii]
+
+            param = func_sig_params[ii]
+
+            if my_annotation == inspect.Parameter.empty:
                 raise ValueError("All parameters must be annotated")
 
-            if not hasattr(param.annotation, '__args__'):
-                raise TypeError(f"Argument '{param.name}: vd.{param.annotation.__name__}' must have a type annotation")
+            if not hasattr(my_annotation, '__args__'):
+                raise TypeError(f"Argument '{param.name}: vd.{my_annotation}' must have a type annotation")
 
-            if len(param.annotation.__args__) != 1:
-                raise ValueError(f"Type '{param.name}: vd.{param.annotation.__name__}' must have exactly one type argument")
+            if len(my_annotation.__args__) != 1:
+                raise ValueError(f"Type '{param.name}: vd.{my_annotation.__name__}' must have exactly one type argument")
 
-            type_arg: vd.dtype = param.annotation.__args__[0]
+            type_arg: vd.dtype = my_annotation.__args__[0]
 
-            if(issubclass(param.annotation.__origin__, vc.Buffer)):
+            if(issubclass(my_annotation.__origin__, vc.Buffer)):
                 func_args.append(vc.builder_obj.declare_buffer(type_arg)) #, var_name=f"{param.name}"))
-            elif(issubclass(param.annotation.__origin__, vc.Image2D)):
+            elif(issubclass(my_annotation.__origin__, vc.Image2D)):
                 func_args.append(vc.builder_obj.declare_image(2)) #, var_name=f"{param.name}"))
-            elif(issubclass(param.annotation.__origin__, vc.Image3D)):
+            elif(issubclass(my_annotation.__origin__, vc.Image3D)):
                 func_args.append(vc.builder_obj.declare_image(3)) #, var_name=f"{param.name}"))
-            elif(issubclass(param.annotation.__origin__, vc.Constant)):
-                func_args.append(vc.builder_obj.declare_constant(type_arg, var_name=f"{param.name}"))
-            elif(issubclass(param.annotation.__origin__, vc.Variable)):
-                func_args.append(vc.builder_obj.declare_variable(type_arg, var_name=f"{param.name}"))
+            elif(issubclass(my_annotation.__origin__, vc.Constant)):
+                new_constant = vc.builder_obj.declare_constant(type_arg)
+                args_dict[new_constant.name] = param.name #[param.name] = new_constant
+                func_args.append(new_constant)
+            elif(issubclass(my_annotation.__origin__, vc.Variable)):
+                new_variable = vc.builder_obj.declare_variable(type_arg)
+                args_dict[new_variable.name] = param.name #[param.name] = new_variable
+                func_args.append(new_variable) #vc.builder_obj.declare_variable(type_arg, var_name=f"{param.name}"))
 
             arg_names.append(param.name)
 
@@ -73,7 +88,8 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None):
             list(zip(func_args, arg_names, default_values)),
             my_local_size,
             workgroups,
-            exec_size
+            exec_size,
+            args_dict
         )
 
         return wrapper

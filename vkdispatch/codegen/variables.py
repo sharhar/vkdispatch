@@ -12,22 +12,25 @@ class BaseVariable:
     name_func: Callable[[str], str]
     var_type: vd.dtype
     name: str
+    raw_name: str
     can_index: bool = False
     use_child_type: bool = True
-    shape: "ShaderVariable" = None
+    index_suffix: str = ""
 
     def __init__(
         self,
         append_func: Callable[[str], None],
-        name_func: Callable[[str], str],
+        name_func: Callable[[str], Tuple[str, str]], 
         var_type: vd.dtype,
         name: str = None,
     ) -> None:
         self.append_func = append_func
         self.name_func = name_func
         self.var_type = var_type
-        self.name = self.name_func(name)
-        self.format = var_type.format_str
+
+        both_names = self.name_func(name)
+        self.name = both_names[0]
+        self.raw_name = both_names[1]
 
         #self._register_shape()
     
@@ -36,16 +39,6 @@ class BaseVariable:
     
     def new(self, var_type: vd.dtype, name: str = None):
         return BaseVariable(self.append_func, self.name_func, var_type, name)
-
-    def __setitem__(self, index, value: "BaseVariable") -> None:        
-        if isinstance(index, slice):
-            if index.start is None and index.stop is None and index.step is None:
-                self.append_func(f"{self} = {value};\n")
-                return
-            else:
-                raise ValueError("Unsupported slice!")
-        else:
-            raise ValueError("Unsupported slice!")
     
     def __getitem__(self, index) -> "ShaderVariable":
         if not self.can_index:
@@ -53,35 +46,30 @@ class BaseVariable:
         
         return_type = self.var_type.child_type if self.use_child_type else self.var_type
 
-        if not isinstance(index, ShaderVariable) or isinstance(index, (int, np.integer)):
+        if isinstance(index, ShaderVariable) or isinstance(index, (int, np.integer)):
             return self.new(return_type, f"{self}[{index}]")
         
 
         if isinstance(index, tuple):
             if len(index) == 1:
-                return self.new(return_type, f"{self}[{index[0]}]")
+                return self.new(return_type, f"{self}[{index[0]}]{self.index_suffix}")
             elif self.shape is None:
                 raise ValueError("Cannot do multidimentional index into object with no shape!")
             
             if len(index) == 2:
                 true_index = f"{index[0]} * {self.shape.y} + {index[1]}"
-                return self.new(return_type, f"{self}[{true_index}]")
+                return self.new(return_type, f"{self}[{true_index}]{self.index_suffix}")
             elif len(index) == 3:
                 true_index = f"{index[0]} * {self.shape.y} + {index[1]}"
                 true_index = f"({true_index}) * {self.shape.z} + {index[2]}"
-                return self.new(return_type, f"{self}[{true_index}]")
+                return self.new(return_type, f"{self}[{true_index}]{self.index_suffix}")
             else:
                 raise ValueError(f"Unsupported number of indicies {len(index)}!")
 
-        #else:
-        #    raise ValueError(f"Unsupported index type {index}!")
+        else:
+            raise ValueError(f"Unsupported index type {index} of type {type(index)}!")
 
     def __setitem__(self, index, value: "ShaderVariable") -> None:        
-        print(index)
-        print(type(index))
-        
-        
-        
         if isinstance(index, slice):
             if index.start is None and index.stop is None and index.step is None:
                 self.append_func(f"{self} = {value};\n")
@@ -92,22 +80,23 @@ class BaseVariable:
         if not self.can_index:
             raise ValueError(f"Unsupported indexing {index}!")
         
-        if f"{self}[{index}]" == str(value):
+        if f"{self}[{index}]{self.index_suffix}" == str(value):
             return
 
-        self.append_func(f"{self}[{index}] = {value};\n")
+        self.append_func(f"{self}[{index}]{self.index_suffix} = {value};\n")
 
     def _register_shape(self, shape_var: "ShaderVariable" = None, shape_name: str = None, use_child_type: bool = True):
-        super().__setattr__("shape", shape_var)
-        super().__setattr__("shape_name", shape_name)
-
+        self.shape = shape_var
+        self.shape_name = shape_name
         self.can_index = True
         self.use_child_type = use_child_type
 
 class ShaderVariable(BaseVariable):
+    _varying: bool = False
+
     def __init__(self, 
                  append_func: Callable[[str], None], 
-                 name_func: Callable[[str], str], 
+                 name_func: Callable[[str], Tuple[str, str]], 
                  var_type: vd.dtype, 
                  name: str = None
         ) -> None:
@@ -139,6 +128,9 @@ class ShaderVariable(BaseVariable):
             self._register_shape()
 
         self._initilized = True
+    
+    def _register_varying(self, varying: bool = False):
+        self._varying = varying
 
     def new(self, var_type: vd.dtype, name: str = None):
         return ShaderVariable(self.append_func, self.name_func, var_type, name)
@@ -195,6 +187,19 @@ class ShaderVariable(BaseVariable):
             return
 
         raise AttributeError(f"Cannot set attribute '{name}'")
+
+    def __getattr__(self, name: str) -> "ShaderVariable":
+        if not set(name).issubset(set("xyzw")):
+            raise AttributeError(f"Cannot get attribute '{name}'")
+
+        if len(name) > 4:
+            raise AttributeError(f"Cannot get attribute '{name}'")
+        
+        if len(name) == 1:
+            return self.new(self.var_type.child_type, f"{self}.{name}")
+        
+        new_type = vd.to_vector(self.var_type.child_type, len(name))
+        return self.new(new_type, f"({self}).{name}")
 
     def __lt__(self, other):
         return self.new(vd.int32, f"({self} < {other})")
@@ -360,14 +365,18 @@ class BoundVariable(ShaderVariable):
 class BufferVariable(BoundVariable):
     def __init__(self,
                  append_func: Callable[[str], None],
-                 name_func: Callable[[str], str],
+                 name_func: Callable[[str], Tuple[str, str]], 
                  var_type: vd.dtype,
                  binding: int,
                  name: str = None,
                  shape_var: "ShaderVariable" = None,
                  shape_name: str = None,
+                 raw_name: str = None
             ) -> None:
             super().__init__(append_func, name_func, var_type, binding, name)
+
+            self.name = name if name is not None else self.name
+            self.raw_name = raw_name if raw_name is not None else self.raw_name
 
             self._register_shape(shape_var=shape_var, shape_name=shape_name, use_child_type=False)
 
@@ -376,7 +385,7 @@ class ImageVariable(BoundVariable):
 
     def __init__(self,
                  append_func: Callable[[str], None],
-                 name_func: Callable[[str], str],
+                 name_func: Callable[[str], Tuple[str, str]], 
                  var_type: vd.dtype,
                  binding: int,
                  dimensions: int,
