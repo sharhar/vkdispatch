@@ -67,10 +67,6 @@ class LaunchParametersHolder:
     def __init__(self, func_args, args, kwargs) -> None:
         self.ref_dict = {}
 
-        print(func_args)
-        print(args)
-        print(kwargs)
-
         for ii, arg_var in enumerate(func_args):
             arg = None
             
@@ -180,8 +176,6 @@ class ShaderLauncher:
         static_constant_buffer = vc.BufferStructureProxy(self.uniform_buff_dict, vd.get_context().device_infos[0].uniform_buffer_alignment)
 
         static_constant_buffer[vc.builder_obj.exec_count.raw_name] = [my_limits[0], my_limits[1], my_limits[2], 0]
-
-        print(self.func_args)
 
         for ii, arg_var in enumerate(self.func_args):
             arg = None

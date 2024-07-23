@@ -29,7 +29,6 @@ def my_shader(buff: Buff[c64], img: Img3[f32], offset: Const[iv3] = [0.5, 0.5, 2
 
 image.write(transformed_arr)
 
-
 @vc.map_reduce(exec_size=lambda args: args.wave.size, reduction="subgroupAdd") # We define the reduction function here
 def calc_sums(ind: Const[i32], wave: Buff[v2]) -> v2: # so this is the mapping function
     result = vc.new_vec2()

@@ -18,13 +18,13 @@ import test_utils as tu
 #theta_values = np.arange(0, 180, 2.5)
 #psi_values = np.arange(0, 360, 1.5)
 
-#phi_values = np.arange(100, 200, 2.5)
-#theta_values = np.arange(70, 100, 2.5)
-#psi_values = np.arange(280, 340, 1.5)
+phi_values = np.arange(100, 200, 2.5)
+theta_values = np.arange(70, 100, 2.5)
+psi_values = np.arange(280, 340, 1.5)
 
-phi_values = np.arange(150, 200, 2.5)
-theta_values = np.arange(70, 90, 2.5)
-psi_values = np.arange(320, 340, 1.5)
+#phi_values = np.arange(150, 200, 2.5)
+#theta_values = np.arange(70, 90, 2.5)
+#psi_values = np.arange(320, 340, 1.5)
 
 defocus_values = np.arange(10000, 16000, 400)
 test_values = (np.array(np.meshgrid(phi_values, theta_values, psi_values, defocus_values)).T.reshape(-1, 4))
@@ -33,9 +33,9 @@ template_size = (512, 512)# (380, 380)
 
 sss = time.time()
 
-potential_generator = tp.TemplatePotential(tu.load_coords(sys.argv[3]), template_size, 200, 0.3)
-scope = ts.Scope(template_size, tf_calc.prepareTF(template_size, 1.056, 0), tf_calc.get_sigmaE(300e3), -0.07)
-correlator = tc.Correlator(template_size, tu.load_image(sys.argv[2]))
+potential_generator = tp.TemplatePotential(tu.load_coords(sys.argv[3]), 200, 0.3)
+scope = ts.Scope(tf_calc.prepareTF(template_size, 1.056, 0), tf_calc.get_sigmaE(300e3), -0.07)
+correlator = tc.Correlator(tu.load_image(sys.argv[2]))
 
 print("Init time:", time.time() - sss)
 
@@ -44,17 +44,20 @@ work_buffer = vd.Buffer(template_size, vd.complex64)
 sss = time.time()
 
 cmd_list = vd.CommandList()
+my_variables = vd.LaunchVariables()
 
-potential_generator.record(cmd_list, work_buffer)
-scope.record(cmd_list, work_buffer)
-correlator.record(cmd_list, work_buffer)
+vd.set_global_command_list(cmd_list)
+
+potential_generator.record(work_buffer, my_variables["rotation"])
+scope.record(work_buffer, my_variables["defocus"])
+correlator.record(work_buffer, my_variables["index"])
 
 print("Record time:", time.time() - sss)
 
 def set_params(params):
-    potential_generator.set_rotation_matrix(tu.get_rotation_matrix(params[1][:3], [0, 0]))
-    scope.set_defocus(params[1][3])
-    correlator.set_index(params[0])
+    my_variables["rotation"] = tu.get_rotation_matrix(params[1][:3], [0, 0])
+    my_variables["defocus"] = params[1][3]
+    my_variables["index"] = params[0]
 
 batch_size = 100
 status_bar = tqdm.tqdm(total=test_values.shape[0])
@@ -75,9 +78,11 @@ print("Defocus:", test_values[final_index][3])
 
 file_out = sys.argv[1]
 
-potential_generator.record(None, work_buffer, rot_matrix=tu.get_rotation_matrix([test_values[final_index][0], test_values[final_index][1], test_values[final_index][2]]))
+vd.set_global_command_list()
+
+potential_generator.record(work_buffer, rot_matrix=tu.get_rotation_matrix([test_values[final_index][0], test_values[final_index][1], test_values[final_index][2]]))
 np.save(file_out + "_match.npy", work_buffer.read()[0])
-scope.record(None, work_buffer, defocus=test_values[final_index][3])
+scope.record(work_buffer, defocus=test_values[final_index][3])
 np.save(file_out + "_match_defocused.npy", work_buffer.read()[0])
 
 params_result = test_values[best_index_result]

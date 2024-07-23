@@ -75,63 +75,10 @@ class ReductionDispatcher:
 
         reduction_buffer = vd.Buffer((stage1_blocks + 1,), self.out_type)
 
-        print(reduction_buffer.shape)
-        print(stage1_blocks * self.group_size)
-
         self.stage1(reduction_buffer, *args, data_size, exec_size=stage1_blocks * self.group_size, cmd_list=my_cmd_list)
         self.stage2(reduction_buffer, stage1_blocks+1, exec_size=self.group_size, cmd_list=my_cmd_list)
 
-        #self.stage1[stage1_blocks * self.group_size, my_exec_dims[0][1]](reduction_buffer, *args, N=data_size)
-        #self.stage2[self.group_size, my_exec_dims[0][1]](reduction_buffer, N=stage1_blocks+1)
-
         return reduction_buffer
-
-    # def __getitem__(self, exec_dims: typing.Union[tuple, int]):
-    #     if isinstance(exec_dims, int):
-    #         exec_dims = (exec_dims,)
-
-    #     if len(exec_dims) < 1:
-    #         raise ValueError("At least a size must be provided!")
-
-    #     if len(exec_dims) > 2:
-    #         raise ValueError("Only two arguments can be given for the execution dimensions!")
-        
-    #     if not isinstance(exec_dims[0], (int, np.integer)):
-    #         raise ValueError("First excution dimention must be an int!")
-        
-    #     if len(exec_dims) == 2:
-    #         if not isinstance(exec_dims[1], vd.CommandList) and exec_dims[1] is not None:
-    #             raise ValueError("Second excution dimention must be a CommandList!")
-            
-    #     if len(exec_dims) == 1:
-    #         exec_dims = (exec_dims[0], None)
-
-    #     my_exec_dims = [None]
-    #     my_exec_dims[0] = exec_dims
-
-    #     def wrapper_func(*args, **kwargs):
-    #         if len(args) != self.arg_count:
-    #             raise ValueError(f"Expected {self.arg_count} arguments, got {len(args)}!")
-            
-    #         data_size = my_exec_dims[0][0]
-    #         stage1_blocks = int(np.ceil(data_size / self.group_size))
-            
-    #         if stage1_blocks > self.group_size:
-    #             reduction_scale = int(np.ceil(stage1_blocks / self.group_size))
-    #             stage_scale = np.ceil(np.sqrt(reduction_scale))
-    #             stage1_blocks = int(np.ceil(stage1_blocks / stage_scale))
-
-    #         reduction_buffer = vd.Buffer((stage1_blocks + 1,), self.out_type)
-
-    #         self.stage1(reduction_buffer, *args, N=data_size)
-    #         self.stage2(reduction_buffer, N=stage1_blocks+1)
-
-    #         #self.stage1[stage1_blocks * self.group_size, my_exec_dims[0][1]](reduction_buffer, *args, N=data_size)
-    #         #self.stage2[self.group_size, my_exec_dims[0][1]](reduction_buffer, N=stage1_blocks+1)
-            
-    #         return reduction_buffer
-
-    #     return wrapper_func
 
 def make_reduction(
         reduce: typing.Union[
@@ -182,7 +129,6 @@ def make_reduction(
             vc.while_statement(ind + offset < N)
 
             if reduction_map is not None:
-                #mapped_inputs = [buffer[ind + offset] for buffer in buffers[1:]]
                 reduction_aggregate[:] = reduction_func(reduction_aggregate, reduction_map(ind + offset, *buffers[1:]).copy())
             else:
                 reduction_aggregate[:] = reduction_func(reduction_aggregate, buffers[first_input_index][ind + offset])
