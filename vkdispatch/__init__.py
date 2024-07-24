@@ -26,6 +26,7 @@ from .image import image_format
 from .image import image_type
 from .image import image_view_type
 from .image import Image
+from .image import Image1D
 from .image import Image2D
 from .image import Image2DArray
 from .image import Image3D

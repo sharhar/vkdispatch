@@ -170,11 +170,13 @@ def select_image_format(dtype: vd.dtype, channels: int) -> image_format:
 
 
 class image_type(Enum):
+    TYPE_1D = (0,)
     TYPE_2D = (1,)
     TYPE_3D = (2,)
 
 
 class image_view_type(Enum):
+    VIEW_TYPE_1D = (0,)
     VIEW_TYPE_2D = (1,)
     VIEW_TYPE_3D = (2,)
     VIEW_TYPE_2D_ARRAY = (5,)
@@ -189,10 +191,12 @@ class Image:
         channels: int,
         view_type: image_view_type,
     ) -> None:
-        assert len(shape) == 2 or len(shape) == 3, "Shape must be 2D or 3D!"
+        assert len(shape) == 1 or len(shape) == 2 or len(shape) == 3, "Shape must be 2D or 3D!"
 
         assert type(shape[0]) == int, "Shape must be a tuple of integers!"
-        assert type(shape[1]) == int, "Shape must be a tuple of integers!"
+        
+        if len(shape) > 1:
+            assert type(shape[1]) == int, "Shape must be a tuple of integers!"
 
         if len(shape) == 3:
             assert type(shape[2]) == int, "Shape must be a tuple of integers!"
@@ -200,23 +204,33 @@ class Image:
         assert issubclass(dtype, vd.dtype), "Dtype must be a dtype!"
         assert type(channels) == int, "Channels must be an integer!"
 
-        self.type = (
-            image_type.TYPE_3D
-            if view_type == image_view_type.VIEW_TYPE_3D
-            else image_type.TYPE_2D
-        )
+        self.type = image_type.TYPE_1D
+
+        if view_type == image_view_type.VIEW_TYPE_2D:
+            self.type = image_type.TYPE_2D
+        
+        if view_type == image_view_type.VIEW_TYPE_3D:
+            self.type = image_type.TYPE_3D
+        
         self.view_type = view_type
         self.format: image_format = select_image_format(dtype, channels)
         self.dtype: vd.dtype = dtype
         self.layers: int = layers
         self.channels: int = channels
 
-        self.shape: typing.Tuple[int] = (
-            (layers, shape[0], shape[1]) if layers > 1 else shape
-        )
-        self.extent: typing.Tuple[int] = (
-            shape if len(shape) == 3 else (shape[0], shape[1], 1)
-        )
+        self.shape: typing.Tuple[int] = shape
+
+        if layers > 1:
+            self.shape = (layers, *shape)
+
+        self.extent: typing.Tuple[int] = shape
+
+        if len(shape) == 1:
+            self.extent = (shape[0], 1, 1)
+        
+        if len(shape) == 2:
+            self.extent = (shape[0], shape[1], 1)
+
         self.array_shape: typing.Tuple[int] = (*self.shape, channels)
 
         if channels == 1:
@@ -262,6 +276,15 @@ class Image:
     
     def sample(self, coords: "vd.ShaderVariable") -> "vd.ShaderVariable":
         raise RuntimeError("Cannot sample an image object outside of shader!")
+
+class Image1D(Image):
+    def __init__(self, shape: int, dtype: type, channels: int = 1) -> None:
+        super().__init__((shape, ), 1, dtype, channels, image_view_type.VIEW_TYPE_1D)
+
+
+    @classmethod
+    def __class_getitem__(cls, arg: vd.dtype) -> type:
+        raise RuntimeError("Cannot index into vd.Image1D! Perhaps you meant to use vc.Image1D?")
 
 class Image2D(Image):
     def __init__(

@@ -2,9 +2,6 @@ import vkdispatch as vd
 import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import *
 
-#from vkdispatch.codegen import f32, v4
-#from vkdispatch.codegen import Buffer as Buff
-
 import numpy as np
 
 from matplotlib import pyplot as plt
@@ -13,15 +10,32 @@ arr: np.ndarray = np.load("data/bronwyn/template_3d.npy") # np.random.rand(512, 
 
 #vd.initialize(log_level=vd.LogLevel.INFO)
 
-transformed_arr = arr.astype(np.complex64) #  np.fft.fftshift(np.fft.fftn(np.fft.fftshift(arr))).astype(np.complex64)
+#transformed_arr = np.fft.fftshift(np.fft.fftn(np.fft.fftshift(arr))).astype(np.complex64)
 
 arr_buff = vd.Buffer((arr.shape[0], arr.shape[1]), vd.complex64)
 image = vd.Image3D(arr.shape, vd.float32, 2)
 
+test_line = vd.Image1D(10, vd.float32)
+test_line.write(np.sin(np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])).astype(np.float32))
+
+result_arr = vd.Buffer((100,), vd.float32)
+
 @vc.shader(exec_size=lambda args: args.buff.size)
-def my_shader(buff: Buff[c64], img: Img3[f32], offset: Const[iv3] = [0.5, 0.5, 208.5]):
+def do_approx(buff: Buff[f32], line: Img1[f32]):
     ind = vc.global_invocation.x.copy()
-    #vc.print(offset)
+    buff[ind] = line.sample(ind.cast_to(f32) / 10).x
+
+do_approx(result_arr, test_line)
+
+plt.scatter(np.array([i for i in range(100)]), result_arr.read()[0])
+plt.scatter(np.array([0, 10, 20, 30, 40, 50, 60, 70, 80, 90]), np.sin(np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])))
+plt.show()
+
+exit()
+
+@vc.shader(exec_size=lambda args: args.buff.size)
+def my_shader(buff: Buff[c64], img: Img3[f32], offset: Const[v3] = [0.5, 0.5, 288.5]):
+    ind = vc.global_invocation.x.copy()
     sample_coords = vc.unravel_index(ind, buff.shape).cast_to(v3)
     buff[ind] = img.sample(sample_coords + offset).xy
 
@@ -29,23 +43,14 @@ def my_shader(buff: Buff[c64], img: Img3[f32], offset: Const[iv3] = [0.5, 0.5, 2
 
 image.write(transformed_arr)
 
-@vc.map_reduce(exec_size=lambda args: args.wave.size, reduction="subgroupAdd") # We define the reduction function here
-def calc_sums(ind: Const[i32], wave: Buff[v2]) -> v2: # so this is the mapping function
-    result = vc.new_vec2()
-    result.x = wave[ind].x * wave[ind].x + wave[ind].y * wave[ind].y
-    result.y = result.x * result.x
-
-    wave[ind].x = result.x
-    wave[ind].y = 0
-
-    return result
-
 my_shader(arr_buff, image)
 
 def plot_images_and_differences(image1, image2):
     # Calculate the difference and absolute difference
     difference = image1 - image2
     abs_difference = np.abs(difference)
+
+    print(np.sum(abs_difference))
     
     # Create a figure with 4 subplots
     fig, axes = plt.subplots(2, 2, figsize=(10, 10))
@@ -76,14 +81,14 @@ def plot_images_and_differences(image1, image2):
     # Show the plots
     plt.show()
 
-smol_buff = vd.asbuffer(np.array([[1, 2], [3, 4], [5, 6]], dtype=np.float32))
+#smol_buff = vd.asbuffer(np.array([[1, 2], [3, 4], [5, 6]], dtype=np.float32))
 
-sum_buff = calc_sums(smol_buff)
+#sum_buff = calc_sums(smol_buff)
 
 #print(calc_sums)
 
-print(sum_buff.read(0))
-print(smol_buff.read(0))
+#print(sum_buff.read(0))
+#print(smol_buff.read(0))
 
 true_projection = arr.sum(axis=0)
 
