@@ -257,6 +257,9 @@ def cos(arg: vc.ShaderVariable):
 def sqrt(arg: vc.ShaderVariable):
     return builder_obj.make_var(arg.var_type, f"sqrt({arg})")
 
+def mod(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
+    return builder_obj.make_var(arg1.var_type, f"mod({arg1}, {arg2})")
+
 def max(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
     return builder_obj.make_var(arg1.var_type, f"max({arg1}, {arg2})")
 

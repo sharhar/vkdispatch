@@ -13,7 +13,7 @@ from .builder import subgroup_id, subgroup_size, subgroup_invocation
 from .builder import shared_buffer, memory_barrier_shared, barrier
 from .builder import if_statement, if_any, if_all, else_statement
 from .builder import return_statement, while_statement, end
-from .builder import logical_and, logical_or
+from .builder import logical_and, logical_or, mod
 from .builder import ceil, floor, exp, sin, cos, sqrt, max, min
 from .builder import atomic_add, subgroup_add, subgroup_mul
 from .builder import subgroup_min, subgroup_max, subgroup_and
