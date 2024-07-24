@@ -1,111 +1,108 @@
-import vkdispatch as vd 
-from matplotlib import pyplot as plt
+import vkdispatch as vd
+import vkdispatch.codegen as vc
+from vkdispatch.codegen.abreviations import *
+
+#from vkdispatch.codegen import f32, v4
+#from vkdispatch.codegen import Buffer as Buff
+
 import numpy as np
-import sys
-import tf_calc
-import tqdm
-import time
+
+from matplotlib import pyplot as plt
+
+arr: np.ndarray = np.load("data/bronwyn/template_3d.npy") # np.random.rand(512, 512, 512).astype(np.float32)
 
 #vd.initialize(log_level=vd.LogLevel.INFO)
-vd.make_context(devices=[0], queue_families=[[0]])
 
-import test_potential as tp
-import test_scope as ts
-import test_correlator as tc
-import test_utils as tu
+transformed_arr = arr.astype(np.complex64) #  np.fft.fftshift(np.fft.fftn(np.fft.fftshift(arr))).astype(np.complex64)
 
-#phi_values = np.arange(0, 360, 2.5)
-#theta_values = np.arange(0, 180, 2.5)
-#psi_values = np.arange(0, 360, 1.5)
+arr_buff = vd.Buffer((arr.shape[0], arr.shape[1]), vd.complex64)
+image = vd.Image3D(arr.shape, vd.float32, 2)
 
-phi_values = np.arange(100, 200, 2.5)
-theta_values = np.arange(70, 100, 2.5)
-psi_values = np.arange(280, 340, 1.5)
+@vc.shader(exec_size=lambda args: args.buff.size)
+def my_shader(buff: Buff[c64], img: Img3[f32], offset: Const[iv3] = [0.5, 0.5, 208.5]):
+    ind = vc.global_invocation.x.copy()
+    #vc.print(offset)
+    sample_coords = vc.unravel_index(ind, buff.shape).cast_to(v3)
+    buff[ind] = img.sample(sample_coords + offset).xy
 
-#phi_values = np.arange(150, 200, 2.5)
-#theta_values = np.arange(70, 90, 2.5)
-#psi_values = np.arange(320, 340, 1.5)
+#print(my_shader)
 
-defocus_values = np.arange(10000, 16000, 400)
-test_values = (np.array(np.meshgrid(phi_values, theta_values, psi_values, defocus_values)).T.reshape(-1, 4))
+image.write(transformed_arr)
 
-template_size = (512, 512)# (380, 380)
+@vc.map_reduce(exec_size=lambda args: args.wave.size, reduction="subgroupAdd") # We define the reduction function here
+def calc_sums(ind: Const[i32], wave: Buff[v2]) -> v2: # so this is the mapping function
+    result = vc.new_vec2()
+    result.x = wave[ind].x * wave[ind].x + wave[ind].y * wave[ind].y
+    result.y = result.x * result.x
 
-sss = time.time()
+    wave[ind].x = result.x
+    wave[ind].y = 0
 
-potential_generator = tp.TemplatePotential(tu.load_coords(sys.argv[3]), 200, 0.3)
-scope = ts.Scope(tf_calc.prepareTF(template_size, 1.056, 0), tf_calc.get_sigmaE(300e3), -0.07)
-correlator = tc.Correlator(tu.load_image(sys.argv[2]))
+    return result
 
-print("Init time:", time.time() - sss)
+my_shader(arr_buff, image)
 
-work_buffer = vd.Buffer(template_size, vd.complex64)
+def plot_images_and_differences(image1, image2):
+    # Calculate the difference and absolute difference
+    difference = image1 - image2
+    abs_difference = np.abs(difference)
+    
+    # Create a figure with 4 subplots
+    fig, axes = plt.subplots(2, 2, figsize=(10, 10))
+    
+    # Plot the first image
+    im1 = axes[0, 0].imshow(image1)
+    axes[0, 0].set_title('Image 1')
+    fig.colorbar(im1, ax=axes[0, 0])
+    
+    # Plot the second image
+    im2 = axes[0, 1].imshow(image2)
+    axes[0, 1].set_title('Image 2')
+    fig.colorbar(im2, ax=axes[0, 1])
+    
+    # Plot the difference
+    diff = axes[1, 0].imshow(difference)
+    axes[1, 0].set_title('Difference')
+    fig.colorbar(diff, ax=axes[1, 0])
 
-sss = time.time()
+    # Plot the absolute difference
+    adiff = axes[1, 1].imshow(abs_difference)
+    axes[1, 1].set_title('Absolute Difference')
+    fig.colorbar(adiff, ax=axes[1, 1])
+    
+    # Adjust layout
+    plt.tight_layout()
+    
+    # Show the plots
+    plt.show()
 
-cmd_list = vd.CommandList()
-my_variables = vd.LaunchVariables()
+smol_buff = vd.asbuffer(np.array([[1, 2], [3, 4], [5, 6]], dtype=np.float32))
 
-vd.set_global_command_list(cmd_list)
+sum_buff = calc_sums(smol_buff)
 
-potential_generator.record(work_buffer, my_variables["rotation"])
-scope.record(work_buffer, my_variables["defocus"])
-correlator.record(work_buffer, my_variables["index"])
+#print(calc_sums)
 
-print("Record time:", time.time() - sss)
+print(sum_buff.read(0))
+print(smol_buff.read(0))
 
-def set_params(params):
-    my_variables["rotation"] = tu.get_rotation_matrix(params[1][:3], [0, 0])
-    my_variables["defocus"] = params[1][3]
-    my_variables["index"] = params[0]
+true_projection = arr.sum(axis=0)
 
-batch_size = 100
-status_bar = tqdm.tqdm(total=test_values.shape[0])
-for data in cmd_list.iter_batched_params(set_params, enumerate(test_values), batch_size=batch_size):
-    cmd_list.submit_any(data)
-    status_bar.update(batch_size)
-status_bar.close()
+est_proj = np.fft.ifftshift(np.fft.ifft2(np.fft.ifftshift(arr_buff.read(0))))
 
-final_max_cross, best_index_result, index_of_max, final_index = tu.aggregate_results(correlator)
+#plot_images_and_differences(transformed_arr[288, :, :].real, arr_buff.read(0).real)
+plot_images_and_differences(true_projection.real, est_proj.real)
 
-print("Found max at:", index_of_max)
-print("Max cross correlation:", final_max_cross[index_of_max])
-print("Final index:", final_index)
-print("Phi:", test_values[final_index][0])
-print("Theta:", test_values[final_index][1])
-print("Psi:", test_values[final_index][2])
-print("Defocus:", test_values[final_index][3])
-
-file_out = sys.argv[1]
-
-vd.set_global_command_list()
-
-potential_generator.record(work_buffer, rot_matrix=tu.get_rotation_matrix([test_values[final_index][0], test_values[final_index][1], test_values[final_index][2]]))
-np.save(file_out + "_match.npy", work_buffer.read()[0])
-scope.record(work_buffer, defocus=test_values[final_index][3])
-np.save(file_out + "_match_defocused.npy", work_buffer.read()[0])
-
-params_result = test_values[best_index_result]
-
-np.save(file_out + "_mip.npy", final_max_cross)
-np.save(file_out + "_best_index.npy", best_index_result)
-np.save(file_out + "_phi.npy", params_result[:, :, 0])
-np.save(file_out + "_theta.npy", params_result[:, :, 1])
-np.save(file_out + "_psi.npy", params_result[:, :, 2])
-np.save(file_out + "_defocus.npy", params_result[:, :, 3])
-
-plt.imshow(final_max_cross)
-plt.colorbar()
-plt.show()
-
-# Do 3D plot of MIP
-#from matplotlib import cm
-#from matplotlib.ticker import LinearLocator
-#fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-#X, Y = np.meshgrid(range(final_max_cross.shape[0]), range(final_max_cross.shape[1]))
-#surf = ax.plot_surface(X, Y, final_max_cross, cmap=cm.coolwarm,
-#                       linewidth=0, antialiased=False)
-#ax.zaxis.set_major_locator(LinearLocator(10))
-#ax.zaxis.set_major_formatter('{x:.02f}')
-#fig.colorbar(surf, shrink=0.5, aspect=5)
+#plt.imshow(arr[0, :, :])
 #plt.show()
+
+#ret = arr_buff.read()[0]
+
+#plt.imshow(ret[0, :, :])
+#plt.show()
+
+#print(ret.shape)
+
+#print(np.sum(np.abs(arr - ret)))
+
+
+# whitening filter!!!!!
