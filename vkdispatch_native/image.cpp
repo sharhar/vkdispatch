@@ -165,7 +165,7 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
 
     size_t data_size = extent.width * extent.height * extent.depth * layerCount * image->block_size;
 
-    Signal signals[enum_count];
+    Signal* signals = new Signal[enum_count];
 
     for (int i = 0; i < enum_count; i++) {
         int buffer_index = start_index + i;
@@ -204,6 +204,8 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
     for (int i = 0; i < enum_count; i++) {
         signals[i].wait();
     }
+
+    delete[] signals;
 }
 
 void image_write_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageWriteInfo& info, int device_index, int stream_index) {

@@ -83,7 +83,7 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
     int enum_count = index == -1 ? buffer->buffers.size() : 1;
     int start_index = index == -1 ? 0 : index;
 
-    Signal signals[enum_count];
+    Signal* signals = new Signal[enum_count];
 
     for (int i = 0; i < enum_count; i++) {
         int buffer_index = start_index + i;
@@ -122,6 +122,8 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
     for (int i = 0; i < enum_count; i++) {
         signals[i].wait();
     }
+
+    delete[] signals;
 }
 
 void buffer_write_exec_internal(VkCommandBuffer cmd_buffer, const struct BufferWriteInfo& info, int device_index, int stream_index) {

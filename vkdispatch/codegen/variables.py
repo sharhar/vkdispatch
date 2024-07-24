@@ -399,10 +399,12 @@ class ImageVariable(BoundVariable):
         
         sample_coord_string = ""
 
-        if self.dimensions == 2:
-            sample_coord_string = f"(vec2({coord}.xy) / vec2(textureSize({self}, 0)))"
+        if self.dimensions == 1:
+            sample_coord_string = f"((({coord}) + 0.5) / textureSize({self}, 0))"        
+        elif self.dimensions == 2:
+            sample_coord_string = f"((vec2({coord}.xy) + 0.5) / vec2(textureSize({self}, 0)))"
         elif self.dimensions == 3:
-            sample_coord_string = f"(vec3({coord}.xyz) / vec3(textureSize({self}, 0)))"
+            sample_coord_string = f"((vec3({coord}.xyz) + 0.5) / vec3(textureSize({self}, 0)))"
         else:
             raise ValueError("Unsupported number of dimensions!")
 

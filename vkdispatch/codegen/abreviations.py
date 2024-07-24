@@ -3,6 +3,7 @@ import vkdispatch as vd
 from .arguments import Constant as Const
 from .arguments import Variable as Var
 from .arguments import Buffer as Buff
+from .arguments import Image1D as Img1
 from .arguments import Image2D as Img2
 from .arguments import Image3D as Img3
 

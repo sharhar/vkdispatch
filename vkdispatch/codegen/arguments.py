@@ -18,6 +18,10 @@ class Buffer(BufferVariable, typing.Generic[_ArgType]):
     def __init__(self) -> None:
         pass
 
+class Image1D(ImageVariable, typing.Generic[_ArgType]):
+    def __init__(self) -> None:
+        pass
+
 class Image2D(ImageVariable, typing.Generic[_ArgType]):
     def __init__(self) -> None:
         pass

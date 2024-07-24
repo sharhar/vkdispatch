@@ -1,5 +1,5 @@
 
-from .arguments import Constant, Variable, Buffer, Image2D, Image3D
+from .arguments import Constant, Variable, Buffer, Image1D, Image2D, Image3D
 
 from .arguments import _ArgType
 from .buffer_structure import BufferStructure, BufferStructureProxy
