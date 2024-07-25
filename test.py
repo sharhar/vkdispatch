@@ -10,28 +10,10 @@ arr: np.ndarray = np.load("data/bronwyn/template_3d.npy") # np.random.rand(512, 
 
 #vd.initialize(log_level=vd.LogLevel.INFO)
 
-#transformed_arr = np.fft.fftshift(np.fft.fftn(np.fft.fftshift(arr))).astype(np.complex64)
+transformed_arr = np.fft.fftshift(np.fft.fftn(np.fft.fftshift(arr))).astype(np.complex64)
 
 arr_buff = vd.Buffer((arr.shape[0], arr.shape[1]), vd.complex64)
 image = vd.Image3D(arr.shape, vd.float32, 2)
-
-test_line = vd.Image1D(10, vd.float32)
-test_line.write(np.sin(np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])).astype(np.float32))
-
-result_arr = vd.Buffer((100,), vd.float32)
-
-@vc.shader(exec_size=lambda args: args.buff.size)
-def do_approx(buff: Buff[f32], line: Img1[f32]):
-    ind = vc.global_invocation.x.copy()
-    buff[ind] = line.sample(ind.cast_to(f32) / 10).x
-
-do_approx(result_arr, test_line)
-
-plt.scatter(np.array([i for i in range(100)]), result_arr.read()[0])
-plt.scatter(np.array([0, 10, 20, 30, 40, 50, 60, 70, 80, 90]), np.sin(np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])))
-plt.show()
-
-exit()
 
 @vc.shader(exec_size=lambda args: args.buff.size)
 def my_shader(buff: Buff[c64], img: Img3[f32], offset: Const[v3] = [0.5, 0.5, 288.5]):
@@ -95,7 +77,7 @@ true_projection = arr.sum(axis=0)
 est_proj = np.fft.ifftshift(np.fft.ifft2(np.fft.ifftshift(arr_buff.read(0))))
 
 #plot_images_and_differences(transformed_arr[288, :, :].real, arr_buff.read(0).real)
-plot_images_and_differences(true_projection.real, est_proj.real)
+plot_images_and_differences(true_projection.real, est_proj.real * 1.25)
 
 #plt.imshow(arr[0, :, :])
 #plt.show()
