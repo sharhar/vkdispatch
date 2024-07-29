@@ -16,6 +16,7 @@ struct ComputePlanCreateInfo {
     DescriptorType* descriptorTypes;
     unsigned int binding_count;
     unsigned int pc_size;
+    const char* shader_name;
 };
 
 struct ComputeRecordInfo {

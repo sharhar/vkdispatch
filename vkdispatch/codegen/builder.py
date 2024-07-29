@@ -77,6 +77,7 @@ class ShaderBuilder:
         decleration_suffix = ""
         if count > 1:
             new_var.use_child_type = False
+            new_var.can_index = True
             decleration_suffix = f"[{count}]"
 
         self.uniform_struct.register_element(new_var.raw_name, var_type, f"{decleration_type} {new_var.raw_name}{decleration_suffix};", count)
@@ -95,6 +96,7 @@ class ShaderBuilder:
         decleration_suffix = ""
         if count > 1:
             new_var.use_child_type = False
+            new_var.can_index = True
             decleration_suffix = f"[{count}]"
 
         self.pc_struct.register_element(new_var.raw_name, var_type, f"{decleration_type} {new_var.raw_name}{decleration_suffix};", count)
@@ -114,7 +116,7 @@ class ShaderBuilder:
             var_type,
             self.binding_count,
             f"{buffer_name}.data",
-            self.declare_constant(vd.ivec4, shape_name),
+            self.declare_constant(vd.ivec4, var_name=shape_name),
             shape_name
         )
     
@@ -203,7 +205,7 @@ def shared_buffer(var_type: vd.dtype, size: int, var_name: str = None):
         var_type,
         -1,
         buffer_name,
-        builder_obj.declare_constant(vd.ivec4, shape_name),
+        builder_obj.declare_constant(vd.ivec4, var_name=shape_name),
         shape_name
     )
 
@@ -230,7 +232,7 @@ def if_all(*args: List[vc.ShaderVariable]):
     builder_obj.scope_num += 1
 
 def else_statement():
-    builder_obj.append_contents("} else {'\n")
+    builder_obj.append_contents("} else {\n")
 
 def return_statement(arg=None):
     arg = arg if arg is not None else ""
