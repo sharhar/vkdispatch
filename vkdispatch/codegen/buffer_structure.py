@@ -11,7 +11,7 @@ import vkdispatch as vd
 class BufferStructureProxy:
     """TODO: Docstring"""
 
-    pc_dict: Dict[str, Tuple[int, vd.dtype]]
+    pc_dict: Dict[str, Tuple[int, vd.dtype, int]]
     ref_dict: Dict[str, int]
     pc_list: List[np.ndarray]
     var_types: List[vd.dtype]
@@ -39,7 +39,7 @@ class BufferStructureProxy:
 
         # Populate the push constant buffer with the given dictionary
         for key, val in self.pc_dict.items():
-            ii, var_type = val
+            ii, var_type, count = val
 
             self.ref_dict[key] = ii
 
@@ -50,7 +50,7 @@ class BufferStructureProxy:
             )
             self.var_types[ii] = var_type
 
-            self.data_size += var_type.item_size
+            self.data_size += var_type.item_size * count
         
         if self.alignment == 0:
             self.size = self.data_size
@@ -114,13 +114,13 @@ class BufferStructure:
         self.my_list = []
         self.my_size = 0
     
-    def register_element(self, var_name: str, var_type: vd.dtype, var_decleration: str):
-        self.my_list.append((var_name, var_type, var_decleration))
-        self.my_size += var_type.item_size
+    def register_element(self, var_name: str, var_type: vd.dtype, var_decleration: str, count: int):
+        self.my_list.append((var_name, var_type, var_decleration, count))
+        self.my_size += var_type.item_size * count
 
-    def build(self) -> Tuple[str, Dict[str, Tuple[int, vd.dtype]]]:
-        self.my_list.sort(key=lambda x: x[1].item_size, reverse=True)
-        self.my_dict = {elem[0]: (ii, elem[1]) for ii, elem in enumerate(self.my_list)}
+    def build(self) -> Tuple[str, Dict[str, Tuple[int, vd.dtype, int]]]:
+        self.my_list.sort(key=lambda x: x[1].item_size * x[3], reverse=True)
+        self.my_dict = {elem[0]: (ii, elem[1], elem[3]) for ii, elem in enumerate(self.my_list)}
 
         if len(self.my_list) == 0:
             return "", None
