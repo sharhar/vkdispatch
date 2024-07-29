@@ -100,6 +100,7 @@ class ShaderLauncher:
     def __init__(
         self,
         shader_source: str,
+        shader_name: str,
         pc_size: int,
         pc_buff_dict: dict,
         uniform_buff_dict: dict,
@@ -110,7 +111,7 @@ class ShaderLauncher:
         my_exec_size: Tuple[int, int, int],
         args_dict: Dict[str, str]
     ):
-        self.plan = vd.ComputePlan(shader_source, binding_type_list, pc_size)
+        self.plan = vd.ComputePlan(shader_source, binding_type_list, pc_size, shader_name)
         self.pc_buff_dict = copy.deepcopy(pc_buff_dict)
         self.uniform_buff_dict = copy.deepcopy(uniform_buff_dict)
         self.func_args = func_args

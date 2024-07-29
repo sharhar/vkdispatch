@@ -32,7 +32,7 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None, signature: t
         my_type_annotations = (
             [(
                 param.annotation, param.name, 
-                param.default if param.default != inspect.Parameter.empty else None
+                param.default if param.default is not inspect.Parameter.empty else None
             ) for param in func_signature.parameters.values()]
             if signature is None else 
             [(
@@ -50,32 +50,50 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None, signature: t
 
             if not hasattr(my_annotation, '__args__'):
                 raise TypeError(f"Argument '{my_name}: vd.{my_annotation}' must have a type annotation")
-
-            if len(my_annotation.__args__) != 1:
-                raise ValueError(f"Type '{my_name}: vd.{my_annotation.__name__}' must have exactly one type argument")
-
-            type_arg: vd.dtype = my_annotation.__args__[0]
-
-            if(issubclass(my_annotation.__origin__, vc.Buffer)):
-                func_args.append(vc.builder_obj.declare_buffer(type_arg)) #, var_name=f"{param.name}"))
-            elif(issubclass(my_annotation.__origin__, vc.Image1D)):
-                func_args.append(vc.builder_obj.declare_image(1)) #, var_name=f"{param.name}"))
-            elif(issubclass(my_annotation.__origin__, vc.Image2D)):
-                func_args.append(vc.builder_obj.declare_image(2)) #, var_name=f"{param.name}"))
-            elif(issubclass(my_annotation.__origin__, vc.Image3D)):
-                func_args.append(vc.builder_obj.declare_image(3)) #, var_name=f"{param.name}"))
-            elif(issubclass(my_annotation.__origin__, vc.Constant)):
-                new_constant = vc.builder_obj.declare_constant(type_arg)
+            
+            if(issubclass(my_annotation.__origin__, vc.ConstantArray)):
+                if len(my_annotation.__args__) != 2:
+                    raise ValueError(f"Type '{my_name}: vd.{my_annotation.__name__}' must have exactly two type arguments")
+                
+                type_arg: vd.dtype = my_annotation.__args__[0]
+                
+                new_constant = vc.builder_obj.declare_constant(type_arg, my_annotation.__args__[1])
                 args_dict[new_constant.name] = my_name #[param.name] = new_constant
                 func_args.append(new_constant)
-            elif(issubclass(my_annotation.__origin__, vc.Variable)):
-                new_variable = vc.builder_obj.declare_variable(type_arg)
-                args_dict[new_variable.name] = my_name #[param.name] = new_variable
-                func_args.append(new_variable) #vc.builder_obj.declare_variable(type_arg, var_name=f"{param.name}"))
+            elif(issubclass(my_annotation.__origin__, vc.VariableArray)):
+                if len(my_annotation.__args__) != 2:
+                    raise ValueError(f"Type '{my_name}: vd.{my_annotation.__name__}' must have exactly two type arguments")
+                
+                type_arg: vd.dtype = my_annotation.__args__[0]
+                new_constant = vc.builder_obj.declare_variable(type_arg, my_annotation.__args__[1])
+                args_dict[new_constant.name] = my_name #[param.name] = new_constant
+                func_args.append(new_constant)
+            else:
+                if len(my_annotation.__args__) != 1:
+                    raise ValueError(f"Type '{my_name}: vd.{my_annotation.__name__}' must have exactly one type argument")
+
+                type_arg: vd.dtype = my_annotation.__args__[0]
+
+                if(issubclass(my_annotation.__origin__, vc.Buffer)):
+                    func_args.append(vc.builder_obj.declare_buffer(type_arg)) #, var_name=f"{param.name}"))
+                elif(issubclass(my_annotation.__origin__, vc.Image1D)):
+                    func_args.append(vc.builder_obj.declare_image(1)) #, var_name=f"{param.name}"))
+                elif(issubclass(my_annotation.__origin__, vc.Image2D)):
+                    func_args.append(vc.builder_obj.declare_image(2)) #, var_name=f"{param.name}"))
+                elif(issubclass(my_annotation.__origin__, vc.Image3D)):
+                    func_args.append(vc.builder_obj.declare_image(3)) #, var_name=f"{param.name}"))
+                elif(issubclass(my_annotation.__origin__, vc.Constant)):
+                    new_constant = vc.builder_obj.declare_constant(type_arg)
+                    args_dict[new_constant.name] = my_name #[param.name] = new_constant
+                    func_args.append(new_constant)
+                elif(issubclass(my_annotation.__origin__, vc.Variable)):
+                    new_variable = vc.builder_obj.declare_variable(type_arg)
+                    args_dict[new_variable.name] = my_name #[param.name] = new_variable
+                    func_args.append(new_variable) #vc.builder_obj.declare_variable(type_arg, var_name=f"{param.name}"))
 
             arg_names.append(my_name)
 
-            if my_default != inspect.Parameter.empty:
+            if my_default is not inspect.Parameter.empty:
                 default_values.append(my_default)
             else:
                 default_values.append(None)
@@ -88,6 +106,7 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None, signature: t
 
         wrapper: str = vd.ShaderLauncher(
             shader_source,
+            func.__name__,
             pc_size,
             pc_dict,
             uniform_dict,

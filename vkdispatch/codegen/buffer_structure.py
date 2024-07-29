@@ -28,14 +28,12 @@ class BufferStructureProxy:
         self.pc_list = [None] * len(self.pc_dict)
         self.var_types = [None] * len(self.pc_dict)
         self.numpy_dtypes = [None] * len(self.pc_dict)
+        self.numpy_shapes = [None] * len(self.pc_dict)
         self.data_size = 0
         self.prologue = b""
         self.size = 0
         self.index = 0
         self.alignment = alignment
-
-        #uniform_alignment = vd.get_context().device_infos[0].uniform_buffer_alignment
-        #self.static_constants_size = int(np.ceil(uniform_buffer.size / float(uniform_alignment))) * int(uniform_alignment)
 
         # Populate the push constant buffer with the given dictionary
         for key, val in self.pc_dict.items():
@@ -45,10 +43,20 @@ class BufferStructureProxy:
 
             dtype = vd.to_numpy_dtype(var_type if var_type.scalar is None else var_type.scalar)
             self.numpy_dtypes[ii] = dtype
+
+            my_shape = var_type.numpy_shape
+
+            if count > 1:
+                if my_shape == (1, ):
+                    my_shape = (count,)
+                else:
+                    my_shape = (count, *my_shape)
+
             self.pc_list[ii] = np.zeros(
-                shape=var_type.numpy_shape, dtype=self.numpy_dtypes[ii]
+                shape=my_shape, dtype=self.numpy_dtypes[ii]
             )
             self.var_types[ii] = var_type
+            self.numpy_shapes[ii] = my_shape
 
             self.data_size += var_type.item_size * count
         
@@ -78,14 +86,14 @@ class BufferStructureProxy:
 
         arr = np.array(value, dtype=self.numpy_dtypes[ii])
 
-        if arr.shape != self.var_types[ii].numpy_shape:
+        if arr.shape != self.numpy_shapes[ii]:
             if arr.shape != ():
                 raise ValueError(
-                    f"The shape of {key} is {self.var_types[ii].numpy_shape} but {arr.shape} was given!"
+                    f"The shape of {key} is {self.numpy_shapes[ii]} but {arr.shape} was given!"
                 )
             else:
                 raise ValueError(
-                    f"The shape of {key} is {self.var_types[ii].numpy_shape} but a scalar was given!"
+                    f"The shape of {key} is {self.numpy_shapes[ii]} but a scalar was given!"
                 )
 
         self.pc_list[ii] = arr

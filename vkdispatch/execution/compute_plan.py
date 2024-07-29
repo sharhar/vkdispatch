@@ -7,15 +7,15 @@ from .descriptor_set import DescriptorSet
 
 
 class ComputePlan:
-    def __init__(self, shader_source: str, binding_type_list: list, pc_size: int) -> None:
+    def __init__(self, shader_source: str, binding_type_list: list, pc_size: int, shader_name: str) -> None:
         self.pc_size = pc_size
         self.shader_source = shader_source
         self.binding_list = binding_type_list
 
         self._handle = vkdispatch_native.stage_compute_plan_create(
-            vd.get_context_handle(), shader_source.encode(), self.binding_list, pc_size
+            vd.get_context_handle(), shader_source.encode(), self.binding_list, pc_size, shader_name.encode()
         )
-        vd.check_for_errors()
+        vd.check_for_compute_stage_errors()
 
     def record(
         self,

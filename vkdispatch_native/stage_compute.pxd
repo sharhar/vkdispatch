@@ -24,11 +24,12 @@ cdef extern from "stage_compute.h":
         DescriptorType* descriptorTypes
         unsigned int binding_count
         unsigned int pc_size
+        const char* shader_name
 
     ComputePlan* stage_compute_plan_create_extern(Context* ctx, ComputePlanCreateInfo* create_info)
     void stage_compute_record_extern(CommandList* command_list, ComputePlan* plan, DescriptorSet* descriptor_set, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z)
 
-cpdef inline stage_compute_plan_create(unsigned long long context, bytes shader_source, list bindings, unsigned int pc_size):
+cpdef inline stage_compute_plan_create(unsigned long long context, bytes shader_source, list bindings, unsigned int pc_size, bytes shader_name):
     cdef Context* ctx = <Context*>context
 
     cdef ComputePlanCreateInfo create_info
@@ -36,6 +37,7 @@ cpdef inline stage_compute_plan_create(unsigned long long context, bytes shader_
     create_info.descriptorTypes = <DescriptorType*>malloc(len(bindings) * sizeof(DescriptorType))
     create_info.binding_count = len(bindings)
     create_info.pc_size = pc_size
+    create_info.shader_name = shader_name
 
     for i in range(len(bindings)):
         create_info.descriptorTypes[i] = bindings[i]
