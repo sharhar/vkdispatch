@@ -65,7 +65,7 @@ class ShaderBuilder:
     def make_var(self, var_type: vd.dtype, var_name: str = None, prefix: str = None, suffix: str = None):
         return vc.ShaderVariable(self.append_contents, self.get_name_func(prefix, suffix), var_type, var_name)
     
-    def declare_constant(self, var_type: vd.dtype, var_name: str = None):
+    def declare_constant(self, var_type: vd.dtype, count: int = 1, var_name: str = None):
         decleration_type = f"{var_type.glsl_type}"
         suffix = None
         if var_type.glsl_type_extern is not None:
@@ -74,10 +74,15 @@ class ShaderBuilder:
 
         new_var = self.make_var(var_type, var_name, "UBO.", suffix)
 
-        self.uniform_struct.register_element(new_var.raw_name, var_type, f"{decleration_type} {new_var.raw_name};")
+        decleration_suffix = ""
+        if count > 1:
+            new_var.use_child_type = False
+            decleration_suffix = f"[{count}]"
+
+        self.uniform_struct.register_element(new_var.raw_name, var_type, f"{decleration_type} {new_var.raw_name}{decleration_suffix};", count)
         return new_var
 
-    def declare_variable(self, var_type: vd.dtype, var_name: str = None):
+    def declare_variable(self, var_type: vd.dtype, count: int = 1, var_name: str = None):
         decleration_type = f"{var_type.glsl_type}"
         suffix = None
         if var_type.glsl_type_extern is not None:
@@ -86,7 +91,13 @@ class ShaderBuilder:
         
         new_var = self.make_var(var_type, var_name, "PC.", suffix)
         new_var._varying = True
-        self.pc_struct.register_element(new_var.raw_name, var_type, f"{decleration_type} {new_var.raw_name};")
+
+        decleration_suffix = ""
+        if count > 1:
+            new_var.use_child_type = False
+            decleration_suffix = f"[{count}]"
+
+        self.pc_struct.register_element(new_var.raw_name, var_type, f"{decleration_type} {new_var.raw_name}{decleration_suffix};", count)
         return new_var
     
     def declare_buffer(self, var_type: vd.dtype, var_name: str = None):
@@ -253,6 +264,12 @@ def sin(arg: vc.ShaderVariable):
 
 def cos(arg: vc.ShaderVariable):
     return builder_obj.make_var(arg.var_type, f"cos({arg})")
+
+def tan(arg: vc.ShaderVariable):
+    return builder_obj.make_var(arg.var_type, f"tan({arg})")
+
+def arctan2(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
+    return builder_obj.make_var(arg1.var_type, f"atan({arg1}, {arg2})")
 
 def sqrt(arg: vc.ShaderVariable):
     return builder_obj.make_var(arg.var_type, f"sqrt({arg})")
