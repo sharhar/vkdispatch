@@ -12,7 +12,7 @@ def potential_to_wave(image):
 
     potential = (image[ind].real * sigma_e).copy()
 
-    A = vd.shader.exp(amp_ratio * potential).copy()
+    A = vd.shader.exp(-amp_ratio * potential).copy()
 
     image[ind].real = A * vd.shader.cos(potential)
     image[ind].imag = A * vd.shader.sin(potential)
