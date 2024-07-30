@@ -25,7 +25,8 @@ static uint32_t* glsl_to_spirv_util(glslang_stage_t stage, size_t* size, const c
         LOG_ERROR("GLSL preprocessing failed %s", shader_name);
         LOG_ERROR("%s", glslang_shader_get_info_log(shader));
         LOG_ERROR("%s", glslang_shader_get_info_debug_log(shader));
-        LOG_ERROR("%s", input.code);
+        set_error(input.code);
+        //LOG_ERROR("%s", input.code);
         glslang_shader_delete(shader);
         return NULL;
     }
@@ -34,7 +35,8 @@ static uint32_t* glsl_to_spirv_util(glslang_stage_t stage, size_t* size, const c
         LOG_ERROR("GLSL parsing failed %s", shader_name);
         LOG_ERROR("%s", glslang_shader_get_info_log(shader));
         LOG_ERROR("%s", glslang_shader_get_info_debug_log(shader));
-        LOG_ERROR("%s", glslang_shader_get_preprocessed_code(shader));
+        set_error(glslang_shader_get_preprocessed_code(shader));
+        //LOG_ERROR("%s", glslang_shader_get_preprocessed_code(shader));
         glslang_shader_delete(shader);
         return NULL;
     }
@@ -46,6 +48,7 @@ static uint32_t* glsl_to_spirv_util(glslang_stage_t stage, size_t* size, const c
         LOG_ERROR("GLSL linking failed %s", shader_name);
         LOG_ERROR("%s", glslang_program_get_info_log(program));
         LOG_ERROR("%s", glslang_program_get_info_debug_log(program));
+        set_error(glslang_shader_get_preprocessed_code(shader));
         glslang_program_delete(program);
         glslang_shader_delete(shader);
         return NULL;
@@ -60,7 +63,7 @@ static uint32_t* glsl_to_spirv_util(glslang_stage_t stage, size_t* size, const c
 
     const char* spirv_messages = glslang_program_SPIRV_get_messages(program);
     if (spirv_messages)
-        LOG_ERROR("(%s) %s\b", shader_name, spirv_messages);
+        LOG_ERROR("(%s) %s\n", shader_name, spirv_messages);
 
     glslang_program_delete(program);
     glslang_shader_delete(shader);
@@ -85,10 +88,10 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
         LOG_INFO("Creating Compute Plan for device %d", i);
 
         size_t code_size;
-        uint32_t* code = glsl_to_spirv_util(GLSLANG_STAGE_COMPUTE, &code_size, create_info->shader_source, "compute_shader");
+        uint32_t* code = glsl_to_spirv_util(GLSLANG_STAGE_COMPUTE, &code_size, create_info->shader_source, create_info->shader_name);
         
         if(code == NULL) {
-            set_error("Failed to compile compute shader!");
+            //set_error("Failed to compile compute shader!");
             return NULL;
         }
 
@@ -104,7 +107,8 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
         std::vector<VkDescriptorSetLayoutBinding> bindings;
         for (int j = 0; j < create_info->binding_count; j++) {
             if(create_info->descriptorTypes[j] != DESCRIPTOR_TYPE_STORAGE_BUFFER &&
-               create_info->descriptorTypes[j] != DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
+               create_info->descriptorTypes[j] != DESCRIPTOR_TYPE_UNIFORM_BUFFER &&
+               create_info->descriptorTypes[j] != DESCRIPTOR_TYPE_SAMPLER) {
                 LOG_ERROR("Only storage and uniform buffers are supported for now");
                 return NULL;
             }
@@ -112,6 +116,8 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
             VkDescriptorType descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
             if(create_info->descriptorTypes[j] == DESCRIPTOR_TYPE_UNIFORM_BUFFER)
                 descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            else if(create_info->descriptorTypes[j] == DESCRIPTOR_TYPE_SAMPLER)
+                descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 
             VkDescriptorSetLayoutBinding binding;
             memset(&binding, 0, sizeof(VkDescriptorSetLayoutBinding));

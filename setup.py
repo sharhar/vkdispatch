@@ -115,7 +115,6 @@ append_to_sources("vkdispatch_native/", [
     "stream.cpp",
     "errors.cpp",
     "signal.cpp",
-    "queue.cpp",
     "work_queue.cpp",
     "VMAImpl.cpp",
     "VolkImpl.cpp"
@@ -172,7 +171,7 @@ if vulkan_sdk_root is None:
 
 setup(
     name="vkdispatch",
-    packages=["vkdispatch"],
+    packages=["vkdispatch", "vkdispatch.codegen", "vkdispatch.execution"],
     ext_modules=[
         Extension(
             "vkdispatch_native",

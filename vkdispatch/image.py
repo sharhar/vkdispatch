@@ -3,9 +3,8 @@ from enum import Enum
 
 import numpy as np
 
-import vkdispatch
+import vkdispatch as vd
 import vkdispatch_native
-
 
 __MAPPING__ = {
     (np.uint8, 1),
@@ -67,7 +66,7 @@ class image_format(Enum):  # TODO: Fix class naming scheme to adhere to conventi
 
 
 # TODO: This can be moved into the enum class as an indexing method
-def select_image_format(dtype: np.dtype, channels: int) -> image_format:
+def select_image_format(dtype: vd.dtype, channels: int) -> image_format:
     assert channels in [1, 2, 3, 4], f"Unsupported number of channels ({channels})! Must be 1, 2, 3 or 4!"
 
     # NOTE: These large if-else statements can be better indexed and maintained by a
@@ -80,6 +79,8 @@ def select_image_format(dtype: np.dtype, channels: int) -> image_format:
     #     ...
     # }
     # return __MAPPING__[(dtype, channels)]
+
+    """
 
     if dtype == np.uint8:
         if channels == 1:
@@ -117,7 +118,9 @@ def select_image_format(dtype: np.dtype, channels: int) -> image_format:
             return image_format.R16G16B16_SINT
         elif channels == 4:
             return image_format.R16G16B16A16_SINT
-    elif dtype == np.uint32:
+    el """
+    
+    if dtype == vd.uint32:
         if channels == 1:
             return image_format.R32_UINT
         elif channels == 2:
@@ -126,7 +129,7 @@ def select_image_format(dtype: np.dtype, channels: int) -> image_format:
             return image_format.R32G32B32_UINT
         elif channels == 4:
             return image_format.R32G32B32A32_UINT
-    elif dtype == np.int32:
+    elif dtype == vd.int32:
         if channels == 1:
             return image_format.R32_SINT
         elif channels == 2:
@@ -135,16 +138,16 @@ def select_image_format(dtype: np.dtype, channels: int) -> image_format:
             return image_format.R32G32B32_SINT
         elif channels == 4:
             return image_format.R32G32B32A32_SINT
-    elif dtype == np.float16:
-        if channels == 1:
-            return image_format.R16_SFLOAT
-        elif channels == 2:
-            return image_format.R16G16_SFLOAT
-        elif channels == 3:
-            return image_format.R16G16B16_SFLOAT
-        elif channels == 4:
-            return image_format.R16G16B16A16_SFLOAT
-    elif dtype == np.float32:
+    #elif dtype == np.float16:
+    #    if channels == 1:
+    #        return image_format.R16_SFLOAT
+    #    elif channels == 2:
+    #        return image_format.R16G16_SFLOAT
+    #    elif channels == 3:
+    #        return image_format.R16G16B16_SFLOAT
+    #    elif channels == 4:
+    #        return image_format.R16G16B16A16_SFLOAT
+    elif dtype == vd.float32:
         if channels == 1:
             return image_format.R32_SFLOAT
         elif channels == 2:
@@ -153,79 +156,97 @@ def select_image_format(dtype: np.dtype, channels: int) -> image_format:
             return image_format.R32G32B32_SFLOAT
         elif channels == 4:
             return image_format.R32G32B32A32_SFLOAT
-    elif dtype == np.float64:
-        if channels == 1:
-            return image_format.R64_SFLOAT
-        elif channels == 2:
-            return image_format.R64G64_SFLOAT
-        elif channels == 3:
-            return image_format.R64G64B64_SFLOAT
-        elif channels == 4:
-            return image_format.R64G64B64A64_SFLOAT
+    #elif dtype == vd.float64:
+    #    if channels == 1:
+    #        return image_format.R64_SFLOAT
+    #    elif channels == 2:
+    #        return image_format.R64G64_SFLOAT
+    #    elif channels == 3:
+    #        return image_format.R64G64B64_SFLOAT
+    #    elif channels == 4:
+    #        return image_format.R64G64B64A64_SFLOAT
     else:
         raise ValueError(f"Unsupported dtype ({dtype})!")
 
 
 class image_type(Enum):
+    TYPE_1D = (0,)
     TYPE_2D = (1,)
     TYPE_3D = (2,)
 
 
 class image_view_type(Enum):
+    VIEW_TYPE_1D = (0,)
     VIEW_TYPE_2D = (1,)
     VIEW_TYPE_3D = (2,)
     VIEW_TYPE_2D_ARRAY = (5,)
 
 
-class image:
+class Image:
     def __init__(
         self,
-        shape: typing.Tuple[int],
+        shape: typing.Tuple[int, ...],
         layers: int,
         dtype: type,
         channels: int,
         view_type: image_view_type,
     ) -> None:
-        assert len(shape) == 2 or len(shape) == 3, "Shape must be 2D or 3D!"
+        assert len(shape) == 1 or len(shape) == 2 or len(shape) == 3, "Shape must be 2D or 3D!"
 
         assert type(shape[0]) == int, "Shape must be a tuple of integers!"
-        assert type(shape[1]) == int, "Shape must be a tuple of integers!"
+        
+        if len(shape) > 1:
+            assert type(shape[1]) == int, "Shape must be a tuple of integers!"
 
         if len(shape) == 3:
             assert type(shape[2]) == int, "Shape must be a tuple of integers!"
 
-        assert type(dtype) == type, "Dtype must be a numpy dtype!"
+        assert issubclass(dtype, vd.dtype), "Dtype must be a dtype!"
         assert type(channels) == int, "Channels must be an integer!"
 
-        self.type = (
-            image_type.TYPE_3D
-            if view_type == image_view_type.VIEW_TYPE_3D
-            else image_type.TYPE_2D
-        )
+        self.type = image_type.TYPE_1D
+
+        if view_type == image_view_type.VIEW_TYPE_2D:
+            self.type = image_type.TYPE_2D
+        
+        if view_type == image_view_type.VIEW_TYPE_3D:
+            self.type = image_type.TYPE_3D
+        
         self.view_type = view_type
         self.format: image_format = select_image_format(dtype, channels)
-        self.dtype: type = dtype
+        self.dtype: vd.dtype = dtype
         self.layers: int = layers
         self.channels: int = channels
 
-        self.shape: typing.Tuple[int] = (
-            (layers, shape[0], shape[1]) if layers > 1 else shape
-        )
-        self.extent: typing.Tuple[int] = (
-            shape if len(shape) == 3 else (shape[0], shape[1], 1)
-        )
+        self.shape: typing.Tuple[int] = shape
+
+        if layers > 1:
+            self.shape = (layers, *shape)
+
+        self.extent: typing.Tuple[int] = shape
+
+        if len(shape) == 1:
+            self.extent = (shape[0], 1, 1)
+        
+        if len(shape) == 2:
+            self.extent = (shape[0], shape[1], 1)
+
         self.array_shape: typing.Tuple[int] = (*self.shape, channels)
 
+        if channels == 1:
+            self.array_shape = self.array_shape[:-1]
+
         self.block_size: int = vkdispatch_native.image_format_block_size(
-            self.format.value[0]
+            self.format.value
         )
+
         self.mem_size: int = np.prod(self.shape) * self.block_size
 
         self._handle: int = vkdispatch_native.image_create(
-            vkdispatch.get_context_handle(),
+            vd.get_context_handle(),
             self.extent,
             self.layers,
-            self.format.value[0],
+            self.format.value,
             self.type.value[0],
             self.view_type.value[0],
         )
@@ -235,7 +256,7 @@ class image:
 
     def write(self, data: np.ndarray, device_index: int = -1) -> None:
         if data.size * np.dtype(data.dtype).itemsize != self.mem_size:
-            raise ValueError("Numpy buffer sizes must match!")
+            raise ValueError(f"Numpy buffer sizes must match! {data.size * np.dtype(data.dtype).itemsize} != {self.mem_size}")
         vkdispatch_native.image_write(
             self._handle,
             np.ascontiguousarray(data),
@@ -246,43 +267,41 @@ class image:
             device_index,
         )
 
-    def read(self, device_index: int = -1) -> np.ndarray:
-        result = np.ndarray(shape=self.array_shape, dtype=self.dtype)
+    def read(self, device_index: int = 0) -> np.ndarray:
+        result = np.ndarray(shape=self.array_shape, dtype=vd.to_numpy_dtype(self.dtype.scalar))
         vkdispatch_native.image_read(
             self._handle, result, [0, 0, 0], self.extent, 0, self.layers, device_index
         )
         return result
+    
+    def sample(self, coords: "vd.ShaderVariable") -> "vd.ShaderVariable":
+        raise RuntimeError("Cannot sample an image object outside of shader!")
 
-    # TODO: Update the 'other' argument to reference a Image class
-    def copy_to(self, other: "image", device_index: int = -1) -> None:
-        if other.shape != self.shape or other.channels != self.channels:
-            raise ValueError("Buffer memory sizes must match!")
-        vkdispatch_native.image_copy(
-            self._handle,
-            other._handle,
-            [0, 0, 0],
-            0,
-            self.layers,
-            [0, 0, 0],
-            0,
-            self.layers,
-            self.extent,
-            device_index,
-        )
+class Image1D(Image):
+    def __init__(self, shape: int, dtype: type, channels: int = 1) -> None:
+        super().__init__((shape, ), 1, dtype, channels, image_view_type.VIEW_TYPE_1D)
 
 
-class image2d(image):
+    @classmethod
+    def __class_getitem__(cls, arg: vd.dtype) -> type:
+        raise RuntimeError("Cannot index into vd.Image1D! Perhaps you meant to use vc.Image1D?")
+
+class Image2D(Image):
     def __init__(
-        self, shape: typing.Tuple[int], dtype: type = np.float32, channels: int = 1
+        self, shape: typing.Tuple[int, int], dtype: type = np.float32, channels: int = 1
     ) -> None:
         assert len(shape) == 2, "Shape must be 2D!"
         super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_2D)
+    
+    @classmethod
+    def __class_getitem__(cls, arg: vd.dtype) -> type:
+        raise RuntimeError("Cannot index into vd.Image2D! Perhaps you meant to use vc.Image2D?")
 
 
-class image2d_array(image):
+class Image2DArray(Image):
     def __init__(
         self,
-        shape: typing.Tuple[int],
+        shape: typing.Tuple[int, int],
         layers: int,
         dtype: type = np.float32,
         channels: int = 1,
@@ -291,11 +310,19 @@ class image2d_array(image):
         super().__init__(
             shape, layers, dtype, channels, image_view_type.VIEW_TYPE_2D_ARRAY
         )
+    
+    @classmethod
+    def __class_getitem__(cls, arg: tuple) -> type:
+        raise RuntimeError("Cannot index into vd.Image2DArray! Perhaps you meant to use vc.Image2DArray?")
 
 
-class image3d(image):
+class Image3D(Image):
     def __init__(
-        self, shape: typing.Tuple[int], dtype: type = np.float32, channels: int = 1
+        self, shape: typing.Tuple[int, int, int], dtype: type = np.float32, channels: int = 1
     ) -> None:
         assert len(shape) == 3, "Shape must be 3D!"
         super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_3D)
+    
+    @classmethod
+    def __class_getitem__(cls, arg: vd.dtype) -> type:
+        raise RuntimeError("Cannot index into vd.Image3D! Perhaps you meant to use vc.Image3D?")

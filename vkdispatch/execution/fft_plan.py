@@ -57,23 +57,17 @@ class FFTDispatcher:
     def __init__(self, inverse: bool = False):
         self.__inverse = inverse
 
-    def __getitem__(self, cmd_list: vd.CommandList):
+    def __call__(self, buffer: vd.Buffer, cmd_list: vd.CommandList = None):
+        my_cmd_list = cmd_list
 
-        if cmd_list is None:
-            return self.__call__
+        if my_cmd_list is None:
+            my_cmd_list = vd.get_command_list()
 
-        my_cmd_list: typing.List[vd.CommandList] = [cmd_list]
-
-        def wrapper_func(buffer: vd.Buffer):
-            plan = get_fft_plan(buffer._handle, buffer.shape)
-            plan.record(my_cmd_list[0], buffer, self.__inverse)
-
-        return wrapper_func
-
-    def __call__(self, buffer: vd.Buffer):
-        cmd_list = vd.get_command_list()
-        self[cmd_list](buffer)
-        cmd_list.submit()
+        plan = get_fft_plan(buffer._handle, buffer.shape)
+        plan.record(my_cmd_list, buffer, self.__inverse)
+        
+        if my_cmd_list.submit_on_record:
+            my_cmd_list.submit()
 
 
 fft = FFTDispatcher(False)
