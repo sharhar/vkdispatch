@@ -6,23 +6,22 @@ import numpy as np
 
 import vkdispatch as vd
 import vkdispatch_native
-from vkdispatch.dtype import dtype
 
 
 class Buffer:
     """TODO: Docstring"""
 
     _handle: int
-    var_type: dtype
+    var_type: "vd.dtype"
     shape: Tuple[int]
     size: int
     mem_size: int
 
-    def __init__(self, shape: Tuple[int], var_type: dtype, per_device: bool = False) -> None:
+    def __init__(self, shape: Tuple[int, ...], var_type: "vd.dtype", per_device: bool = False) -> None:
         if len(shape) > 3:
             raise ValueError("Buffer shape must be 1, 2, or 3 dimensions!")
 
-        self.var_type: dtype = var_type
+        self.var_type: "vd.dtype" = var_type
         self.shape: Tuple[int] = shape
         self.size: int = int(np.prod(shape))
         self.mem_size: int = self.size * self.var_type.item_size
@@ -89,7 +88,7 @@ class Buffer:
         )
         vd.check_for_errors()
 
-    def read(self, index: int = None) -> Union[np.ndarray, List[np.ndarray]]:
+    def read(self, index: Union[int, None] = None) -> Union[np.ndarray, List[np.ndarray]]:
         """Read the data in the buffer at the specified device index and return it as a
         numpy array.
 
@@ -108,10 +107,15 @@ class Buffer:
                 raise ValueError(f"Invalid device index {index}!")
             elif not self.per_device and index >= self.ctx.stream_count:
                 raise ValueError(f"Invalid stream index {index}!")
+            
+            true_scalar = self.var_type.scalar
+
+            if true_scalar is None:
+                true_scalar = self.var_type
 
             result = np.ndarray(
-                shape=(self.shape + self.var_type._true_numpy_shape),
-                dtype=vd.to_numpy_dtype(self.var_type.scalar),
+                shape=(self.shape + self.var_type.true_numpy_shape),
+                dtype=vd.to_numpy_dtype(true_scalar),
             )
             vkdispatch_native.buffer_read(
                 self._handle, result, 0, self.mem_size, index
@@ -125,8 +129,11 @@ class Buffer:
 
         return result
 
+    @classmethod
+    def __class_getitem__(cls, params):
+       raise RuntimeError("Cannot index into vd.Buffer! Perhaps you meant to use vc.Buffer?")
 
-# TODO: Move this to a class method of Buffer
+
 def asbuffer(array: np.ndarray) -> Buffer:
     """Cast a numpy array to a buffer object."""
 

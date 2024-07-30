@@ -14,6 +14,7 @@ cdef extern from "descriptor_set.h":
     void descriptor_set_destroy_extern(DescriptorSet* descriptor_set)
 
     void descriptor_set_write_buffer_extern(DescriptorSet* descriptor_set, unsigned int binding, void* object, unsigned long long offset, unsigned long long range, int uniform)
+    void descriptor_set_write_image_extern(DescriptorSet* descriptor_set, unsigned int binding, void* object)
 
 cpdef inline descriptor_set_create(unsigned long long plan):
     cdef ComputePlan* p = <ComputePlan*>plan
@@ -25,3 +26,8 @@ cpdef inline descriptor_set_destroy(unsigned long long descriptor_set):
 cpdef inline descriptor_set_write_buffer(unsigned long long descriptor_set, unsigned int binding, unsigned long long object, unsigned long long offset, unsigned long long range, int uniform):
     cdef DescriptorSet* ds = <DescriptorSet*>descriptor_set
     descriptor_set_write_buffer_extern(ds, binding, <void*>object, offset, range, uniform)
+
+cpdef inline descriptor_set_write_image(unsigned long long descriptor_set, unsigned int binding, unsigned long long object):
+    cdef DescriptorSet* ds = <DescriptorSet*>descriptor_set
+    descriptor_set_write_image_extern(ds, binding, <void*>object)
+

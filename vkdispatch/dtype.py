@@ -1,123 +1,260 @@
-from enum import Enum
-
+import vkdispatch as vd
 import numpy as np
 
-import vkdispatch as vd
-
-
-class dtype_structure(Enum):  # TODO: Adhere to python class naming conventions
-    DATA_STRUCTURE_SCALAR = (1,)
-    DATA_STRUCTURE_VECTOR = (2,)
-    DATA_STRUCTURE_MATRIX = (3,)
-    DATA_STRUCTURE_BUFFER = (4,)
-
-
 class dtype:
-    def __init__(
-        self,
-        name: str,
-        item_size: int,
-        glsl_type: str,
-        structure: dtype_structure,
-        child_count: int,
-        format_str: str,
-        parent: "dtype" = None,
-        is_complex: bool = False,
-    ) -> None:
-        self.name = name
-        self.glsl_type = glsl_type
-        self.item_size = item_size
-        self.alignment_size = item_size
+    name: str
+    item_size: int
+    glsl_type: str
+    glsl_type_extern: str = None
+    dimentions: int
+    format_str: str
+    child_type: "dtype"
+    child_count: int
+    scalar: "dtype"
+    shape: tuple
+    numpy_shape: tuple
+    true_numpy_shape: tuple
 
-        if structure == dtype_structure.DATA_STRUCTURE_BUFFER:
-            self.alignment_size = parent.alignment_size
+class _Scalar(dtype):
+    dimentions = 0
+    child_count = 0
+    shape = (1,)
+    numpy_shape = (1,)
+    true_numpy_shape = ()
+    scalar = None
 
-        self.structure = structure
-        self.format_str = format_str
-        self.parent = self if parent is None else parent
-        self.is_complex = is_complex if self.structure == dtype_structure.DATA_STRUCTURE_SCALAR else parent.is_complex
-        self.scalar = (
-            self
-            if self.structure == dtype_structure.DATA_STRUCTURE_SCALAR
-            else self.parent.scalar
-        )
+class _I32(_Scalar):
+    name = "int32"
+    item_size = 4
+    glsl_type = "int"
+    format_str = "%d"
 
-        self.child_count = child_count
-        self.total_count = (
-            1 if parent is None else child_count * self.parent.total_count
-        )
-        self.scalar_count = (
-            1
-            if self.structure == dtype_structure.DATA_STRUCTURE_SCALAR
-            else child_count * self.parent.scalar_count
-        )
-        self._true_shape = (
-            () if parent is None else (self.child_count, *self.parent._true_shape)
-        )
-        self.shape = (1,) if parent is None else self._true_shape
+class _U32(_Scalar):
+    name = "uint32"
+    item_size = 4
+    glsl_type = "uint"
+    format_str = "%u"
 
-        self._true_numpy_shape = (
-            ()
-            if self.structure == dtype_structure.DATA_STRUCTURE_SCALAR
-            else (self.child_count, *self.parent._true_numpy_shape)
-        )
-        self.numpy_shape = (
-            (1,)
-            if self.structure == dtype_structure.DATA_STRUCTURE_SCALAR
-            else self._true_numpy_shape
-        )
+class _F32(_Scalar):
+    name = "float32"
+    item_size = 4
+    glsl_type = "float"
+    format_str = "%f"
 
-    def __repr__(self) -> str:
-        return f"<{self.name}, glsl_type={self.glsl_type} scalar_count={self.scalar_count} item_size={self.item_size} bytes>"
+int32 = _I32
+uint32 = _U32
+float32 = _F32
 
-    def __eq__(self, value: object) -> bool:
-        if not isinstance(value, dtype):
-            return False
+class _Complex(dtype):
+    dimentions = 0
+    child_count = 2
 
-        return (
-            self.name == value.name
-            and self.item_size == value.item_size
-            and self.glsl_type == value.glsl_type
-            and self.structure == value.structure
-        )
+class _CF64(_Complex):
+    name = "complex64"
+    item_size = 8
+    glsl_type = "vec2"
+    format_str = "(%f, %f)"
+    child_type = float32
+    shape = (2,)
+    numpy_shape = (1,)
+    true_numpy_shape = ()
+    scalar = None
 
-    # NOTE: How is this grabbing an item in a class? wouldn't this create a new object?
-    def __getitem__(self, index: int) -> "dtype":  # TODO: Typehinting for class
-        index_str = f"[{index}]"
+complex64 = _CF64
 
-        if index == 0:
-            index_str = "[]"
+class _Vector(dtype):
+    dimentions = 1
 
-        return dtype(
-            f"{self.name}{index_str}",
-            self.item_size * index,
-            self.glsl_type,
-            dtype_structure.DATA_STRUCTURE_BUFFER,
-            index,
-            self.format_str,
-            parent=self
-        )
+class _V2F32(_Vector):
+    name = "vec2"
+    item_size = 8
+    glsl_type = "vec2"
+    format_str = "(%f, %f)"
+    child_type = float32
+    child_count = 2
+    shape = (2,)
+    numpy_shape = (2,)
+    true_numpy_shape = (2,)
+    scalar = float32
 
+class _V3F32(_Vector):
+    name = "vec3"
+    item_size = 16
+    glsl_type = "vec3"
+    glsl_type_extern = "vec4"
+    format_str = "(%f, %f, %f)"
+    child_type = float32
+    child_count = 3
+    shape = (3,)
+    numpy_shape = (3,)
+    true_numpy_shape = (3,)
+    scalar = float32
 
-# NOTE: These should be constant values, then imported from some other class? Living at
-# base level not a great idea
-int32 = dtype("int32", 4, "int", dtype_structure.DATA_STRUCTURE_SCALAR, 1, "%d")
-uint32 = dtype("uint32", 4, "uint", dtype_structure.DATA_STRUCTURE_SCALAR, 1, "%u")
-float32 = dtype("float32", 4, "float", dtype_structure.DATA_STRUCTURE_SCALAR, 1, "%f")
-complex64 = dtype("complex64", 8, "vec2", dtype_structure.DATA_STRUCTURE_SCALAR, 2, "(%f, %f)", float32, True)
+class _V4F32(_Vector):
+    name = "vec4"
+    item_size = 16
+    glsl_type = "vec4"
+    format_str = "(%f, %f, %f, %f)"
+    child_type = float32
+    child_count = 4
+    shape = (4,)
+    numpy_shape = (4,)
+    true_numpy_shape = (4,)
+    scalar = float32
 
-vec2 = dtype("vec2", 8, "vec2", dtype_structure.DATA_STRUCTURE_VECTOR, 2, "(%f, %f)", float32)
-vec4 = dtype("vec4", 16, "vec4", dtype_structure.DATA_STRUCTURE_VECTOR, 4, "(%f, %f, %f, %f)", float32)
+class _V2I32(_Vector):
+    name = "ivec2"
+    item_size = 8
+    glsl_type = "ivec2"
+    format_str = "(%d, %d)"
+    child_type = int32
+    child_count = 2
+    shape = (2,)
+    numpy_shape = (2,)
+    true_numpy_shape = (2,)
+    scalar = int32
 
-ivec2 = dtype( "ivec2", 8, "ivec2", dtype_structure.DATA_STRUCTURE_VECTOR, 2, "(%d, %d)", int32)
-ivec4 = dtype( "ivec4", 16, "ivec4", dtype_structure.DATA_STRUCTURE_VECTOR, 4, "(%d, %d, %d, %d)", int32)
+class _V3I32(_Vector):
+    name = "ivec3"
+    item_size = 16
+    glsl_type = "ivec3"
+    glsl_type_extern = "ivec4"
+    format_str = "(%d, %d, %d)"
+    child_type = int32
+    child_count = 3
+    shape = (3,)
+    numpy_shape = (3,)
+    true_numpy_shape = (3,)
+    scalar = int32
 
-uvec2 = dtype( "uvec2", 8, "uvec2", dtype_structure.DATA_STRUCTURE_VECTOR, 2, "(%u, %u)", uint32)
-uvec4 = dtype( "uvec4", 16, "uvec4", dtype_structure.DATA_STRUCTURE_VECTOR, 4, "(%u, %u, %u, %u)", uint32)
+class _V4I32(_Vector):
+    name = "ivec4"
+    item_size = 16
+    glsl_type = "ivec4"
+    format_str = "(%d, %d, %d, %d)"
+    child_type = int32
+    child_count = 4
+    shape = (4,)
+    numpy_shape = (4,)
+    true_numpy_shape = (4,)
+    scalar = int32
 
-mat2 = dtype( "mat2", 16, "mat2", dtype_structure.DATA_STRUCTURE_MATRIX, 2, "\\\\n[%f, %f]\\\\n[%f, %f]\\\\n", vec2)
-mat4 = dtype( "mat4", 64, "mat4", dtype_structure.DATA_STRUCTURE_MATRIX, 4, "\\\\n[%f, %f, %f, %f]\\\\n[%f, %f, %f, %f]\\\\n[%f, %f, %f, %f]\\\\n[%f, %f, %f, %f]\\\\n", vec4)
+class _V2U32(_Vector):
+    name = "uvec2"
+    item_size = 8
+    glsl_type = "uvec2"
+    format_str = "(%u, %u)"
+    child_type = uint32
+    child_count = 2
+    shape = (2,)
+    numpy_shape = (2,)
+    true_numpy_shape = (2,)
+    scalar = uint32
 
+class _V3U32(_Vector):
+    name = "uvec3"
+    item_size = 16
+    glsl_type = "uvec3"
+    glsl_type_extern = "uvec4"
+    format_str = "(%u, %u, %u)"
+    child_type = uint32
+    child_count = 3
+    shape = (3,)
+    numpy_shape = (3,)
+    true_numpy_shape = (3,)
+    scalar = uint32
+
+class _V4U32(_Vector):
+    name = "uvec4"
+    item_size = 16
+    glsl_type = "uvec4"
+    format_str = "(%u, %u, %u, %u)"
+    child_type = uint32
+    child_count = 4
+    shape = (4,)
+    numpy_shape = (4,)
+    true_numpy_shape = (4,)
+    scalar = uint32
+
+vec2 = _V2F32
+vec3 = _V3F32
+vec4 = _V4F32
+ivec2 = _V2I32
+ivec3 = _V3I32
+ivec4 = _V4I32
+uvec2 = _V2U32
+uvec3 = _V3U32
+uvec4 = _V4U32
+
+class _Matrix(dtype):
+    dimentions = 2
+
+class _M2F32(_Matrix):
+    name = "mat2"
+    item_size = 16
+    glsl_type = "mat2"
+    format_str = "\\\\n[%f, %f]\\\\n[%f, %f]\\\\n"
+    child_type = vec2
+    child_count = 2
+    shape = (2, 2)
+    numpy_shape = (2, 2)
+    true_numpy_shape = (2, 2)
+    scalar = float32
+
+class _M4F32(_Matrix):
+    name = "mat4"
+    item_size = 64
+    glsl_type = "mat4"
+    format_str = "\\\\n[%f, %f, %f, %f]\\\\n[%f, %f, %f, %f]\\\\n[%f, %f, %f, %f]\\\\n[%f, %f, %f, %f]\\\\n"
+    child_type = vec4
+    child_count = 4
+    shape = (4, 4)
+    numpy_shape = (4, 4)
+    true_numpy_shape = (4, 4)
+    scalar = float32
+
+mat2 = _M2F32
+mat4 = _M4F32
+
+def to_vector(dtype: "vd.dtype", count: int) -> "vd.dtype":
+    if count < 2 or count > 4:
+        raise ValueError(f"Unsupported count ({count})!")
+
+    if dtype == int32:
+        if count == 2:
+            return ivec2
+        elif count == 3:
+            return ivec3
+        elif count == 4:
+            return ivec4
+    elif dtype == uint32:
+        if count == 2:
+            return uvec2
+        elif count == 3:
+            return uvec3
+        elif count == 4:
+            return uvec4
+    elif dtype == float32:
+        if count == 2:
+            return vec2
+        elif count == 3:
+            return vec3
+        elif count == 4:
+            return vec4
+    else:
+        raise ValueError(f"Unsupported dtype ({dtype})!")
+
+def is_scalar(dtype: "vd.dtype") -> bool:
+    return issubclass(dtype, _Scalar)
+
+def is_complex(dtype: "vd.dtype") -> bool:
+    return issubclass(dtype, _Complex)
+
+def is_vector(dtype: "vd.dtype") -> bool:
+    return issubclass(dtype, _Vector)
+
+def is_matrix(dtype: "vd.dtype") -> bool:
+    return issubclass(dtype, _Matrix)
 
 def from_numpy_dtype(dtype: type) -> dtype:
     if dtype == np.int32:

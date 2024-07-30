@@ -11,8 +11,12 @@ class DescriptorSet:
         self._handle = vkdispatch_native.descriptor_set_create(compute_plan_handle)
         vd.check_for_errors()
 
-    def bind_buffer(self, buffer: vd.Buffer, binding: int, offset: int = 0, range: int = 0, type: int = 0) -> None:
+    def bind_buffer(self, buffer: "vd.Buffer", binding: int, offset: int = 0, range: int = 0, type: int = 0) -> None:
         vkdispatch_native.descriptor_set_write_buffer(
             self._handle, binding, buffer._handle, offset, range, type
         )
+        vd.check_for_errors()
+
+    def bind_image(self, image: "vd.Image", binding: int) -> None:
+        vkdispatch_native.descriptor_set_write_image(self._handle, binding, image._handle)
         vd.check_for_errors()
