@@ -67,7 +67,7 @@ class Buffer:
         if self.per_device and index >= len(self.ctx.devices):
             raise ValueError(f"Invalid device index {index}!")
         elif not self.per_device and index >= self.ctx.stream_count:
-            raise ValueError(f"Invalid stream index {index}!")
+            raise ValueError(f"Invalid stream index {index} > count={self.ctx.stream_count}!")
 
 
         true_data_object = None
