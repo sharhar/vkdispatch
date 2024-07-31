@@ -63,7 +63,7 @@ jobs:
       run: |
           curl -LO https://sdk.lunarg.com/sdk/download/latest/windows/vulkan_sdk.exe
           mkdir C:\VulkanSDK
-          start-process -Wait -FilePath vulkan_sdk.exe --root C:\VulkanSDK --accept-licenses --default-answer --confirm-command install
+          ./vulkan_sdk.exe --root C:\VulkanSDK --accept-licenses --default-answer --confirm-command install
     
     - name: Set Vulkan SDK environment variables
       run: |
