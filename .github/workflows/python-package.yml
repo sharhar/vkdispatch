@@ -61,12 +61,12 @@ jobs:
     
     - name: Download and extract Mesa 3D
       run: |
-        curl -LO https://github.com/pal1000/mesa-dist-win/releases/download/21.3.7/mesa-dist-win-x64-21.3.7.7z
-        7z x mesa-dist-win-x64-21.3.7.7z -oC:\mesa-dist-win
+        curl -LO https://github.com/pal1000/mesa-dist-win/releases/download/24.1.4/mesa3d-24.1.4-release-msvc.7z
+        7z x mesa3d-24.1.4-release-msvc.7z -oC:\mesa-dist-win
         echo "PATH=C:\mesa-dist-win\lib;%PATH%" >> $Env:GITHUB_ENV
 
     - name: Set up Vulkan ICD environment variable
-      run: echo "VK_ICD_FILENAMES=C:\mesa-dist-win\share\vulkan\icd.d\lvp_icd.x86_64.json" >> $Env:GITHUB_ENV
+      run: echo "VK_ICD_FILENAMES=C:\mesa-dist-win\bin\x64\lvp_icd.x86_64.json" >> $Env:GITHUB_ENV
 
     - name: Install dependencies
       run: |
