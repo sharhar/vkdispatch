@@ -59,16 +59,14 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     
-    - name: Download Vulkan SDK
+    - name: Download and extract Mesa 3D
       run: |
-          curl -LO https://sdk.lunarg.com/sdk/download/latest/windows/vulkan_sdk.exe
-          mkdir C:\VulkanSDK
-          ./vulkan_sdk.exe --root C:\VulkanSDK --accept-licenses --default-answer --confirm-command install
-    
-    - name: Set Vulkan SDK environment variables
-      run: |
-        echo "VULKAN_SDK=C:\VulkanSDK" >> $Env:GITHUB_ENV
-        echo "PATH=C:\VulkanSDK\Bin;C:\VulkanSDK\Lib;C:\VulkanSDK\Include;%PATH%" >> $Env:GITHUB_ENV
+        curl -LO https://github.com/pal1000/mesa-dist-win/releases/download/21.3.7/mesa-dist-win-x64-21.3.7.7z
+        7z x mesa-dist-win-x64-21.3.7.7z -oC:\mesa-dist-win
+        echo "PATH=C:\mesa-dist-win\lib;%PATH%" >> $Env:GITHUB_ENV
+
+    - name: Set up Vulkan ICD environment variable
+      run: echo "VK_ICD_FILENAMES=C:\mesa-dist-win\share\vulkan\icd.d\lvp_icd.x86_64.json" >> $Env:GITHUB_ENV
 
     - name: Install dependencies
       run: |
