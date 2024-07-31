@@ -38,7 +38,7 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install pytest
         python fetch_dependencies.py
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        python -m pip install -r requirements.txt
         python -m pip install .
     - name: Test with pytest
       run: |
