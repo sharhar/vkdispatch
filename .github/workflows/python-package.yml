@@ -1,7 +1,7 @@
 # This workflow will install Python dependencies, run tests and lint with a variety of Python versions
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
 
-name: Python package
+name: Test vkdispatch
 
 on:
   push:
@@ -10,13 +10,13 @@ on:
     branches: [ "main", "dev" ]
 
 jobs:
-  build:
+  build-and-test-on-unix:
 
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-12]
+        os: [ubuntu-latest, macos-12]
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
 
     steps:
@@ -38,6 +38,37 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install pytest
         python fetch_dependencies.py
+        python -m pip install -r requirements.txt
+        python -m pip install .
+    - name: Test with pytest
+      run: |
+        pytest
+  
+  build-and-test-on-windows:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Download Vulkan SDK
+      run: |
+          curl -LO https://sdk.lunarg.com/sdk/download/latest/windows/vulkan_sdk.exe
+          mkdir C:\VulkanSDK
+          start-process -Wait -FilePath vulkan_sdk.exe -ArgumentList '/S','/D=C:\VulkanSDK'
+  
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install pytest
+        python fetch_dependencies.py --no-molten-vk
         python -m pip install -r requirements.txt
         python -m pip install .
     - name: Test with pytest

@@ -3,6 +3,8 @@ import os
 import urllib.request
 import tarfile
 
+import sys
+
 def clone_and_checkout(repo_url, commit_hash, output_dir):
     """
     Clones the given git repository into the specified output directory (creates it if not existent),
@@ -41,6 +43,10 @@ dependencies = [
 
 for dep in dependencies:
     clone_and_checkout(*dep)
+
+if len(sys.argv) > 1 and sys.argv[1] == "--no-molten-vk":
+    print("Skipping MoltenVK download.")
+    sys.exit(0)
 
 os.makedirs("deps/MoltenVK", exist_ok=True)
 
