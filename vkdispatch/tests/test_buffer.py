@@ -1,5 +1,7 @@
 import vkdispatch as vd
 
+vd.make_context(use_cpu=True)
+
 import numpy as np
 
 def test_1d_buffer_creation():
