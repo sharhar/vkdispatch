@@ -62,7 +62,8 @@ jobs:
     - name: Download Vulkan SDK
       run: |
           curl -LO https://sdk.lunarg.com/sdk/download/latest/windows/vulkan_sdk.exe
-          vulkan_sdk.exe --root C:\VulkanSDK --accept-licenses --default-answer --confirm-command install
+          mkdir C:\VulkanSDK
+          start-process -Wait -FilePath vulkan_sdk.exe --root C:\VulkanSDK --accept-licenses --default-answer --confirm-command install
     
     - name: Set Vulkan SDK environment variables
       run: |
