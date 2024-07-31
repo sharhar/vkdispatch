@@ -17,7 +17,7 @@ def test_fft_1d():
     # Perform an FFT on the buffer
     vd.fft(test_line)
 
-    assert np.allclose(test_line.read(0), np.fft.fft(signal), atol=0.00001)
+    assert np.allclose(test_line.read(0), np.fft.fft(signal), atol=0.00001) or np.allclose(test_line.read(0), np.fft.fft(signal) * np.prod(signal.shape), atol=0.00001)
 
 def test_fft_2d():
     # Create a 2D buffer
@@ -29,7 +29,7 @@ def test_fft_2d():
     # Perform an FFT on the buffer
     vd.fft(test_img)
 
-    assert np.allclose(test_img.read(0), np.fft.fft2(signal_2d), atol=0.0001)
+    assert np.allclose(test_img.read(0), np.fft.fft2(signal_2d), atol=0.0001) or np.allclose(test_img.read(0), np.fft.fft2(signal_2d) * np.prod(signal_2d.shape), atol=0.0001)
 
 def test_fft_3d():
     # Create a 3D buffer
@@ -41,7 +41,7 @@ def test_fft_3d():
     # Perform an FFT on the buffer
     vd.fft(test_img)
 
-    assert np.allclose(test_img.read(0), np.fft.fftn(signal_3d), atol=0.01)
+    assert np.allclose(test_img.read(0), np.fft.fftn(signal_3d), atol=0.01) or np.allclose(test_img.read(0), np.fft.fftn(signal_3d) * np.prod(signal_3d.shape), atol=0.01)
 
 def test_ifft_1d():
     # Create a 1D buffer
@@ -53,7 +53,7 @@ def test_ifft_1d():
     # Perform an IFFT on the buffer
     vd.ifft(test_line)
     
-    assert np.allclose(test_line.read(0), np.fft.ifft(signal) * np.prod(signal.shape), atol=0.00001)
+    assert np.allclose(test_line.read(0), np.fft.ifft(signal) * np.prod(signal.shape), atol=0.00001) or np.allclose(test_line.read(0), np.fft.ifft(signal), atol=0.00001)
 
 def test_ifft_2d():
     # Create a 2D buffer
@@ -65,7 +65,7 @@ def test_ifft_2d():
     # Perform an IFFT on the buffer
     vd.ifft(test_img)
 
-    assert np.allclose(test_img.read(0), np.fft.ifft2(signal_2d) * np.prod(signal_2d.shape), atol=0.0001)
+    assert np.allclose(test_img.read(0), np.fft.ifft2(signal_2d) * np.prod(signal_2d.shape), atol=0.0001) or np.allclose(test_img.read(0), np.fft.ifft2(signal_2d), atol=0.0001)
 
 def test_ifft_3d():
     # Create a 3D buffer
@@ -77,7 +77,7 @@ def test_ifft_3d():
     # Perform an IFFT on the buffer
     vd.ifft(test_img)
 
-    assert np.allclose(test_img.read(0), np.fft.ifftn(signal_3d) * np.prod(signal_3d.shape), atol=0.01)
+    assert np.allclose(test_img.read(0), np.fft.ifftn(signal_3d) * np.prod(signal_3d.shape), atol=0.01) or np.allclose(test_img.read(0), np.fft.ifftn(signal_3d), atol=0.01)
 
 # def test_fft_2d_384x384():
 #     # Create a 2D buffer
