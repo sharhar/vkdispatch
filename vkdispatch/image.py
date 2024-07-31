@@ -268,7 +268,12 @@ class Image:
         )
 
     def read(self, device_index: int = 0) -> np.ndarray:
-        result = np.ndarray(shape=self.array_shape, dtype=vd.to_numpy_dtype(self.dtype.scalar))
+        true_scalar = self.dtype.scalar
+
+        if self.dtype.scalar is None:
+            true_scalar = self.dtype
+
+        result = np.ndarray(shape=self.array_shape, dtype=vd.to_numpy_dtype(true_scalar))
         vkdispatch_native.image_read(
             self._handle, result, [0, 0, 0], self.extent, 0, self.layers, device_index
         )
