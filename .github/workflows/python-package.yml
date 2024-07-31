@@ -58,12 +58,17 @@ jobs:
       uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
+    
     - name: Download Vulkan SDK
       run: |
           curl -LO https://sdk.lunarg.com/sdk/download/latest/windows/vulkan_sdk.exe
-          mkdir C:\VulkanSDK
-          start-process -Wait -FilePath vulkan_sdk.exe -ArgumentList '/S','/D=C:\VulkanSDK'
-  
+          vulkan_sdk.exe --root C:\VulkanSDK --accept-licenses --default-answer --confirm-command install
+    
+    - name: Set Vulkan SDK environment variables
+      run: |
+        echo "VULKAN_SDK=C:\VulkanSDK" >> $Env:GITHUB_ENV
+        echo "PATH=C:\VulkanSDK\Bin;C:\VulkanSDK\Lib;C:\VulkanSDK\Include;%PATH%" >> $Env:GITHUB_ENV
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
