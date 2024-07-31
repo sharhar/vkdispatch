@@ -24,6 +24,14 @@ jobs:
       uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
+    - name: Install Vulkan dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libvulkan1 \
+          vulkan-tools \
+          mesa-vulkan-drivers \
+          mesa-vulkan-drivers:i386
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
