@@ -170,8 +170,8 @@ def initialize(debug_mode: bool = True, log_level: LogLevel = LogLevel.WARNING, 
     if __initilized_instance:
         return
     
-    if loader_debug_logs:
-        os.environ["VK_LOADER_DEBUG"] = "all"
+    #if loader_debug_logs:
+    os.environ["VK_LOADER_DEBUG"] = "all"
 
     vkdispatch_native.init(debug_mode, log_level.value)
     vd.check_for_errors()
