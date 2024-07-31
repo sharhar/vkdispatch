@@ -164,7 +164,7 @@ class DeviceInfo:
 __initilized_instance: bool = False
 
 
-def initialize(debug_mode: bool = True, log_level: LogLevel = LogLevel.WARNING, loader_debug_logs: bool = False):
+def initialize(debug_mode: bool = True, log_level: LogLevel = LogLevel.INFO, loader_debug_logs: bool = False):
     global __initilized_instance
 
     if __initilized_instance:
