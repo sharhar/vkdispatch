@@ -59,6 +59,14 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install pytest
+        python fetch_dependencies.py --no-molten-vk
+        python -m pip install -r requirements.txt
+        python -m pip install .
+
     - name: Download and extract Mesa 3D
       run: |
         curl -LO https://github.com/pal1000/mesa-dist-win/releases/download/24.1.4/mesa3d-24.1.4-release-msvc.7z
@@ -68,14 +76,6 @@ jobs:
     - name: Set up Vulkan ICD environment variable
       run: echo "VK_ICD_FILENAMES=C:\mesa-dist-win\bin\x64\lvp_icd.x86_64.json" >> $Env:GITHUB_ENV
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install pytest
-        mkdir deps
-        python fetch_dependencies.py --no-molten-vk
-        python -m pip install -r requirements.txt
-        python -m pip install .
     - name: Test with pytest
       run: |
         pytest
