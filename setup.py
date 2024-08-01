@@ -186,6 +186,6 @@ setup(
             include_dirs=include_directories,
         )
     ],
-    version="0.0.8",
+    version="0.0.10",
     zip_safe=False,
 )
