@@ -60,6 +60,7 @@ if vulkan_sdk_root is None:
             "-framework", "AVFoundation",
             "-framework", "AppKit"
         ])
+        platform_extra_compile_args.append("-mmacosx-version-min=10.15")
     else:
         platform_define_macros.append(("VKDISPATCH_USE_VOLK", 1))
 else:
