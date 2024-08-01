@@ -12,6 +12,8 @@ on:
   release:
     types: [published]
 
+
+    
 jobs:
   build:
     name: Build Python Package
