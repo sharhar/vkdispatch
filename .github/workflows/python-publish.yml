@@ -12,16 +12,15 @@ on:
   release:
     types: [published]
 
-
-
 jobs:
   build:
     name: Build Python Package
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        os: [windows-latest, macos-12, macos-13, macos-14]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
 
     steps:
     - uses: actions/checkout@v4
@@ -33,7 +32,6 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         python fetch_dependencies.py
-        python -m pip install -r requirements.txt
         python -m pip install build
         python -m build
     - name: Store the distribution packages
