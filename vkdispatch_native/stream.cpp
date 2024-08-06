@@ -149,8 +149,12 @@ void Stream::thread_worker() {
                         image_write_exec_internal(commandBuffers[current_index], command_info_buffer[i].info.image_write_info, device_index, stream_index);
                         break;
                     }
-                    case COMMAND_TYPE_FFT: {
-                        stage_fft_plan_exec_internal(commandBuffers[current_index], command_info_buffer[i].info.fft_info, device_index, stream_index);
+                    case COMMAND_TYPE_FFT_INIT: {
+                        stage_fft_plan_init_internal(command_info_buffer[i].info.fft_init_info, device_index, stream_index);
+                        break;
+                    }
+                    case COMMAND_TYPE_FFT_EXEC: {
+                        stage_fft_plan_exec_internal(commandBuffers[current_index], command_info_buffer[i].info.fft_exec_info, device_index, stream_index);
                         break;
                     }
                     case COMMAND_TYPE_COMPUTE: {
