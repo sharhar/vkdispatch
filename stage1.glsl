@@ -12,7 +12,7 @@ layout(std430, binding = 1) buffer DataOut{
 };
 
 shared vec2 sdata[272];// sharedStride - fft size,  gl_WorkGroupSize.y - grouped consecutive ffts
-//shared vec2 sdata[1024];
+//shared vec2 sdata[4096];
 
 vec2 do_complex_mult(vec2 a, vec2 b) {
     vec2 res;
@@ -23,6 +23,17 @@ vec2 do_complex_mult(vec2 a, vec2 b) {
     res.y = fma(a.x, b.y, res.y);
 
     return res;
+}
+
+uint get_sdata(uint index) {
+    uint result = (index % 16) + ((index / 16) * 17);
+
+    //if(result >= 272) {
+        //result = -1;
+    //    debugPrintfEXT("Error: get_sdata index out of bounds: %d", result);
+   // }
+
+    return result;
 }
 
 void main() {
@@ -124,116 +135,38 @@ void main() {
     temp_7 = temp_6 - loc_0;
     temp_6 = temp_6 + loc_0;
     
+    memoryBarrier();
     barrier();
 
-    stageInvocationID = gl_LocalInvocationID.x + 0;
-    blockInvocationID = stageInvocationID;
-    stageInvocationID = stageInvocationID % 1;
-    blockInvocationID = blockInvocationID - stageInvocationID;
+    stageInvocationID = 0;
+    blockInvocationID = gl_LocalInvocationID.x;
+
     inoutID = blockInvocationID * 8;
     inoutID = inoutID + stageInvocationID;
-    sdataID = inoutID + 0;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    sdata[sdataID] = temp_0;
-    sdataID = inoutID + 1;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    sdata[sdataID] = temp_4;
-    sdataID = inoutID + 2;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    sdata[sdataID] = temp_2;
-    sdataID = inoutID + 3;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    sdata[sdataID] = temp_6;
-    sdataID = inoutID + 4;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    sdata[sdataID] = temp_1;
-    sdataID = inoutID + 5;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    sdata[sdataID] = temp_5;
-    sdataID = inoutID + 6;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    sdata[sdataID] = temp_3;
-    sdataID = inoutID + 7;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    sdata[sdataID] = temp_7;
+
+    sdata[get_sdata(inoutID + 0)] = temp_0;
+    sdata[get_sdata(inoutID + 1)] = temp_4;
+    sdata[get_sdata(inoutID + 2)] = temp_2;
+    sdata[get_sdata(inoutID + 3)] = temp_6;
+    sdata[get_sdata(inoutID + 4)] = temp_1;
+    sdata[get_sdata(inoutID + 5)] = temp_5;
+    sdata[get_sdata(inoutID + 6)] = temp_3;
+    sdata[get_sdata(inoutID + 7)] = temp_7;
     
+    memoryBarrier();
     barrier();
 
-    stageInvocationID = gl_LocalInvocationID.x + 0;
-    stageInvocationID = stageInvocationID % 8;
-    angle = stageInvocationID * -3.92699081698724139e-01f;
-    sdataID = gl_LocalInvocationID.x + 0;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    temp_0 = sdata[sdataID];
-    sdataID = gl_LocalInvocationID.x + 32;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    temp_4 = sdata[sdataID];
-    sdataID = gl_LocalInvocationID.x + 64;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    temp_2 = sdata[sdataID];
-    sdataID = gl_LocalInvocationID.x + 96;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    temp_6 = sdata[sdataID];
-    sdataID = gl_LocalInvocationID.x + 128;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    temp_1 = sdata[sdataID];
-    sdataID = gl_LocalInvocationID.x + 160;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    temp_5 = sdata[sdataID];
-    sdataID = gl_LocalInvocationID.x + 192;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    temp_3 = sdata[sdataID];
-    sdataID = gl_LocalInvocationID.x + 224;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    temp_7 = sdata[sdataID];
+    stageInvocationID = gl_LocalInvocationID.x % 8;
+    angle = stageInvocationID * -3.92699081698724139e-01f; // stageInvocationID * -pi / 8
+
+    temp_0 = sdata[get_sdata(gl_LocalInvocationID.x +   0)];
+    temp_4 = sdata[get_sdata(gl_LocalInvocationID.x +  32)];
+    temp_2 = sdata[get_sdata(gl_LocalInvocationID.x +  64)];
+    temp_6 = sdata[get_sdata(gl_LocalInvocationID.x +  96)];
+    temp_1 = sdata[get_sdata(gl_LocalInvocationID.x + 128)];
+    temp_5 = sdata[get_sdata(gl_LocalInvocationID.x + 160)];
+    temp_3 = sdata[get_sdata(gl_LocalInvocationID.x + 192)];
+    temp_7 = sdata[get_sdata(gl_LocalInvocationID.x + 224)];
     
     w.x = cos(angle);
     w.y = sin(angle);
@@ -305,6 +238,7 @@ void main() {
     temp_7 = temp_3 - loc_0;
     temp_3 = temp_3 + loc_0;
     
+    memoryBarrier();
     barrier();
 
     stageInvocationID = gl_LocalInvocationID.x + 0;
@@ -313,83 +247,27 @@ void main() {
     blockInvocationID = blockInvocationID - stageInvocationID;
     inoutID = blockInvocationID * 8;
     inoutID = inoutID + stageInvocationID;
-    sdataID = inoutID + 0;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    sdata[sdataID] = temp_0;
-    sdataID = inoutID + 8;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    sdata[sdataID] = temp_1;
-    sdataID = inoutID + 16;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    sdata[sdataID] = temp_2;
-    sdataID = inoutID + 24;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    sdata[sdataID] = temp_3;
-    sdataID = inoutID + 32;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    sdata[sdataID] = temp_4;
-    sdataID = inoutID + 40;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    sdata[sdataID] = temp_5;
-    sdataID = inoutID + 48;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    sdata[sdataID] = temp_6;
-    sdataID = inoutID + 56;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    sdata[sdataID] = temp_7;
+
+    sdata[get_sdata(inoutID +  0)] = temp_0;
+    sdata[get_sdata(inoutID +  8)] = temp_1;
+    sdata[get_sdata(inoutID + 16)] = temp_2;
+    sdata[get_sdata(inoutID + 24)] = temp_3;
+    sdata[get_sdata(inoutID + 32)] = temp_4;
+    sdata[get_sdata(inoutID + 40)] = temp_5;
+    sdata[get_sdata(inoutID + 48)] = temp_6;
+    sdata[get_sdata(inoutID + 56)] = temp_7;
+
+    memoryBarrier();
     barrier();
 
     stageInvocationID = gl_LocalInvocationID.x + 0;
     stageInvocationID = stageInvocationID % 64;
-    angle = stageInvocationID * -4.90873852123405174e-02f;
-    sdataID = gl_LocalInvocationID.x + 0;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    temp_0 = sdata[sdataID];
-    sdataID = gl_LocalInvocationID.x + 64;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    temp_2 = sdata[sdataID];
-    sdataID = gl_LocalInvocationID.x + 128;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    temp_4 = sdata[sdataID];
-    sdataID = gl_LocalInvocationID.x + 192;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    temp_6 = sdata[sdataID];
+    angle = stageInvocationID * -4.90873852123405174e-02f; // stageInvocationID * -pi / 64
+
+    temp_0 = sdata[get_sdata(gl_LocalInvocationID.x +   0)];
+    temp_2 = sdata[get_sdata(gl_LocalInvocationID.x +  64)];
+    temp_4 = sdata[get_sdata(gl_LocalInvocationID.x + 128)];
+    temp_6 = sdata[get_sdata(gl_LocalInvocationID.x + 192)];
 
     w.x = cos(angle);
     w.y = sin(angle);
@@ -402,7 +280,7 @@ void main() {
     temp_6 = temp_2 - loc_0;
     temp_2 = temp_2 + loc_0;
 
-    loc_0.x = angle * 5.00000000000000000e-01f;
+    loc_0.x = angle * 0.5;
     w.x = cos(loc_0.x);
     w.y = sin(loc_0.x);
     
@@ -420,31 +298,12 @@ void main() {
     
     stageInvocationID = gl_LocalInvocationID.x + 32;
     stageInvocationID = stageInvocationID % 64;
-    angle = stageInvocationID * -4.90873852123405174e-02f;
-    sdataID = gl_LocalInvocationID.x + 32;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    temp_1 = sdata[sdataID];
-    sdataID = gl_LocalInvocationID.x + 96;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    temp_3 = sdata[sdataID];
-    sdataID = gl_LocalInvocationID.x + 160;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    temp_5 = sdata[sdataID];
-    sdataID = gl_LocalInvocationID.x + 224;
-    tempInt = sdataID / 16;
-    tempInt = tempInt * 17;
-    sdataID = sdataID % 16;
-    sdataID = sdataID + tempInt;
-    temp_7 = sdata[sdataID];
+    angle = stageInvocationID * -4.90873852123405174e-02f; // stageInvocationID * -pi / 64
+
+    temp_1 = sdata[get_sdata(gl_LocalInvocationID.x +  32)];
+    temp_3 = sdata[get_sdata(gl_LocalInvocationID.x +  96)];
+    temp_5 = sdata[get_sdata(gl_LocalInvocationID.x + 160)];
+    temp_7 = sdata[get_sdata(gl_LocalInvocationID.x + 224)];
     
     w.x = cos(angle);
     w.y = sin(angle);
@@ -457,7 +316,7 @@ void main() {
     temp_7 = temp_3 - loc_0;
     temp_3 = temp_3 + loc_0;
 
-    loc_0.x = angle * 5.00000000000000000e-01f;
+    loc_0.x = angle * 0.5;
     w.x = cos(loc_0.x);
     w.y = sin(loc_0.x);
 
