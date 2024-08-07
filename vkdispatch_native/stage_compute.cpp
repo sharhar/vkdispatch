@@ -13,7 +13,7 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
         VKLPipelineLayoutCreateInfo layoutCreateInfo = VKLPipelineLayoutCreateInfo();
         layoutCreateInfo.device(ctx->devices[i]);
 
-        printf("Shader source: %s\n", create_info->shader_source);
+        //printf("Shader source: %s\n", create_info->shader_source);
 
         layoutCreateInfo.addShaderModuleSource(create_info->shader_source, VK_SHADER_STAGE_COMPUTE_BIT, "main", "compute_shader");
 

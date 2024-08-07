@@ -27,7 +27,7 @@ void main() {
     uint shiftX = gl_WorkGroupID.x;
     uint shiftY = gl_WorkGroupID.y;
     uint shiftZ = 0;
-    vec2 iw = 0;
+    vec2 iw = vec2(0);
     uint stageInvocationID = 0;
     uint blockInvocationID = 0;
     uint sdataID = 0;
