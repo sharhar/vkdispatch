@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vkdispatch"
-version = "0.0.11"
+version = "0.0.12"
 authors = [
   { name="Shahar Sandhaus", email="shahar.sandhaus@gmail.com" },
 ]
@@ -26,7 +26,7 @@ dependencies = [
     "setuptools>=61.0",
     "numpy<=1.26.4",
 ]
-scripts = { vdlist = 'vkdispatch.__main__:main' }
+scripts = { vdlist = 'vkdispatch.main:main' }
 
 [project.urls]
 Homepage = "https://github.com/sharhar/vkdispatch"

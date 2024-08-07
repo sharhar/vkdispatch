@@ -11,6 +11,8 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
     plan->launchParams = new VkFFTLaunchParams[ctx->stream_indicies.size()];
     plan->fences = new VkFence[ctx->stream_indicies.size()];
 
+    Signal* signals = new Signal[ctx->stream_indicies.size()];
+
     for (int i = 0; i < ctx->stream_indicies.size(); i++) {
         plan->launchParams[i] = {};
         plan->configs[i] = {};
@@ -36,15 +38,32 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
         plan->configs[i].isCompilerInitialized = true;
         plan->configs[i].bufferSize = (uint64_t*)malloc(sizeof(uint64_t));
         *plan->configs[i].bufferSize = buffer_size;
-        
-        VkFFTResult resFFT = initializeVkFFT(&plan->apps[i], plan->configs[i]);
-        if (resFFT != VKFFT_SUCCESS) {
-            set_error("(VkFFTResult is %d) initializeVkFFT inside '%s' at %s:%d\n", resFFT, __FUNCTION__, __FILE__, __LINE__);
-            return NULL;
-        }
+    
+        struct CommandInfo command = {};
+        command.type = COMMAND_TYPE_FFT_INIT;
+        command.pipeline_stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+        command.info.fft_init_info.plan = plan;
+
+        command_list_record_command(ctx->command_list, command);
+        command_list_submit_extern(ctx->command_list, NULL, 1, &i, 1, 0, &signals[i]);
+        command_list_reset_extern(ctx->command_list);
+        RETURN_ON_ERROR(NULL);
     }
 
+    for(int i = 0; i < ctx->stream_indicies.size(); i++) {
+        signals[i].wait();
+    }
+
+    delete[] signals;
+
     return plan;
+}
+
+void stage_fft_plan_init_internal(const struct FFTInitRecordInfo& info, int device_index, int stream_index) {
+    VkFFTResult resFFT = initializeVkFFT(&info.plan->apps[stream_index], info.plan->configs[stream_index]);
+    if (resFFT != VKFFT_SUCCESS) {
+        set_error("(VkFFTResult is %d) initializeVkFFT inside '%s' at %s:%d\n", resFFT, __FUNCTION__, __FILE__, __LINE__);
+    }
 }
 
 void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* plan, struct Buffer* buffer, int inverse) {
@@ -56,16 +75,16 @@ void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* p
     }
 
     struct CommandInfo command = {};
-    command.type = COMMAND_TYPE_FFT;
+    command.type = COMMAND_TYPE_FFT_EXEC;
     command.pipeline_stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-    command.info.fft_info.plan = plan;
-    command.info.fft_info.buffer = buffer;
-    command.info.fft_info.inverse = inverse;
+    command.info.fft_exec_info.plan = plan;
+    command.info.fft_exec_info.buffer = buffer;
+    command.info.fft_exec_info.inverse = inverse;
 
     command_list_record_command(command_list, command);
 }
 
-void stage_fft_plan_exec_internal(VkCommandBuffer cmd_buffer, const struct FFTRecordInfo& info, int device_index, int stream_index) {
+void stage_fft_plan_exec_internal(VkCommandBuffer cmd_buffer, const struct FFTExecRecordInfo& info, int device_index, int stream_index) {
     info.plan->launchParams[stream_index].buffer = &info.buffer->buffers[stream_index];
     info.plan->launchParams[stream_index].commandBuffer = &cmd_buffer;
 

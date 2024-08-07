@@ -165,8 +165,9 @@ enum CommandType {
     COMMAND_TYPE_BUFFER_WRITE = 3,
     COMMAND_TYPE_IMAGE_READ = 4,
     COMMAND_TYPE_IMAGE_WRITE = 5,
-    COMMAND_TYPE_FFT = 6,
-    COMMAND_TYPE_COMPUTE = 7
+    COMMAND_TYPE_FFT_INIT = 6,
+    COMMAND_TYPE_FFT_EXEC = 7,
+    COMMAND_TYPE_COMPUTE = 8
 };
 
 struct CommandInfo {
@@ -178,7 +179,8 @@ struct CommandInfo {
         struct BufferWriteInfo buffer_write_info;
         struct ImageReadInfo image_read_info;
         struct ImageWriteInfo image_write_info;
-        struct FFTRecordInfo fft_info;
+        struct FFTInitRecordInfo fft_init_info;
+        struct FFTExecRecordInfo fft_exec_info;
         struct ComputeRecordInfo compute_info;
     } info;
 };

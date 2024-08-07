@@ -3,93 +3,45 @@ import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import *
 
 import numpy as np
+import tqdm
 
 from matplotlib import pyplot as plt
 
-arr: np.ndarray = np.load("data/bronwyn/template_3d.npy") # np.random.rand(512, 512, 512).astype(np.float32)
+import sys
 
-#vd.initialize(log_level=vd.LogLevel.INFO)
+def make_random_complex_signal(shape):
+    r = np.random.random(size=shape)
+    i = np.random.random(size=shape)
+    return (r + i * 1j).astype(np.complex64)
 
-transformed_arr = np.fft.fftshift(np.fft.fftn(np.fft.fftshift(arr))).astype(np.complex64)
+def make_signal_circle(shape):
+    r = np.zeros(shape, dtype=np.complex64)
+    for i in range(shape[0]):
+        for j in range(shape[1]):
+            if (i - shape[0] // 2) ** 2 + (j - shape[1] // 2) ** 2 < 100:
+                r[i, j] = 1 + 0j
+    return r
 
-arr_buff = vd.Buffer((arr.shape[0], arr.shape[1]), vd.complex64)
-image = vd.Image3D(arr.shape, vd.float32, 2)
+def test_dims(dims: tuple):
+    ref_arr = make_signal_circle(dims)  #make_random_complex_signal(dims)
 
-@vc.shader(exec_size=lambda args: args.buff.size)
-def my_shader(buff: Buff[c64], img: Img3[f32], offset: Const[v3] = [0.5, 0.5, 288.5]):
-    ind = vc.global_invocation.x.copy()
-    sample_coords = vc.unravel_index(ind, buff.shape).cast_to(v3)
-    buff[ind] = img.sample(sample_coords + offset).xy
+    test_signal = vd.Buffer(ref_arr.shape, vd.complex64)
+    test_signal.write(ref_arr)
 
-#print(my_shader)
+    # Perform an FFT on the buffer
+    vd.fft(test_signal)
+    vd.ifft(test_signal)
 
-image.write(transformed_arr)
+    return np.abs(test_signal.read(0) / (np.prod(ref_arr.shape)) - ref_arr).mean() + 1
 
-my_shader(arr_buff, image)
+data_points = []
 
-def plot_images_and_differences(image1, image2):
-    # Calculate the difference and absolute difference
-    difference = image1 - image2
-    abs_difference = np.abs(difference)
+for dim_size in tqdm.tqdm(range(384, 389)):
+#for dim_size in range(100, 120) :
+    #print(dim_size, test_dims((dim_size, dim_size)))
+    data_points.append(test_dims((dim_size, dim_size)))
 
-    print(np.sum(abs_difference))
-    
-    # Create a figure with 4 subplots
-    fig, axes = plt.subplots(2, 2, figsize=(10, 10))
-    
-    # Plot the first image
-    im1 = axes[0, 0].imshow(image1)
-    axes[0, 0].set_title('Image 1')
-    fig.colorbar(im1, ax=axes[0, 0])
-    
-    # Plot the second image
-    im2 = axes[0, 1].imshow(image2)
-    axes[0, 1].set_title('Image 2')
-    fig.colorbar(im2, ax=axes[0, 1])
-    
-    # Plot the difference
-    diff = axes[1, 0].imshow(difference)
-    axes[1, 0].set_title('Difference')
-    fig.colorbar(diff, ax=axes[1, 0])
+#np.save("data.npy", np.array(data_points))
 
-    # Plot the absolute difference
-    adiff = axes[1, 1].imshow(abs_difference)
-    axes[1, 1].set_title('Absolute Difference')
-    fig.colorbar(adiff, ax=axes[1, 1])
-    
-    # Adjust layout
-    plt.tight_layout()
-    
-    # Show the plots
-    plt.show()
-
-#smol_buff = vd.asbuffer(np.array([[1, 2], [3, 4], [5, 6]], dtype=np.float32))
-
-#sum_buff = calc_sums(smol_buff)
-
-#print(calc_sums)
-
-#print(sum_buff.read(0))
-#print(smol_buff.read(0))
-
-true_projection = arr.sum(axis=0)
-
-est_proj = np.fft.ifftshift(np.fft.ifft2(np.fft.ifftshift(arr_buff.read(0))))
-
-#plot_images_and_differences(transformed_arr[288, :, :].real, arr_buff.read(0).real)
-plot_images_and_differences(true_projection.real, est_proj.real * 1.25)
-
-#plt.imshow(arr[0, :, :])
-#plt.show()
-
-#ret = arr_buff.read()[0]
-
-#plt.imshow(ret[0, :, :])
-#plt.show()
-
-#print(ret.shape)
-
-#print(np.sum(np.abs(arr - ret)))
-
-
-# whitening filter!!!!!
+plt.plot(np.log(data_points))
+plt.show()

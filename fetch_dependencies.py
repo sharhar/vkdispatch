@@ -2,6 +2,7 @@ import subprocess
 import os
 import urllib.request
 import tarfile
+import sys
 
 def clone_and_checkout(repo_url, commit_hash, output_dir):
     """
@@ -20,18 +21,29 @@ def clone_and_checkout(repo_url, commit_hash, output_dir):
     if not os.listdir(output_dir):
         # Clone the repository into the output directory
         print(f"Cloning {repo_url} into {output_dir}")
-        subprocess.run(["git", "clone", repo_url, "."], cwd=output_dir, check=True)
+        try:
+            subprocess.run(["git", "clone", repo_url, "."], cwd=output_dir, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error during git clone: {e}")
+            sys.exit(1)
     else:
         print(f"Directory {output_dir} already exists and is not empty.")
-
-        subprocess.run(["git", "fetch", "--all"], cwd=output_dir, check=True)
+        try:
+            subprocess.run(["git", "fetch", "--all"], cwd=output_dir, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error during git fetch: {e}")
+            sys.exit(1)
 
     # Checkout the specified commit
     print(f"Checking out commit {commit_hash}")
-    subprocess.run(["git", "checkout", commit_hash], cwd=output_dir, check=True)
+    try:
+        subprocess.run(["git", "checkout", commit_hash], cwd=output_dir, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error during git checkout: {e}")
+        sys.exit(1)
 
 dependencies = [
-    ("https://github.com/DTolm/VkFFT.git", "066a17c17068c0f11c9298d848c2976c71fad1c1", "deps/VkFFT"),
+    ("https://github.com/sharhar/VkFFT.git", "bac3c57d5f9849d472a05902f21fdc8fcfe6cfe5", "deps/VkFFT"),
     ("https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git", "5677097bafb8477097c6e3354ce68b7a44fd01a4", "deps/VMA"),
     ("https://github.com/KhronosGroup/Vulkan-Headers.git", "eaa319dade959cb61ed2229c8ea42e307cc8f8b3", "deps/Vulkan-Headers"),
     ("https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git", "ad7f699a7b2b5deb66eb3de19f24aa33597ed65b", "deps/Vulkan-Utility-Libraries"),
@@ -41,6 +53,10 @@ dependencies = [
 
 for dep in dependencies:
     clone_and_checkout(*dep)
+
+if len(sys.argv) > 1 and sys.argv[1] == "--no-molten-vk":
+    print("Skipping MoltenVK download.")
+    sys.exit(0)
 
 os.makedirs("deps/MoltenVK", exist_ok=True)
 
@@ -55,8 +71,7 @@ try:
     print(f"File downloaded: {molten_vk_full_file_path}")
 
     with tarfile.open(molten_vk_full_file_path) as tar:
-            tar.extractall(path=molten_vk_path)
-            print(f"Files extracted to: {molten_vk_path}")
+        tar.extractall(path=molten_vk_path)
+        print(f"Files extracted to: {molten_vk_path}")
 except Exception as e:
     print(f"An error occurred: {e}")
-

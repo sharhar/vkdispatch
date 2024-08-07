@@ -1,21 +1,22 @@
 # This workflow will install Python dependencies, run tests and lint with a variety of Python versions
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
 
-name: Python package
+name: Test vkdispatch
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
 
 jobs:
-  build:
+  build-and-test-on-unix:
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest] #, macos-12]
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
 
     steps:
@@ -25,6 +26,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install Vulkan dependencies
+      if: startsWith(runner.os, 'Linux')
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -36,8 +38,46 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install pytest
         python fetch_dependencies.py
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        python -m pip install -r requirements.txt
         python -m pip install .
     - name: Test with pytest
       run: |
         pytest
+  
+  # build-and-test-on-windows:
+  #   runs-on: ${{ matrix.os }}
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       os: [windows-latest]
+  #       python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+
+  #   steps:
+  #   - uses: actions/checkout@v4
+  #   - name: Set up Python ${{ matrix.python-version }}
+  #     uses: actions/setup-python@v3
+  #     with:
+  #       python-version: ${{ matrix.python-version }}
+    
+  #   - name: Install dependencies
+  #     run: |
+  #       python -m pip install --upgrade pip
+  #       python -m pip install pytest
+  #       python fetch_dependencies.py --no-molten-vk
+  #       python -m pip install -r requirements.txt
+  #       python -m pip install .
+
+  #   - name: Download and extract Mesa 3D
+  #     run: |
+  #       curl -LO https://github.com/pal1000/mesa-dist-win/releases/download/24.1.4/mesa3d-24.1.4-release-msvc.7z
+  #       7z x mesa3d-24.1.4-release-msvc.7z -oC:\mesa-dist-win
+  #       echo "PATH=C:\mesa-dist-win\bin;%PATH%" >> $Env:GITHUB_ENV
+
+  #   - name: Set up Vulkan ICD environment variable
+  #     run: echo "VK_ICD_FILENAMES=C:\mesa-dist-win\bin\x64\lvp_icd.x86_64.json" >> $Env:GITHUB_ENV
+
+  #   - name: Test with pytest
+  #     env:
+  #       VK_ICD_FILENAMES: C:\mesa-dist-win\bin\x64\lvp_icd.x86_64.json
+  #     run: |
+  #       pytest
