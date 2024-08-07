@@ -79,22 +79,15 @@ def test_ifft_3d():
 
     assert np.allclose(test_img.read(0), np.fft.ifftn(signal_3d) * np.prod(signal_3d.shape), atol=0.01)
 
-# def test_fft_2d_384x384():
-#     # Create a 2D buffer
-#     signal_2d = make_random_complex_signal((384, 384))
+def test_fft_2d_384x384():
+    # Create a 2D buffer
+    signal_2d = make_random_complex_signal((384, 384))
 
-#     test_img = vd.Buffer(signal_2d.shape, vd.complex64)
-#     test_img.write(signal_2d)
+    test_img = vd.Buffer(signal_2d.shape, vd.complex64)
+    test_img.write(signal_2d)
 
-#     # Perform an FFT on the buffer
-#     vd.fft(test_img)
+    # Perform an FFT on the buffer
+    vd.fft(test_img)
 
-#     from matplotlib import pyplot as plt
-
-#     plt.imshow(np.abs(test_img.read(0)))
-#     plt.show()
-
-#     print("Mean diff:", np.mean(np.abs(test_img.read(0) - np.fft.fft2(signal_2d))))
-
-#     assert np.allclose(test_img.read(0), np.fft.fft2(signal_2d), atol=0.0001)
+    assert np.allclose(test_img.read(0), np.fft.fft2(signal_2d), atol=0.01)
 
