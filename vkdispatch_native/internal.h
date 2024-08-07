@@ -12,6 +12,7 @@
 #include "image.h"
 #include "stage_transfer.h"
 #include "stage_fft.h"
+#include "stage_compute.h"
 #include "command_list.h"
 
 typedef struct {
@@ -63,6 +64,14 @@ struct FFTPlan {
     VkFFTApplication* apps;
     VkFFTConfiguration* configs;
     VkFFTLaunchParams* launchParams;
+};
+
+struct ComputePlan {
+    struct Context* ctx;
+    VKLPipelineLayout** pipelineLayouts;
+    VKLPipeline** pipelines;
+    VKLDescriptorSet** descriptorSets;
+    unsigned int pc_size;
 };
 
 #endif // INTERNAL_H

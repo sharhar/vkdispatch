@@ -45,7 +45,3 @@ plt.show()
 #buf.copy_to(buf2, 0)
 
 comp_func = lambda ind1, ind2: print(f"{ind1} - {ind2}: {np.mean(np.abs(arrs_fft[ind1] - buf.read(ind2)))}")
-
-for i in range(device_num):
-    for j in range(device_num):
-        comp_func(i, j)
