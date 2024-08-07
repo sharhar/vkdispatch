@@ -53,7 +53,7 @@ cmdList.submit()
 
 #fft_plan.record_forward(cmdList, buf)
 
-plt.imshow(np.log(np.abs(buf2.read(0)) + 1))
+plt.imshow(np.log(np.log(np.abs(buf2.read(0)) + 1) + 1))
 plt.show()
 
 #cmdList.submit()

@@ -66,9 +66,9 @@ for file in os.listdir(vulkan_lib_dir):
         compile_libs.append('OGLCompiler')
         break
 
-compile_libs.extend(['OSDependent', 'SPIRV-Tools', 'SPIRV-Tools-opt',
+compile_libs.extend(['OSDependent',  'SPIRV-Tools-opt',
                              'SPIRV-Tools-link', 'SPIRV-Tools-reduce',
-                             'glslang-default-resource-limits'])
+                             'SPIRV-Tools', 'glslang-default-resource-limits'])
 
 
 setup(
