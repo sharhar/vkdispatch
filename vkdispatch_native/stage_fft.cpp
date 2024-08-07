@@ -18,6 +18,7 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
         plan->configs[i].size[1] = cols;
         plan->configs[i].size[2] = depth;
 
+        plan->configs[i].makeForwardPlanOnly = true;
         plan->configs[i].physicalDevice = ctx->devices[i]->physical()->pHandle();
         plan->configs[i].device = ctx->devices[i]->pHandle();
         plan->configs[i].queue = ctx->queues[i]->pHandle();
@@ -49,21 +50,54 @@ void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* p
     my_fft_info->buffer = buffer;
     my_fft_info->inverse = inverse;
 
-    command_list->stages.push_back({
-        [](VKLCommandBuffer* cmd_buffer, struct Stage* stage, void* instance_data, int device) {
-            LOG_INFO("Executing FFT");
+    VkCommandBufferAllocateInfo commandBufferAllocateInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
+	commandBufferAllocateInfo.commandPool = command_list->ctx->commandBuffers[0]->pool();
+	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	commandBufferAllocateInfo.commandBufferCount = 1;
+ 
+    VkCommandBuffer commandBuffer = {};
+	VkResult res =vkAllocateCommandBuffers(command_list->ctx->devices[0]->handle(), &commandBufferAllocateInfo, &commandBuffer);
+    if (res != VK_SUCCESS) {
+        LOG_ERROR("Failed to allocate command buffer %d", res);
+    }
 
-            struct FFTRecordInfo* my_fft_info = (struct FFTRecordInfo*)stage->user_data;
+    VkCommandBufferBeginInfo commandBufferBeginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	res = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
+    if (res != VK_SUCCESS) {
+        LOG_ERROR("Failed to begin command buffer %d", res);
+    }
 
-            my_fft_info->plan->launchParams[device].buffer = my_fft_info->buffer->buffers[device]->pHandle();
-            my_fft_info->plan->launchParams[device].commandBuffer = cmd_buffer->pHandle();
+    my_fft_info->plan->launchParams[0].buffer = my_fft_info->buffer->buffers[0]->pHandle();
+    my_fft_info->plan->launchParams[0].commandBuffer = &commandBuffer;
 
-            VkFFTResult fftRes = VkFFTAppend(&my_fft_info->plan->apps[device], my_fft_info->inverse, &my_fft_info->plan->launchParams[device]);
-            if (fftRes != VKFFT_SUCCESS) {
-                LOG_ERROR("Failed to append VkFFT %d", fftRes);
-            }
-        },
-        my_fft_info,
-        0
-    });
+    VkFFTResult fftRes = VkFFTAppend(&my_fft_info->plan->apps[0], my_fft_info->inverse, &my_fft_info->plan->launchParams[0]);
+    if (fftRes != VKFFT_SUCCESS) {
+        LOG_ERROR("Failed to append VkFFT %d", fftRes);
+    }
+
+    res = vkEndCommandBuffer(commandBuffer);
+    if(res != VK_SUCCESS) {
+        LOG_ERROR("Failed to end command buffer %d", res);
+    }
+
+    VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+    res = vkQueueSubmit(command_list->ctx->queues[0]->handle(), 1, &submitInfo, command_list->ctx->fences[0]);
+    if(res != VK_SUCCESS) {
+        LOG_ERROR("Failed to submit queue %d", res);
+    }
+
+	res = vkWaitForFences(command_list->ctx->devices[0]->handle(), 1, &command_list->ctx->fences[0], VK_TRUE, 100000000000);
+	if (res != 0) {
+        LOG_ERROR("Failed to wait for fence %d", res);
+    }
+
+	res = vkResetFences(command_list->ctx->devices[0]->handle(), 1, &command_list->ctx->fences[0]);
+    if (res != 0) {
+        LOG_ERROR("Failed to reset fence %d", res);
+    }
+
+    vkFreeCommandBuffers(command_list->ctx->devices[0]->handle(), command_list->ctx->commandBuffers[0]->pool(), 1, &commandBuffer);
 }

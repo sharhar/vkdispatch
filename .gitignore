@@ -120,6 +120,15 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+deps/MoltenVK
+deps/VMA
+deps/Vulkan-Headers
+deps/volk
+deps/glslang
+deps/Vulkan-Utility-Libraries
+
+data/
+
 # Environments
 .env
 .venv
