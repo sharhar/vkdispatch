@@ -22,7 +22,7 @@ def test_reductions_sum():
     )
     def sum_map(ind: Const[i32], buffer: Buff[f32]) -> f32:
         return buffer[ind]
-    
+
     res_buf = sum_map(buf)
 
     # Read the data from the buffer
