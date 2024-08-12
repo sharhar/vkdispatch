@@ -17,8 +17,8 @@ static VkBool32 VKAPI_PTR vulkan_custom_debug_callback(
     std::string message_str(pCallbackData->pMessage);
 
     // Define the prefix and substring to check
-    std::string shader_print_prefix = "Validation Information: [ WARNING-DEBUG-PRINTF ] | MessageID = ";
-    std::string shader_print_substring = " | vkQueueSubmit():  ";
+    std::string shader_print_prefix = "Validation Information: [ WARNING-DEBUG-PRINTF ]";
+    std::string shader_print_substring = "| vkQueueSubmit():";
 
     size_t substring_location = message_str.find(shader_print_substring);
 

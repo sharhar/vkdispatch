@@ -6,31 +6,16 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
     LOG_INFO("Creating buffer of size %d with handle %p", size, buffer);
     
     buffer->ctx = ctx;
+    
+    LOG_INFO("Creating %d buffers (one per stream)", ctx->stream_indicies.size());
 
-    if (per_device) {
-        LOG_INFO("Creating %d buffers (one per device)", ctx->deviceCount);
-
-        buffer->allocations.resize(ctx->deviceCount);
-        buffer->buffers.resize(ctx->deviceCount);
-        buffer->stagingAllocations.resize(ctx->deviceCount);
-        buffer->stagingBuffers.resize(ctx->deviceCount);
-        buffer->per_device = true;
-    } else {
-        LOG_INFO("Creating %d buffers (one per stream)", ctx->stream_indicies.size());
-
-        buffer->allocations.resize(ctx->stream_indicies.size());
-        buffer->buffers.resize(ctx->stream_indicies.size());
-        buffer->stagingAllocations.resize(ctx->stream_indicies.size());
-        buffer->stagingBuffers.resize(ctx->stream_indicies.size());
-        buffer->per_device = false;
-    }
+    buffer->allocations.resize(ctx->stream_indicies.size());
+    buffer->buffers.resize(ctx->stream_indicies.size());
+    buffer->stagingAllocations.resize(ctx->stream_indicies.size());
+    buffer->stagingBuffers.resize(ctx->stream_indicies.size());
 
     for (int i = 0; i < buffer->buffers.size(); i++) {
-        int device_index = i; 
-
-        if(!per_device) {
-            device_index = ctx->stream_indicies[i].first;
-        }
+        int device_index = ctx->stream_indicies[i].first;
 
         VkBufferCreateInfo bufferCreateInfo;
         memset(&bufferCreateInfo, 0, sizeof(VkBufferCreateInfo));
@@ -62,11 +47,7 @@ void buffer_destroy_extern(struct Buffer* buffer) {
     LOG_INFO("Destroying buffer with handle %p", buffer);
 
     for(int i = 0; i < buffer->buffers.size(); i++) {
-        int device_index = i; 
-
-        if(!buffer->per_device) {
-            device_index = buffer->ctx->stream_indicies[i].first;
-        }
+        int device_index = buffer->ctx->stream_indicies[i].first;
 
         vmaDestroyBuffer(buffer->ctx->allocators[device_index], buffer->buffers[i], buffer->allocations[i]);
         vmaDestroyBuffer(buffer->ctx->allocators[device_index], buffer->stagingBuffers[i], buffer->stagingAllocations[i]);
@@ -91,13 +72,9 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
         LOG_INFO("Writing data to buffer %d", buffer_index);
 
         int device_index = 0;
-
-        if(buffer->per_device) {
-            device_index = buffer_index;
-        } else {
-            auto stream_index = ctx->stream_indicies[buffer_index];
-            device_index = stream_index.first;
-        }
+        
+        auto stream_index = ctx->stream_indicies[buffer_index];
+        device_index = stream_index.first;
 
         LOG_INFO("Writing data to buffer %d in device %d", buffer_index, device_index);
 
@@ -114,12 +91,10 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
         command.info.buffer_write_info.size = size;
 
         command_list_record_command(ctx->command_list, command);
-        command_list_submit_extern(ctx->command_list, NULL, 1, &buffer_index, 1, buffer->per_device, &signals[i]);
+        command_list_submit_extern(ctx->command_list, NULL, 1, &buffer_index, 1, 0, &signals[i]); // buffer->per_device, &signals[i]);
         command_list_reset_extern(ctx->command_list);
         RETURN_ON_ERROR(;)
-    }
 
-    for (int i = 0; i < enum_count; i++) {
         signals[i].wait();
     }
 
@@ -133,9 +108,6 @@ void buffer_write_exec_internal(VkCommandBuffer cmd_buffer, const struct BufferW
     bufferCopy.srcOffset = 0;
 
     int buffer_index = stream_index;
-    if(info.buffer->per_device) {
-        buffer_index = device_index;
-    }
 
     vkCmdCopyBuffer(cmd_buffer, info.buffer->stagingBuffers[buffer_index], info.buffer->buffers[buffer_index], 1, &bufferCopy);
 }
@@ -146,13 +118,9 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
     struct Context* ctx = buffer->ctx;
 
     int device_index = 0;
-
-    if(buffer->per_device) {
-        device_index = index;
-    } else {
-        auto stream_index = ctx->stream_indicies[index];
-        device_index = stream_index.first;
-    }
+    
+    auto stream_index = ctx->stream_indicies[index];
+    device_index = stream_index.first;
 
     struct CommandInfo command = {};
     command.type = COMMAND_TYPE_BUFFER_READ;
@@ -164,7 +132,7 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
     command_list_record_command(ctx->command_list, command);
     
     Signal signal;
-    command_list_submit_extern(ctx->command_list, NULL, 1, &index, 1, buffer->per_device, &signal);
+    command_list_submit_extern(ctx->command_list, NULL, 1, &index, 1, 0, &signal); //buffer->per_device, &signal);
     command_list_reset_extern(ctx->command_list);
     RETURN_ON_ERROR(;)
 
@@ -183,9 +151,6 @@ void buffer_read_exec_internal(VkCommandBuffer cmd_buffer, const struct BufferRe
     bufferCopy.srcOffset = info.offset;
 
     int buffer_index = stream_index;
-    if(info.buffer->per_device) {
-        buffer_index = device_index;
-    }
 
     vkCmdCopyBuffer(cmd_buffer, info.buffer->buffers[buffer_index], info.buffer->stagingBuffers[buffer_index], 1, &bufferCopy);
 }
