@@ -6,7 +6,10 @@ import numpy as np
 vd.make_context(use_cpu=True)
 
 def test_reductions_sum():
-    
+    initial_buffer = vd.Buffer((1024,) , vd.float32)
+    initial_buffer.write(np.random.rand(1024).astype(np.float32))
+
+    print(initial_buffer.read(0).sum())
     
     # Create a buffer
     buf = vd.Buffer((1024,) , vd.float32)
