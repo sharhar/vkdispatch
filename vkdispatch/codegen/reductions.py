@@ -116,7 +116,7 @@ def make_reduction(
 
     def create_reduction_stage(reduction_map, first_input_index, stage_signature):
         @vc.shader(local_size=(group_size, 1, 1), signature=stage_signature)
-        def reduction_stage(*in_vars): #, N: vc.Const[vc.i32]):
+        def reduction_stage(*in_vars):
             ind = vc.global_invocation.x.copy()
             
             offset = vc.new(vd.uint32, 1 - first_input_index)
