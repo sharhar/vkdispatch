@@ -114,6 +114,8 @@ def make_reduction(
 
     reduction_func = subgroup_operations[reduce][1] if isinstance(reduce, str) else reduce
 
+    print("REDUCTION FUNC", reduction_func)
+
     def create_reduction_stage(reduction_map, first_input_index, stage_signature):
         @vc.shader(local_size=(group_size, 1, 1), signature=stage_signature)
         def reduction_stage(*in_vars): #, N: vc.Const[vc.i32]):

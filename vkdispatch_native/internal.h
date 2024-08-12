@@ -132,8 +132,6 @@ struct Buffer {
     std::vector<VmaAllocation> allocations;
     std::vector<VkBuffer> stagingBuffers;
     std::vector<VmaAllocation> stagingAllocations;
-
-    bool per_device;
 };
 
 struct Image {
