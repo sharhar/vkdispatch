@@ -4,6 +4,7 @@ from typing import Union
 import vkdispatch as vd
 import vkdispatch_native
 
+import numpy as np
 
 class Context:
     """TODO: Docstring"""
@@ -132,6 +133,10 @@ def make_context(
         ), f"All device indicies must between 0 and {total_devices}"
 
         __context = Context(device_list[0], queue_families)
+
+        initial_buffer = vd.Buffer((1024,) , vd.float32)
+        initial_buffer.write(np.random.rand(1024).astype(np.float32))
+        initial_buffer.read(0).sum()
 
     return __context
 

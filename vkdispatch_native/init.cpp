@@ -172,7 +172,12 @@ void init_extern(bool debug, LogLevel log_level) {
     instanceCreateInfo.enabledLayerCount = supportedLayers.size();
     instanceCreateInfo.ppEnabledLayerNames = supportedLayers.data();
 
-    VK_CALL(vkCreateInstance(&instanceCreateInfo, nullptr, &_instance.instance));
+    VkResult result = vkCreateInstance(&instanceCreateInfo, nullptr, &_instance.instance);
+    if(result != VK_SUCCESS) {
+        LOG_ERROR("Failed to create Vulkan instance!!");
+        set_error("Encountered a %s error (%d) while creating instance! Try calling `vd.initialize(loader_debug_logs=True)` to get more information.\n", string_VkResult(result), result);
+        return;
+    }
 
     #ifdef VKDISPATCH_USE_VOLK
     volkLoadInstance(_instance.instance);
