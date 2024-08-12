@@ -48,8 +48,9 @@ void descriptor_set_write_buffer_extern(struct DescriptorSet* descriptor_set, un
 
         VkDescriptorBufferInfo buffDesc;
         buffDesc.buffer = buffer->buffers[i];
-        if(buffer->per_device)
-            buffDesc.buffer = buffer->buffers[device_index];
+        
+        //if(buffer->per_device)
+        //    buffDesc.buffer = buffer->buffers[device_index];
 
         buffDesc.offset = offset;
         buffDesc.range = range == 0 ? VK_WHOLE_SIZE : range;

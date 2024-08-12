@@ -17,7 +17,7 @@ class Buffer:
     size: int
     mem_size: int
 
-    def __init__(self, shape: Tuple[int, ...], var_type: "vd.dtype", per_device: bool = False) -> None:
+    def __init__(self, shape: Tuple[int, ...], var_type: "vd.dtype") -> None:
         if len(shape) > 3:
             raise ValueError("Buffer shape must be 1, 2, or 3 dimensions!")
 
@@ -25,7 +25,6 @@ class Buffer:
         self.shape: Tuple[int] = shape
         self.size: int = int(np.prod(shape))
         self.mem_size: int = self.size * self.var_type.item_size
-        self.per_device: bool = per_device
         self.ctx = vd.get_context()
 
         if self.size > 2 ** 30:
@@ -41,7 +40,7 @@ class Buffer:
         self.shader_shape = tuple(shader_shape_internal)
 
         self._handle: int = vkdispatch_native.buffer_create(
-            vd.get_context_handle(), self.mem_size, 1 if self.per_device else 0
+            vd.get_context_handle(), self.mem_size, 0
         )
         vd.check_for_errors()
 
@@ -63,12 +62,6 @@ class Buffer:
         """
         if index < -1:
             raise ValueError(f"Invalid buffer index {index}!")
-        
-        if self.per_device and index >= len(self.ctx.devices):
-            raise ValueError(f"Invalid device index {index}!")
-        elif not self.per_device and index >= self.ctx.stream_count:
-            raise ValueError(f"Invalid stream index {index} > count={self.ctx.stream_count}!")
-
 
         true_data_object = None
 
@@ -103,11 +96,6 @@ class Buffer:
             if index < 0:
                 raise ValueError(f"Invalid buffer index {index}!")
             
-            if self.per_device and index >= len(self.ctx.devices):
-                raise ValueError(f"Invalid device index {index}!")
-            elif not self.per_device and index >= self.ctx.stream_count:
-                raise ValueError(f"Invalid stream index {index}!")
-            
             true_scalar = self.var_type.scalar
 
             if true_scalar is None:
@@ -124,7 +112,7 @@ class Buffer:
         else:
             result = []
 
-            for i in range(len(self.ctx.devices) if self.per_device else self.ctx.stream_count):
+            for i in range(self.ctx.stream_count):
                 result.append(self.read(i))
 
         return result

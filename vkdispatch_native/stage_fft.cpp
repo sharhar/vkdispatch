@@ -69,10 +69,10 @@ void stage_fft_plan_init_internal(const struct FFTInitRecordInfo& info, int devi
 void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* plan, struct Buffer* buffer, int inverse) {
     LOG_INFO("Recording FFT");
 
-    if (buffer->per_device) {
-        set_error("FFT cannot be performed on per-device buffer!");
-        return;
-    }
+    //if (buffer->per_device) {
+    //    set_error("FFT cannot be performed on per-device buffer!");
+    //    return;
+    //}
 
     struct CommandInfo command = {};
     command.type = COMMAND_TYPE_FFT_EXEC;
