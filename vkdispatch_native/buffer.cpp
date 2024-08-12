@@ -26,7 +26,7 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
         VmaAllocationCreateInfo vmaAllocationCreateInfo = {};
 		vmaAllocationCreateInfo.flags = 0;
 		vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-		vmaCreateBuffer(ctx->allocators[device_index], &bufferCreateInfo, &vmaAllocationCreateInfo, &buffer->buffers[i], &buffer->allocations[i], NULL);
+		VK_CALL_RETNULL(vmaCreateBuffer(ctx->allocators[device_index], &bufferCreateInfo, &vmaAllocationCreateInfo, &buffer->buffers[i], &buffer->allocations[i], NULL));
 
         VkBufferCreateInfo stagingBufferCreateInfo;
         memset(&stagingBufferCreateInfo, 0, sizeof(VkBufferCreateInfo));
