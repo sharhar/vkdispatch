@@ -6,16 +6,6 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
     LOG_INFO("Creating buffer of size %d with handle %p", size, buffer);
     
     buffer->ctx = ctx;
-
-    // if (per_device) {
-    //     LOG_INFO("Creating %d buffers (one per device)", ctx->deviceCount);
-
-    //     buffer->allocations.resize(ctx->deviceCount);
-    //     buffer->buffers.resize(ctx->deviceCount);
-    //     buffer->stagingAllocations.resize(ctx->deviceCount);
-    //     buffer->stagingBuffers.resize(ctx->deviceCount);
-    //     buffer->per_device = true;
-    // } else {
     
     LOG_INFO("Creating %d buffers (one per stream)", ctx->stream_indicies.size());
 
@@ -82,15 +72,9 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
         LOG_INFO("Writing data to buffer %d", buffer_index);
 
         int device_index = 0;
-
-        //if(buffer->per_device) {
-        //    device_index = buffer_index;
-        //} else {
         
         auto stream_index = ctx->stream_indicies[buffer_index];
         device_index = stream_index.first;
-        
-        //}
 
         LOG_INFO("Writing data to buffer %d in device %d", buffer_index, device_index);
 
@@ -124,10 +108,6 @@ void buffer_write_exec_internal(VkCommandBuffer cmd_buffer, const struct BufferW
     bufferCopy.srcOffset = 0;
 
     int buffer_index = stream_index;
-    
-    //if(info.buffer->per_device) {
-    //    buffer_index = device_index;
-    //}
 
     vkCmdCopyBuffer(cmd_buffer, info.buffer->stagingBuffers[buffer_index], info.buffer->buffers[buffer_index], 1, &bufferCopy);
 }
@@ -138,15 +118,9 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
     struct Context* ctx = buffer->ctx;
 
     int device_index = 0;
-
-    //if(buffer->per_device) {
-    //    device_index = index;
-    //} else {
     
     auto stream_index = ctx->stream_indicies[index];
     device_index = stream_index.first;
-    
-    //}
 
     struct CommandInfo command = {};
     command.type = COMMAND_TYPE_BUFFER_READ;
@@ -177,10 +151,6 @@ void buffer_read_exec_internal(VkCommandBuffer cmd_buffer, const struct BufferRe
     bufferCopy.srcOffset = info.offset;
 
     int buffer_index = stream_index;
-    
-    //if(info.buffer->per_device) {
-    //    buffer_index = device_index;
-    //}
 
     vkCmdCopyBuffer(cmd_buffer, info.buffer->buffers[buffer_index], info.buffer->stagingBuffers[buffer_index], 1, &bufferCopy);
 }
