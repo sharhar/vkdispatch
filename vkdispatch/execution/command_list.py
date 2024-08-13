@@ -76,7 +76,7 @@ class CommandList:
         vkdispatch_native.command_list_reset(self._handle)
         vd.check_for_errors()
 
-    def submit(self, data: Union[bytes, None] = None, stream_index: int = -2) -> None:
+    def submit(self, data: Union[bytes, None] = None, stream_index: int = -2, instance_count: int = None) -> None:
         """Submit the command list to the specified device with additional data to
         append to the front of the command list.
         
@@ -107,16 +107,25 @@ class CommandList:
 
             if len(data) != self.get_instance_size():
                 raise ValueError("Push constant buffer size mismatch!")
+            
+            if instance_count is not None:
+                instances = instance_count
         elif len(data) == 0:
             if self.get_instance_size() != 0:
                 raise ValueError("Push constant buffer size mismatch!")
 
             instances = 1
+
+            if instance_count is not None and instance_count != 1:
+                raise ValueError("Instance count mismatch!")
         else:
             if len(data) % self.get_instance_size() != 0:
                     raise ValueError("Push constant buffer size mismatch!")
 
             instances = len(data) // self.get_instance_size()
+
+            if instance_count is not None and instance_count != instances:
+                raise ValueError("Instance count mismatch!")
 
 
         vkdispatch_native.command_list_submit(
