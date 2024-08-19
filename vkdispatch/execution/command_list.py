@@ -235,26 +235,27 @@ class CommandList:
         loader_processes.join()
 
 
-__cmd_list = None
+__default_cmd_list = None
 __custom_list = None
 
+def default_cmd_list() -> CommandList:
+    global __default_cmd_list
 
-def get_command_list() -> CommandList:
-    global __cmd_list
+    if __default_cmd_list is None:
+        __default_cmd_list = CommandList(reset_on_submit=True, submit_on_record=True)
+
+    return __default_cmd_list
+
+def global_cmd_list() -> CommandList:
     global __custom_list
 
     if __custom_list is not None:
         return __custom_list
 
-    if __cmd_list is None:
-        __cmd_list = CommandList(reset_on_submit=True, submit_on_record=True)
+    return default_cmd_list()
 
-    return __cmd_list
-
-
-def get_command_list_handle() -> int:
-    return get_command_list()._handle
-
-def set_global_command_list(cmd_list: CommandList = None) -> None:
+def set_global_cmd_list(cmd_list: CommandList = None) -> CommandList:
     global __custom_list
+    old_value = __custom_list
     __custom_list = cmd_list 
+    return old_value

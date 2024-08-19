@@ -63,7 +63,7 @@ class ReductionDispatcher:
             my_cmd_list = kwargs["cmd_list"]
         
         if my_cmd_list is None:
-            my_cmd_list = vd.get_command_list()
+            my_cmd_list = vd.global_cmd_list()
 
         data_size = my_limits[0]
         stage1_blocks = int(np.ceil(data_size / self.group_size))
