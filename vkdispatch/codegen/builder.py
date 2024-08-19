@@ -213,6 +213,9 @@ def shared_buffer(var_type: vd.dtype, size: int, var_name: str = None):
 
     return new_var
 
+def memory_barrier():
+    builder_obj.append_contents("memoryBarrier();\n")
+
 def memory_barrier_shared():
     builder_obj.append_contents("memoryBarrierShared();\n")
 
@@ -241,6 +244,9 @@ def return_statement(arg=None):
 def while_statement(arg: vc.ShaderVariable):
     builder_obj.append_contents(f"while({arg}) {'{'}\n")
     builder_obj.scope_num += 1
+
+def length(arg: vc.ShaderVariable):
+    return builder_obj.make_var(vd.float32, f"length({arg})")
 
 def end():
     builder_obj.scope_num -= 1

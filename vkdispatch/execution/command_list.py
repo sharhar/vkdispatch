@@ -76,7 +76,7 @@ class CommandList:
         vkdispatch_native.command_list_reset(self._handle)
         vd.check_for_errors()
 
-    def submit(self, data: Union[bytes, None] = None, stream_index: int = -2) -> None:
+    def submit(self, data: Union[bytes, None] = None, stream_index: int = -2, instance_count: int = None) -> None:
         """Submit the command list to the specified device with additional data to
         append to the front of the command list.
         
@@ -107,16 +107,25 @@ class CommandList:
 
             if len(data) != self.get_instance_size():
                 raise ValueError("Push constant buffer size mismatch!")
+            
+            if instance_count is not None:
+                instances = instance_count
         elif len(data) == 0:
             if self.get_instance_size() != 0:
                 raise ValueError("Push constant buffer size mismatch!")
 
             instances = 1
+
+            if instance_count is not None and instance_count != 1:
+                raise ValueError("Instance count mismatch!")
         else:
             if len(data) % self.get_instance_size() != 0:
                     raise ValueError("Push constant buffer size mismatch!")
 
             instances = len(data) // self.get_instance_size()
+
+            if instance_count is not None and instance_count != instances:
+                raise ValueError("Instance count mismatch!")
 
 
         vkdispatch_native.command_list_submit(
@@ -226,26 +235,27 @@ class CommandList:
         loader_processes.join()
 
 
-__cmd_list = None
+__default_cmd_list = None
 __custom_list = None
 
+def default_cmd_list() -> CommandList:
+    global __default_cmd_list
 
-def get_command_list() -> CommandList:
-    global __cmd_list
+    if __default_cmd_list is None:
+        __default_cmd_list = CommandList(reset_on_submit=True, submit_on_record=True)
+
+    return __default_cmd_list
+
+def global_cmd_list() -> CommandList:
     global __custom_list
 
     if __custom_list is not None:
         return __custom_list
 
-    if __cmd_list is None:
-        __cmd_list = CommandList(reset_on_submit=True, submit_on_record=True)
+    return default_cmd_list()
 
-    return __cmd_list
-
-
-def get_command_list_handle() -> int:
-    return get_command_list()._handle
-
-def set_global_command_list(cmd_list: CommandList = None) -> None:
+def set_global_cmd_list(cmd_list: CommandList = None) -> CommandList:
     global __custom_list
+    old_value = __custom_list
     __custom_list = cmd_list 
+    return old_value

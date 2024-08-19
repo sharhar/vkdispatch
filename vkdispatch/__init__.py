@@ -16,9 +16,7 @@ from .dtype import to_numpy_dtype, from_numpy_dtype, to_vector
 from .buffer import asbuffer
 from .buffer import Buffer
 from .execution.command_list import CommandList
-from .execution.command_list import get_command_list
-from .execution.command_list import get_command_list_handle
-from .execution.command_list import set_global_command_list
+from .execution.command_list import global_cmd_list, set_global_cmd_list, default_cmd_list
 from .context import get_context
 from .context import get_context_handle
 from .context import make_context
