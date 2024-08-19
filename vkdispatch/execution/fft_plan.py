@@ -61,7 +61,7 @@ class FFTDispatcher:
         my_cmd_list = cmd_list
 
         if my_cmd_list is None:
-            my_cmd_list = vd.get_command_list()
+            my_cmd_list = vd.global_cmd_list()
 
         plan = get_fft_plan(buffer._handle, buffer.shape)
         plan.record(my_cmd_list, buffer, self.__inverse)

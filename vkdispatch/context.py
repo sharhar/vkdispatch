@@ -63,40 +63,60 @@ def get_graphics_queue_family_index(device: vd.DeviceInfo, device_index: int) ->
 
     raise ValueError(f"Device {device_index} does not have a compute queue family!")
 
-def get_device_queues(device_index: int, max_queue_count: int) -> List[int]:
+def get_device_queues(device_index: int,  all_queues) -> List[int]:
     device = vd.get_devices()[device_index]
 
     compute_queue_family = get_compute_queue_family_index(device, device_index)
     graphics_queue_family = get_graphics_queue_family_index(device, device_index)
-
-    if compute_queue_family == graphics_queue_family:
-        return [compute_queue_family]
     
-    if "NVIDIA" in device.device_name:
-        return [compute_queue_family, compute_queue_family, graphics_queue_family]
+    if all_queues and compute_queue_family != graphics_queue_family:
+        if "NVIDIA" in device.device_name:
+            return [compute_queue_family, compute_queue_family, graphics_queue_family]
 
-    return [compute_queue_family, graphics_queue_family]
+        return [compute_queue_family, graphics_queue_family]
 
+    return [compute_queue_family]
 
-def select_devices(use_cpu: bool) -> List[int]:
+def select_devices(use_cpu: bool, all_devices) -> List[int]:
     device_infos = vd.get_devices()
 
     result = []
 
+    # Check for Discrete GPU (Type 2)
     for i, device_info in enumerate(device_infos):
-        if device_info.device_type != 4 or use_cpu:
+        if device_info.device_type == 2:
+            result.append(i)
+    
+    # Check for Integrated GPU (Type 1)
+    for i, device_info in enumerate(device_infos):
+        if device_info.device_type == 1:
+            result.append(i)
+    
+    # Check for Virtual GPU (Type 3)
+    for i, device_info in enumerate(device_infos):
+        if device_info.device_type == 3:
             result.append(i)
 
-    return result
-
+    # Check for CPU (Type 4)
+    if use_cpu:
+        for i, device_info in enumerate(device_infos):
+            if device_info.device_type == 4:
+                result.append(i)
+    
+    if all_devices:
+        return result
+    
+    return [result[0]]
 
 __context = None
 
 def make_context(
-    devices: Union[int, List[int]] = None,
-    queue_families: List[List[int]] = None,
+    devices: Union[int, List[int], None] = None,
+    queue_families: Union[List[List[int]], None] = None,
     use_cpu: bool = False,
-    max_queue_count: int = 1
+    max_streams: bool = True,
+    all_devices: bool = False,
+    all_queues: bool = False
 ) -> Context:
     global __context
 
@@ -106,7 +126,7 @@ def make_context(
         vd.initialize()
         
         if device_list[0] is None:
-            device_list[0] = select_devices(use_cpu)
+            device_list[0] = select_devices(use_cpu, all_devices or max_streams)
             
             if not queue_families is None:
                 raise ValueError("If queue_families is provided, devices must also be provided!")
@@ -116,7 +136,7 @@ def make_context(
             device_list[0] = [device_list[0]]
 
         if queue_families is None:
-            queue_families = [get_device_queues(dev_index, max_queue_count) for dev_index in device_list[0]]
+            queue_families = [get_device_queues(dev_index, max_streams or all_queues) for dev_index in device_list[0]]
 
         total_devices = len(vd.get_devices())
 
