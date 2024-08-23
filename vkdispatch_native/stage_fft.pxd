@@ -13,10 +13,10 @@ cdef extern from "stage_fft.h":
     struct FFTPlan
 
 
-    FFTPlan* stage_fft_plan_create_extern(Context* ctx, unsigned long long dims, unsigned long long rows, unsigned long long cols, unsigned long long depth, unsigned long long buffer_size)
+    FFTPlan* stage_fft_plan_create_extern(Context* ctx, unsigned long long dims, unsigned long long rows, unsigned long long cols, unsigned long long depth, unsigned long long buffer_size, unsigned int do_r2c)
     void stage_fft_record_extern(CommandList* command_list, FFTPlan* plan, Buffer* buffer, int inverse)
 
-cpdef inline stage_fft_plan_create(unsigned long long context, list[int] dims, unsigned long long buffer_size):
+cpdef inline stage_fft_plan_create(unsigned long long context, list[int] dims, unsigned long long buffer_size, unsigned int do_r2c):
     assert len(dims) > 0 and len(dims) < 4, "dims must be a list of length 1, 2, or 3"
 
     cdef Context* ctx = <Context*>context
@@ -30,7 +30,7 @@ cpdef inline stage_fft_plan_create(unsigned long long context, list[int] dims, u
     for i in range(dims_):
         dims__[i] = dims[i]    
     
-    cdef FFTPlan* plan = stage_fft_plan_create_extern(ctx, dims_, dims__[0], dims__[1], dims__[2], buffer_size)
+    cdef FFTPlan* plan = stage_fft_plan_create_extern(ctx, dims_, dims__[0], dims__[1], dims__[2], buffer_size, do_r2c)
 
     free(dims__)
 

@@ -33,9 +33,9 @@ from .image import Image3D
 
 from .execution.compute_plan import ComputePlan
 
-from .execution.fft_plan import fft
+from .execution.fft_plan import fft, rfft
 from .execution.fft_plan import FFTPlan
-from .execution.fft_plan import ifft
+from .execution.fft_plan import ifft, rifft
 from .execution.fft_plan import reset_fft_plans
 
 #from .stage_transfer import stage_transfer_copy_buffer_to_image

@@ -1,6 +1,6 @@
 #include "internal.h"
 
-struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long long dims, unsigned long long rows, unsigned long long cols, unsigned long long depth, unsigned long long buffer_size) {
+struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long long dims, unsigned long long rows, unsigned long long cols, unsigned long long depth, unsigned long long buffer_size, unsigned int do_r2c) {
     LOG_INFO("Creating FFT plan with handle %p", ctx);
     
     struct FFTPlan* plan = new struct FFTPlan();
@@ -38,6 +38,7 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
         plan->configs[i].isCompilerInitialized = true;
         plan->configs[i].bufferSize = (uint64_t*)malloc(sizeof(uint64_t));
         *plan->configs[i].bufferSize = buffer_size;
+        plan->configs[i].performR2C = do_r2c;
     
         struct CommandInfo command = {};
         command.type = COMMAND_TYPE_FFT_INIT;
