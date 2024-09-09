@@ -1,6 +1,4 @@
 # distutils: language=c++
-import numpy as np
-cimport numpy as cnp
 from libcpp cimport bool
 import sys
 
@@ -26,5 +24,10 @@ cpdef inline buffer_write(unsigned long long buffer, bytes data, unsigned long l
     cdef const char* data_view = data
     buffer_write_extern(<Buffer*>buffer, <void*>data_view, offset, size, device_index)
 
-cpdef inline buffer_read(unsigned long long buffer, cnp.ndarray data, unsigned long long offset, unsigned long long size, int device_index):
-    buffer_read_extern(<Buffer*>buffer, <void*>data.data, offset, size, device_index)
+cpdef inline buffer_read(unsigned long long buffer, unsigned long long offset, unsigned long long size, int device_index):
+    cdef bytes data = bytes(size)
+    cdef char* data_view = data
+
+    buffer_read_extern(<Buffer*>buffer, <void*>data_view, offset, size, device_index)
+
+    return data

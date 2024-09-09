@@ -83,7 +83,6 @@ void set_error(const char* format, ...);
 #define VK_CALL(EXPRESSION) VK_CALL_RETURN(EXPRESSION, ;)
 #define VK_CALL_RETNULL(EXPRESSION) VK_CALL_RETURN(EXPRESSION, NULL)
 
-#include <vkFFT.h>
 #include <vector>
 
 #include "init.h"
@@ -191,14 +190,6 @@ struct CommandList {
 };
 
 void command_list_record_command(struct CommandList* command_list, struct CommandInfo command);
-
-struct FFTPlan {
-    struct Context* ctx;
-    VkFence* fences;
-    VkFFTApplication* apps;
-    VkFFTConfiguration* configs;
-    VkFFTLaunchParams* launchParams;
-};
 
 struct ComputePlan {
     struct Context* ctx;

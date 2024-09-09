@@ -259,7 +259,7 @@ class Image:
             raise ValueError(f"Numpy buffer sizes must match! {data.size * np.dtype(data.dtype).itemsize} != {self.mem_size}")
         vkdispatch_native.image_write(
             self._handle,
-            np.ascontiguousarray(data),
+            np.ascontiguousarray(data).tobytes(),
             [0, 0, 0],
             self.extent,
             0,
@@ -273,11 +273,11 @@ class Image:
         if self.dtype.scalar is None:
             true_scalar = self.dtype
 
-        result = np.ndarray(shape=self.array_shape, dtype=vd.to_numpy_dtype(true_scalar))
-        vkdispatch_native.image_read(
-            self._handle, result, [0, 0, 0], self.extent, 0, self.layers, device_index
+        out_size = np.prod(self.array_shape) * true_scalar.item_size
+        out_bytes = vkdispatch_native.image_read(
+            self._handle, out_size, [0, 0, 0], self.extent, 0, self.layers, device_index
         )
-        return result
+        return np.frombuffer(out_bytes, dtype=vd.to_numpy_dtype(true_scalar)).reshape(self.array_shape)
     
     def sample(self, coords: "vd.ShaderVariable") -> "vd.ShaderVariable":
         raise RuntimeError("Cannot sample an image object outside of shader!")
