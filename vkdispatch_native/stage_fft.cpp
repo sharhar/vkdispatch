@@ -1,5 +1,15 @@
 #include "internal.h"
 
+#include <vkFFT.h>
+
+struct FFTPlan {
+    struct Context* ctx;
+    VkFence* fences;
+    VkFFTApplication* apps;
+    VkFFTConfiguration* configs;
+    VkFFTLaunchParams* launchParams;
+};
+
 struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long long dims, unsigned long long rows, unsigned long long cols, unsigned long long depth, unsigned long long buffer_size, unsigned int do_r2c) {
     LOG_INFO("Creating FFT plan with handle %p", ctx);
     

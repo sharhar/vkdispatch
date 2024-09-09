@@ -1,6 +1,4 @@
 # distutils: language=c++
-import numpy as np
-cimport numpy as np
 from libcpp cimport bool
 import sys
 
