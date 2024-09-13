@@ -7,6 +7,21 @@ from .descriptor_set import DescriptorSet
 
 
 class ComputePlan:
+    """
+    ComputePlan is a wrapper for the native functions which create and dispatch Vulkan compute shaders.
+    Attributes:
+        pc_size (int): The size of the push constants for the compute shader (in bytes)
+        shader_source (str): The source code of the compute shader (in GLSL)
+        binding_list (list): A list of binding types for the shader resources.
+        _handle: A handle to the compute plan created by the native Vulkan dispatch.
+    Functions:
+        __init__(shader_source: str, binding_type_list: list, pc_size: int, shader_name: str) -> None:
+            Initializes the ComputePlan with the given shader source, binding types, push constant size, and shader name.
+        record(command_list: CommandList, descriptor_set: DescriptorSet, blocks: Tuple[int, int, int]) -> None:
+            Records the compute shader execution into the provided command list using the specified descriptor set and block dimensions.
+    """
+
+
     def __init__(self, shader_source: str, binding_type_list: list, pc_size: int, shader_name: str) -> None:
         self.pc_size = pc_size
         self.shader_source = shader_source

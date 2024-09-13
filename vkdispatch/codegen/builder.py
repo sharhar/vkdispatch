@@ -185,17 +185,6 @@ subgroup_size = builder_obj.make_var(vd.uint32, "gl_SubgroupSize")
 subgroup_invocation = builder_obj.make_var(vd.uint32, "gl_SubgroupInvocationID")
 
 def shared_buffer(var_type: vd.dtype, size: int, var_name: str = None):
-    #new_var = builder_obj.make_var(var_type[size], var_name)
-    #builder_obj.shared_buffers.append((new_var.var_type, size, new_var))
-    #return new_var
-
-    #self.binding_count += 1
-
-    #buffer_name = f"buf{self.binding_count}" if var_name is None else var_name
-    #shape_name = f"{buffer_name}_shape"
-    
-    #self.binding_list.append((var_type, buffer_name, 0))
-    
     buffer_name = builder_obj.get_name_func()(var_name)[0]
     shape_name = f"{buffer_name}_shape"
 
@@ -406,7 +395,7 @@ def print_vars(*args: Union[vc.ShaderVariable, str], seperator=" "):
     builder_obj.append_contents(f'debugPrintfEXT("{fmt}"{args_argument});\n')
 
 def unravel_index(index: vc.ShaderVariable, shape: vc.ShaderVariable):
-    new_var = new_uvec3() #builder_obj.make_var(vd.ivec4)
+    new_var = new_uvec3()
 
     new_var.x = index % shape.x
     new_var.y = (index / shape.x) % shape.y

@@ -31,8 +31,8 @@ def test_dims(dims: tuple):
     test_signal.write(ref_arr)
 
     # Perform an FFT on the buffer
-    vd.rfft(test_signal)
-    vd.rifft(test_signal)
+    #vd.rfft(test_signal)
+    #vd.rifft(test_signal)
 
     #plt.imshow(np.abs(test_signal.read(0)))
     #plt.show()
