@@ -9,8 +9,8 @@ import copy
 import numpy as np
 
 import vkdispatch as vd
+import vkdispatch.codegen as vc
 import vkdispatch_native
-
 
 class CommandList:
     """TODO: Docstring"""
@@ -18,8 +18,8 @@ class CommandList:
     _handle: int
     _reset_on_submit: bool
     submit_on_record: bool
-    pc_buffers: "List[vd.BufferStructureProxy]"
-    uniform_buffers: "List[vd.BufferStructureProxy]"
+    pc_buffers: "List[vc.BufferStructureProxy]"
+    uniform_buffers: "List[vc.BufferStructureProxy]"
     descriptor_sets: "List[vd.DescriptorSet]"
 
     def __init__(self, reset_on_submit: bool = False, submit_on_record: bool = False) -> None:
@@ -49,7 +49,7 @@ class CommandList:
         pc_buffer.index = len(self.pc_buffers)
         self.pc_buffers.append(pc_buffer)
 
-    def add_desctiptor_set_and_static_constants(self, descriptor_set: "vd.DescriptorSet", constants_buffer_proxy: "vd.BufferStructureProxy") -> None:
+    def add_desctiptor_set_and_static_constants(self, descriptor_set: "vd.DescriptorSet", constants_buffer_proxy: "vc.BufferStructureProxy") -> None:
         """Add a descriptor set to the command list."""
         self.descriptor_sets.append(descriptor_set)
 
@@ -158,82 +158,6 @@ class CommandList:
             
         if bsize > 0:
             yield data
-        
-    def iter_params_multiprocess(self, mapping_function, mapping_args, param_iter, batch_size: int = 10, process_batch_size=20, process_count: int = 1):
-        import multiprocessing
-
-        def loader_func(params_queue, pIter, bSize):
-            running = True
-            while running:
-                my_list = []
-                
-                for _ in range(bSize):
-                    try:
-                        my_list.append(next(pIter))
-                    except StopIteration:
-                        running = False
-                        break
-                
-                if len(my_list) > 0:
-                    params_queue.put(my_list)
-            
-            for _ in range(process_count * 2):
-                params_queue.put("STOP")
-
-        def worker_func(params_queue, data_queue, pc_buffers, map_func, map_args):
-            current_params = params_queue.get()
-
-            print("Worker")
-            for pb in pc_buffers:
-                print(pb)
-
-            while current_params != "STOP":
-                data = b""
-
-                for param in current_params:
-                    map_func(param, pc_buffers, *map_args)
-
-                    for pc_buffer in pc_buffers:
-                        data += pc_buffer.get_bytes()
-                
-                data_queue.put(data)
-                
-                current_params = params_queue.get()
-            
-            data_queue.put("STOP")
-        
-        params_queue = multiprocessing.Queue()
-        data_queue = multiprocessing.Queue()
-        
-        loader_processes = multiprocessing.Process(target=loader_func, args=(params_queue, param_iter, process_batch_size))
-        loader_processes.start()
-
-        for pb in self.pc_buffers:
-            print(pb)
-
-        processes = [multiprocessing.Process(target=worker_func, args=(params_queue, data_queue, copy.deepcopy(self.pc_buffers), mapping_function, mapping_args))
-                    for _ in range(process_count)]
-
-        for p in processes:
-            p.start()
-
-        current_data = data_queue.get()
-        stop_count = 0
-        while stop_count < process_count:
-            if current_data == "STOP":
-                stop_count += 1
-
-                if stop_count == process_count:
-                    break
-            else:
-                yield current_data
-            current_data = data_queue.get()
-        
-        for p in processes:
-            p.join()
-        
-        loader_processes.join()
-
 
 __default_cmd_list = None
 __custom_list = None

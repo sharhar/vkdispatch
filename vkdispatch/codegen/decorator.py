@@ -41,9 +41,6 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None, signature: t
         )
 
         for my_annotation, my_name, my_default in my_type_annotations:
-            #my_annotation = param #.annotation if signature is None else signature[ii]
-
-            #param = func_sig_params[ii]
 
             if my_annotation == inspect.Parameter.empty:
                 raise ValueError("All parameters must be annotated")
@@ -58,7 +55,7 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None, signature: t
                 type_arg: vd.dtype = my_annotation.__args__[0]
                 
                 new_constant = vc.builder_obj.declare_constant(type_arg, my_annotation.__args__[1])
-                args_dict[new_constant.name] = my_name #[param.name] = new_constant
+                args_dict[new_constant.name] = my_name
                 func_args.append(new_constant)
             elif(issubclass(my_annotation.__origin__, vc.VariableArray)):
                 if len(my_annotation.__args__) != 2:
@@ -66,7 +63,7 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None, signature: t
                 
                 type_arg: vd.dtype = my_annotation.__args__[0]
                 new_constant = vc.builder_obj.declare_variable(type_arg, my_annotation.__args__[1])
-                args_dict[new_constant.name] = my_name #[param.name] = new_constant
+                args_dict[new_constant.name] = my_name
                 func_args.append(new_constant)
             else:
                 if len(my_annotation.__args__) != 1:
@@ -75,21 +72,21 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None, signature: t
                 type_arg: vd.dtype = my_annotation.__args__[0]
 
                 if(issubclass(my_annotation.__origin__, vc.Buffer)):
-                    func_args.append(vc.builder_obj.declare_buffer(type_arg)) #, var_name=f"{param.name}"))
+                    func_args.append(vc.builder_obj.declare_buffer(type_arg))
                 elif(issubclass(my_annotation.__origin__, vc.Image1D)):
-                    func_args.append(vc.builder_obj.declare_image(1)) #, var_name=f"{param.name}"))
+                    func_args.append(vc.builder_obj.declare_image(1))
                 elif(issubclass(my_annotation.__origin__, vc.Image2D)):
-                    func_args.append(vc.builder_obj.declare_image(2)) #, var_name=f"{param.name}"))
+                    func_args.append(vc.builder_obj.declare_image(2))
                 elif(issubclass(my_annotation.__origin__, vc.Image3D)):
-                    func_args.append(vc.builder_obj.declare_image(3)) #, var_name=f"{param.name}"))
+                    func_args.append(vc.builder_obj.declare_image(3))
                 elif(issubclass(my_annotation.__origin__, vc.Constant)):
                     new_constant = vc.builder_obj.declare_constant(type_arg)
-                    args_dict[new_constant.name] = my_name #[param.name] = new_constant
+                    args_dict[new_constant.name] = my_name
                     func_args.append(new_constant)
                 elif(issubclass(my_annotation.__origin__, vc.Variable)):
                     new_variable = vc.builder_obj.declare_variable(type_arg)
-                    args_dict[new_variable.name] = my_name #[param.name] = new_variable
-                    func_args.append(new_variable) #vc.builder_obj.declare_variable(type_arg, var_name=f"{param.name}"))
+                    args_dict[new_variable.name] = my_name
+                    func_args.append(new_variable)
 
             arg_names.append(my_name)
 
