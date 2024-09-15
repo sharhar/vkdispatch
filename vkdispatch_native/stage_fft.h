@@ -10,6 +10,7 @@ struct FFTInitRecordInfo {
 struct FFTExecRecordInfo {
     struct FFTPlan* plan;
     struct Buffer* buffer;
+    VkCommandBuffer* cmd_buffers;
     int inverse;
 };
 
@@ -17,6 +18,7 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
 void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* plan, struct Buffer* buffer, int inverse);
 
 void stage_fft_plan_init_internal(const struct FFTInitRecordInfo& info, int device_index, int stream_index);
+void stage_fft_exec_info_init_internal(const struct FFTExecRecordInfo& info, int device_index, int stream_index);
 void stage_fft_plan_exec_internal(VkCommandBuffer cmd_buffer, const struct FFTExecRecordInfo& info, int device_index, int stream_index);
 
 #endif // _STAGE_FFT_H_

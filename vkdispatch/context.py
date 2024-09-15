@@ -114,7 +114,7 @@ def make_context(
     devices: Union[int, List[int], None] = None,
     queue_families: Union[List[List[int]], None] = None,
     use_cpu: bool = False,
-    max_streams: bool = True,
+    max_streams: bool = False,
     all_devices: bool = False,
     all_queues: bool = False
 ) -> Context:

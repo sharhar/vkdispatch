@@ -1,3 +1,4 @@
+from traceback import print_tb
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import *
@@ -9,43 +10,55 @@ from matplotlib import pyplot as plt
 
 import sys
 
-#vd.initialize(loader_debug_logs=True)
+vd.initialize(log_level=vd.LogLevel.INFO)
 
-def make_random_complex_signal(shape):
-    r = np.random.random(size=shape)
-    #i = np.random.random(size=shape)
-    return (r).astype(np.complex64)
+shape = (512, 512)
 
-def make_signal_circle(shape):
-    r = np.zeros(shape, dtype=np.complex64)
-    for i in range(shape[0]):
-        for j in range(shape[1]):
-            if (i - shape[0] // 2) ** 2 + (j - shape[1] // 2) ** 2 < 100:
-                r[i, j] = 1 + 0j
-    return r
+arr = np.random.rand(shape[0], shape[1]) + 1j * np.random.rand(shape[0], shape[1])
 
-def test_dims(dims: tuple):
-    ref_arr = make_signal_circle(dims)
+buffer = vd.asbuffer(arr.astype(np.complex64))
+buffer2 = vd.asbuffer(np.zeros(shape, dtype=np.complex64))
 
-    test_signal = vd.Buffer(ref_arr.shape, vd.complex64)
-    test_signal.write(ref_arr)
+cmd_list = vd.CommandList()
 
-    # Perform an FFT on the buffer
-    vd.rfft(test_signal)
-    vd.rifft(test_signal)
 
-    #plt.imshow(np.abs(test_signal.read(0)))
-    #plt.show()
+fft_count = 100
+submit_count = 1000
+instance_count = 10
 
-    return np.abs(test_signal.read(0) / (np.prod(ref_arr.shape)) - ref_arr).mean() + 1
+@vc.shader(exec_size=lambda args: args.buffer.size)
+def do_shader(buffer: Buff[c64], buffer2: Buff[c64], alpha: Var[f32]):
+    ind = vc.global_invocation.x
 
-data_points = []
+    buffer2[ind] = buffer[ind] + buffer2[ind] * alpha
 
-for dim_size in range(384, 389):
-    print(dim_size, test_dims((dim_size, dim_size)))
-    #data_points.append(test_dims((dim_size, dim_size)))
+variables = vd.LaunchVariables()
 
-#np.save("data.npy", np.array(data_points))
+print("Running FFTs")
 
-#plt.plot(np.log(data_points))
-#plt.show()
+for _ in range(fft_count):
+    print("FFT")
+    vd.fft(buffer, cmd_list=cmd_list)
+    print("IFFT")
+    vd.ifft(buffer, cmd_list=cmd_list)
+
+    vd.fft(buffer, cmd_list=cmd_list)
+    vd.fft(buffer, cmd_list=cmd_list)
+    vd.ifft(buffer, cmd_list=cmd_list)
+    vd.ifft(buffer, cmd_list=cmd_list)
+    #do_shader(buffer, buffer2, variables["alpha"])
+
+status_bar = tqdm.tqdm(total=instance_count * fft_count * 4 * submit_count)
+
+data_buff = np.ones((instance_count, ), dtype=np.float32) * 0.5
+
+for i in range(submit_count):
+    cmd_list.submit(instance_count=instance_count) #data=data_buff.tobytes())
+    status_bar.update(instance_count * fft_count * 4)
+
+    #if i % 10 == 0:
+    #    buffer.read()
+    #    buffer2.read()
+
+buffer.read()
+buffer2.read()

@@ -95,13 +95,15 @@ void Stream::thread_worker() {
 
     bool run_stream = true;
     while(run_stream) {
+        LOG_INFO("Fence state: %d", vkGetFenceStatus(device, fences[current_index]));
+
         VK_CALL(vkWaitForFences(device, 1, &fences[current_index], VK_TRUE, UINT64_MAX));
         VK_CALL(vkResetFences(device, 1, &fences[current_index]));
 
-        VkCommandBufferBeginInfo beginInfo = {};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        VK_CALL(vkBeginCommandBuffer(commandBuffers[current_index], &beginInfo));
+        //VkCommandBufferBeginInfo beginInfo = {};
+        //beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        //beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        //VK_CALL(vkBeginCommandBuffer(commandBuffers[current_index], &beginInfo));
 
         LOG_VERBOSE("Recording command buffer %d for stream %d", current_index, stream_index);
 
@@ -119,10 +121,12 @@ void Stream::thread_worker() {
         }
 
         struct ProgramHeader* program_header = work_header->program_header;
-        struct CommandInfo* command_info_buffer = (struct CommandInfo*)&program_header[1];
+        //struct CommandInfo* command_info_buffer = (struct CommandInfo*)&program_header[1];
         Signal* signal = work_header->signal;
 
         char* current_instance_data = (char*)&work_header[1];
+    
+        /*
         for(size_t instance = 0; instance < work_header->instance_count; instance++) {
             for (size_t i = 0; i < program_header->command_count; i++) {
                 switch(command_info_buffer[i].type) {
@@ -153,6 +157,10 @@ void Stream::thread_worker() {
                         stage_fft_plan_init_internal(command_info_buffer[i].info.fft_init_info, device_index, stream_index);
                         break;
                     }
+                    case COMMAND_TYPE_FFT_EXEC_INIT: {
+                        stage_fft_exec_info_init_internal(command_info_buffer[i].info.fft_exec_info, device_index, stream_index);
+                        break;
+                    }
                     case COMMAND_TYPE_FFT_EXEC: {
                         stage_fft_plan_exec_internal(commandBuffers[current_index], command_info_buffer[i].info.fft_exec_info, device_index, stream_index);
                         break;
@@ -181,10 +189,11 @@ void Stream::thread_worker() {
                         0, 0, 0, 0);
             }
         }
+        */
 
-        ctx->work_queue->finish(work_header);
+        work_queue->finish(work_header);
         
-        VK_CALL(vkEndCommandBuffer(commandBuffers[current_index]));
+        //VK_CALL(vkEndCommandBuffer(commandBuffers[current_index]));
 
         int last_index = current_index;
         current_index = (current_index + 1) % commandBuffers.size();

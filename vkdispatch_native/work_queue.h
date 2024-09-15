@@ -9,20 +9,22 @@
 //#include <vector>
 
 struct ProgramHeader {
-    unsigned int command_count;
-    int info_index;
-    size_t array_size;
+    //unsigned int command_count;
+    //int info_index;
+    //size_t array_size;
 };
 
 struct ProgramInfo {
-    struct ProgramHeader* header;
+    //struct ProgramHeader* header;
+    struct CommandList* command_list;
     std::atomic<int> ref_count;
     size_t program_id;
 };
 
 struct WorkHeader {
     Signal* signal;
-    struct ProgramHeader* program_header;
+    //struct ProgramHeader* program_header;
+    struct CommandList* command_list;
     size_t array_size;
     int info_index;
     unsigned int instance_count;
@@ -62,7 +64,6 @@ public:
     int work_info_count;
     int program_info_count;
 
-    //std::vector<struct WorkItem> data;
     int max_size;
     bool running;
 };

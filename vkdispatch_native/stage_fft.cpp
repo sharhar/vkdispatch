@@ -70,27 +70,73 @@ void stage_fft_plan_init_internal(const struct FFTInitRecordInfo& info, int devi
 void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* plan, struct Buffer* buffer, int inverse) {
     LOG_INFO("Recording FFT");
 
-    //if (buffer->per_device) {
-    //    set_error("FFT cannot be performed on per-device buffer!");
-    //    return;
-    //}
-
     struct CommandInfo command = {};
-    command.type = COMMAND_TYPE_FFT_EXEC;
+    command.type = COMMAND_TYPE_FFT_EXEC_INIT;
     command.pipeline_stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     command.info.fft_exec_info.plan = plan;
     command.info.fft_exec_info.buffer = buffer;
     command.info.fft_exec_info.inverse = inverse;
+    command.info.fft_exec_info.cmd_buffers = new VkCommandBuffer[command_list->ctx->stream_indicies.size()];
+
+    int stream_index = -2;
+    command_list_record_command(command_list->ctx->command_list, command);
+    command_list_submit_extern(command_list->ctx->command_list, NULL, 1, &stream_index, 1, 0, NULL);
+    command_list_reset_extern(command_list->ctx->command_list);
+    RETURN_ON_ERROR();
+    
+    //Signal* signals = new Signal[command_list->ctx->stream_indicies.size()];
+
+    //for (int i = 0; i < command_list->ctx->stream_indicies.size(); i++) {
+    //    command_list_record_command(command_list->ctx->command_list, command);
+    //    command_list_submit_extern(command_list->ctx->command_list, NULL, 1, &i, 1, 0, &signals[i]);
+    //    command_list_reset_extern(command_list->ctx->command_list);
+    //    RETURN_ON_ERROR();
+    //}
+
+    //for(int i = 0; i < command_list->ctx->stream_indicies.size(); i++) {
+    //    signals[i].wait();
+    //}
+
+    //delete[] signals;
+
+    command.type = COMMAND_TYPE_FFT_EXEC;
 
     command_list_record_command(command_list, command);
 }
 
-void stage_fft_plan_exec_internal(VkCommandBuffer cmd_buffer, const struct FFTExecRecordInfo& info, int device_index, int stream_index) {
+void stage_fft_exec_info_init_internal(const struct FFTExecRecordInfo& info, int device_index, int stream_index) {
+    VkCommandBufferAllocateInfo allocInfo = {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = *info.plan->configs[stream_index].commandPool;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
+    allocInfo.commandBufferCount = 1;
+    
+    VK_CALL(vkAllocateCommandBuffers(*info.plan->configs[stream_index].device, &allocInfo, &info.cmd_buffers[stream_index]));
+
     info.plan->launchParams[stream_index].buffer = &info.buffer->buffers[stream_index];
-    info.plan->launchParams[stream_index].commandBuffer = &cmd_buffer;
+    info.plan->launchParams[stream_index].commandBuffer = &info.cmd_buffers[stream_index];
+
+    VkCommandBufferBeginInfo beginInfo = {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    VK_CALL(vkBeginCommandBuffer(info.cmd_buffers[stream_index], &beginInfo));
 
     VkFFTResult fftRes = VkFFTAppend(&info.plan->apps[stream_index], info.inverse, &info.plan->launchParams[stream_index]);
     if (fftRes != VKFFT_SUCCESS) {
         set_error("(VkFFTResult is %d) VkFFTAppend inside '%s' at %s:%d\n", fftRes, __FUNCTION__, __FILE__, __LINE__);
     }
+
+    VK_CALL(vkEndCommandBuffer(info.cmd_buffers[stream_index]));
+}
+
+void stage_fft_plan_exec_internal(VkCommandBuffer cmd_buffer, const struct FFTExecRecordInfo& info, int device_index, int stream_index) {
+    vkCmdExecuteCommands(cmd_buffer, 1, &info.cmd_buffers[stream_index]);
+
+
+    //info.plan->launchParams[stream_index].buffer = &info.buffer->buffers[stream_index];
+    //info.plan->launchParams[stream_index].commandBuffer = &cmd_buffer;
+
+    //VkFFTResult fftRes = VkFFTAppend(&info.plan->apps[stream_index], info.inverse, &info.plan->launchParams[stream_index]);
+    //if (fftRes != VKFFT_SUCCESS) {
+    //    set_error("(VkFFTResult is %d) VkFFTAppend inside '%s' at %s:%d\n", fftRes, __FUNCTION__, __FILE__, __LINE__);
+    //}
 }

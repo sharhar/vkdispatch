@@ -147,50 +147,51 @@ struct Image {
     std::vector<VkSampler> samplers;
 };
 
-typedef void (*PFN_stage_record)(VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index);
+//typedef void (*PFN_stage_record)(VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index);
 
-struct Stage {
-    PFN_stage_record record;
-    void* user_data;
-    size_t instance_data_size;
-    VkPipelineStageFlags stage;
-};
+//struct Stage {
+//    PFN_stage_record record;
+//    void* user_data;
+//    size_t instance_data_size;
+//    VkPipelineStageFlags stage;
+//};
 
-enum CommandType {
-    COMMAND_TYPE_NOOP = 0,
-    COMMAND_TYPE_BUFFER_COPY = 1,
-    COMMAND_TYPE_BUFFER_READ = 2,
-    COMMAND_TYPE_BUFFER_WRITE = 3,
-    COMMAND_TYPE_IMAGE_READ = 4,
-    COMMAND_TYPE_IMAGE_WRITE = 5,
-    COMMAND_TYPE_FFT_INIT = 6,
-    COMMAND_TYPE_FFT_EXEC = 7,
-    COMMAND_TYPE_COMPUTE = 8
-};
+//enum CommandType {
+//    COMMAND_TYPE_NOOP = 0,
+//    COMMAND_TYPE_BUFFER_COPY = 1,
+//    COMMAND_TYPE_BUFFER_READ = 2,
+//    COMMAND_TYPE_BUFFER_WRITE = 3,
+//    COMMAND_TYPE_IMAGE_READ = 4,
+//    COMMAND_TYPE_IMAGE_WRITE = 5,
+//    COMMAND_TYPE_FFT_INIT = 6,
+//    COMMAND_TYPE_FFT_EXEC_INIT = 7,
+//    COMMAND_TYPE_FFT_EXEC = 8,
+//    COMMAND_TYPE_COMPUTE = 9
+//};
 
-struct CommandInfo {
-    enum CommandType type;
-    VkPipelineStageFlags pipeline_stage;
-    union {
-        struct BufferCopyInfo buffer_copy_info;
-        struct BufferReadInfo buffer_read_info;
-        struct BufferWriteInfo buffer_write_info;
-        struct ImageReadInfo image_read_info;
-        struct ImageWriteInfo image_write_info;
-        struct FFTInitRecordInfo fft_init_info;
-        struct FFTExecRecordInfo fft_exec_info;
-        struct ComputeRecordInfo compute_info;
-    } info;
-};
+// struct CommandInfo {
+//     enum CommandType type;
+//     VkPipelineStageFlags pipeline_stage;
+//     union {
+//         struct BufferCopyInfo buffer_copy_info;
+//         struct BufferReadInfo buffer_read_info;
+//         struct BufferWriteInfo buffer_write_info;
+//         struct ImageReadInfo image_read_info;
+//         struct ImageWriteInfo image_write_info;
+//         struct FFTInitRecordInfo fft_init_info;
+//         struct FFTExecRecordInfo fft_exec_info;
+//         struct ComputeRecordInfo compute_info;
+//     } info;
+// };
 
 struct CommandList {
     struct Context* ctx;
-    std::vector<struct CommandInfo> commands;
+    VkCommandBuffer* cmd_buffers;
     size_t instance_size;
-    size_t program_id;
+    bool ready;
 };
 
-void command_list_record_command(struct CommandList* command_list, struct CommandInfo command);
+//void command_list_record_command(struct CommandList* command_list, struct CommandInfo command);
 
 struct FFTPlan {
     struct Context* ctx;
