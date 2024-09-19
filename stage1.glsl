@@ -135,7 +135,7 @@ void main() {
     temp_7 = temp_6 - loc_0;
     temp_6 = temp_6 + loc_0;
     
-    memoryBarrier();
+    //memoryBarrier();
     barrier();
 
     stageInvocationID = 0;
@@ -238,7 +238,7 @@ void main() {
     temp_7 = temp_3 - loc_0;
     temp_3 = temp_3 + loc_0;
     
-    memoryBarrier();
+    //memoryBarrier();
     barrier();
 
     stageInvocationID = gl_LocalInvocationID.x + 0;
@@ -257,7 +257,7 @@ void main() {
     sdata[get_sdata(inoutID + 48)] = temp_6;
     sdata[get_sdata(inoutID + 56)] = temp_7;
 
-    memoryBarrier();
+    //memoryBarrier();
     barrier();
 
     stageInvocationID = gl_LocalInvocationID.x + 0;

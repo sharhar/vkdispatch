@@ -12,7 +12,7 @@ buff_shape = (256, 256)
 buf = vd.buffer(buff_shape, np.complex64)
 buf2 = vd.buffer(buff_shape, np.complex64)
 
-#fft_plan = vd.fft_plan(buff_shape)
+fft_plan = vd.fft_plan(buff_shape)
 
 shader_stage_1_source = read_shader("stage1.glsl")
 
