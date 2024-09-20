@@ -1,6 +1,7 @@
 #ifndef _SIGNAL_SRC_SIGNAL_H
 #define _SIGNAL_SRC_SIGNAL_H
 
+#include "base.h"
 #include <mutex>
 #include <condition_variable>
 
@@ -38,5 +39,25 @@ public:
     bool state;
 };
 
+struct MyFence {
+    VkDevice device;
+    VkFence fence;
+};
+
+class Semaphore {
+public:
+    Semaphore();
+    void addJob();
+    void submitJob(VkDevice device, struct MyFence fence);
+    void finishJob(struct MyFence fence, std::function<void()> callback);
+    void waitForIdle();
+
+private:
+    std::mutex mtx;
+    std::condition_variable cv;
+    int pendingSubmissions;
+    bool waiting;
+    std::vector<struct MyFence> fences;
+};
 
 #endif // _SIGNAL_SRC_SIGNAL_H

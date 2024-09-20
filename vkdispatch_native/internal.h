@@ -189,7 +189,11 @@ struct CommandList {
     VkCommandBuffer* cmd_buffers;
     size_t instance_size;
     bool ready;
+    Semaphore* semaphore;
 };
+
+void command_list_append_command(struct CommandList* command_list, std::function<void(VkDevice, VkCommandBuffer, int)> func);
+void command_list_submit_command_and_reset(struct CommandList* command_list, int index, std::function<void(VkDevice, VkCommandBuffer, int)> func);
 
 //void command_list_record_command(struct CommandList* command_list, struct CommandInfo command);
 

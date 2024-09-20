@@ -61,10 +61,20 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
 
     struct Context* ctx = buffer->ctx;
 
+    command_list_begin_extern(ctx->command_list);
+    command_list_append_command(ctx->command_list, [buffer, size, offset](VkDevice device, VkCommandBuffer cmd_buffer, int stream_index) {
+        VkBufferCopy bufferCopy;
+        bufferCopy.size = size;
+        bufferCopy.dstOffset = offset;
+        bufferCopy.srcOffset = 0;
+
+        vkCmdCopyBuffer(cmd_buffer, buffer->stagingBuffers[stream_index], buffer->buffers[stream_index], 1, &bufferCopy);
+    });
+    command_list_end_extern(ctx->command_list);
+    RETURN_ON_ERROR(;)
+
     int enum_count = index == -1 ? buffer->buffers.size() : 1;
     int start_index = index == -1 ? 0 : index;
-
-    Signal* signals = new Signal[enum_count];
 
     for (int i = 0; i < enum_count; i++) {
         int buffer_index = start_index + i;
@@ -83,33 +93,12 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
         memcpy(mapped, data, size);
         vmaUnmapMemory(ctx->allocators[device_index], buffer->stagingAllocations[buffer_index]);
 
-        struct CommandInfo command = {};
-        command.type = COMMAND_TYPE_BUFFER_WRITE;
-        command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        command.info.buffer_write_info.buffer = buffer;
-        command.info.buffer_write_info.offset = offset;
-        command.info.buffer_write_info.size = size;
-
-        command_list_record_command(ctx->command_list, command);
-        command_list_submit_extern(ctx->command_list, NULL, 1, &buffer_index, 1, 0, &signals[i]); // buffer->per_device, &signals[i]);
-        command_list_reset_extern(ctx->command_list);
+        command_list_submit_extern(ctx->command_list, NULL, 0, buffer_index, NULL);
         RETURN_ON_ERROR(;)
-
-        signals[i].wait();
     }
 
-    delete[] signals;
-}
-
-void buffer_write_exec_internal(VkCommandBuffer cmd_buffer, const struct BufferWriteInfo& info, int device_index, int stream_index) {
-    VkBufferCopy bufferCopy;
-    bufferCopy.size = info.size;
-    bufferCopy.dstOffset = info.offset;
-    bufferCopy.srcOffset = 0;
-
-    int buffer_index = stream_index;
-
-    vkCmdCopyBuffer(cmd_buffer, info.buffer->stagingBuffers[buffer_index], info.buffer->buffers[buffer_index], 1, &bufferCopy);
+    command_list_reset_extern(ctx->command_list);
+    RETURN_ON_ERROR(;)
 }
 
 void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int index) {
@@ -122,35 +111,17 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
     auto stream_index = ctx->stream_indicies[index];
     device_index = stream_index.first;
 
-    struct CommandInfo command = {};
-    command.type = COMMAND_TYPE_BUFFER_READ;
-    command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-    command.info.buffer_read_info.buffer = buffer;
-    command.info.buffer_read_info.offset = offset;
-    command.info.buffer_read_info.size = size;
+    command_list_submit_command_and_reset(ctx->command_list, index, [buffer, size, offset](VkDevice device, VkCommandBuffer cmd_buffer, int stream_index) {
+        VkBufferCopy bufferCopy;
+        bufferCopy.size = size;
+        bufferCopy.dstOffset = 0;
+        bufferCopy.srcOffset = offset;
 
-    command_list_record_command(ctx->command_list, command);
-    
-    Signal signal;
-    command_list_submit_extern(ctx->command_list, NULL, 1, &index, 1, 0, &signal); //buffer->per_device, &signal);
-    command_list_reset_extern(ctx->command_list);
-    RETURN_ON_ERROR(;)
-
-    signal.wait();
+        vkCmdCopyBuffer(cmd_buffer, buffer->buffers[stream_index], buffer->stagingBuffers[stream_index], 1, &bufferCopy);
+    });
 
     void* mapped;
     VK_CALL(vmaMapMemory(ctx->allocators[device_index], buffer->stagingAllocations[index], &mapped));
     memcpy(data, mapped, size);
     vmaUnmapMemory(ctx->allocators[device_index], buffer->stagingAllocations[index]);
-}
-
-void buffer_read_exec_internal(VkCommandBuffer cmd_buffer, const struct BufferReadInfo& info, int device_index, int stream_index) {
-    VkBufferCopy bufferCopy;
-    bufferCopy.size = info.size;
-    bufferCopy.dstOffset = 0;
-    bufferCopy.srcOffset = info.offset;
-
-    int buffer_index = stream_index;
-
-    vkCmdCopyBuffer(cmd_buffer, info.buffer->buffers[buffer_index], info.buffer->stagingBuffers[buffer_index], 1, &bufferCopy);
 }

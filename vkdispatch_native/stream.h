@@ -22,6 +22,7 @@ public:
     std::vector<VkCommandBuffer> commandBuffers;
     std::vector<VkFence> fences;
     std::vector<VkSemaphore> semaphores;
+    std::vector<Semaphore*> semaphore_objects;
     
     std::thread work_thread;
     int current_index;

@@ -1,19 +1,19 @@
 #include "internal.h"
 
 void stage_transfer_record_copy_buffer_extern(struct CommandList* command_list, struct BufferCopyInfo* copy_info) {
-    VkBufferCopy bufferCopy = {};
-    bufferCopy.srcOffset = copy_info->src_offset;
-    bufferCopy.dstOffset = copy_info->dst_offset;
-    bufferCopy.size = copy_info->size;
+    command_list_append_command(command_list, [copy_info](VkDevice device, VkCommandBuffer cmd_buffer, int stream_index) {
+        VkBufferCopy bufferCopy = {};
+        bufferCopy.srcOffset = copy_info->src_offset;
+        bufferCopy.dstOffset = copy_info->dst_offset;
+        bufferCopy.size = copy_info->size;
 
-    for(int i = 0; i < command_list->ctx->stream_indicies.size(); i++) {
         vkCmdCopyBuffer(
-            command_list->cmd_buffers[i], 
-            copy_info->src->buffers[i], 
-            copy_info->dst->buffers[i], 
+            cmd_buffer, 
+            copy_info->src->buffers[stream_index], 
+            copy_info->dst->buffers[stream_index], 
             1, &bufferCopy
         );
-    }
+    });
 }
 
 void stage_transfer_record_copy_image_extern(struct CommandList* command_list, struct ImageCopyInfo* copy_info) {

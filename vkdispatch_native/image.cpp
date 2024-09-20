@@ -165,7 +165,45 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
 
     size_t data_size = extent.width * extent.height * extent.depth * layerCount * image->block_size;
 
-    Signal* signals = new Signal[enum_count];
+    command_list_begin_extern(ctx->command_list);
+    command_list_append_command(ctx->command_list, [image, offset, extent, baseLayer, layerCount](VkDevice device, VkCommandBuffer cmd_buffer, int stream_index) {
+        VkBufferImageCopy bufferImageCopy;
+        memset(&bufferImageCopy, 0, sizeof(VkBufferImageCopy));
+        bufferImageCopy.bufferOffset = 0;
+        bufferImageCopy.bufferRowLength = 0;
+        bufferImageCopy.bufferImageHeight = 0;
+        bufferImageCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        bufferImageCopy.imageSubresource.baseArrayLayer = baseLayer;
+        bufferImageCopy.imageSubresource.layerCount = layerCount;
+        bufferImageCopy.imageOffset = offset;
+        bufferImageCopy.imageExtent = extent;
+
+        if(layerCount > 0) {
+            image_memory_barrier_internal(
+                image,
+                stream_index, 
+                cmd_buffer, 
+                VK_ACCESS_TRANSFER_WRITE_BIT, 
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+                VK_PIPELINE_STAGE_TRANSFER_BIT
+            );
+
+            vkCmdCopyBufferToImage(cmd_buffer, image->stagingBuffers[stream_index], image->images[stream_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferImageCopy);
+        }
+
+        image_memory_barrier_internal(
+            image,
+            stream_index, 
+            cmd_buffer, 
+            VK_ACCESS_SHADER_READ_BIT, 
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+            VK_PIPELINE_STAGE_TRANSFER_BIT, 
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
+        );
+    });
+    command_list_end_extern(ctx->command_list);
+    RETURN_ON_ERROR(;)
 
     for (int i = 0; i < enum_count; i++) {
         int buffer_index = start_index + i;
@@ -186,63 +224,12 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
             vmaUnmapMemory(ctx->allocators[device_index], image->stagingAllocations[buffer_index]);
         }
 
-        struct CommandInfo command = {};
-        command.type = COMMAND_TYPE_IMAGE_WRITE;
-        command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        command.info.image_write_info.image = image;
-        command.info.image_write_info.offset = offset;
-        command.info.image_write_info.extent = extent;
-        command.info.image_write_info.baseLayer = baseLayer;
-        command.info.image_write_info.layerCount = layerCount;
-
-        command_list_record_command(ctx->command_list, command);
-        command_list_submit_extern(ctx->command_list, NULL, 1, &buffer_index, 1, 0, &signals[i]);
-        command_list_reset_extern(ctx->command_list);
+        command_list_submit_extern(ctx->command_list, NULL, 0, buffer_index, NULL);
         RETURN_ON_ERROR(;)
     }
 
-    for (int i = 0; i < enum_count; i++) {
-        signals[i].wait();
-    }
-
-    delete[] signals;
-}
-
-void image_write_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageWriteInfo& info, int device_index, int stream_index) {
-    VkBufferImageCopy bufferImageCopy;
-    memset(&bufferImageCopy, 0, sizeof(VkBufferImageCopy));
-    bufferImageCopy.bufferOffset = 0;
-    bufferImageCopy.bufferRowLength = 0;
-    bufferImageCopy.bufferImageHeight = 0;
-    bufferImageCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    bufferImageCopy.imageSubresource.baseArrayLayer = info.baseLayer;
-    bufferImageCopy.imageSubresource.layerCount = info.layerCount;
-    bufferImageCopy.imageOffset = info.offset;
-    bufferImageCopy.imageExtent = info.extent;
-
-    if(info.layerCount > 0) {
-        image_memory_barrier_internal(
-            info.image,
-            stream_index, 
-            cmd_buffer, 
-            VK_ACCESS_TRANSFER_WRITE_BIT, 
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
-            VK_PIPELINE_STAGE_TRANSFER_BIT
-        );
-
-        vkCmdCopyBufferToImage(cmd_buffer, info.image->stagingBuffers[stream_index], info.image->images[stream_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferImageCopy);
-    }
-
-    image_memory_barrier_internal(
-        info.image,
-        stream_index, 
-        cmd_buffer, 
-        VK_ACCESS_SHADER_READ_BIT, 
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-        VK_PIPELINE_STAGE_TRANSFER_BIT, 
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
-    );
+    command_list_reset_extern(ctx->command_list);
+    RETURN_ON_ERROR(;)
 }
 
 void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExtent3D extent, unsigned int baseLayer, unsigned int layerCount, int index) {
@@ -257,91 +244,43 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
 
     size_t data_size = extent.width * extent.height * extent.depth * layerCount * image->block_size;
 
-    struct CommandInfo command = {};
-    command.type = COMMAND_TYPE_IMAGE_READ;
-    command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-    command.info.image_read_info.image = image;
-    command.info.image_read_info.offset = offset;
-    command.info.image_read_info.extent = extent;
-    command.info.image_read_info.baseLayer = baseLayer;
-    command.info.image_read_info.layerCount = layerCount;
+    command_list_submit_command_and_reset(ctx->command_list, index, [image, offset, extent, baseLayer, layerCount](VkDevice device, VkCommandBuffer cmd_buffer, int stream_index) {
+        VkBufferImageCopy bufferImageCopy;
+        memset(&bufferImageCopy, 0, sizeof(VkBufferImageCopy));
+        bufferImageCopy.bufferOffset = 0;
+        bufferImageCopy.bufferRowLength = 0;
+        bufferImageCopy.bufferImageHeight = 0;
+        bufferImageCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        bufferImageCopy.imageSubresource.baseArrayLayer = baseLayer;
+        bufferImageCopy.imageSubresource.layerCount = layerCount;
+        bufferImageCopy.imageOffset = offset;
+        bufferImageCopy.imageExtent = extent;
 
-    command_list_record_command(ctx->command_list, command);
-    
-    Signal signal;
-    command_list_submit_extern(ctx->command_list, NULL, 1, &index, 1, 0, &signal);
-    command_list_reset_extern(ctx->command_list);
-    RETURN_ON_ERROR(;)
-    
-    LOG_INFO("Waiting for signal");
+        image_memory_barrier_internal(
+            image,
+            stream_index, 
+            cmd_buffer, 
+            VK_ACCESS_TRANSFER_READ_BIT, 
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+            VK_PIPELINE_STAGE_TRANSFER_BIT
+        );
 
-    signal.wait();
+        vkCmdCopyImageToBuffer(cmd_buffer, image->images[stream_index], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image->stagingBuffers[stream_index], 1, &bufferImageCopy);
+
+        image_memory_barrier_internal(
+            image,
+            stream_index, 
+            cmd_buffer, 
+            VK_ACCESS_SHADER_READ_BIT, 
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+            VK_PIPELINE_STAGE_TRANSFER_BIT, 
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
+        );
+    });
 
     void* mapped;
     VK_CALL(vmaMapMemory(ctx->allocators[device_index], image->stagingAllocations[index], &mapped));
     memcpy(data, mapped, data_size);
     vmaUnmapMemory(ctx->allocators[device_index], image->stagingAllocations[index]);
-}
-
-void image_read_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageReadInfo& info, int device_index, int stream_index) {
-    VkBufferImageCopy bufferImageCopy;
-    memset(&bufferImageCopy, 0, sizeof(VkBufferImageCopy));
-    bufferImageCopy.bufferOffset = 0;
-    bufferImageCopy.bufferRowLength = 0;
-    bufferImageCopy.bufferImageHeight = 0;
-    bufferImageCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    bufferImageCopy.imageSubresource.baseArrayLayer = info.baseLayer;
-    bufferImageCopy.imageSubresource.layerCount = info.layerCount;
-    bufferImageCopy.imageOffset = info.offset;
-    bufferImageCopy.imageExtent = info.extent;
-
-    image_memory_barrier_internal(
-        info.image,
-        stream_index, 
-        cmd_buffer, 
-        VK_ACCESS_TRANSFER_READ_BIT, 
-        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
-        VK_PIPELINE_STAGE_TRANSFER_BIT
-    );
-
-    vkCmdCopyImageToBuffer(cmd_buffer, info.image->images[stream_index], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, info.image->stagingBuffers[stream_index], 1, &bufferImageCopy);
-
-    image_memory_barrier_internal(
-        info.image,
-        stream_index, 
-        cmd_buffer, 
-        VK_ACCESS_SHADER_READ_BIT, 
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-        VK_PIPELINE_STAGE_TRANSFER_BIT, 
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
-    );
-}
-
-void image_copy_extern(struct Image* src, struct Image* dst, VkOffset3D src_offset, unsigned int src_baseLayer, unsigned int src_layerCount, 
-                                                             VkOffset3D dst_offset, unsigned int dst_baseLayer, unsigned int dst_layerCount, VkExtent3D extent, int device_index) {
-    /*
-    assert(src->ctx == dst->ctx);
-
-    int enum_count = device_index == -1 ? src->ctx->deviceCount : 1;
-    int start_index = device_index == -1 ? 0 : device_index;
-
-    for (int i = 0; i < enum_count; i++) {
-        int dev_index = start_index + i;
-
-        VkImageCopy imageCopy;
-        memset(&imageCopy, 0, sizeof(VkImageCopy));
-        imageCopy.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        imageCopy.srcSubresource.baseArrayLayer = src_baseLayer;
-        imageCopy.srcSubresource.layerCount = src_layerCount;
-        imageCopy.srcOffset = src_offset;
-        imageCopy.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        imageCopy.dstSubresource.baseArrayLayer = dst_baseLayer;
-        imageCopy.dstSubresource.layerCount = dst_layerCount;
-        imageCopy.dstOffset = dst_offset;
-        imageCopy.extent = extent;
-
-        dst->images[dev_index]->copyFrom(src->images[dev_index], src->ctx->queues[dev_index], imageCopy);
-    } 
-*/
 }

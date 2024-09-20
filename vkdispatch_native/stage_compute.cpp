@@ -174,17 +174,19 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
 
 
 void stage_compute_record_extern(struct CommandList* command_list, struct ComputePlan* plan, struct DescriptorSet* descriptor_set, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z) {
-    struct CommandInfo command = {};
-    command.type = COMMAND_TYPE_COMPUTE;
-    command.pipeline_stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-    command.info.compute_info.plan = plan;
-    command.info.compute_info.descriptor_set = descriptor_set;
-    command.info.compute_info.blocks_x = blocks_x;
-    command.info.compute_info.blocks_y = blocks_y;
-    command.info.compute_info.blocks_z = blocks_z;
-    command.info.compute_info.pc_size = plan->pc_size;
+    set_error("Not implemented");
+    
+    //struct CommandInfo command = {};
+    //command.type = COMMAND_TYPE_COMPUTE;
+    //command.pipeline_stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    //command.info.compute_info.plan = plan;
+    //command.info.compute_info.descriptor_set = descriptor_set;
+    //command.info.compute_info.blocks_x = blocks_x;
+    //command.info.compute_info.blocks_y = blocks_y;
+    //command.info.compute_info.blocks_z = blocks_z;
+    //command.info.compute_info.pc_size = plan->pc_size;
 
-    command_list_record_command(command_list, command);
+    //command_list_record_command(command_list, command);
 }
 
 void stage_compute_plan_exec_internal(VkCommandBuffer cmd_buffer, const struct ComputeRecordInfo& info, void* instance_data, int device_index, int stream_index) {

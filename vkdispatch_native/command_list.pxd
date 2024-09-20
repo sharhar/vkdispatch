@@ -14,7 +14,9 @@ cdef extern from "command_list.h":
     void command_list_destroy_extern(CommandList* command_list)
     void command_list_get_instance_size_extern(CommandList* command_list, unsigned long long* instance_size)
     void command_list_reset_extern(CommandList* command_list)
-    void command_list_submit_extern(CommandList* command_list, void* instance_buffer, unsigned int instanceCount, int* indicies, int count, int per_device, void* signal)
+    void command_list_begin_extern(CommandList* command_list)
+    void command_list_end_extern(CommandList* command_list)
+    void command_list_submit_extern(CommandList* command_list, void* instance_buffer, unsigned int instance_count, int index, void* signal)
 
 cpdef inline command_list_create(unsigned long long context):
     return <unsigned long long>command_list_create_extern(<Context*>context)
@@ -30,15 +32,21 @@ cpdef inline command_list_get_instance_size(unsigned long long command_list):
 cpdef inline command_list_reset(unsigned long long command_list):
     command_list_reset_extern(<CommandList*>command_list)
 
-cpdef inline command_list_submit(unsigned long long command_list, bytes data, unsigned int instance_count, unsigned int instances_per_batch, list[int] indicies, int per_device):
+cpdef inline command_list_begin(unsigned long long command_list):
+    command_list_begin_extern(<CommandList*>command_list)
+
+cpdef inline command_list_end(unsigned long long command_list):
+    command_list_end_extern(<CommandList*>command_list)
+
+cpdef inline command_list_submit(unsigned long long command_list, bytes data, unsigned int instance_count, unsigned int instances_per_batch, int index):
     assert instance_count % instances_per_batch == 0, "instance_count must be a multiple of instances_per_batch"
 
-    cdef int len_indicies = len(indicies)
-    cdef int* indicies_c = <int*>malloc(len_indicies * sizeof(int))
+    #cdef int len_indicies = len(indicies)
+    #cdef int* indicies_c = <int*>malloc(len_indicies * sizeof(int))
 
-    for i in range(len_indicies):
-        indicies_c[i] = indicies[i]
+    #for i in range(len_indicies):
+    #    indicies_c[i] = indicies[i]
 
     cdef const char* data_view = data
 
-    command_list_submit_extern(<CommandList*>command_list, <void*>data_view, instance_count, indicies_c, len_indicies, per_device, <void*>0)
+    command_list_submit_extern(<CommandList*>command_list, <void*>data_view, instance_count, index, <void*>0)

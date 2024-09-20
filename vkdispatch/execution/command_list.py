@@ -38,6 +38,21 @@ class CommandList:
     def __del__(self) -> None:
         pass  # vkdispatch_native.command_list_destroy(self._handle)
 
+    def begin(self) -> None:
+        """Begin recording commands to the command list."""
+        vkdispatch_native.command_list_begin(self._handle)
+        vd.check_for_errors()
+    
+    def end(self) -> None:
+        """End recording commands to the command list."""
+        vkdispatch_native.command_list_end(self._handle)
+        vd.check_for_errors()
+
+    def raw_submit(self, stream_index) -> None:
+        """Submit the command list to the device."""
+        vkdispatch_native.command_list_submit(self._handle, b"", 1, 1, stream_index)
+        vd.check_for_errors()
+
     def get_instance_size(self) -> int:
         """Get the total size of the command list in bytes."""
         result = vkdispatch_native.command_list_get_instance_size(self._handle)

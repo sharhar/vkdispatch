@@ -14,8 +14,6 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     ctx->streams.resize(device_count);
     ctx->allocators.resize(device_count);
     
-    ctx->work_queue = new WorkQueue(device_count * 4, 4);
-    ctx->command_list = command_list_create_extern(ctx);
     
     LOG_INFO("Enumerating physical devices...");
 
@@ -140,9 +138,10 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
         queue_index_offset += queue_counts[i];
     }
 
+    ctx->work_queue = new WorkQueue(device_count * 4, 4);
+    ctx->command_list = command_list_create_extern(ctx);
+    
     LOG_INFO("Created context at %p with %d devices", ctx, device_count);
-
-
     return ctx;
 }
 

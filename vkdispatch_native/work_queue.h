@@ -8,18 +8,18 @@
 #include <atomic>
 //#include <vector>
 
-struct ProgramHeader {
+//struct ProgramHeader {
     //unsigned int command_count;
     //int info_index;
     //size_t array_size;
-};
+//};
 
-struct ProgramInfo {
+//struct ProgramInfo {
     //struct ProgramHeader* header;
-    struct CommandList* command_list;
-    std::atomic<int> ref_count;
-    size_t program_id;
-};
+//    struct CommandList* command_list;
+//    std::atomic<int> ref_count;
+//    size_t program_id;
+//};
 
 struct WorkHeader {
     Signal* signal;
@@ -42,7 +42,6 @@ struct WorkInfo2 {
     WorkState state;
     std::atomic<bool> dirty;
     int stream_index;
-    int program_index;
     size_t work_id;
 };
 
@@ -55,14 +54,16 @@ public:
     bool pop(struct WorkHeader** header, int stream_index);
     void finish(struct WorkHeader* header);
 
+    void waitIdle();
+
     std::mutex mutex;
     std::condition_variable cv_push;
     std::condition_variable cv_pop;
 
     struct WorkInfo2* work_infos;
-    struct ProgramInfo* program_infos;
+    //struct ProgramInfo* program_infos;
     int work_info_count;
-    int program_info_count;
+    //int program_info_count;
 
     int max_size;
     bool running;
