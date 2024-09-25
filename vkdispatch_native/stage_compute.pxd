@@ -4,7 +4,7 @@ import sys
 
 from libc.stdlib cimport malloc, free
 
-cdef extern from "stage_compute.h":
+cdef extern from "include/stage_compute.h":
     struct ComputePlan
     struct Context
     struct CommandList
