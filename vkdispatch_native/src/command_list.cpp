@@ -1,4 +1,4 @@
-#include "internal.h"
+#include "../include/internal.h"
 
 static size_t program_id = 1;
 

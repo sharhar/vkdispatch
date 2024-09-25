@@ -1,4 +1,4 @@
-#include "internal.h"
+#include "../include/internal.h"
 
 #include <algorithm>
 #include <string>

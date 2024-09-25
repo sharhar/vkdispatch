@@ -4,7 +4,7 @@ import sys
 
 from libc.stdlib cimport malloc, free
 
-cdef extern from "context.h":
+cdef extern from "include/context.h":
     struct Context
 
     Context* context_create_extern(int* device_indicies, int* queue_counts, int* queue_families, int device_count)
