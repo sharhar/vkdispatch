@@ -18,7 +18,7 @@ void command_list_destroy_extern(struct CommandList* command_list) {
 }
 
 void command_list_record_command(struct CommandList* command_list, struct CommandInfo command) {
-    LOG_INFO("Recording command with type %d", command.type);
+    //LOG_INFO("Recording command with type %d", command.type);
 
     command_list->program_id = program_id;
     program_id += 1;
