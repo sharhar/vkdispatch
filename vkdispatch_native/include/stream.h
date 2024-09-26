@@ -3,14 +3,25 @@
 
 #include "base.h"
 
+#include <queue>
 #include <thread>
+
+struct WorkQueueItem {
+    int current_index;
+    int next_index;
+    struct WorkHeader* work_header;
+    Signal* signal;
+    std::atomic<bool>* state;
+};
 
 class Stream {
 public:
     Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFamilyIndex, int stream_index);
     void destroy();
 
-    void thread_worker();
+    void ingest_worker();
+    void record_worker(int worker_id);
+    void submit_worker();
 
     struct Context* ctx;
     VkDevice device;
@@ -18,13 +29,29 @@ public:
     VkCommandPool commandPool;
     void* data_buffer;
     size_t data_buffer_size;
+
+    std::atomic<bool> run_stream;
     
     std::vector<VkCommandBuffer> commandBuffers;
+    std::atomic<bool>* commandBufferStates;
     std::vector<VkFence> fences;
     std::vector<VkSemaphore> semaphores;
     
-    std::thread work_thread;
-    int current_index;
+    std::thread ingest_thread;
+    std::thread* record_threads;
+    int recording_thread_count;
+
+    std::mutex record_submit_mutex;
+    std::thread submit_thread;
+
+    std::mutex submit_queue_mutex;
+    std::condition_variable submit_queue_cv;
+    std::queue<struct WorkQueueItem> submit_queue;
+
+    std::mutex record_queue_mutex;
+    std::condition_variable record_queue_cv;
+    std::queue<struct WorkQueueItem> record_queue;
+
     int stream_index;
 };
 

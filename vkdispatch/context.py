@@ -154,9 +154,9 @@ def make_context(
 
         __context = Context(device_list[0], queue_families)
 
-        initial_buffer = vd.Buffer((1024,) , vd.float32)
-        initial_buffer.write(np.random.rand(1024).astype(np.float32))
-        initial_buffer.read(0).sum()
+        #initial_buffer = vd.Buffer((1024,) , vd.float32)
+        #initial_buffer.write(np.random.rand(1024).astype(np.float32))
+        #initial_buffer.read(0).sum()
 
     return __context
 

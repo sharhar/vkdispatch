@@ -9,9 +9,13 @@ from matplotlib import pyplot as plt
 
 import sys
 
-#vd.initialize(log_level=vd.LogLevel.INFO)
+vd.initialize(log_level=vd.LogLevel.INFO)
+
+print("Initializing...")
 
 vd.make_context(max_streams=False)
+
+print("Context created")
 
 shape = (256, 256)
 
@@ -23,10 +27,12 @@ buffer2 = vd.asbuffer(np.zeros(shape, dtype=np.complex64))
 cmd_list = vd.CommandList()
 
 fft_count = 2000
-submit_count = 1000
+submit_count = 100000
 
 for _ in range(fft_count):
     vd.fft(buffer, cmd_list=cmd_list)
+
+print("FFT commands generated")
 
 status_bar = tqdm.tqdm(total=fft_count * submit_count)
 
