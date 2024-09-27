@@ -13,11 +13,11 @@ vd.initialize(log_level=vd.LogLevel.INFO)
 
 print("Initializing...")
 
-vd.make_context(max_streams=False)
+vd.make_context(devices=[0], queue_families=[[0, 2, 2]])
 
 print("Context created")
 
-shape = (256, 256)
+shape = (512, 512)
 
 arr = np.random.rand(shape[0], shape[1]) + 1j * np.random.rand(shape[0], shape[1])
 
@@ -26,7 +26,7 @@ buffer2 = vd.asbuffer(np.zeros(shape, dtype=np.complex64))
 
 cmd_list = vd.CommandList()
 
-fft_count = 2000
+fft_count = 20
 submit_count = 100000
 
 for _ in range(fft_count):
@@ -34,11 +34,11 @@ for _ in range(fft_count):
 
 print("FFT commands generated")
 
-status_bar = tqdm.tqdm(total=fft_count * submit_count)
+status_bar = tqdm.tqdm(total=fft_count * submit_count * 100)
 
 for i in range(submit_count):
-    cmd_list.submit(instance_count=1) #data=data_buff.tobytes())
-    status_bar.update(fft_count)
+    cmd_list.submit_any(instance_count=100) #data=data_buff.tobytes())
+    status_bar.update(fft_count * 100)
 
     #if i % 10 == 0:
     #    buffer.read()

@@ -6,12 +6,17 @@
 #include <queue>
 #include <thread>
 
+struct RecordingResultData {
+    std::atomic<bool>* state;
+    VkCommandBuffer commandBuffer;
+};
+
 struct WorkQueueItem {
     int current_index;
     int next_index;
     struct WorkHeader* work_header;
     Signal* signal;
-    std::atomic<bool>* state;
+    RecordingResultData* recording_result;
 };
 
 class Stream {
@@ -26,17 +31,18 @@ public:
     struct Context* ctx;
     VkDevice device;
     VkQueue queue;
-    VkCommandPool commandPool;
+    VkCommandPool* commandPools;
     void* data_buffer;
     size_t data_buffer_size;
 
     std::atomic<bool> run_stream;
     
-    std::vector<VkCommandBuffer> commandBuffers;
-    std::atomic<bool>* commandBufferStates;
+    std::vector<VkCommandBuffer>* commandBufferVectors;
+    std::atomic<bool>** commandBufferStates;
     std::vector<VkFence> fences;
     std::vector<VkSemaphore> semaphores;
-    
+    std::vector<struct RecordingResultData> recording_results;
+
     std::thread ingest_thread;
     std::thread* record_threads;
     int recording_thread_count;
