@@ -160,8 +160,6 @@ def make_context(
 
     return __context
 
-
-
 def get_context() -> Context:
     return make_context()
 
