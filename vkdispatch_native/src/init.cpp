@@ -1,8 +1,10 @@
-#include "internal.h"
+#include "../include/internal.h"
 
 #include <algorithm>
 #include <string>
 #include <stdio.h>
+
+#include <glslang_c_interface.h>
 
 std::mutex __log_mutex = {};
 LogLevel __log_level_limit = LOG_LEVEL_WARNING;

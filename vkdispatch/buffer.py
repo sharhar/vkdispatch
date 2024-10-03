@@ -100,14 +100,13 @@ class Buffer:
 
             if true_scalar is None:
                 true_scalar = self.var_type
+            
+            result_bytes = vkdispatch_native.buffer_read(
+                self._handle, 0, self.mem_size, index
+            )
 
-            result = np.ndarray(
-                shape=(self.shape + self.var_type.true_numpy_shape),
-                dtype=vd.to_numpy_dtype(true_scalar),
-            )
-            vkdispatch_native.buffer_read(
-                self._handle, result, 0, self.mem_size, index
-            )
+            result = np.frombuffer(result_bytes, dtype=vd.to_numpy_dtype(true_scalar)).reshape(self.shape + self.var_type.true_numpy_shape)
+
             vd.check_for_errors()
         else:
             result = []

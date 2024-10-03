@@ -1,12 +1,10 @@
 # distutils: language=c++
-import numpy as np
-cimport numpy as cnp
 from libcpp cimport bool
 import sys
 
 from libc.stdlib cimport malloc, free
 
-cdef extern from "descriptor_set.h":
+cdef extern from "include/descriptor_set.h":
     struct ComputePlan
     struct DescriptorSet
 

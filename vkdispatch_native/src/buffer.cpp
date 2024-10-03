@@ -1,4 +1,4 @@
-#include "internal.h"
+#include "../include/internal.h"
 
 struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size, int per_device) {
     struct Buffer* buffer = new struct Buffer();

@@ -1,4 +1,4 @@
-#include "internal.h"
+#include "../include/internal.h"
 
 void stage_transfer_record_copy_buffer_extern(struct CommandList* command_list, struct BufferCopyInfo* copy_info) {
     // we allocate using `malloc` rather than new here because we need to free this memory later without knowing it's type
@@ -33,13 +33,6 @@ void stage_transfer_copy_buffer_exec_internal(VkCommandBuffer cmd_buffer, const 
 
     int src_index = stream_index;
     int dst_index = stream_index;
-
-    //if(info.src->per_device)
-    //    src_index = info.src->ctx->streams[device_index][0]->stream_index;
-
-    //if(info.dst->per_device)
-    //    dst_index = info.dst->ctx->streams[device_index][0]->stream_index;
-
 
     vkCmdCopyBuffer(cmd_buffer, info.src->buffers[src_index], info.dst->buffers[dst_index], 1, &bufferCopy);
 }

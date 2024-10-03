@@ -1,4 +1,4 @@
-#include "internal.h"
+#include "../include/internal.h"
 
 static size_t program_id = 1;
 
@@ -18,7 +18,7 @@ void command_list_destroy_extern(struct CommandList* command_list) {
 }
 
 void command_list_record_command(struct CommandList* command_list, struct CommandInfo command) {
-    LOG_INFO("Recording command with type %d", command.type);
+    //LOG_INFO("Recording command with type %d", command.type);
 
     command_list->program_id = program_id;
     program_id += 1;
@@ -48,6 +48,8 @@ void command_list_reset_extern(struct CommandList* command_list) {
     
     command_list->commands.clear();
     command_list->instance_size = 0;
+
+    LOG_INFO("Command list reset");
 }
 
 void command_list_submit_extern(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int* indicies, int count, int per_device, void* signal) {

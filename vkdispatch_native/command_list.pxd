@@ -1,12 +1,10 @@
 # distutils: language=c++
-import numpy as np
-cimport numpy as cnp
 from libcpp cimport bool
 import sys
 
 from libc.stdlib cimport malloc, free
 
-cdef extern from "command_list.h":
+cdef extern from "include/command_list.h":
     struct Context
     struct CommandList
 

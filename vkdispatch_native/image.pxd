@@ -1,11 +1,10 @@
-import numpy as np
-cimport numpy as cnp
+# distutils: language=c++
 from libcpp cimport bool
 import sys
 
 from libc.stdlib cimport malloc, free
 
-cdef extern from "image.h":
+cdef extern from "include/image.h":
     struct Context
     struct Image
     struct VkOffset3D:
@@ -41,7 +40,7 @@ cpdef inline image_create(unsigned long long context, tuple[unsigned int, unsign
 cpdef inline image_destroy(unsigned long long image):
     image_destroy_extern(<Image*>image)
 
-cpdef inline image_write(unsigned long long image, cnp.ndarray data, tuple[int, int, int] offset, tuple[unsigned int, unsigned int, unsigned int] extent, unsigned int baseLayer, unsigned int layerCount, int device_index):
+cpdef inline image_write(unsigned long long image, bytes data, tuple[int, int, int] offset, tuple[unsigned int, unsigned int, unsigned int] extent, unsigned int baseLayer, unsigned int layerCount, int device_index):
     assert len(offset) == 3
     assert len(extent) == 3
 
@@ -53,12 +52,14 @@ cpdef inline image_write(unsigned long long image, cnp.ndarray data, tuple[int, 
     cdef unsigned int height = extent[1]
     cdef unsigned int depth = extent[2]
 
-    image_write_extern(<Image*>image, <void*>data.data, VkOffset3D(x, y, z), VkExtent3D(width, height, depth), baseLayer, layerCount, device_index)
+    cdef char* data_view = data
+
+    image_write_extern(<Image*>image, <void*>data_view, VkOffset3D(x, y, z), VkExtent3D(width, height, depth), baseLayer, layerCount, device_index)
 
 cpdef inline unsigned int image_format_block_size(unsigned int format):
     return image_format_block_size_extern(format)
 
-cpdef inline image_read(unsigned long long image, cnp.ndarray data, tuple[int, int, int] offset, tuple[unsigned int, unsigned int, unsigned int] extent, unsigned int baseLayer, unsigned int layerCount, int device_index):
+cpdef inline image_read(unsigned long long image, unsigned long long out_size, tuple[int, int, int] offset, tuple[unsigned int, unsigned int, unsigned int] extent, unsigned int baseLayer, unsigned int layerCount, int device_index):
     assert len(offset) == 3
     assert len(extent) == 3
 
@@ -70,7 +71,12 @@ cpdef inline image_read(unsigned long long image, cnp.ndarray data, tuple[int, i
     cdef unsigned int height = extent[1]
     cdef unsigned int depth = extent[2]
 
-    image_read_extern(<Image*>image, <void*>data.data, VkOffset3D(x, y, z), VkExtent3D(width, height, depth), baseLayer, layerCount, device_index)
+    cdef bytes data = bytes(out_size)
+    cdef char* data_view = data
+
+    image_read_extern(<Image*>image, <void*>data_view, VkOffset3D(x, y, z), VkExtent3D(width, height, depth), baseLayer, layerCount, device_index)
+
+    return data
 
 #cpdef inline image_copy(unsigned long long src, unsigned long long dst, list[int] src_offset, unsigned int src_baseLayer, unsigned int src_layerCount, list[int] dst_offset, unsigned int dst_baseLayer, unsigned int dst_layerCount, list[unsigned int] extent, int device_index):
 #    assert len(src_offset) == 3
