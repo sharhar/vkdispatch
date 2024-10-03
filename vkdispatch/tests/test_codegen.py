@@ -4,29 +4,48 @@ from vkdispatch.codegen.abreviations import *
 
 import numpy as np
 
-def make_random_complex_signal(shape):
-    r = np.random.random(size=shape)
-    i = np.random.random(size=shape)
-    return (r + i * 1j).astype(np.complex64)
-
 def test_arithmetic():
-    # Create a 1D buffer
-    signal = make_random_complex_signal((50,))
-    signal2 = make_random_complex_signal((50,))
-    signal3 = make_random_complex_signal((50,))
-    
-    test_line = vd.Buffer((signal.shape[0],), vd.complex64)
-    test_line2 = vd.Buffer((signal2.shape[0],), vd.complex64)
-    test_line3 = vd.Buffer((signal3.shape[0],), vd.complex64)
-    
-    test_line.write(signal)
-    test_line2.write(signal2)
+    pass_count = 64
+    op_count = 1024
 
-    @vc.shader(exec_size=lambda args: args.out.size)
-    def add_buffers(out: Buff[c64], a: Buff[c64], b: Buff[c64]):
-        tid = vc.global_invocation.x
-        out[tid] = a[tid] + b[tid]
+    for _ in range(pass_count):
+        array_size = np.random.randint(1000, 10000)
 
-    add_buffers(test_line3, test_line, test_line2)
+        signal = np.random.rand(array_size).astype(np.float32)
+        signal2 = np.random.rand(array_size).astype(np.float32)
 
-    assert np.allclose(test_line3.read(0), signal + signal2, atol=0.00001)
+        buffer = vd.asbuffer(signal)
+        buffer2 = vd.asbuffer(signal2)
+
+        output = vd.Buffer(signal.shape, vd.float32)
+
+        @vc.shader(exec_size=lambda args: args.out.size)
+        def my_shader(out: Buff[f32], a: Buff[f32], b: Buff[f32]):
+            nonlocal signal, signal2
+
+            tid = vc.global_invocation.x
+
+            out_val = a[tid].copy()
+            other_val = b[tid].copy()
+            
+            for _ in range(op_count):
+                op_number = np.random.randint(0, 4)
+
+                if op_number == 0:
+                    out_val[:] = out_val + other_val
+                    signal = signal + signal2
+                elif op_number == 1:
+                    out_val[:] = out_val - other_val
+                    signal = signal - signal2
+                elif op_number == 2:
+                    out_val[:] = out_val * other_val
+                    signal = signal * signal2
+                elif op_number == 3:
+                    out_val[:] = out_val * vc.sin(other_val)
+                    signal = signal * np.sin(signal2).astype(np.float32)
+            
+            out[tid] = out_val
+
+        my_shader(output, buffer, buffer2)
+
+        assert np.allclose(output.read(0), signal, atol=0.00001)
