@@ -1,10 +1,8 @@
 # distutils: language=c++
-import numpy as np
-cimport numpy as np
 from libcpp cimport bool
 import sys
 
-cdef extern from "init.h":
+cdef extern from "include/init.h":
     enum LogLevel:
         LOG_LEVEL_VERBOSE = 0
         LOG_LEVEL_INFO = 1

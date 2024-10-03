@@ -1,4 +1,4 @@
-include vkdispatch_native/*.h
+include vkdispatch_native/include/*.h
 include vkdispatch_native/*.pxd
 include deps/VMA/include/*.h
 include deps/VMA/LICENSE.txt

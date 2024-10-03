@@ -1,16 +1,10 @@
 import os
 import platform
 
-import numpy
 from setuptools import Extension
 from setuptools import setup
 
 system = platform.system()
-
-try:
-    numpy_include = numpy.get_include()
-except AttributeError:
-    numpy_include = numpy.get_numpy_include()
 
 proj_root = os.path.abspath(os.path.dirname(__file__))
 molten_vk_path = "./deps/MoltenVK/MoltenVK/MoltenVK/static/MoltenVK.xcframework/macos-arm64_x86_64/"
@@ -33,7 +27,6 @@ platform_extra_compile_args = (
 )
 
 include_directories = [
-    numpy_include,
     proj_root + "/deps/VMA/include",
     proj_root + "/deps/volk",
     proj_root + "/deps/VkFFT/vkFFT",
@@ -102,8 +95,10 @@ def append_to_sources(prefix, source_list):
         sources.append(prefix + source)
 
 
-append_to_sources("vkdispatch_native/", [
-    "wrapper.pyx",
+sources.append("vkdispatch_native/wrapper.pyx")
+
+append_to_sources("vkdispatch_native/src/", [
+    #"wrapper.pyx",
     "init.cpp",
     "context.cpp",
     "buffer.cpp",
