@@ -95,10 +95,9 @@ def append_to_sources(prefix, source_list):
         sources.append(prefix + source)
 
 
-sources.append("vkdispatch_native/wrapper.pyx")
+sources.append("vkdispatch_native/wrappers/wrapper.pyx")
 
 append_to_sources("vkdispatch_native/src/", [
-    #"wrapper.pyx",
     "init.cpp",
     "context.cpp",
     "buffer.cpp",
@@ -181,6 +180,6 @@ setup(
             include_dirs=include_directories,
         )
     ],
-    version="0.0.16",
+    version="0.0.17",
     zip_safe=False,
 )

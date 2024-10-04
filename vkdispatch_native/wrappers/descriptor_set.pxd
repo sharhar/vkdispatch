@@ -4,7 +4,7 @@ import sys
 
 from libc.stdlib cimport malloc, free
 
-cdef extern from "include/descriptor_set.h":
+cdef extern from "../include/descriptor_set.h":
     struct ComputePlan
     struct DescriptorSet
 
