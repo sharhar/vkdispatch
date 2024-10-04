@@ -13,7 +13,7 @@ vd.initialize(log_level=vd.LogLevel.INFO)
 
 print("Initializing...")
 
-vd.make_context(devices=[0], queue_families=[[0, 2, 2]])
+vd.make_context(devices=[0], queue_families=[[2]])
 
 print("Context created")
 
