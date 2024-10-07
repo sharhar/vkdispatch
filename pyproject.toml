@@ -25,8 +25,11 @@ dependencies = [
     "setuptools>=61.0",
     "numpy",
 ]
-scripts = { vdlist = 'vkdispatch.main:main' }
+scripts = { vdlist = 'vkdispatch.cli:cli_entrypoint' }
 
 [project.urls]
 Homepage = "https://github.com/sharhar/vkdispatch"
 Issues = "https://github.com/sharhar/vkdispatch/issues"
+
+[project.optional-dependencies]
+cli = ["Click"]

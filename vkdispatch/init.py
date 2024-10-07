@@ -22,25 +22,27 @@ device_type_ranks_dict = {
     4: 1
 }
 
-def get_queue_type_strings(queue_type: int) -> typing.List[str]:
+def get_queue_type_strings(queue_type: int, verbose: bool) -> typing.List[str]:
     result = []
 
     if queue_type & 0x001:
         result.append("Graphics")
     if queue_type & 0x002:
         result.append("Compute")
-    if queue_type & 0x004:
-        result.append("Transfer")
-    if queue_type & 0x008:
-        result.append("Sparse Binding")
-    if queue_type & 0x010:
-        result.append("Protected")
-    if queue_type & 0x020:
-        result.append("Video Decode")
-    if queue_type & 0x040:
-        result.append("Video Encode")
-    if queue_type & 0x100:
-        result.append("Optical Flow (NV)")
+
+    if verbose:
+        if queue_type & 0x004:
+            result.append("Transfer")
+        if queue_type & 0x008:
+            result.append("Sparse Binding")
+        if queue_type & 0x010:
+            result.append("Protected")
+        if queue_type & 0x020:
+            result.append("Video Decode")
+        if queue_type & 0x040:
+            result.append("Video Encode")
+        if queue_type & 0x100:
+            result.append("Optical Flow (NV)")
 
     return result
 
@@ -123,7 +125,7 @@ class DeviceInfo:
 
         self.queue_properties = queue_properties
 
-    def __repr__(self) -> str:
+    def get_info_string(self, verbose: bool = False) -> str:
         result = f"Device {self.dev_index}: {self.device_name}\n"
 
         result += f"\tVulkan Version: {self.version_major}.{self.version_minor}.{self.version_patch}\n"
@@ -132,33 +134,52 @@ class DeviceInfo:
         if self.version_variant != 0:
             result += f"\tVariant: {self.version_variant}\n"
 
-        # result += f"\tDriver Version={self.driver_version}\n"
-        # result += f"\tVendor ID={self.vendor_id}\n"
-        # result += f"\tDevice ID={self.device_id}\n"
+        if verbose:
+            result += f"\tDriver Version={self.driver_version}\n"
+            result += f"\tVendor ID={self.vendor_id}\n"
+            result += f"\tDevice ID={self.device_id}\n"
 
-        result += f"\t64-bit Float Support: {self.float_64_support == 1}\n"
-        result += f"\t64-bit Int Support: {self.int_64_support == 1}\n"
-        result += f"\t16-bit Int Suppor: {self.int_16_support == 1}\n"
-        result += f"\tMax Workgroup Sizes: {self.max_workgroup_size}\n"
-        result += f"\tMax Workgroup Invocations: {self.max_workgroup_invocations}\n"
-        result += f"\tMax Workgroup Counts: {self.max_workgroup_count}\n"
-        # result += f"\tMax Bound Descriptor Sets={self.max_bound_descriptor_sets}\n"
-        result += f"\tMax Push Constant Size: {self.max_push_constant_size}\n"
-        result += f"\tMax Storage Buffer Range: {self.max_storage_buffer_range}\n"
-        result += f"\tMax Uniform Buffer Range: {self.max_uniform_buffer_range}\n"
-        result += f"\tUniform Buffer Alignment: {self.uniform_buffer_alignment}\n"
+        result += "\tFeatures:\n"
 
-        result += f"\tSubgroup Size: {self.sub_group_size}\n"
-        result += f"\tSupported Stages: {hex(self.supported_stages)}\n"
-        result += f"\tSupported Operations: {hex(self.supported_operations)}\n"
-        result += f"\tMax Compute Shared Memory Size: {self.max_compute_shared_memory_size}\n"
+        result += f"\t\t64-bit Float Support: {self.float_64_support == 1}\n"
+        result += f"\t\t64-bit Int Support: {self.int_64_support == 1}\n"
+        result += f"\t\t16-bit Int Suppor: {self.int_16_support == 1}\n"
 
+        result += "\tLimits:\n"
+        
+        if verbose:
+            result += f"\t\tMax Workgroup Sizes: {self.max_workgroup_size}\n"
+            result += f"\t\tMax Workgroup Invocations: {self.max_workgroup_invocations}\n"
+            result += f"\t\tMax Workgroup Counts: {self.max_workgroup_count}\n"
+            result += f"\t\tMax Bound Descriptor Sets={self.max_bound_descriptor_sets}\n"
+        
+        result += f"\t\tMax Push Constant Size: {self.max_push_constant_size} bytes\n"
+        
+        if verbose:
+            result += f"\t\tMax Storage Buffer Range: {self.max_storage_buffer_range} bytes\n"
+            result += f"\t\tMax Uniform Buffer Range: {self.max_uniform_buffer_range} bytes\n"
+            result += f"\t\tUniform Buffer Alignment: {self.uniform_buffer_alignment}\n"
+        
+        result += f"\t\tSubgroup Size: {self.sub_group_size}\n"
+
+        if verbose:
+            result += f"\t\tSubgroup Operations Supported Stages: {hex(self.supported_stages)}\n"
+            result += f"\t\tSubgroup Operations Supported Operations: {hex(self.supported_operations)}\n"
+
+        result += f"\t\tMax Compute Shared Memory Size: {self.max_compute_shared_memory_size}\n"
+        
         result += f"\tQueues:\n"
         for ii, queue in enumerate(self.queue_properties):
-            result += f"\t\t{ii} (count={queue[0]}, flags={hex(queue[1])}): "
-            result += " | ".join(get_queue_type_strings(queue[1])) + "\n"
+            queue_types = get_queue_type_strings(queue[1], verbose)
+
+            if len(queue_types) != 0:
+                result += f"\t\t{ii} (count={queue[0]}, flags={hex(queue[1])}): "
+                result += " | ".join(queue_types) + "\n"
 
         return result
+    
+    def __repr__(self) -> str:
+        return self.get_info_string()
 
 
 __initilized_instance: bool = False

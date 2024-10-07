@@ -3,9 +3,9 @@ import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import *
 
 import numpy as np
-import tqdm
+#import tqdm
 
-from matplotlib import pyplot as plt
+#from matplotlib import pyplot as plt
 
 import sys
 
@@ -34,11 +34,13 @@ for _ in range(fft_count):
 
 print("FFT commands generated")
 
-status_bar = tqdm.tqdm(total=fft_count * submit_count * 100)
+#status_bar = tqdm.tqdm(total=fft_count * submit_count * 100)
 
 for i in range(submit_count):
     cmd_list.submit_any(instance_count=100) #data=data_buff.tobytes())
-    status_bar.update(fft_count * 100)
+    #status_bar.update(fft_count * 100)
+
+    print("Commands submitted")
 
     #if i % 10 == 0:
     #    buffer.read()
