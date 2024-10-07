@@ -45,3 +45,5 @@ from .execution.transfer_operations import stage_transfer_copy_buffers
 
 from .execution.launcher import ShaderLauncher, LaunchVariables
 from .execution.launcher import sanitize_dims_tuple
+
+__version__ = "0.0.17"
