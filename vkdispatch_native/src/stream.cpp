@@ -165,7 +165,6 @@ void Stream::ingest_worker() {
         {
             std::unique_lock<std::mutex> lock(this->submit_queue_mutex);
             this->submit_queue.push(work_item);
-            //this->submit_queue_cv.notify_all();
         }
 
         {
@@ -261,7 +260,6 @@ void Stream::record_worker(int worker_id) {
 
         VkCommandBuffer cmd_buffer = commandBufferVectors[worker_id][cmd_buffer_index];
 
-        //work_item.recording_result->state = &commandBufferStates[worker_id][cmd_buffer_index];
         work_item.recording_result->commandBuffer = cmd_buffer;
 
         cmd_buffer_index = (cmd_buffer_index + 1) % commandBufferVectors[worker_id].size();
@@ -277,6 +275,8 @@ void Stream::record_worker(int worker_id) {
 
         char* current_instance_data = (char*)&work_item.work_header[1];
         for(size_t instance = 0; instance < work_item.work_header->instance_count; instance++) {
+            // TODO: get conditional bitmap
+
             for (size_t i = 0; i < program_header->command_count; i++) {
                 int pc_size = record_command(command_info_buffer[i], cmd_buffer, device_index, stream_index, worker_id, current_instance_data);
                 RETURN_ON_ERROR(;)
