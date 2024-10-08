@@ -300,9 +300,8 @@ void init_extern(bool debug, LogLevel log_level) {
             _instance.device_details[i].queue_family_properties[j].queueFlags = _instance.queue_family_properties[i][j].queueFlags;
         }
 
-        //printf("Device %d: %s\n", i, _instance.devices[i].device_name);
-        //printf("Atomics: %d\n", atomicFloatFeatures.shaderBufferFloat32Atomics);
-        //printf("Atomics Add: %d\n", atomicFloatFeatures.shaderBufferFloat32AtomicAdd);
+        _instance.device_details[i].shader_buffer_float32_atomics = atomicFloatFeatures.shaderBufferFloat32Atomics;
+        _instance.device_details[i].shader_buffer_float32_atomic_add = atomicFloatFeatures.shaderBufferFloat32AtomicAdd;
     }
 }
 

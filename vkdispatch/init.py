@@ -69,6 +69,8 @@ class DeviceInfo:
         device_id: int,
         device_type: int,
         device_name: str,
+        shader_buffer_float32_atomics: int,
+        shader_buffer_float32_atomic_add: int,
         float_64_support: int,
         int_64_support: int,
         int_16_support: int,
@@ -101,6 +103,9 @@ class DeviceInfo:
         self.device_type = device_type
 
         self.device_name = device_name
+
+        self.shader_buffer_float32_atomics = shader_buffer_float32_atomics
+        self.shader_buffer_float32_atomic_add = shader_buffer_float32_atomic_add
 
         self.float_64_support = float_64_support
         self.int_64_support = int_64_support
@@ -141,11 +146,16 @@ class DeviceInfo:
 
         result += "\tFeatures:\n"
 
+        if verbose:
+            result += f"\t\tFloat32 Atomics: {self.shader_buffer_float32_atomics == 1}\n"
+        
+        result += f"\t\tFloat32 Atomic Add: {self.shader_buffer_float32_atomic_add == 1}\n"
+
+        result += "\tProperties:\n"
+
         result += f"\t\t64-bit Float Support: {self.float_64_support == 1}\n"
         result += f"\t\t64-bit Int Support: {self.int_64_support == 1}\n"
         result += f"\t\t16-bit Int Suppor: {self.int_16_support == 1}\n"
-
-        result += "\tLimits:\n"
         
         if verbose:
             result += f"\t\tMax Workgroup Sizes: {self.max_workgroup_size}\n"

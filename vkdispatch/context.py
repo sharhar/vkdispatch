@@ -1,4 +1,5 @@
 from typing import List
+from typing import Tuple
 from typing import Union
 
 import vkdispatch as vd
@@ -10,6 +11,9 @@ class Context:
     """TODO: Docstring"""
 
     _handle: int
+    subgroup_size: int
+    max_workgroup_size: Tuple[int]
+    uniform_buffer_alignment: int
 
     def __init__(
         self,
