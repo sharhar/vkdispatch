@@ -10,7 +10,7 @@ cdef extern from "../include/command_list.h":
 
     CommandList* command_list_create_extern(Context* context)
     void command_list_destroy_extern(CommandList* command_list)
-    void command_list_get_instance_size_extern(CommandList* command_list, unsigned long long* instance_size)
+    unsigned long long command_list_get_instance_size_extern(CommandList* command_list) 
     void command_list_reset_extern(CommandList* command_list)
     void command_list_submit_extern(CommandList* command_list, void* instance_buffer, unsigned int instanceCount, int* indicies, int count, int per_device, void* signal)
 
@@ -21,9 +21,7 @@ cpdef inline command_list_destroy(unsigned long long command_list):
     command_list_destroy_extern(<CommandList*>command_list)
 
 cpdef inline command_list_get_instance_size(unsigned long long command_list):
-    cdef unsigned long long instance_size
-    command_list_get_instance_size_extern(<CommandList*>command_list, &instance_size)
-    return instance_size
+    return command_list_get_instance_size_extern(<CommandList*>command_list)
 
 cpdef inline command_list_reset(unsigned long long command_list):
     command_list_reset_extern(<CommandList*>command_list)

@@ -12,6 +12,7 @@ struct ProgramHeader {
     unsigned int command_count;
     int info_index;
     size_t array_size;
+    size_t conditional_boolean_count;
 };
 
 struct ProgramInfo {
