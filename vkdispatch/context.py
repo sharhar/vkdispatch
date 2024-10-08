@@ -26,6 +26,28 @@ class Context:
         self.stream_count = sum([len(i) for i in queue_families])
         self._handle = vkdispatch_native.context_create(devices, queue_families)
         vd.check_for_errors()
+        
+        self._set_context_properties()
+
+    def _set_context_properties(self):
+        subgroup_sizes = []
+        max_workgroup_sizes_x = []
+        max_workgroup_sizes_y = []
+        max_workgroup_sizes_z = []
+        uniform_buffer_alignments = []
+
+        for device in self.device_infos:
+            subgroup_sizes.append(device.sub_group_size)
+            
+            max_workgroup_sizes_x.append(device.max_workgroup_size[0])
+            max_workgroup_sizes_y.append(device.max_workgroup_size[1])
+            max_workgroup_sizes_z.append(device.max_workgroup_size[2])
+
+            uniform_buffer_alignments.append(device.uniform_buffer_alignment)
+
+        self.subgroup_size = min(subgroup_sizes)
+        self.max_workgroup_size = (min(max_workgroup_sizes_x), min(max_workgroup_sizes_y), min(max_workgroup_sizes_z))
+        self.uniform_buffer_alignment = max(uniform_buffer_alignments)
 
     def __del__(self) -> None:
         pass  # vkdispatch_native.context_destroy(self._handle)
@@ -118,7 +140,7 @@ def make_context(
     devices: Union[int, List[int], None] = None,
     queue_families: Union[List[List[int]], None] = None,
     use_cpu: bool = False,
-    max_streams: bool = True,
+    max_streams: bool = False,
     all_devices: bool = False,
     all_queues: bool = False
 ) -> Context:

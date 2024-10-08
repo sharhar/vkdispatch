@@ -174,7 +174,7 @@ class ShaderLauncher:
         descriptor_set = vd.DescriptorSet(self.plan._handle)
 
         pc_buff = None if self.pc_buff_dict is None else vc.BufferStructureProxy(self.pc_buff_dict, 0)
-        static_constant_buffer = vc.BufferStructureProxy(self.uniform_buff_dict, vd.get_context().device_infos[0].uniform_buffer_alignment)
+        static_constant_buffer = vc.BufferStructureProxy(self.uniform_buff_dict, vd.get_context().uniform_buffer_alignment)
 
         static_constant_buffer[vc.builder_obj.exec_count.raw_name] = [my_limits[0], my_limits[1], my_limits[2], 0]
 
