@@ -27,6 +27,9 @@ cdef extern from "../include/init.h":
 
         const char* device_name
 
+        int shader_buffer_float32_atomics;
+        int shader_buffer_float32_atomic_add;
+
         int float_64_support
         int int_64_support
         int int_16_support
@@ -84,6 +87,8 @@ cpdef inline get_devices():
             device.device_id,
             device.device_type,
             device.device_name.decode('utf-8') if device.device_name is not None else None,  # Convert C string to Python string, handling null pointers
+            device.shader_buffer_float32_atomics,
+            device.shader_buffer_float32_atomic_add,
             device.float_64_support,
             device.int_64_support,
             device.int_16_support,

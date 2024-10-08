@@ -22,6 +22,9 @@ struct PhysicalDeviceDetails {
 
     const char* device_name;
 
+    int shader_buffer_float32_atomics;
+    int shader_buffer_float32_atomic_add;
+
     int float_64_support;
     int int_64_support;
     int int_16_support;
