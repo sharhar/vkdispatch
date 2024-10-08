@@ -100,6 +100,7 @@ sources.append("vkdispatch_native/wrappers/wrapper.pyx")
 append_to_sources("vkdispatch_native/src/", [
     "init.cpp",
     "context.cpp",
+    "conditional.cpp",
     "buffer.cpp",
     "image.cpp",
     "command_list.cpp",

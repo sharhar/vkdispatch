@@ -8,6 +8,7 @@ struct CommandList* command_list_create_extern(struct Context* context) {
 
     command_list->ctx = context;
     command_list->instance_size = 0;
+    command_list->conditional_boolean_count = 0;
 
     return command_list;
 }

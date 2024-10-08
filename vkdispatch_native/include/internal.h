@@ -98,6 +98,7 @@ void set_error(const char* format, ...);
 #include "work_queue.h"
 #include "signal.h"
 #include "stream.h"
+#include "conditional.h"
 
 typedef struct {
     VkInstance instance;
@@ -164,7 +165,9 @@ enum CommandType {
     COMMAND_TYPE_IMAGE_WRITE = 5,
     COMMAND_TYPE_FFT_INIT = 6,
     COMMAND_TYPE_FFT_EXEC = 7,
-    COMMAND_TYPE_COMPUTE = 8
+    COMMAND_TYPE_COMPUTE = 8,
+    COMMAND_TYPE_CONDITIONAL = 9,
+    COMMAND_TYPE_CONDITIONAL_END = 10
 };
 
 struct CommandInfo {
@@ -179,6 +182,7 @@ struct CommandInfo {
         struct FFTInitRecordInfo fft_init_info;
         struct FFTExecRecordInfo fft_exec_info;
         struct ComputeRecordInfo compute_info;
+        struct ConditionalRecordInfo conditional_info;
     } info;
 };
 
@@ -187,6 +191,7 @@ struct CommandList {
     std::vector<struct CommandInfo> commands;
     size_t instance_size;
     size_t program_id;
+    size_t conditional_boolean_count;
 };
 
 void command_list_record_command(struct CommandList* command_list, struct CommandInfo command);
