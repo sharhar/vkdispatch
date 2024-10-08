@@ -2,49 +2,34 @@ import vkdispatch as vd
 import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import *
 
+import vkdispatch_native
+
 import numpy as np
-#import tqdm
-
-#from matplotlib import pyplot as plt
-
-import sys
 
 vd.initialize(log_level=vd.LogLevel.INFO)
 
-print("Initializing...")
-
 vd.make_context(devices=[0], queue_families=[[2]])
 
-print("Context created")
-
-shape = (512, 512)
-
-arr = np.random.rand(shape[0], shape[1]) + 1j * np.random.rand(shape[0], shape[1])
-
-buffer = vd.asbuffer(arr.astype(np.complex64))
-buffer2 = vd.asbuffer(np.zeros(shape, dtype=np.complex64))
+buff = vd.asbuffer(np.arange(10, dtype=np.float32))
 
 cmd_list = vd.CommandList()
 
-fft_count = 20
-submit_count = 100000
+@vc.shader(exec_size=lambda args: args.buff.size)
+def add_five(buff: Buff[f32]):
+    tid = vc.global_invocation.x
+    buff[tid] += 5
 
-for _ in range(fft_count):
-    vd.fft(buffer, cmd_list=cmd_list)
 
-print("FFT commands generated")
+add_five(buff, cmd_list=cmd_list)
 
-#status_bar = tqdm.tqdm(total=fft_count * submit_count * 100)
+vkdispatch_native.record_conditional(cmd_list._handle)
 
-for i in range(submit_count):
-    cmd_list.submit_any(instance_count=100) #data=data_buff.tobytes())
-    #status_bar.update(fft_count * 100)
+add_five(buff, cmd_list=cmd_list)
 
-    print("Commands submitted")
+vkdispatch_native.record_conditional_end(cmd_list._handle)
 
-    #if i % 10 == 0:
-    #    buffer.read()
-    #    buffer2.read()
+zeroed_byte = bytes([1])
 
-buffer.read()
-buffer2.read()
+print(buff.read(0))
+cmd_list.submit(data=zeroed_byte)
+print(buff.read(0))
