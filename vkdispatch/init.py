@@ -144,14 +144,14 @@ class DeviceInfo:
             result += f"\tVendor ID={self.vendor_id}\n"
             result += f"\tDevice ID={self.device_id}\n"
 
-        result += "\tFeatures:\n"
+        result += "\n\tFeatures:\n"
 
         if verbose:
             result += f"\t\tFloat32 Atomics: {self.shader_buffer_float32_atomics == 1}\n"
         
         result += f"\t\tFloat32 Atomic Add: {self.shader_buffer_float32_atomic_add == 1}\n"
 
-        result += "\tProperties:\n"
+        result += "\n\tProperties:\n"
 
         result += f"\t\t64-bit Float Support: {self.float_64_support == 1}\n"
         result += f"\t\t64-bit Int Support: {self.int_64_support == 1}\n"
@@ -178,7 +178,7 @@ class DeviceInfo:
 
         result += f"\t\tMax Compute Shared Memory Size: {self.max_compute_shared_memory_size}\n"
         
-        result += f"\tQueues:\n"
+        result += f"\n\tQueues:\n"
         for ii, queue in enumerate(self.queue_properties):
             queue_types = get_queue_type_strings(queue[1], verbose)
 
