@@ -224,6 +224,10 @@ static int record_command(const struct CommandInfo& command_info, VkCommandBuffe
     return -1;
 }
 
+static bool get_bitmap_boolean(uint8_t* bitmap, size_t index) {
+    return (bitmap[index / 8] & (1 << (index % 8))) != 0;
+}
+
 void Stream::record_worker(int worker_id) {
     int device_index = ctx->stream_indicies[stream_index].first;
 
@@ -235,6 +239,11 @@ void Stream::record_worker(int worker_id) {
     };
 
     int cmd_buffer_index = 0;
+
+    size_t conditional_bitmap_size_bytes = 1024;
+
+    uint8_t* conditionals_bitmap = (uint8_t*)malloc(conditional_bitmap_size_bytes);
+    memset(conditionals_bitmap, 0, 1024);
 
     while(this->run_stream.load()) {
         struct WorkQueueItem work_item;
@@ -275,7 +284,20 @@ void Stream::record_worker(int worker_id) {
 
         char* current_instance_data = (char*)&work_item.work_header[1];
         for(size_t instance = 0; instance < work_item.work_header->instance_count; instance++) {
-            // TODO: get conditional bitmap
+            
+            // Copy over the conditional bitmap
+            if(program_header->conditional_boolean_count > 0) {
+                size_t bitmap_size_bytes = (program_header->conditional_boolean_count + 7) / 8;
+
+                if(bitmap_size_bytes > conditional_bitmap_size_bytes) {
+                    conditionals_bitmap = (uint8_t*)realloc(conditionals_bitmap, bitmap_size_bytes);
+                    memset(conditionals_bitmap, 0, bitmap_size_bytes);
+                    conditional_bitmap_size_bytes = bitmap_size_bytes;
+                }
+
+                memcpy(conditionals_bitmap, current_instance_data, bitmap_size_bytes);
+                current_instance_data += bitmap_size_bytes;
+            }
 
             for (size_t i = 0; i < program_header->command_count; i++) {
                 int pc_size = record_command(command_info_buffer[i], cmd_buffer, device_index, stream_index, worker_id, current_instance_data);
