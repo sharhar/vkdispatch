@@ -218,7 +218,7 @@ static int record_command(const struct CommandInfo& command_info, VkCommandBuffe
 
     if(command_info.type == COMMAND_TYPE_COMPUTE) {
         stage_compute_plan_exec_internal(cmd_buffer, command_info.info.compute_info, current_instance_data, device_index, stream_index);
-        return command_info.info.compute_info.pc_size;
+        return 0;
     }
 
     return -1;
@@ -226,6 +226,108 @@ static int record_command(const struct CommandInfo& command_info, VkCommandBuffe
 
 static bool get_bitmap_boolean(uint8_t* bitmap, size_t index) {
     return (bitmap[index / 8] & (1 << (index % 8))) != 0;
+}
+
+static int record_program_instance(
+    const struct ProgramHeader* program_header, 
+    const struct CommandInfo* command_info_buffer, 
+    VkCommandBuffer cmd_buffer, 
+    int device_index, 
+    int stream_index, 
+    int worker_id, 
+    char** pCurrent_instance_data,
+    uint8_t** pConditionals_bitmap,
+    size_t* pConditional_bitmap_size_bytes,
+    bool last_instance
+) {
+    VkMemoryBarrier memory_barrier = {
+        VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+        0,
+        VK_ACCESS_MEMORY_WRITE_BIT,
+        VK_ACCESS_MEMORY_READ_BIT,
+    };
+
+    // Copy over the conditional bitmap
+    if(program_header->conditional_boolean_count > 0) {
+        size_t bitmap_size_bytes = (program_header->conditional_boolean_count + 7) / 8;
+
+        if(bitmap_size_bytes > *pConditional_bitmap_size_bytes) {
+            *pConditionals_bitmap = (uint8_t*)realloc(*pConditionals_bitmap, bitmap_size_bytes);
+            memset(*pConditionals_bitmap, 0, bitmap_size_bytes);
+            *pConditional_bitmap_size_bytes = bitmap_size_bytes;
+        }
+
+        memcpy(*pConditionals_bitmap, *pCurrent_instance_data, bitmap_size_bytes);
+        *pCurrent_instance_data += bitmap_size_bytes;
+    }
+
+    bool condition_active = false;
+    bool inside_condition = false;
+
+    // Record the commands
+    for (size_t i = 0; i < program_header->command_count; i++) {
+        LOG_INFO("Recording command %d of type %d on worker %d", i, command_info_buffer[i].type, worker_id);
+
+        if(command_info_buffer[i].type == COMMAND_TYPE_CONDITIONAL) {
+            LOG_INFO("Conditional command");
+
+            if(condition_active) {
+                LOG_ERROR("Nested conditionals are not supported");
+                return 1;
+            }
+
+            if(!get_bitmap_boolean(*pConditionals_bitmap, command_info_buffer[i].info.conditional_info.conditional_boolean_index)) {
+                condition_active = true;
+                LOG_INFO("Condition is active");
+            }
+
+            inside_condition = true;
+
+            continue;
+        }
+
+        if(command_info_buffer[i].type == COMMAND_TYPE_CONDITIONAL_END) {
+            if(!inside_condition) {
+                LOG_ERROR("Conditional end without a conditional");
+                return 1;
+            }
+
+            condition_active = false;
+            inside_condition = false;
+
+            LOG_INFO("Condition is inactive");
+
+            continue;
+        }
+
+        char* instance_data = *pCurrent_instance_data;
+
+        if(command_info_buffer[i].type == COMMAND_TYPE_COMPUTE) {
+            *pCurrent_instance_data += command_info_buffer[i].info.compute_info.pc_size;
+        }
+
+        if(condition_active) {
+            continue;
+        }
+
+        LOG_INFO("Executing command %d", i);
+
+        if(record_command(command_info_buffer[i], cmd_buffer, device_index, stream_index, worker_id, *pCurrent_instance_data) != 0) {
+            LOG_ERROR("Unknown command type %d", command_info_buffer[i].type);
+            return 1;
+        }
+
+        if(!last_instance || i < program_header->command_count - 1)
+            vkCmdPipelineBarrier(
+                cmd_buffer, 
+                command_info_buffer[i].pipeline_stage, 
+                command_info_buffer[i+1].pipeline_stage, 
+                0, 1, 
+                &memory_barrier, 
+                0, 0, 0, 0);
+    }
+
+    return 0;
 }
 
 void Stream::record_worker(int worker_id) {
@@ -248,8 +350,12 @@ void Stream::record_worker(int worker_id) {
     while(this->run_stream.load()) {
         struct WorkQueueItem work_item;
 
-        {
+        {   
+            LOG_INFO("Worker %d waiting for work", worker_id);
+
             std::unique_lock<std::mutex> lock(this->record_queue_mutex);
+
+            LOG_INFO("Worker %d has lock", worker_id);
 
             this->record_queue_cv.wait(lock, [this]() {
                 if(!this->run_stream.load()) {
@@ -263,8 +369,11 @@ void Stream::record_worker(int worker_id) {
                 break;
             }
 
+
             work_item = this->record_queue.front();
             this->record_queue.pop();
+
+            LOG_INFO("Worker %d has work %p", worker_id, work_item.work_header);
         }
 
         VkCommandBuffer cmd_buffer = commandBufferVectors[worker_id][cmd_buffer_index];
@@ -284,41 +393,57 @@ void Stream::record_worker(int worker_id) {
 
         char* current_instance_data = (char*)&work_item.work_header[1];
         for(size_t instance = 0; instance < work_item.work_header->instance_count; instance++) {
+
+            if(record_program_instance(
+                    program_header, 
+                    command_info_buffer, 
+                    cmd_buffer, 
+                    device_index, 
+                    stream_index, 
+                    worker_id, 
+                    &current_instance_data,
+                    &conditionals_bitmap,
+                    &conditional_bitmap_size_bytes,
+                    instance == work_item.work_header->instance_count - 1
+                ) != 0) 
+            {
+                return;
+            }
             
             // Copy over the conditional bitmap
-            if(program_header->conditional_boolean_count > 0) {
-                size_t bitmap_size_bytes = (program_header->conditional_boolean_count + 7) / 8;
+            // if(program_header->conditional_boolean_count > 0) {
+            //     size_t bitmap_size_bytes = (program_header->conditional_boolean_count + 7) / 8;
 
-                if(bitmap_size_bytes > conditional_bitmap_size_bytes) {
-                    conditionals_bitmap = (uint8_t*)realloc(conditionals_bitmap, bitmap_size_bytes);
-                    memset(conditionals_bitmap, 0, bitmap_size_bytes);
-                    conditional_bitmap_size_bytes = bitmap_size_bytes;
-                }
+            //     if(bitmap_size_bytes > conditional_bitmap_size_bytes) {
+            //         conditionals_bitmap = (uint8_t*)realloc(conditionals_bitmap, bitmap_size_bytes);
+            //         memset(conditionals_bitmap, 0, bitmap_size_bytes);
+            //         conditional_bitmap_size_bytes = bitmap_size_bytes;
+            //     }
 
-                memcpy(conditionals_bitmap, current_instance_data, bitmap_size_bytes);
-                current_instance_data += bitmap_size_bytes;
-            }
+            //     memcpy(conditionals_bitmap, current_instance_data, bitmap_size_bytes);
+            //     current_instance_data += bitmap_size_bytes;
+            // }
 
-            for (size_t i = 0; i < program_header->command_count; i++) {
-                int pc_size = record_command(command_info_buffer[i], cmd_buffer, device_index, stream_index, worker_id, current_instance_data);
-                RETURN_ON_ERROR(;)
+            // for (size_t i = 0; i < program_header->command_count; i++) {
+            //     int pc_size = record_command(command_info_buffer[i], cmd_buffer, device_index, stream_index, worker_id, current_instance_data);
+            //     RETURN_ON_ERROR(;)
                 
-                if(pc_size < 0) {
-                    LOG_ERROR("Unknown command type %d", command_info_buffer[i].type);
-                    return;
-                }
+            //     if(pc_size < 0) {
+            //         LOG_ERROR("Unknown command type %d", command_info_buffer[i].type);
+            //         return;
+            //     }
 
-                current_instance_data += pc_size;
+            //     current_instance_data += pc_size;
 
-                if(i < program_header->command_count - 1)
-                    vkCmdPipelineBarrier(
-                        cmd_buffer, 
-                        command_info_buffer[i].pipeline_stage, 
-                        command_info_buffer[i+1].pipeline_stage, 
-                        0, 1, 
-                        &memory_barrier, 
-                        0, 0, 0, 0);
-            }
+            //     if(i < program_header->command_count - 1)
+            //         vkCmdPipelineBarrier(
+            //             cmd_buffer, 
+            //             command_info_buffer[i].pipeline_stage, 
+            //             command_info_buffer[i+1].pipeline_stage, 
+            //             0, 1, 
+            //             &memory_barrier, 
+            //             0, 0, 0, 0);
+            // }
         }
         
         VK_CALL(vkEndCommandBuffer(cmd_buffer));

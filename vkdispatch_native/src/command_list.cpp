@@ -47,6 +47,8 @@ void command_list_reset_extern(struct CommandList* command_list) {
 void command_list_submit_extern(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int* indicies, int count, int per_device, void* signal) {
     struct Context* ctx = command_list->ctx;
     
+    LOG_INFO("Submitting command list with handle %p to stream %d", command_list, indicies[0]);
+
     if(indicies[0] == -2) {
         if(signal != NULL) {
             set_error("Signal is not supported for all streams");

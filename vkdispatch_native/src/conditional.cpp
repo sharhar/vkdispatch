@@ -14,8 +14,6 @@ int record_conditional_extern(struct CommandList* command_list) {
 
     command_list->conditional_boolean_count += 1;
 
-    
-
     return conditional_boolean_index;
 }
 
