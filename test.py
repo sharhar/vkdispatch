@@ -1,10 +1,16 @@
-import vkdispatch as vd
-import vkdispatch.codegen as vc
-from vkdispatch.codegen.abreviations import *
-
-import vkdispatch_native
+#import vkdispatch as vd
+#import vkdispatch.codegen as vc
+#from vkdispatch.codegen.abreviations import *
 
 import numpy as np
+
+buffer = np.zeros((4, 16), dtype=np.uint8)
+
+(buffer[:, 5:13]).view(np.int32)[:] = np.array([[19238, -1], [123098, 25687], [12301, 1234], [-102, -459145134]], dtype=np.int32)
+
+print(buffer)
+
+exit()
 
 vd.initialize(log_level=vd.LogLevel.INFO)
 

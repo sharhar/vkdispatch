@@ -38,8 +38,8 @@ class ReductionDispatcher:
         return f"Stage 1:\n{self.stage1}\nStage 2:\n{self.stage2}"
     
     def __call__(self, *args, **kwargs) -> vd.Buffer:
-        my_blocks = None
-        my_limits = None
+        my_blocks = (0, 0, 0)
+        my_limits = (0, 0, 0)
         my_cmd_list = None
 
         if "exec_size" in kwargs or self.exec_size is not None:

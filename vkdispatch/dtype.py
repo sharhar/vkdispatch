@@ -1,16 +1,18 @@
 import vkdispatch as vd
 import numpy as np
 
+from typing import Optional
+
 class dtype:
     name: str
     item_size: int
     glsl_type: str
-    glsl_type_extern: str = None
+    glsl_type_extern: Optional[str] = None
     dimentions: int
     format_str: str
     child_type: "dtype"
     child_count: int
-    scalar: "dtype"
+    scalar: "Optional[dtype]"
     shape: tuple
     numpy_shape: tuple
     true_numpy_shape: tuple
@@ -41,9 +43,9 @@ class _F32(_Scalar):
     glsl_type = "float"
     format_str = "%f"
 
-int32 = _I32
-uint32 = _U32
-float32 = _F32
+int32 = _I32 # type: ignore
+uint32 = _U32 # type: ignore
+float32 = _F32 # type: ignore
 
 class _Complex(dtype):
     dimentions = 0
@@ -60,7 +62,7 @@ class _CF64(_Complex):
     true_numpy_shape = ()
     scalar = None
 
-complex64 = _CF64
+complex64 = _CF64 # type: ignore
 
 class _Vector(dtype):
     dimentions = 1
@@ -176,15 +178,15 @@ class _V4U32(_Vector):
     true_numpy_shape = (4,)
     scalar = uint32
 
-vec2 = _V2F32
-vec3 = _V3F32
-vec4 = _V4F32
-ivec2 = _V2I32
-ivec3 = _V3I32
-ivec4 = _V4I32
-uvec2 = _V2U32
-uvec3 = _V3U32
-uvec4 = _V4U32
+vec2 = _V2F32 # type: ignore
+vec3 = _V3F32 # type: ignore
+vec4 = _V4F32 # type: ignore
+ivec2 = _V2I32 # type: ignore
+ivec3 = _V3I32 # type: ignore
+ivec4 = _V4I32 # type: ignore
+uvec2 = _V2U32 # type: ignore
+uvec3 = _V3U32 # type: ignore
+uvec4 = _V4U32 # type: ignore
 
 class _Matrix(dtype):
     dimentions = 2
@@ -216,7 +218,7 @@ class _M4F32(_Matrix):
 mat2 = _M2F32
 mat4 = _M4F32
 
-def to_vector(dtype: "vd.dtype", count: int) -> "vd.dtype":
+def to_vector(dtype: dtype, count: int) -> dtype: # type: ignore
     if count < 2 or count > 4:
         raise ValueError(f"Unsupported count ({count})!")
 
@@ -244,17 +246,17 @@ def to_vector(dtype: "vd.dtype", count: int) -> "vd.dtype":
     else:
         raise ValueError(f"Unsupported dtype ({dtype})!")
 
-def is_scalar(dtype: "vd.dtype") -> bool:
-    return issubclass(dtype, _Scalar)
+def is_scalar(dtype: dtype) -> bool:
+    return issubclass(dtype, _Scalar) # type: ignore
 
-def is_complex(dtype: "vd.dtype") -> bool:
-    return issubclass(dtype, _Complex)
+def is_complex(dtype: dtype) -> bool:
+    return issubclass(dtype, _Complex) # type: ignore
 
-def is_vector(dtype: "vd.dtype") -> bool:
-    return issubclass(dtype, _Vector)
+def is_vector(dtype: dtype) -> bool:
+    return issubclass(dtype, _Vector) # type: ignore
 
-def is_matrix(dtype: "vd.dtype") -> bool:
-    return issubclass(dtype, _Matrix)
+def is_matrix(dtype: dtype) -> bool:
+    return issubclass(dtype, _Matrix) # type: ignore
 
 def from_numpy_dtype(dtype: type) -> dtype:
     if dtype == np.int32:
@@ -268,8 +270,7 @@ def from_numpy_dtype(dtype: type) -> dtype:
     else:
         raise ValueError(f"Unsupported dtype ({dtype})!")
 
-
-def to_numpy_dtype(shader_type: dtype) -> type:
+def to_numpy_dtype(shader_type: dtype) -> np.dtype:
     if shader_type == int32:
         return np.int32
     elif shader_type == uint32:

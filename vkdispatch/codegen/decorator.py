@@ -113,7 +113,7 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None, signature: t
             workgroups,
             exec_size,
             args_dict
-        )
+        )  # type: ignore
 
         return wrapper
     
