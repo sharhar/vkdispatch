@@ -22,13 +22,13 @@ def add_five(buff: Buff[f32]):
 
 add_five(buff, cmd_list=cmd_list)
 
-vkdispatch_native.record_conditional(cmd_list._handle)
+conditional_index = cmd_list.record_conditional()
 
 add_five(buff, cmd_list=cmd_list)
 
-vkdispatch_native.record_conditional_end(cmd_list._handle)
+cmd_list.record_conditional_end()
 
-zeroed_byte = bytes([1])
+zeroed_byte = bytes([0])
 
 print(buff.read(0))
 cmd_list.submit(data=zeroed_byte)
