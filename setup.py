@@ -167,7 +167,7 @@ if vulkan_sdk_root is None:
 
 setup(
     name="vkdispatch",
-    packages=["vkdispatch", "vkdispatch.codegen", "vkdispatch.execution"],
+    packages=["vkdispatch", "vkdispatch.core", "vkdispatch.codegen", "vkdispatch.execution"],
     ext_modules=[
         Extension(
             "vkdispatch_native",

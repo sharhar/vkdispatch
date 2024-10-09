@@ -1,5 +1,3 @@
-import vkdispatch as vd
-
 from .arguments import Constant as Const
 from .arguments import Variable as Var
 from .arguments import ConstantArray as ConstArr

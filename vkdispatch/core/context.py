@@ -2,15 +2,36 @@ from typing import List
 from typing import Tuple
 from typing import Union
 
-import vkdispatch as vd
+from .errors import check_for_errors
+from .init import DeviceInfo, get_devices, initialize
+from .dtype import float32
+
+from vkdispatch.objects.buffer import Buffer
+
 import vkdispatch_native
 
 import numpy as np
 
 class Context:
-    """TODO: Docstring"""
+    """
+    A class for managing the context of the vkdispatch library.
+
+    Attributes:
+        _handle (`int`): The handle to the context.
+        devices (`List[int]`): A list of device indicies to use for the context.
+        device_infos (`List[DeviceInfo]`): A list of device info objects.
+        queue_families (`List[List[int]]`): A list of queue family indicies to use for the context.
+        stream_count (`int`): The number of submission threads to use.
+        subgroup_size (`int`): The subgroup size of the devices.
+        max_workgroup_size (`Tuple[int]`): The maximum workgroup size of the devices.
+        uniform_buffer_alignment (`int`): The uniform buffer alignment of the devices.
+    """
 
     _handle: int
+    devices: List[int]
+    device_infos: List[DeviceInfo]
+    queue_families: List[List[int]]
+    stream_count: int
     subgroup_size: int
     max_workgroup_size: Tuple[int]
     uniform_buffer_alignment: int
@@ -21,11 +42,11 @@ class Context:
         queue_families: List[List[int]]
     ) -> None:
         self.devices = devices
-        self.device_infos = [vd.get_devices()[dev] for dev in devices]
+        self.device_infos = [get_devices()[dev] for dev in devices]
         self.queue_families = queue_families
         self.stream_count = sum([len(i) for i in queue_families])
         self._handle = vkdispatch_native.context_create(devices, queue_families)
-        vd.check_for_errors()
+        check_for_errors()
         
         subgroup_sizes = []
         max_workgroup_sizes_x = []
@@ -50,7 +71,7 @@ class Context:
         pass # vkdispatch_native.context_destroy(self._handle)
 
 
-def get_compute_queue_family_index(device: vd.DeviceInfo, device_index: int) -> int:
+def get_compute_queue_family_index(device: DeviceInfo, device_index: int) -> int:
     # First check if we have a pure compute queue family with (sparse) transfer capabilities
     for i, queue_family in enumerate(device.queue_properties):
         if queue_family[1] == 6 or queue_family == 14:
@@ -68,7 +89,7 @@ def get_compute_queue_family_index(device: vd.DeviceInfo, device_index: int) -> 
 
     raise ValueError(f"Device {device_index} does not have a compute queue family!")
 
-def get_graphics_queue_family_index(device: vd.DeviceInfo, device_index: int) -> int:
+def get_graphics_queue_family_index(device: DeviceInfo, device_index: int) -> int:
     # First check if we have a pure compute queue family with (sparse) transfer capabilities
     for i, queue_family in enumerate(device.queue_properties):
         if queue_family[1] == 7 or queue_family == 15:
@@ -87,7 +108,7 @@ def get_graphics_queue_family_index(device: vd.DeviceInfo, device_index: int) ->
     raise ValueError(f"Device {device_index} does not have a compute queue family!")
 
 def get_device_queues(device_index: int,  all_queues) -> List[int]:
-    device = vd.get_devices()[device_index]
+    device = get_devices()[device_index]
 
     compute_queue_family = get_compute_queue_family_index(device, device_index)
     graphics_queue_family = get_graphics_queue_family_index(device, device_index)
@@ -101,7 +122,7 @@ def get_device_queues(device_index: int,  all_queues) -> List[int]:
     return [compute_queue_family]
 
 def select_devices(use_cpu: bool, all_devices) -> List[int]:
-    device_infos = vd.get_devices()
+    device_infos = get_devices()
 
     result = []
 
@@ -146,7 +167,7 @@ def make_context(
     device_list = [devices]
     
     if __context is None:
-        vd.initialize()
+        initialize()
         
         if device_list[0] is None:
             device_list[0] = select_devices(use_cpu, all_devices or max_streams)
@@ -161,7 +182,7 @@ def make_context(
         if queue_families is None:
             queue_families = [get_device_queues(dev_index, max_streams or all_queues) for dev_index in device_list[0]]
 
-        total_devices = len(vd.get_devices())
+        total_devices = len(get_devices())
 
         # Do type checking before passing to native code
         assert len(device_list[0]) == len(
@@ -177,7 +198,7 @@ def make_context(
 
         __context = Context(device_list[0], queue_families)
 
-        initial_buffer = vd.Buffer((1024,) , vd.float32)
+        initial_buffer = Buffer((1024,) , float32)
         initial_buffer.write(np.random.rand(1024).astype(np.float32))
         initial_buffer.read(0).sum()
 

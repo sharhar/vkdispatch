@@ -5,7 +5,6 @@ import vkdispatch_native
 from .command_list import CommandList
 from .descriptor_set import DescriptorSet
 
-
 class ComputePlan:
     """
     ComputePlan is a wrapper for the native functions which create and dispatch Vulkan compute shaders.
@@ -14,7 +13,7 @@ class ComputePlan:
         pc_size (int): The size of the push constants for the compute shader (in bytes)
         shader_source (str): The source code of the compute shader (in GLSL)
         binding_list (list): A list of binding types for the shader resources.
-        _handle: A handle to the compute plan created by the native Vulkan dispatch.
+        _handle (int): A pointer to the compute plan created by the native Vulkan dispatch.
     """
 
     def __init__(self, shader_source: str, binding_type_list: list, pc_size: int, shader_name: str) -> None:

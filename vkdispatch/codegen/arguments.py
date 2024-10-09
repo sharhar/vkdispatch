@@ -1,6 +1,5 @@
 import typing
 
-
 from vkdispatch.codegen.variables import ShaderVariable, BufferVariable, ImageVariable
 from vkdispatch.dtype import dtype
 
