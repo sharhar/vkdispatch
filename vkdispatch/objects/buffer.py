@@ -4,28 +4,30 @@ from typing import Union
 
 import numpy as np
 
-import vkdispatch as vd
-import vkdispatch_native
+import vkdispatch.core.dtype as dtype
+from vkdispatch.core.context import get_context, get_context_handle
+from vkdispatch.core.errors import check_for_errors
 
+import vkdispatch_native
 
 class Buffer:
     """TODO: Docstring"""
 
     _handle: int
-    var_type: "vd.dtype"
+    var_type: "dtype.dtype"
     shape: Tuple[int]
     size: int
     mem_size: int
 
-    def __init__(self, shape: Tuple[int, ...], var_type: "vd.dtype") -> None:
+    def __init__(self, shape: Tuple[int, ...], var_type: "dtype.dtype") -> None:
         if len(shape) > 3:
             raise ValueError("Buffer shape must be 1, 2, or 3 dimensions!")
 
-        self.var_type: "vd.dtype" = var_type
+        self.var_type: "dtype.dtype" = var_type
         self.shape: Tuple[int] = shape
         self.size: int = int(np.prod(shape))
         self.mem_size: int = self.size * self.var_type.item_size
-        self.ctx = vd.get_context()
+        self.ctx = get_context()
 
         if self.size > 2 ** 30:
             raise ValueError("Cannot allocate buffers larger than 2^30 elements!")
@@ -40,9 +42,9 @@ class Buffer:
         self.shader_shape = tuple(shader_shape_internal)
 
         self._handle: int = vkdispatch_native.buffer_create(
-            vd.get_context_handle(), self.mem_size, 0
+            get_context_handle(), self.mem_size, 0
         )
-        vd.check_for_errors()
+        check_for_errors()
 
     def __del__(self) -> None:
         pass  # vkdispatch_native.buffer_destroy(self._handle)
@@ -79,7 +81,7 @@ class Buffer:
         vkdispatch_native.buffer_write(
             self._handle, true_data_object, 0, len(true_data_object), index
         )
-        vd.check_for_errors()
+        check_for_errors()
 
     def read(self, index: Union[int, None] = None) -> Union[np.ndarray, List[np.ndarray]]:
         """Read the data in the buffer at the specified device index and return it as a
@@ -107,7 +109,7 @@ class Buffer:
 
             result = np.frombuffer(result_bytes, dtype=vd.to_numpy_dtype(true_scalar)).reshape(self.shape + self.var_type.true_numpy_shape)
 
-            vd.check_for_errors()
+            check_for_errors()
         else:
             result = []
 
@@ -124,7 +126,7 @@ class Buffer:
 def asbuffer(array: np.ndarray) -> Buffer:
     """Cast a numpy array to a buffer object."""
 
-    buffer = Buffer(array.shape, vd.from_numpy_dtype(array.dtype))
+    buffer = Buffer(array.shape, dtype.from_numpy_dtype(array.dtype))
     buffer.write(array)
 
     return buffer

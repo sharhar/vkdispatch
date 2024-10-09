@@ -1,54 +1,17 @@
-import copy
+import dataclasses
+
 from typing import Dict
 from typing import List
 from typing import Tuple
 from typing import Union
 from typing import Optional
+
 import enum
 
 import numpy as np
 
-import dataclasses
-
 import vkdispatch as vd
 import vkdispatch.codegen as vc
-
-@dataclasses.dataclass
-class StructElement:
-    """
-    A dataclass that represents an element of a struct.
-
-    Attributes:
-       name (str): The name of the element.
-       dtype (vd.dtype): The dtype of the element.
-       count (int): The count of the element.
-    """
-    name: str
-    dtype: vd.dtype
-    count: int
-
-class StructBuilder:
-    """
-    A class for describing a struct in shader code (includes both the memory layout and code generation).
-
-    Attributes:
-        elements (`List[StructElement]`): A list of the elements of the struct. Given as `StructElement` objects, which contain the `name`, `index`, `dtype`, and `count` of the element.
-        size (`int`): The size of the struct in bytes.
-    """
-    elements: List[StructElement]
-    size: int
-
-    def __init__(self, ) -> None:
-        self.elements = []
-        self.size = 0
-    
-    def register_element(self, name: str, dtype: vd.dtype, count: int):
-        self.elements.append(StructElement(name, dtype, count))
-        self.size += dtype.item_size * count
-
-    def build(self) -> Tuple[str, List[StructElement]]:
-        self.elements.sort(key=lambda x: x.dtype.item_size * x.count, reverse=True)
-        return self.elements
 
 @dataclasses.dataclass
 class BufferedStructEntry:
@@ -83,7 +46,7 @@ class BufferBuilder:
         
         self.struct_alignment = struct_alignment
         
-    def register_struct(self, name: str, elements: List[StructElement]) -> None:
+    def register_struct(self, name: str, elements: List[vc.StructElement]) -> None:
         for elem in elements:
             np_dtype = vd.to_numpy_dtype(elem.dtype if elem.dtype.scalar is None else elem.dtype.scalar)
 

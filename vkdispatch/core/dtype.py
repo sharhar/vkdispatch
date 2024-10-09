@@ -1,4 +1,3 @@
-import vkdispatch as vd
 import numpy as np
 
 from typing import Optional
