@@ -6,6 +6,7 @@ import vkdispatch as vd
 
 import vkdispatch_native
 
+# string representations of device types
 device_type_id_to_str_dict = {
     0: "Other",
     1: "Integrated GPU",
@@ -14,6 +15,12 @@ device_type_id_to_str_dict = {
     4: "CPU",
 }
 
+# device type ranking for sorting, higher is better:
+# 4: Discrete GPU
+# 3: Virtual GPU
+# 2: Integrated GPU
+# 1: CPU
+# 0: Other
 device_type_ranks_dict = {
     0: 0,
     1: 2,
@@ -23,6 +30,23 @@ device_type_ranks_dict = {
 }
 
 def get_queue_type_strings(queue_type: int, verbose: bool) -> typing.List[str]:
+    """
+    A function which returns a list of strings representing the queue's supported operations.
+
+    Args:
+        queue_type (int): The queue type, a combination of the following flags:
+            0x001: Graphics
+            0x002: Compute
+            0x004: Transfer
+            0x008: Sparse Binding
+            0x010: Protected
+            0x020: Video Decode
+            0x040: Video Encode
+            0x100: Optical Flow (NV)
+        verbose (bool): A flag that controls whether to include verbose output. By Default, this
+            flag is set to False. Meaning only the Graphics and Compute flags will be included.
+    """
+
     result = []
 
     if queue_type & 0x001:
@@ -46,16 +70,65 @@ def get_queue_type_strings(queue_type: int, verbose: bool) -> typing.List[str]:
 
     return result
 
-# define a log_level enum
 class LogLevel(Enum):
+    """
+    An enumeration which represents the log levels.
+
+    Attributes:
+        VERBOSE (int): All possible logs are printed. Module must be compiled with debug mode enabled to see these logs.
+        INFO (int): All release mode logs are printed. Useful for debugging the publicly available module.
+        WARNING (int): Only warnings and errors are printed. Default log level.
+        ERROR (int): Only errors are printed. Useful for muting annoying warnings that you *know* are harmless.
+    """
     VERBOSE = 0
     INFO = 1
     WARNING = 2
     ERROR = 3
 
-
 class DeviceInfo:
-    """TODO: Docstring"""
+    """
+    A class which represents all the features and properties of a Vulkan device.
+    
+    NOTE: This class is not meant to be instantiated by the user. Instead, the
+    user should call the get_devices() function to get a list of DeviceInfo
+    instances.
+
+    Attributes:
+        dev_index (int): The index of the device.
+        version_variant (int): The Vulkan variant version.
+        version_major (int): The Vulkan major version.
+        version_minor (int): The Vulkan minor version.
+        version_patch (int): The Vulkan patch version.
+        driver_version (int): The version of the driver.
+        vendor_id (int): The vendor ID of the device.
+        device_id (int): The device ID of the device.
+        device_type (int): The device type, which is one of the following:
+            0: Other
+            1: Integrated GPU
+            2: Discrete GPU
+            3: Virtual GPU
+            4: CPU
+        device_name (str): The name of the device.
+        shader_buffer_float32_atomics (int): float32 atomics support.
+        shader_buffer_float32_atomic_add (int): float32 atomic add support.
+        float_64_support (int): 64-bit float support.
+        int_64_support (int): 64-bit integer support.
+        int_16_support (int): 16-bit integer support.
+        max_workgroup_size (Tuple[int, int, int]): Maximum workgroup size.
+        max_workgroup_invocations (int): Maximum workgroup invocations.
+        max_workgroup_count (Tuple[int, int, int]): Maximum workgroup count.
+        max_bound_descriptor_sets (int): Maximum bound descriptor sets.
+        max_push_constant_size (int): Maximum push constant size.
+        max_storage_buffer_range (int): Maximum storage buffer range.
+        max_uniform_buffer_range (int): Maximum uniform buffer range.
+        uniform_buffer_alignment (int): Uniform buffer alignment.
+        sub_group_size (int): Subgroup size.
+        supported_stages (int): Supported subgroup stages.
+        supported_operations (int): Supported subgroup operations.
+        quad_operations_in_all_stages (int): Quad operations in all stages.
+        max_compute_shared_memory_size (int): Maximum compute shared memory size.
+        queue_properties (List[Tuple[int, int]]): Queue properties.
+    """
 
     def __init__(
         self,
@@ -131,6 +204,16 @@ class DeviceInfo:
         self.queue_properties = queue_properties
 
     def get_info_string(self, verbose: bool = False) -> str:
+        """
+        A method which returns a string representation of the device information.
+
+        Args:
+            verbose (bool): A flag to enable verbose output.
+        
+        Returns:
+            str: A string representation of the device information.
+        """
+
         result = f"Device {self.dev_index}: {self.device_name}\n"
 
         result += f"\tVulkan Version: {self.version_major}.{self.version_minor}.{self.version_patch}\n"
@@ -191,11 +274,23 @@ class DeviceInfo:
     def __repr__(self) -> str:
         return self.get_info_string()
 
-
 __initilized_instance: bool = False
 
 
 def initialize(debug_mode: bool = False, log_level: LogLevel = LogLevel.WARNING, loader_debug_logs: bool = False):
+    """
+    A function which initializes the Vulkan dispatch library.
+
+    Args:
+        debug_mode (bool): A flag to enable debug mode.
+        log_level (LogLevel): The log level, which is one of the following:
+            LogLevel.VERBOSE
+            LogLevel.INFO
+            LogLevel.WARNING
+            LogLevel.ERROR
+        loader_debug_logs (bool): A flag to enable vulkan loader debug logs.
+    """
+
     global __initilized_instance
 
     if __initilized_instance:
@@ -211,6 +306,13 @@ def initialize(debug_mode: bool = False, log_level: LogLevel = LogLevel.WARNING,
 
 
 def get_devices() -> typing.List[DeviceInfo]:
+    """
+    Get a list of DeviceInfo instances representing all the Vulkan devices on the system.
+
+    Returns:
+        List[DeviceInfo]: A list of DeviceInfo instances.
+    """
+
     initialize()
 
     return [

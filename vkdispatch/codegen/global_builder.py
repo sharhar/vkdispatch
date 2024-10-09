@@ -1,7 +1,7 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
-from typing import List, Union
+from typing import List, Union, Optional
 
 builder_obj = vc.ShaderBuilder()
 
@@ -17,7 +17,7 @@ subgroup_id = builder_obj.subgroup_id
 subgroup_size = builder_obj.subgroup_size
 subgroup_invocation = builder_obj.subgroup_invocation
 
-def shared_buffer(var_type: vd.dtype, size: int, var_name: str = None):
+def shared_buffer(var_type: vd.dtype, size: int, var_name: Optional[str] = None):
     return builder_obj.shared_buffer(var_type, size, var_name)
 
 def memory_barrier():
@@ -122,43 +122,43 @@ def subgroup_elect():
 def subgroup_barrier():
     builder_obj.subgroup_barrier()
 
-def new(var_type: vd.dtype, *args, var_name: str = None):
+def new(var_type: vd.dtype, *args, var_name: Optional[str] = None):
     return builder_obj.new(var_type, *args, var_name=var_name)
 
-def new_float(*args, var_name: str = None):
+def new_float(*args, var_name: Optional[str] = None):
     return new(vd.float32, *args, var_name=var_name)
 
-def new_int(*args, var_name: str = None):
+def new_int(*args, var_name: Optional[str] = None):
     return new(vd.int32, *args, var_name=var_name)
 
-def new_uint(*args, var_name: str = None):
+def new_uint(*args, var_name: Optional[str] = None):
     return new(vd.uint32, *args, var_name=var_name)
 
-def new_vec2(*args, var_name: str = None):
+def new_vec2(*args, var_name: Optional[str] = None):
     return new(vd.vec2, *args, var_name=var_name)
 
-def new_vec3(*args, var_name: str = None):
+def new_vec3(*args, var_name: Optional[str] = None):
     return new(vd.vec3, *args, var_name=var_name)
 
-def new_vec4(*args, var_name: str = None):
+def new_vec4(*args, var_name: Optional[str] = None):
     return new(vd.vec4, *args, var_name=var_name)
 
-def new_uvec2(*args, var_name: str = None):
+def new_uvec2(*args, var_name: Optional[str] = None):
     return new(vd.uvec2, *args, var_name=var_name)
 
-def new_uvec3(*args, var_name: str = None):
+def new_uvec3(*args, var_name: Optional[str] = None):
     return new(vd.uvec3, *args, var_name=var_name)
 
-def new_uvec4(*args, var_name: str = None):
+def new_uvec4(*args, var_name: Optional[str] = None):
     return new(vd.uvec4, *args, var_name=var_name)
 
-def new_ivec2(*args, var_name: str = None):
+def new_ivec2(*args, var_name: Optional[str] = None):
     return new(vd.ivec2, *args, var_name=var_name)
 
-def new_ivec3(*args, var_name: str = None):
+def new_ivec3(*args, var_name: Optional[str] = None):
     return new(vd.ivec3, *args, var_name=var_name)
 
-def new_ivec4(*args, var_name: str = None):
+def new_ivec4(*args, var_name: Optional[str] = None):
     return new(vd.ivec4, *args, var_name=var_name)
 
 def float_bits_to_int(arg: vc.ShaderVariable):

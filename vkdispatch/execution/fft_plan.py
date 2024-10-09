@@ -61,7 +61,7 @@ class FFTDispatcher:
         self.__inverse = inverse
         self.__do_r2c = do_r2c
 
-    def __call__(self, buffer: vd.Buffer, cmd_list: vd.CommandList = None):
+    def __call__(self, buffer: vd.Buffer, cmd_list: typing.Optional[vd.CommandList] = None):
         my_cmd_list = cmd_list
 
         if my_cmd_list is None:

@@ -13,12 +13,12 @@ from typing import Callable
 
 import numpy as np
 
-def sanitize_dims_tuple(func_args, in_val, args, kwargs):
+def sanitize_dims_tuple(func_args, in_val, args, kwargs) -> Tuple[int, int, int]:
     if callable(in_val):
         in_val = in_val(LaunchParametersHolder(func_args, args, kwargs))
 
     if isinstance(in_val, int) or np.issubdtype(type(in_val), np.integer):
-        return (in_val, 1, 1)
+        return (in_val, 1, 1) # type: ignore
 
     if not isinstance(in_val, tuple):
         raise ValueError("Must provide a tuple of dimensions!")
@@ -26,7 +26,7 @@ def sanitize_dims_tuple(func_args, in_val, args, kwargs):
     if len(in_val) > 0 and len(in_val) < 4:
         raise ValueError("Must provide a tuple of length 1, 2, or 3!")
     
-    return_val = (1, 1, 1)
+    return_val = [1, 1, 1]
 
     for ii, val in enumerate(in_val):
         if not isinstance(val, int) and not np.issubdtype(type(val), np.integer):
@@ -34,7 +34,7 @@ def sanitize_dims_tuple(func_args, in_val, args, kwargs):
         
         return_val[ii] = val
     
-    return return_val
+    return (return_val[0], return_val[1], return_val[2])
 
 class LaunchBindObject:
     def __init__(self, parent: "LaunchVariables", name: str) -> None:
@@ -130,8 +130,8 @@ class ShaderLauncher:
         return result
 
     def __call__(self, *args, **kwargs):
-        my_blocks = None
-        my_limits = None
+        my_blocks = (0, 0, 0)
+        my_limits = (0, 0, 0)
         my_cmd_list = None
 
         if "workgroups" in kwargs or self.my_workgroups is not None:

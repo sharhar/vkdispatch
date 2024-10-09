@@ -10,7 +10,7 @@ def stage_transfer_copy_buffers(
     command_list: vd.CommandList,
     src: vd.Buffer,
     dst: vd.Buffer,
-    size: int = None,
+    size: typing.Optional[int] = None,
     src_offset: int = 0,
     dst_offset: int = 0,
 ) -> None:

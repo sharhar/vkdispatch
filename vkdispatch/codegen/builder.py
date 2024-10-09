@@ -5,16 +5,64 @@ from typing import Dict
 from typing import List
 from typing import Tuple
 from typing import Union
+from typing import Optional
+
+import enum
+import dataclasses
+
+class BindingType(enum.Enum):
+    """
+    A dataclass that represents the type of a binding in a shader. Either a
+    STORAGE_BUFFER, UNIFORM_BUFFER, or SAMPLER.
+    """
+    STORAGE_BUFFER = 1
+    UNIFORM_BUFFER = 3
+    SAMPLER = 5
+
+@dataclasses.dataclass
+class ShaderBinding:
+    """
+    A dataclass that represents a bound resource in a shader. Either a 
+    buffer or an image.
+
+    Attributes:
+        dtype (vd.dtype): The dtype of the resource. If 
+            the resource is an image, this should be vd.vec4 
+            (since all images are sampled with 4 channels in shaders).
+        name (str): The name of the resource within the shader code.
+        dimension (int): The dimension of the resource. Set to 0 for
+            buffers and 1, 2, or 3 for images.
+        binding_type (BindingType): The type of the binding. Either
+            STORAGE_BUFFER, UNIFORM_BUFFER, or SAMPLER.
+    """
+    dtype: vd.dtype
+    name: str
+    dimension: int
+    binding_type: BindingType
+
+@dataclasses.dataclass
+class SharedBuffer:
+    """
+    A dataclass that represents a shared buffer in a shader.
+
+    Attributes:
+        dtype (vd.dtype): The dtype of the shared buffer.
+        size (int): The size of the shared buffer.
+        name (str): The name of the shared buffer within the shader code.
+    """
+    dtype: vd.dtype
+    size: int
+    name: str
 
 class ShaderBuilder:
     var_count: int
     binding_count: int
-    binding_list: List[Tuple[vd.dtype, str, int]]
-    shared_buffers: List[Tuple[vd.dtype, int, "vc.BufferVariable"]]
+    binding_list: List[ShaderBinding]
+    shared_buffers: List[SharedBuffer]
     scope_num: int
-    pc_struct: vc.BufferStructure
-    uniform_struct: vc.BufferStructure
-    exec_count: vc.ShaderVariable
+    pc_struct: vc.StructBuilder
+    uniform_struct: vc.StructBuilder
+    exec_count: Optional[vc.ShaderVariable]
     contents: str
     pre_header: str
 
@@ -52,8 +100,8 @@ class ShaderBuilder:
     def reset(self) -> None:
         self.var_count = 0
         self.binding_count = 0
-        self.pc_struct = vc.BufferStructure()
-        self.uniform_struct = vc.BufferStructure()
+        self.pc_struct = vc.StructBuilder()
+        self.uniform_struct = vc.StructBuilder()
         self.binding_list = []
         self.shared_buffers = []
         self.scope_num = 1
@@ -63,7 +111,7 @@ class ShaderBuilder:
     def append_contents(self, contents: str) -> None:
         self.contents += ("\t" * self.scope_num) + contents
     
-    def get_name_func(self, prefix: str = None, suffix: str = None):
+    def get_name_func(self, prefix: Optional[str] = None, suffix: Optional[str] = None):
         my_prefix = [prefix]
         my_suffix = [suffix]
         def get_name_val(var_name: Union[str, None] = None):
@@ -84,53 +132,45 @@ class ShaderBuilder:
             return new_var, raw_name
         return get_name_val
 
-    def make_var(self, var_type: vd.dtype, var_name: str = None, prefix: str = None, suffix: str = None):
+    def make_var(self, var_type: vd.dtype, var_name: Optional[str] = None, prefix: Optional[str] = None, suffix: Optional[str] = None):
         return vc.ShaderVariable(self.append_contents, self.get_name_func(prefix, suffix), var_type, var_name)
     
-    def declare_constant(self, var_type: vd.dtype, count: int = 1, var_name: str = None):
-        decleration_type = f"{var_type.glsl_type}"
+    def declare_constant(self, var_type: vd.dtype, count: int = 1, var_name: Optional[str] = None):
         suffix = None
         if var_type.glsl_type_extern is not None:
-            decleration_type = f"{var_type.glsl_type_extern}"
             suffix = ".xyz"
 
         new_var = self.make_var(var_type, var_name, "UBO.", suffix)
 
-        decleration_suffix = ""
         if count > 1:
             new_var.use_child_type = False
             new_var.can_index = True
-            decleration_suffix = f"[{count}]"
 
-        self.uniform_struct.register_element(new_var.raw_name, var_type, f"{decleration_type} {new_var.raw_name}{decleration_suffix};", count)
+        self.uniform_struct.register_element(new_var.raw_name, var_type, count)
         return new_var
 
-    def declare_variable(self, var_type: vd.dtype, count: int = 1, var_name: str = None):
-        decleration_type = f"{var_type.glsl_type}"
+    def declare_variable(self, var_type: vd.dtype, count: int = 1, var_name: Optional[str] = None):
         suffix = None
         if var_type.glsl_type_extern is not None:
-            decleration_type = f"{var_type.glsl_type_extern}"
             suffix = ".xyz"
         
         new_var = self.make_var(var_type, var_name, "PC.", suffix)
         new_var._varying = True
 
-        decleration_suffix = ""
         if count > 1:
             new_var.use_child_type = False
             new_var.can_index = True
-            decleration_suffix = f"[{count}]"
 
-        self.pc_struct.register_element(new_var.raw_name, var_type, f"{decleration_type} {new_var.raw_name}{decleration_suffix};", count)
+        self.pc_struct.register_element(new_var.raw_name, var_type, count)
         return new_var
     
-    def declare_buffer(self, var_type: vd.dtype, var_name: str = None):
+    def declare_buffer(self, var_type: vd.dtype, var_name: Optional[str] = None):
         self.binding_count += 1
 
         buffer_name = f"buf{self.binding_count}" if var_name is None else var_name
         shape_name = f"{buffer_name}_shape"
         
-        self.binding_list.append((var_type, buffer_name, 0))
+        self.binding_list.append(ShaderBinding(var_type, buffer_name, 0, BindingType.STORAGE_BUFFER))
         
         return vc.BufferVariable(
             self.append_contents, 
@@ -142,11 +182,11 @@ class ShaderBuilder:
             shape_name
         )
     
-    def declare_image(self, dimensions: int, var_name: str = None):
+    def declare_image(self, dimensions: int, var_name: Optional[str] = None):
         self.binding_count += 1
 
         image_name = f"tex{self.binding_count}" if var_name is None else var_name
-        self.binding_list.append((vd.vec4, image_name, dimensions))
+        self.binding_list.append(ShaderBinding(vd.vec4, image_name, dimensions, BindingType.SAMPLER))
         
         return vc.ImageVariable(
             self.append_contents, 
@@ -157,41 +197,8 @@ class ShaderBuilder:
             f"{image_name}"
         )
     
-    def build(self, x: int, y: int, z: int) -> Tuple[str, int, Dict[str, Tuple[int, vd.dtype]], Dict[str, Tuple[int, vd.dtype]]]:
-        header = "" + self.pre_header
 
-        for shared_buffer in self.shared_buffers:
-            header += f"shared {shared_buffer[0].glsl_type} {shared_buffer[2]}[{shared_buffer[1]}];\n"
-
-        uniform_decleration_contents, uniform_dict = self.uniform_struct.build()
-        
-        if len(uniform_decleration_contents) > 0:
-            header += f"\nlayout(set = 0, binding = 0) uniform UniformObjectBuffer {{\n { uniform_decleration_contents } \n}} UBO;\n"
-
-        binding_type_list = [3]
-        
-        for ii, binding in enumerate(self.binding_list):
-            if binding[2] == 0:
-                true_type = binding[0].glsl_type
-                if binding[0].glsl_type_extern is not None:
-                    true_type = binding[0].glsl_type_extern
-
-                header += f"layout(set = 0, binding = {ii + 1}) buffer Buffer{ii + 1} {{ {true_type} data[]; }} {binding[1]};\n"
-                binding_type_list.append(1)
-            else:
-                header += f"layout(set = 0, binding = {ii + 1}) uniform sampler{binding[2]}D {binding[1]};\n"
-                binding_type_list.append(5)
-        
-        pc_decleration_contents, pc_dict = self.pc_struct.build()
-        
-        if len(pc_decleration_contents) > 0:
-            header += f"\nlayout(push_constant) uniform PushConstant {{\n { pc_decleration_contents } \n}} PC;\n"
-        
-        layout_str = f"layout(local_size_x = {x}, local_size_y = {y}, local_size_z = {z}) in;"
-
-        return f"{header}\n{layout_str}\nvoid main() {{\n{self.contents}\n}}\n", self.pc_struct.my_size, pc_dict, uniform_dict, binding_type_list
-
-    def shared_buffer(self, var_type: vd.dtype, size: int, var_name: str = None):
+    def shared_buffer(self, var_type: vd.dtype, size: int, var_name: Optional[str] = None):
         buffer_name = self.get_name_func()(var_name)[0]
         shape_name = f"{buffer_name}_shape"
 
@@ -205,7 +212,7 @@ class ShaderBuilder:
             shape_name
         )
 
-        self.shared_buffers.append((var_type, size, new_var))
+        self.shared_buffers.append(SharedBuffer(var_type, size, repr(new_var)))
 
         return new_var
     
@@ -319,7 +326,7 @@ class ShaderBuilder:
     def subgroup_barrier(self):
         self.append_contents("subgroupBarrier();\n")
 
-    def new(self, var_type: vd.dtype, *args, var_name: str = None):
+    def new(self, var_type: vd.dtype, *args, var_name: Optional[str] = None):
         new_var = self.make_var(var_type, var_name=var_name) #f"float({arg1})")
 
         decleration_suffix = ""
@@ -330,40 +337,40 @@ class ShaderBuilder:
 
         return new_var
 
-    def new_float(self, *args, var_name: str = None):
+    def new_float(self, *args, var_name: Optional[str] = None):
         return self.new(vd.float32, *args, var_name=var_name)
 
-    def new_int(self, *args, var_name: str = None):
+    def new_int(self, *args, var_name: Optional[str] = None):
         return self.new(vd.int32, *args, var_name=var_name)
 
-    def new_uint(self, *args, var_name: str = None):
+    def new_uint(self, *args, var_name: Optional[str] = None):
         return self.new(vd.uint32, *args, var_name=var_name)
 
-    def new_vec2(self, *args, var_name: str = None):
+    def new_vec2(self, *args, var_name: Optional[str] = None):
         return self.new(vd.vec2, *args, var_name=var_name)
 
-    def new_vec3(self, *args, var_name: str = None):
+    def new_vec3(self, *args, var_name: Optional[str] = None):
         return self.new(vd.vec3, *args, var_name=var_name)
 
-    def new_vec4(self, *args, var_name: str = None):
+    def new_vec4(self, *args, var_name: Optional[str] = None):
         return self.new(vd.vec4, *args, var_name=var_name)
 
-    def new_uvec2(self, *args, var_name: str = None):
+    def new_uvec2(self, *args, var_name: Optional[str] = None):
         return self.new(vd.uvec2, *args, var_name=var_name)
 
-    def new_uvec3(self, *args, var_name: str = None):
+    def new_uvec3(self, *args, var_name: Optional[str] = None):
         return self.new(vd.uvec3, *args, var_name=var_name)
 
-    def new_uvec4(self, *args, var_name: str = None):
+    def new_uvec4(self, *args, var_name: Optional[str] = None):
         return self.new(vd.uvec4, *args, var_name=var_name)
 
-    def new_ivec2(self, *args, var_name: str = None):
+    def new_ivec2(self, *args, var_name: Optional[str] = None):
         return self.new(vd.ivec2, *args, var_name=var_name)
 
-    def new_ivec3(self, *args, var_name: str = None):
+    def new_ivec3(self, *args, var_name: Optional[str] = None):
         return self.new(vd.ivec3, *args, var_name=var_name)
 
-    def new_ivec4(self, *args, var_name: str = None):
+    def new_ivec4(self, *args, var_name: Optional[str] = None):
         return self.new(vd.ivec4, *args, var_name=var_name)
 
     def float_bits_to_int(self, arg: vc.ShaderVariable):
@@ -409,3 +416,56 @@ class ShaderBuilder:
         new_var.z = index / (shape.x * shape.y)
 
         return new_var
+
+    def compose_struct_decleration(self, elements: List[vc.StructElement]) -> str:
+        declerations = []
+
+        for elem in elements:
+            decleration_type = f"{elem.dtype.glsl_type}"
+            if elem.dtype.glsl_type_extern is not None:
+                decleration_type = f"{elem.dtype.glsl_type_extern}"
+
+            decleration_suffix = ""
+            if elem.count > 1:
+                decleration_suffix = f"[{elem.count}]"
+
+            declerations.append(f"\t{decleration_type} {elem.name}{decleration_suffix};")
+        
+        return "\n".join(declerations)
+
+    def build(self, x: int, y: int, z: int) -> Tuple[str, int, List[vc.StructElement], List[vc.StructElement], List[BindingType]]:
+        header = "" + self.pre_header
+
+        for shared_buffer in self.shared_buffers:
+            header += f"shared {shared_buffer.dtype.glsl_type} {shared_buffer.name}[{shared_buffer.size}];\n"
+
+        uniform_elements = self.uniform_struct.build()
+        
+        uniform_decleration_contents = self.compose_struct_decleration(uniform_elements)
+        if len(uniform_decleration_contents) > 0:
+            header += f"\nlayout(set = 0, binding = 0) uniform UniformObjectBuffer {{\n { uniform_decleration_contents } \n}} UBO;\n"
+
+        binding_type_list = [BindingType.UNIFORM_BUFFER]
+        
+        for ii, binding in enumerate(self.binding_list):
+            if binding.binding_type == BindingType.STORAGE_BUFFER:
+                true_type = binding.dtype.glsl_type
+                if binding.dtype.glsl_type_extern is not None:
+                    true_type = binding.dtype.glsl_type_extern
+
+                header += f"layout(set = 0, binding = {ii + 1}) buffer Buffer{ii + 1} {{ {true_type} data[]; }} {binding.name};\n"
+                binding_type_list.append(binding.binding_type)
+            else:
+                header += f"layout(set = 0, binding = {ii + 1}) uniform sampler{binding.dimension}D {binding.name};\n"
+                binding_type_list.append(binding.binding_type)
+        
+        pc_elements = self.pc_struct.build()
+
+        pc_decleration_contents = self.compose_struct_decleration(pc_elements)
+        
+        if len(pc_decleration_contents) > 0:
+            header += f"\nlayout(push_constant) uniform PushConstant {{\n { pc_decleration_contents } \n}} PC;\n"
+        
+        layout_str = f"layout(local_size_x = {x}, local_size_y = {y}, local_size_z = {z}) in;"
+
+        return f"{header}\n{layout_str}\nvoid main() {{\n{self.contents}\n}}\n", self.pc_struct.size, pc_elements, uniform_elements, binding_type_list
