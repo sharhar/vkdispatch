@@ -56,9 +56,9 @@ class CommandList:
         vkdispatch_native.record_conditional_end(self._handle)
         vd.check_for_errors()
 
-    def add_pc_buffer(self, pc_buffer: "vd.BufferStructureProxy") -> None:
+    def add_pc_buffer(self, pc_buffer: "vc.BufferStructureProxy") -> None:
         """Add a push constant buffer to the command list."""
-        pc_buffer.index = len(self.pc_buffers)
+        #pc_buffer.index = len(self.pc_buffers)
         self.pc_buffers.append(pc_buffer)
 
     def add_desctiptor_set_and_static_constants(self, descriptor_set: "vd.DescriptorSet", constants_buffer_proxy: "vc.BufferStructureProxy") -> None:
