@@ -44,6 +44,18 @@ class CommandList:
         vd.check_for_errors()
         return result
 
+    def record_conditional(self) -> int:
+        """Record a conditional block in the command list."""
+        result = vkdispatch_native.record_conditional(self._handle)
+        vd.check_for_errors()
+
+        return result
+    
+    def record_conditional_end(self) -> int:
+        """Record the end of a conditional block in the command list."""
+        vkdispatch_native.record_conditional_end(self._handle)
+        vd.check_for_errors()
+
     def add_pc_buffer(self, pc_buffer: "vd.BufferStructureProxy") -> None:
         """Add a push constant buffer to the command list."""
         pc_buffer.index = len(self.pc_buffers)

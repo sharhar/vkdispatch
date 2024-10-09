@@ -27,9 +27,6 @@ class Context:
         self._handle = vkdispatch_native.context_create(devices, queue_families)
         vd.check_for_errors()
         
-        self._set_context_properties()
-
-    def _set_context_properties(self):
         subgroup_sizes = []
         max_workgroup_sizes_x = []
         max_workgroup_sizes_y = []
@@ -50,7 +47,7 @@ class Context:
         self.uniform_buffer_alignment = max(uniform_buffer_alignments)
 
     def __del__(self) -> None:
-        pass  # vkdispatch_native.context_destroy(self._handle)
+        pass # vkdispatch_native.context_destroy(self._handle)
 
 
 def get_compute_queue_family_index(device: vd.DeviceInfo, device_index: int) -> int:
