@@ -4,9 +4,9 @@ from typing import Union
 
 import numpy as np
 
-import vkdispatch.core.dtype as dtype
-from vkdispatch.core.context import get_context, get_context_handle
-from vkdispatch.core.errors import check_for_errors
+import dtype
+from .context import get_context, get_context_handle
+from .errors import check_for_errors
 
 import vkdispatch_native
 

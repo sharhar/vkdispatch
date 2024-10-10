@@ -1,7 +1,10 @@
 from typing import Tuple
 
-import vkdispatch as vd
 import vkdispatch_native
+
+from .context import get_context_handle
+from .errors import check_for_compute_stage_errors, check_for_errors
+
 from .command_list import CommandList
 from .descriptor_set import DescriptorSet
 
@@ -22,9 +25,9 @@ class ComputePlan:
         self.binding_list = binding_type_list
 
         self._handle = vkdispatch_native.stage_compute_plan_create(
-            vd.get_context_handle(), shader_source.encode(), self.binding_list, pc_size, shader_name.encode()
+            get_context_handle(), shader_source.encode(), self.binding_list, pc_size, shader_name.encode()
         )
-        vd.check_for_compute_stage_errors()
+        check_for_compute_stage_errors()
 
     def record(
         self,
@@ -49,4 +52,4 @@ class ComputePlan:
             blocks[1],
             blocks[2],
         )
-        vd.check_for_errors()
+        check_for_errors()
