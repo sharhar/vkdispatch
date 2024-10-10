@@ -1,6 +1,9 @@
-import vkdispatch as vd
 import vkdispatch_native
 
+from .errors import check_for_errors
+
+from .buffer import Buffer
+from .image import Image
 
 class DescriptorSet:
     """TODO: Docstring"""
@@ -9,14 +12,14 @@ class DescriptorSet:
 
     def __init__(self, compute_plan_handle: int) -> None:
         self._handle = vkdispatch_native.descriptor_set_create(compute_plan_handle)
-        vd.check_for_errors()
+        check_for_errors()
 
-    def bind_buffer(self, buffer: "vd.Buffer", binding: int, offset: int = 0, range: int = 0, type: int = 0) -> None:
+    def bind_buffer(self, buffer: Buffer, binding: int, offset: int = 0, range: int = 0, type: int = 0) -> None:
         vkdispatch_native.descriptor_set_write_buffer(
             self._handle, binding, buffer._handle, offset, range, type
         )
-        vd.check_for_errors()
+        check_for_errors()
 
-    def bind_image(self, image: "vd.Image", binding: int) -> None:
+    def bind_image(self, image: Image, binding: int) -> None:
         vkdispatch_native.descriptor_set_write_image(self._handle, binding, image._handle)
-        vd.check_for_errors()
+        check_for_errors()

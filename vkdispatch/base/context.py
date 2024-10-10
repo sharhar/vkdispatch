@@ -5,8 +5,7 @@ from typing import Union
 from .errors import check_for_errors
 from .init import DeviceInfo, get_devices, initialize
 from .dtype import float32
-
-from vkdispatch.objects.buffer import Buffer
+from .buffer import Buffer
 
 import vkdispatch_native
 

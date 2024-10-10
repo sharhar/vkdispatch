@@ -4,30 +4,36 @@ from typing import List
 from typing import Dict
 from typing import Union
 
-import copy
-
 import numpy as np
 
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 import vkdispatch_native
 
-class CommandList:
+from .buffer_builder import BufferBuilder
+
+class CommandStream(vd.CommandList):
     """TODO: Docstring"""
 
-    _handle: int
     _reset_on_submit: bool
     submit_on_record: bool
-    pc_buffers: "List[vc.BufferStructureProxy]"
-    uniform_buffers: "List[vc.BufferStructureProxy]"
+    pc_buffer: BufferBuilder
+    uniform_buffer: BufferBuilder
+
+    static_constants_size: int
+    static_constants_valid: bool
+    static_constant_buffer: vd.Buffer
+
     descriptor_sets: "List[vd.DescriptorSet]"
 
     def __init__(self, reset_on_submit: bool = False, submit_on_record: bool = False) -> None:
-        self._handle = vkdispatch_native.command_list_create(vd.get_context_handle())
-        vd.check_for_errors()
-        self.pc_buffers = []
-        self.uniform_buffers = []
+        super().__init__()
+
+        self.pc_buffer = BufferBuilder()
+        self.uniform_buffer = BufferBuilder()
+
         self.descriptor_sets = []
+
         self._reset_on_submit = reset_on_submit
         self.submit_on_record = submit_on_record
 
@@ -37,24 +43,6 @@ class CommandList:
 
     def __del__(self) -> None:
         pass  # vkdispatch_native.command_list_destroy(self._handle)
-
-    def get_instance_size(self) -> int:
-        """Get the total size of the command list in bytes."""
-        result = vkdispatch_native.command_list_get_instance_size(self._handle)
-        vd.check_for_errors()
-        return result
-
-    def record_conditional(self) -> int:
-        """Record a conditional block in the command list."""
-        result = vkdispatch_native.record_conditional(self._handle)
-        vd.check_for_errors()
-
-        return result
-    
-    def record_conditional_end(self) -> int:
-        """Record the end of a conditional block in the command list."""
-        vkdispatch_native.record_conditional_end(self._handle)
-        vd.check_for_errors()
 
     def add_pc_buffer(self, pc_buffer: "vc.BufferStructureProxy") -> None:
         """Add a push constant buffer to the command list."""
@@ -75,8 +63,8 @@ class CommandList:
         self.static_constants_valid = False
 
     def reset(self) -> None:
-        """Reset the command list by clearing the push constant buffer and descriptor
-        set lists. The call to command_list_reset frees all associated memory.
+        """Reset the command stream by clearing the push constant buffer and descriptor
+        set lists.
         """
         self.pc_buffers = []
         self.descriptor_sets = []
@@ -85,8 +73,7 @@ class CommandList:
         self.static_constants_size = 0
         self.static_constants_valid = False
 
-        vkdispatch_native.command_list_reset(self._handle)
-        vd.check_for_errors()
+        super().reset()
 
     def submit(self, data: Union[bytes, None] = None, stream_index: int = -2, instance_count: int = None) -> None:
         """Submit the command list to the specified device with additional data to
@@ -171,27 +158,27 @@ class CommandList:
         if bsize > 0:
             yield data
 
-__default_cmd_list = None
-__custom_list = None
+__default_cmd_stream = None
+__custom_stream = None
 
-def default_cmd_list() -> CommandList:
-    global __default_cmd_list
+def default_cmd_stream() -> CommandStream:
+    global __default_cmd_stream
 
-    if __default_cmd_list is None:
-        __default_cmd_list = CommandList(reset_on_submit=True, submit_on_record=True)
+    if __default_cmd_stream is None:
+        __default_cmd_stream = CommandStream(reset_on_submit=True, submit_on_record=True)
 
-    return __default_cmd_list
+    return __default_cmd_stream
 
-def global_cmd_list() -> CommandList:
-    global __custom_list
+def global_cmd_stream() -> CommandStream:
+    global __custom_stream
 
-    if __custom_list is not None:
-        return __custom_list
+    if __custom_stream is not None:
+        return __custom_stream
 
-    return default_cmd_list()
+    return default_cmd_stream()
 
-def set_global_cmd_list(cmd_list: CommandList = None) -> CommandList:
-    global __custom_list
-    old_value = __custom_list
-    __custom_list = cmd_list 
+def set_global_cmd_stream(cmd_list: CommandStream = None) -> CommandStream:
+    global __custom_stream
+    old_value = __custom_stream
+    __custom_stream = cmd_list 
     return old_value
