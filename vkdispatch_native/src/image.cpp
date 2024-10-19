@@ -196,7 +196,7 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
         command.info.image_write_info.layerCount = layerCount;
 
         command_list_record_command(ctx->command_list, command);
-        command_list_submit_extern(ctx->command_list, NULL, 1, &buffer_index, 1, 0, &signals[i]);
+        command_list_submit_extern(ctx->command_list, NULL, 1, &buffer_index, 1, &signals[i]);
         command_list_reset_extern(ctx->command_list);
         RETURN_ON_ERROR(;)
     }
@@ -269,7 +269,7 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
     command_list_record_command(ctx->command_list, command);
     
     Signal signal;
-    command_list_submit_extern(ctx->command_list, NULL, 1, &index, 1, 0, &signal);
+    command_list_submit_extern(ctx->command_list, NULL, 1, &index, 1, &signal);
     command_list_reset_extern(ctx->command_list);
     RETURN_ON_ERROR(;)
     

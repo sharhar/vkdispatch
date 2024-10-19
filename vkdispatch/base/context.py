@@ -5,7 +5,6 @@ from typing import Union
 from .errors import check_for_errors
 from .init import DeviceInfo, get_devices, initialize
 from .dtype import float32
-from .buffer import Buffer
 
 import vkdispatch_native
 
@@ -196,10 +195,6 @@ def make_context(
         ), f"All device indicies must between 0 and {total_devices}"
 
         __context = Context(device_list[0], queue_families)
-
-        initial_buffer = Buffer((1024,) , float32)
-        initial_buffer.write(np.random.rand(1024).astype(np.float32))
-        initial_buffer.read(0).sum()
 
     return __context
 

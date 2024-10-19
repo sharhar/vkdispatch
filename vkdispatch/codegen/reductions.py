@@ -1,8 +1,13 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
+from typing import List
+from typing import Tuple
+from typing import Optional
+from typing import Callable
+from typing import Union
+
 import numpy as np
-import typing
 import inspect
 
 subgroup_operations = {
@@ -40,7 +45,7 @@ class ReductionDispatcher:
     def __call__(self, *args, **kwargs) -> vd.Buffer:
         my_blocks = (0, 0, 0)
         my_limits = (0, 0, 0)
-        my_cmd_list = None
+        my_cmd_stream = None
 
         if "exec_size" in kwargs or self.exec_size is not None:
             true_dims = vd.sanitize_dims_tuple(
@@ -59,11 +64,11 @@ class ReductionDispatcher:
         if my_blocks is None:
             raise ValueError("Must provide 'exec_size'!")
         
-        if "cmd_list" in kwargs:
-            my_cmd_list = kwargs["cmd_list"]
+        if "cmd_stream" in kwargs:
+            my_cmd_stream = kwargs["cmd_stream"]
         
-        if my_cmd_list is None:
-            my_cmd_list = vd.global_cmd_list()
+        if my_cmd_stream is None:
+            my_cmd_stream = vd.global_cmd_stream()
 
         data_size = my_limits[0]
         stage1_blocks = int(np.ceil(data_size / self.group_size))
@@ -75,21 +80,21 @@ class ReductionDispatcher:
 
         reduction_buffer = vd.Buffer((stage1_blocks + 1,), self.out_type)
 
-        self.stage1(reduction_buffer, *args, data_size, exec_size=stage1_blocks * self.group_size, cmd_list=my_cmd_list)
-        self.stage2(reduction_buffer, stage1_blocks+1, exec_size=self.group_size, cmd_list=my_cmd_list)
+        self.stage1(reduction_buffer, *args, data_size, exec_size=stage1_blocks * self.group_size, cmd_stream=my_cmd_stream)
+        self.stage2(reduction_buffer, stage1_blocks+1, exec_size=self.group_size, cmd_stream=my_cmd_stream)
 
         return reduction_buffer
 
 def make_reduction(
-        reduce: typing.Union[
-                    typing.Callable[[vc.ShaderVariable, vc.ShaderVariable], vc.ShaderVariable],
+        reduce: Union[
+                    Callable[[vc.ShaderVariable, vc.ShaderVariable], vc.ShaderVariable],
                     str
                 ],
         out_type: vd.dtype,
         *var_types: vd.dtype,
         reduction_identity = None,
-        group_size: typing.Union[int, None] = None,
-        map: typing.Union[typing.Callable[[typing.List[vc.ShaderVariable]], vc.ShaderVariable], None] = None,
+        group_size: Optional[int] = None,
+        map: Optional[Callable[[List[vc.ShaderVariable]], vc.ShaderVariable]] = None,
         exec_size = None,
         func_args = None):
     if len(var_types) == 0:
@@ -198,12 +203,12 @@ def make_reduction(
 def map_reduce(
         exec_size = None,
         group_size: int = None,
-        reduction: typing.Union[
-                    typing.Callable[[vc.ShaderVariable, vc.ShaderVariable], vc.ShaderVariable],
+        reduction: Optional[Union[
+                    Callable[[vc.ShaderVariable, vc.ShaderVariable], vc.ShaderVariable],
                     str
-                ] = None,
+                ]] = None,
         reduction_identity = None, 
-        map: typing.Callable[[typing.List[vc.ShaderVariable]], vc.ShaderVariable] = None,
+        map: Optional[Callable[[List[vc.ShaderVariable]], vc.ShaderVariable]] = None,
         signature: tuple = None):
     def decorator(build_func):
         func_signature = inspect.signature(build_func)

@@ -4,9 +4,11 @@ from typing import Union
 
 import numpy as np
 
-import dtype
+from .dtype import dtype
 from .context import get_context, get_context_handle
 from .errors import check_for_errors
+
+from .dtype import to_numpy_dtype, from_numpy_dtype
 
 import vkdispatch_native
 
@@ -14,16 +16,16 @@ class Buffer:
     """TODO: Docstring"""
 
     _handle: int
-    var_type: "dtype.dtype"
+    var_type: dtype
     shape: Tuple[int]
     size: int
     mem_size: int
 
-    def __init__(self, shape: Tuple[int, ...], var_type: "dtype.dtype") -> None:
+    def __init__(self, shape: Tuple[int, ...], var_type: dtype) -> None:
         if len(shape) > 3:
             raise ValueError("Buffer shape must be 1, 2, or 3 dimensions!")
 
-        self.var_type: "dtype.dtype" = var_type
+        self.var_type: dtype = var_type
         self.shape: Tuple[int] = shape
         self.size: int = int(np.prod(shape))
         self.mem_size: int = self.size * self.var_type.item_size
@@ -107,7 +109,7 @@ class Buffer:
                 self._handle, 0, self.mem_size, index
             )
 
-            result = np.frombuffer(result_bytes, dtype=vd.to_numpy_dtype(true_scalar)).reshape(self.shape + self.var_type.true_numpy_shape)
+            result = np.frombuffer(result_bytes, dtype=to_numpy_dtype(true_scalar)).reshape(self.shape + self.var_type.true_numpy_shape)
 
             check_for_errors()
         else:
@@ -126,7 +128,7 @@ class Buffer:
 def asbuffer(array: np.ndarray) -> Buffer:
     """Cast a numpy array to a buffer object."""
 
-    buffer = Buffer(array.shape, dtype.from_numpy_dtype(array.dtype))
+    buffer = Buffer(array.shape, from_numpy_dtype(array.dtype))
     buffer.write(array)
 
     return buffer

@@ -73,6 +73,7 @@ class ShaderDescription:
     pc_structure: List[vc.StructElement]
     uniform_structure: List[vc.StructElement]
     binding_type_list: List[BindingType]
+    exec_count_name: str
 
 
 class ShaderBuilder:
@@ -495,5 +496,6 @@ class ShaderBuilder:
             pc_size=self.pc_struct.size, 
             pc_structure=pc_elements, 
             uniform_structure=uniform_elements, 
-            binding_type_list=binding_type_list
+            binding_type_list=[binding.value for binding in binding_type_list],
+            exec_count_name=self.exec_count.raw_name
         )
