@@ -16,7 +16,7 @@ def test_builder_basic():
 
     var_buff[vc.global_invocation.x] += var_buff2[vc.global_invocation.x] - uniform_var
 
-    shader_source, pc_size, pc_dict, uniform_dict, binding_type_list = my_builder.build(4, 1, 1)
+    shader_source, pc_size, pc_dict, uniform_dict, binding_type_list = my_builder.build(4, 1, 1, "my_shader")
 
     compute_plan = vd.ComputePlan(shader_source, binding_type_list, pc_size, "add_buffers")
 

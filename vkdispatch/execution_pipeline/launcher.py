@@ -41,7 +41,7 @@ class LaunchBindObject:
         self.parent = parent
         self.name = name
     
-    def register_pc_var(self, buff_obj: vc.BufferStructureProxy, var_name: str):
+    def register_pc_var(self, buff_obj: "vc.BufferStructureProxy", var_name: str):
         self.parent._register(self.name, buff_obj, var_name)
 
 class LaunchVariables:
@@ -49,7 +49,7 @@ class LaunchVariables:
         self.key_list = []
         self.pc_dict = {}
 
-    def _register(self, name: str, buff_obj: vc.BufferStructureProxy, var_name: str):
+    def _register(self, name: str, buff_obj: "vc.BufferStructureProxy", var_name: str):
         self.pc_dict[name] = (buff_obj, var_name)
     
     def __getitem__(self, name: str):
@@ -123,7 +123,7 @@ class ShaderLauncher:
     def __call__(self, *args, **kwargs):
         my_blocks = (0, 0, 0)
         my_limits = (0, 0, 0)
-        my_cmd_list = None
+        my_cmd_stream: vd.CommandStream = None
 
         if "workgroups" in kwargs or self.my_workgroups is not None:
             true_dims = sanitize_dims_tuple(
@@ -156,18 +156,19 @@ class ShaderLauncher:
         if my_blocks is None:
             raise ValueError("Must provide either 'exec_size' or 'workgroups'!")
         
-        if "cmd_list" in kwargs:
-            my_cmd_list = kwargs["cmd_list"]
-        
-        if my_cmd_list is None:
-            my_cmd_list = vd.global_cmd_list()
-        
-        descriptor_set = vd.DescriptorSet(self.plan._handle)
+        if "cmd_stream" in kwargs:
+            if not isinstance(kwargs["cmd_stream"], vd.CommandStream):
+                raise ValueError("Expected a CommandStream object for 'cmd_stream'!")
 
-        pc_buff = None if self.pc_buff_dict is None else vc.BufferStructureProxy(self.pc_buff_dict, 0)
-        static_constant_buffer = vc.BufferStructureProxy(self.uniform_buff_dict, vd.get_context().uniform_buffer_alignment)
-
-        static_constant_buffer[vc.builder_obj.exec_count.raw_name] = [my_limits[0], my_limits[1], my_limits[2], 0]
+            my_cmd_stream = kwargs["cmd_stream"]
+        
+        if my_cmd_stream is None:
+            my_cmd_stream = vd.global_cmd_stream()
+        
+        bound_buffers = []
+        bound_images = []
+        uniform_values = {}
+        pc_values = {}
 
         for ii, arg_var in enumerate(self.func_args):
             arg = None
@@ -187,39 +188,41 @@ class ShaderLauncher:
                 if not isinstance(arg, vd.Buffer):
                     raise ValueError(f"Expected a buffer for argument '{arg_var[1]}'!")
                 
-                descriptor_set.bind_buffer(arg, arg_var[0].binding)
-                static_constant_buffer[arg_var[0].shape_name] = arg.shader_shape
+                bound_buffers.append((arg, arg_var[0].binding, arg_var[0].shape_name))
 
             elif isinstance(arg_var[0], vc.ImageVariable):
                 if not isinstance(arg, vd.Image):
                     raise ValueError(f"Expected an image for argument '{arg_var[1]}'!")
                 
-                descriptor_set.bind_image(arg, arg_var[0].binding)
+                bound_images.append((arg, arg_var[0].binding))
             
             elif isinstance(arg_var[0], vc.ShaderVariable):
                 if not arg_var[0]._varying:
                     if isinstance(arg, LaunchBindObject):
                         raise ValueError("Cannot use LaunchVariables for Constants")
 
-                    static_constant_buffer[arg_var[0].raw_name] = arg
+                    uniform_values[arg_var[0].raw_name] = arg
                 else:
-                    if pc_buff is None:
+                    if len(self.shader_description.pc_structure) == 0:
                         raise ValueError("Something went wrong with push constants!!")
 
                     if isinstance(arg, LaunchBindObject):
-                        if my_cmd_list.submit_on_record:
+                        if my_cmd_stream.submit_on_record:
                             raise ValueError("Cannot bind Variables for default cmd list!")
 
                         arg.register_pc_var(pc_buff, arg_var[0].raw_name)
                     else:
-                        pc_buff[arg_var[0].raw_name] = arg
+                        pc_values[arg_var[0].raw_name] = arg
             else:
                 raise ValueError(f"Something very wrong happened!")
-
-        if pc_buff is not None:
-            my_cmd_list.add_pc_buffer(pc_buff)
-        my_cmd_list.add_desctiptor_set_and_static_constants(descriptor_set, static_constant_buffer)
-        self.plan.record(my_cmd_list, descriptor_set, my_blocks)
-
-        if my_cmd_list.submit_on_record:
-            my_cmd_list.submit()
+        
+        my_cmd_stream.record_shader(
+            self.plan, 
+            self.shader_description, 
+            my_limits, 
+            my_blocks, 
+            bound_buffers, 
+            bound_images, 
+            uniform_values, 
+            pc_values
+        )

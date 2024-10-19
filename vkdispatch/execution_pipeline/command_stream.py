@@ -10,11 +10,8 @@ import numpy as np
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
+from .buffer_builder import BufferUsage
 from .buffer_builder import BufferBuilder
-
-class UniformBuffer:
-    buffer: vd.Buffer
-    uniform_builder: BufferBuilder
 
 class CommandStream(vd.CommandList):
     """TODO: Docstring"""
@@ -37,8 +34,11 @@ class CommandStream(vd.CommandList):
     def __init__(self, reset_on_submit: bool = False, submit_on_record: bool = False) -> None:
         super().__init__()
 
-        self.pc_builder = BufferBuilder()
-        self.uniform_builder = BufferBuilder()
+        self.pc_builder = BufferBuilder(usage=BufferUsage.PUSH_CONSTANT)
+        self.uniform_builder = BufferBuilder(usage=BufferUsage.UNIFORM_BUFFER)
+
+        self.pc_values = {}
+        self.uniform_values = {}
 
         self.descriptor_sets = []
 
@@ -52,20 +52,37 @@ class CommandStream(vd.CommandList):
     def __del__(self) -> None:
         pass  # vkdispatch_native.command_list_destroy(self._handle)
 
+    def reset(self) -> None:
+        """Reset the command stream by clearing the push constant buffer and descriptor
+        set lists.
+        """
+        #self.pc_buffers = []
+        self.descriptor_sets = []
+        #self.uniform_buffers = []
+
+        self.static_constants_size = 0
+        self.static_constants_valid = False
+
+        super().reset()
+    
     def record_shader(self, 
-                             plan: vd.ComputePlan,
-                             shader_description: vc.ShaderDescription, 
-                             exec_limits: Tuple[int, int, int], 
-                             blocks: Tuple[int, int, int],
-                             bound_buffers: List[Tuple[vd.Buffer, int, str]],
-                             bound_images: List[Tuple[vd.Image, int]],
-                             ) -> None:
+                      plan: vd.ComputePlan,
+                      shader_description: vc.ShaderDescription, 
+                      exec_limits: Tuple[int, int, int], 
+                      blocks: Tuple[int, int, int],
+                      bound_buffers: List[Tuple[vd.Buffer, int, str]],
+                      bound_images: List[Tuple[vd.Image, int]],
+                      uniform_values: Dict[str, Any] = {},
+                      pc_values: Dict[str, Any] = {}
+                    ) -> None:
         descriptor_set = vd.DescriptorSet(plan._handle)
 
         if len(shader_description.pc_structure) != 0:
             self.pc_builder.register_struct(shader_description.name, shader_description.pc_structure)
         
         self.uniform_builder.register_struct(shader_description.name, shader_description.uniform_structure)
+
+        self.uniform_values[(shader_description.name, shader_description.exec_count_name)] = [exec_limits[0], exec_limits[1], exec_limits[2], 0]
 
         for buffer, binding, shape_name in bound_buffers:
             descriptor_set.bind_buffer(buffer, binding)
@@ -74,12 +91,16 @@ class CommandStream(vd.CommandList):
         for image, binding in bound_images:
             descriptor_set.bind_image(image, binding)
 
-        super().record_compute_plan(plan, descriptor_set, blocks)        
+        for key, value in uniform_values.items():
+            self.uniform_values[(shader_description.name, key)] = value
+        
+        for key, value in pc_values.items():
+            self.pc_values[(shader_description.name, key)] = value
 
-    def add_pc_buffer(self, pc_buffer: "vc.BufferStructureProxy") -> None:
-        """Add a push constant buffer to the command list."""
-        #pc_buffer.index = len(self.pc_buffers)
-        #self.pc_buffers.append(pc_buffer)
+        super().record_compute_plan(plan, descriptor_set, blocks)
+
+        if self.submit_on_record:
+            self.submit()       
 
     def add_desctiptor_set_and_static_constants(self, descriptor_set: "vd.DescriptorSet", constants_buffer_proxy: "vc.BufferStructureProxy") -> None:
         """Add a descriptor set to the command list."""
@@ -94,18 +115,6 @@ class CommandStream(vd.CommandList):
         
         self.static_constants_valid = False
 
-    def reset(self) -> None:
-        """Reset the command stream by clearing the push constant buffer and descriptor
-        set lists.
-        """
-        #self.pc_buffers = []
-        self.descriptor_sets = []
-        #self.uniform_buffers = []
-
-        self.static_constants_size = 0
-        self.static_constants_valid = False
-
-        super().reset()
 
     def submit(self, data: Union[bytes, None] = None, stream_index: int = -2, instance_count: int = None) -> None:
         """Submit the command list to the specified device with additional data to

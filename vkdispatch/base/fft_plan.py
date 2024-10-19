@@ -8,7 +8,7 @@ from .errors import check_for_errors
 
 from .buffer import Buffer
 from .context import get_context_handle
-from .command_list import CommandList, global_cmd_list
+from .command_list import CommandList
 
 from .dtype import complex64
 
