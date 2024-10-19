@@ -3,15 +3,23 @@ from typing import Callable
 from typing import List
 from typing import Dict
 from typing import Union
+from typing import Tuple
+from typing import Optional
 
 import vkdispatch_native
 
 from .context import get_context_handle
 from .errors import check_for_errors
 
+from .compute_plan import ComputePlan
+from .descriptor_set import DescriptorSet
+
 class CommandList:
     """
     A class for recording and submitting command lists to the device.
+
+    Attributes:
+        _handle (int): The handle to the command list.
     """
 
     _handle: int
@@ -41,91 +49,55 @@ class CommandList:
         vkdispatch_native.record_conditional_end(self._handle)
         check_for_errors()
 
+    def record_compute_plan(self, 
+                            plan: ComputePlan,
+                            descriptor_set: DescriptorSet,
+                            blocks: Tuple[int, int, int]) -> None:
+        """
+        Record a compute plan to the command list.
+
+        Args:
+            plan (ComputePlan): The compute plan to record to the command list.
+            descriptor_set (DescriptorSet): The descriptor set to bind to the compute plan.
+            blocks (Tuple[int, int, int]): The number of blocks to run the compute shader in.
+        """
+
+        vkdispatch_native.stage_compute_record(
+            self._handle,
+            plan._handle,
+            descriptor_set._handle,
+            blocks[0],
+            blocks[1],
+            blocks[2],
+        )
+        check_for_errors()
+
     def reset(self) -> None:
         """Reset the command list.
         """
         vkdispatch_native.command_list_reset(self._handle)
         check_for_errors()
 
-    # def submit(self, data: Union[bytes, None] = None, stream_index: int = -2, instance_count: int = None) -> None:
-    #     """Submit the command list to the specified device with additional data to
-    #     append to the front of the command list.
-        
-    #     Parameters:
-    #     device_index (int): The device index to submit the command list to.\
-    #             Default is 0.
-    #     data (bytes): The additional data to append to the front of the command list.
-    #     """
-    #     if not self.static_constants_valid:
-    #         static_data = b""
-    #         for ii, uniform_buffer in enumerate(self.uniform_buffers):
-    #             self.descriptor_sets[ii].bind_buffer(self.static_constant_buffer, 0, len(static_data), uniform_buffer.data_size, 1)
-    #             static_data += uniform_buffer.get_bytes()
+    def submit(self, data: Optional[bytes] = None, stream_index: int = -2, instance_count: Optional[int] = None) -> None:
+        """
+        Submit the command list to the specified device with additional data to
+        """
 
-    #         if len(static_data) > 0:
-    #             self.static_constant_buffer.write(static_data)
-    #         self.static_constants_valid = True
+        if data is None and instance_count is None:
+            raise ValueError("Data or instance count must be provided!")
 
-    #     instances = None
+        if instance_count is None:
+            if len(data) == 0:
+                instance_count = 1
+            else:
+                if len(data) % self.get_instance_size() != 0:
+                    raise ValueError("Data bytes length must be a multiple of the instance size!")
 
-    #     if data is None:
-    #         data = b""
+                instance_count = len(data) // self.get_instance_size()
 
-    #         for pc_buffer in self.pc_buffers:
-    #             data += pc_buffer.get_bytes()
+        assert self.get_instance_size() * instance_count == len(data), "Data length must be the product of the instance size and instance count!"
 
-    #         instances = 1
-
-    #         if len(data) != self.get_instance_size():
-    #             raise ValueError("Push constant buffer size mismatch!")
-            
-    #         if instance_count is not None:
-    #             instances = instance_count
-    #     elif len(data) == 0:
-    #         if self.get_instance_size() != 0:
-    #             raise ValueError("Push constant buffer size mismatch!")
-
-    #         instances = 1
-
-    #         if instance_count is not None and instance_count != 1:
-    #             raise ValueError("Instance count mismatch!")
-    #     else:
-    #         if len(data) % self.get_instance_size() != 0:
-    #                 raise ValueError("Push constant buffer size mismatch!")
-
-    #         instances = len(data) // self.get_instance_size()
-
-    #         if instance_count is not None and instance_count != instances:
-    #             raise ValueError("Instance count mismatch!")
-
-
-    #     vkdispatch_native.command_list_submit(
-    #         self._handle, data, instances, 1, [stream_index], False
-    #     )
-    #     vd.check_for_errors()
-
-    #     if self._reset_on_submit:
-    #         self.reset()
-    
-    # def submit_any(self, data: bytes = None, instance_count: int = None) -> None:
-    #     self.submit(data=data, stream_index=-1, instance_count=instance_count)
-    
-    # def iter_batched_params(self, mapping_function, param_iter, batch_size: int = 10):
-    #     data = b""
-    #     bsize = 0
-
-    #     for param in param_iter:
-    #         mapping_function(param)
-
-    #         for pc_buffer in self.pc_buffers:
-    #             data += pc_buffer.get_bytes()
-
-    #         bsize += 1
-
-    #         if bsize == batch_size:
-    #             yield data
-    #             data = b""
-    #             bsize = 0
-            
-    #     if bsize > 0:
-    #         yield data
+        vkdispatch_native.command_list_submit(
+            self._handle, data, instance_count, [stream_index]
+        )
+        check_for_errors()
