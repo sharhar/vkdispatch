@@ -49,3 +49,5 @@ def test_arithmetic():
         my_shader(output, buffer, buffer2)
 
         assert np.allclose(output.read(0), signal, atol=0.00001)
+
+test_arithmetic()

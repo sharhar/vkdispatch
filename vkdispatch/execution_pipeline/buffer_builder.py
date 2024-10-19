@@ -57,7 +57,7 @@ class BufferBuilder:
         
     def register_struct(self, name: str, elements: List[vc.StructElement]) -> None:
         for elem in elements:
-            np_dtype = vd.to_numpy_dtype(elem.dtype if elem.dtype.scalar is None else elem.dtype.scalar)
+            np_dtype = np.dtype(vd.to_numpy_dtype(elem.dtype if elem.dtype.scalar is None else elem.dtype.scalar))
 
             np_shape = elem.dtype.numpy_shape
 
@@ -66,7 +66,7 @@ class BufferBuilder:
                     np_shape = (elem.count,)
                 else:
                     np_shape = (elem.count, *np_shape)
-
+            
             element_size = np_dtype.itemsize * np.prod(np_shape)
 
             self.element_map[(name, elem.name)] = BufferedStructEntry(
