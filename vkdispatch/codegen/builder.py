@@ -54,6 +54,27 @@ class SharedBuffer:
     size: int
     name: str
 
+@dataclasses.dataclass
+class ShaderDescription:
+    """
+    A dataclass that represents a description of a shader object.
+
+    Attributes:
+        source (str): The source code of the shader.
+        pc_size (int): The size of the push constant buffer in bytes.
+        pc_structure (List[vc.StructElement]): The structure of the push constant buffer.
+        uniform_structure (List[vc.StructElement]): The structure of the uniform buffer.
+        binding_type_list (List[BindingType]): The list of binding types.
+    """
+
+    source: str
+    name: str
+    pc_size: int
+    pc_structure: List[vc.StructElement]
+    uniform_structure: List[vc.StructElement]
+    binding_type_list: List[BindingType]
+
+
 class ShaderBuilder:
     var_count: int
     binding_count: int
@@ -433,7 +454,7 @@ class ShaderBuilder:
         
         return "\n".join(declerations)
 
-    def build(self, x: int, y: int, z: int) -> Tuple[str, int, List[vc.StructElement], List[vc.StructElement], List[BindingType]]:
+    def build(self, x: int, y: int, z: int, name: str) -> ShaderDescription:
         header = "" + self.pre_header
 
         for shared_buffer in self.shared_buffers:
@@ -468,4 +489,11 @@ class ShaderBuilder:
         
         layout_str = f"layout(local_size_x = {x}, local_size_y = {y}, local_size_z = {z}) in;"
 
-        return f"{header}\n{layout_str}\nvoid main() {{\n{self.contents}\n}}\n", self.pc_struct.size, pc_elements, uniform_elements, binding_type_list
+        return ShaderDescription(
+            source=f"{header}\n{layout_str}\nvoid main() {{\n{self.contents}\n}}\n",
+            name=name,
+            pc_size=self.pc_struct.size, 
+            pc_structure=pc_elements, 
+            uniform_structure=uniform_elements, 
+            binding_type_list=binding_type_list
+        )

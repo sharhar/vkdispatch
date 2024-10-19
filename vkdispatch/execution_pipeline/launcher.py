@@ -88,9 +88,7 @@ class LaunchParametersHolder:
 
 class ShaderLauncher:
     plan: vd.ComputePlan
-    source: str
-    pc_buff_dict: Dict[str, Tuple[int, vd.dtype]]
-    uniform_buff_dict: Dict[str, Tuple[int, vd.dtype]]
+    shader_description: vc.ShaderDescription
     func_args: List[Tuple[vc.BaseVariable, str, typing.Any]]
     my_local_size: Tuple[int, int, int]
     my_workgroups: Tuple[int, int, int]
@@ -99,23 +97,16 @@ class ShaderLauncher:
 
     def __init__(
         self,
-        shader_source: str,
-        shader_name: str,
-        pc_size: int,
-        pc_buff_dict: dict,
-        uniform_buff_dict: dict,
-        binding_type_list: List[int],
+        shader_description: vc.ShaderDescription,
         func_args: List[Tuple[vc.BaseVariable, str, typing.Any]],
         my_local_size: Tuple[int, int, int],
         my_workgroups: Tuple[int, int, int],
         my_exec_size: Tuple[int, int, int],
         args_dict: Dict[str, str]
     ):
-        self.plan = vd.ComputePlan(shader_source, binding_type_list, pc_size, shader_name)
-        self.pc_buff_dict = copy.deepcopy(pc_buff_dict)
-        self.uniform_buff_dict = copy.deepcopy(uniform_buff_dict)
+        self.shader_description = shader_description
+        self.plan = vd.ComputePlan(shader_description.source, shader_description.binding_type_list, shader_description.pc_size, shader_description.name)
         self.func_args = func_args
-        self.source = shader_source
         self.my_local_size = my_local_size
         self.my_workgroups = my_workgroups
         self.my_exec_size = my_exec_size
@@ -124,7 +115,7 @@ class ShaderLauncher:
     def __repr__(self) -> str:
         result = ""
 
-        for ii, line in enumerate(self.source.split("\n")):
+        for ii, line in enumerate(self.shader_description.source.split("\n")):
             result += f"{ii + 1:4d}: {line}\n"
 
         return result

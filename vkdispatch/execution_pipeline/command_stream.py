@@ -3,34 +3,42 @@ from typing import Callable
 from typing import List
 from typing import Dict
 from typing import Union
+from typing import Tuple
 
 import numpy as np
 
 import vkdispatch as vd
 import vkdispatch.codegen as vc
-import vkdispatch_native
 
 from .buffer_builder import BufferBuilder
+
+class UniformBuffer:
+    buffer: vd.Buffer
+    uniform_builder: BufferBuilder
 
 class CommandStream(vd.CommandList):
     """TODO: Docstring"""
 
     _reset_on_submit: bool
     submit_on_record: bool
-    pc_buffer: BufferBuilder
-    uniform_buffer: BufferBuilder
+    
+    pc_builder: BufferBuilder
+    pc_values: Dict[Tuple[str, str], Any]
+
+    uniform_builder: BufferBuilder
+    uniform_values: Dict[Tuple[str, str], Any]
 
     static_constants_size: int
     static_constants_valid: bool
     static_constant_buffer: vd.Buffer
 
-    descriptor_sets: "List[vd.DescriptorSet]"
+    descriptor_sets: List[vd.DescriptorSet]
 
     def __init__(self, reset_on_submit: bool = False, submit_on_record: bool = False) -> None:
         super().__init__()
 
-        self.pc_buffer = BufferBuilder()
-        self.uniform_buffer = BufferBuilder()
+        self.pc_builder = BufferBuilder()
+        self.uniform_builder = BufferBuilder()
 
         self.descriptor_sets = []
 
@@ -44,10 +52,34 @@ class CommandStream(vd.CommandList):
     def __del__(self) -> None:
         pass  # vkdispatch_native.command_list_destroy(self._handle)
 
+    def record_shader(self, 
+                             plan: vd.ComputePlan,
+                             shader_description: vc.ShaderDescription, 
+                             exec_limits: Tuple[int, int, int], 
+                             blocks: Tuple[int, int, int],
+                             bound_buffers: List[Tuple[vd.Buffer, int, str]],
+                             bound_images: List[Tuple[vd.Image, int]],
+                             ) -> None:
+        descriptor_set = vd.DescriptorSet(plan._handle)
+
+        if len(shader_description.pc_structure) != 0:
+            self.pc_builder.register_struct(shader_description.name, shader_description.pc_structure)
+        
+        self.uniform_builder.register_struct(shader_description.name, shader_description.uniform_structure)
+
+        for buffer, binding, shape_name in bound_buffers:
+            descriptor_set.bind_buffer(buffer, binding)
+            self.uniform_values[(shader_description.name, shape_name)] = buffer.shader_shape
+        
+        for image, binding in bound_images:
+            descriptor_set.bind_image(image, binding)
+
+        super().record_compute_plan(plan, descriptor_set, blocks)        
+
     def add_pc_buffer(self, pc_buffer: "vc.BufferStructureProxy") -> None:
         """Add a push constant buffer to the command list."""
         #pc_buffer.index = len(self.pc_buffers)
-        self.pc_buffers.append(pc_buffer)
+        #self.pc_buffers.append(pc_buffer)
 
     def add_desctiptor_set_and_static_constants(self, descriptor_set: "vd.DescriptorSet", constants_buffer_proxy: "vc.BufferStructureProxy") -> None:
         """Add a descriptor set to the command list."""
@@ -66,9 +98,9 @@ class CommandStream(vd.CommandList):
         """Reset the command stream by clearing the push constant buffer and descriptor
         set lists.
         """
-        self.pc_buffers = []
+        #self.pc_buffers = []
         self.descriptor_sets = []
-        self.uniform_buffers = []
+        #self.uniform_buffers = []
 
         self.static_constants_size = 0
         self.static_constants_valid = False
@@ -94,43 +126,7 @@ class CommandStream(vd.CommandList):
                 self.static_constant_buffer.write(static_data)
             self.static_constants_valid = True
 
-        instances = None
-
-        if data is None:
-            data = b""
-
-            for pc_buffer in self.pc_buffers:
-                data += pc_buffer.get_bytes()
-
-            instances = 1
-
-            if len(data) != self.get_instance_size():
-                raise ValueError("Push constant buffer size mismatch!")
-            
-            if instance_count is not None:
-                instances = instance_count
-        elif len(data) == 0:
-            if self.get_instance_size() != 0:
-                raise ValueError("Push constant buffer size mismatch!")
-
-            instances = 1
-
-            if instance_count is not None and instance_count != 1:
-                raise ValueError("Instance count mismatch!")
-        else:
-            if len(data) % self.get_instance_size() != 0:
-                    raise ValueError("Push constant buffer size mismatch!")
-
-            instances = len(data) // self.get_instance_size()
-
-            if instance_count is not None and instance_count != instances:
-                raise ValueError("Instance count mismatch!")
-
-
-        vkdispatch_native.command_list_submit(
-            self._handle, data, instances, 1, [stream_index], False
-        )
-        vd.check_for_errors()
+        super().submit(data=self.pc_builder.tobytes(), stream_index=stream_index, instance_count=instance_count)
 
         if self._reset_on_submit:
             self.reset()

@@ -5,8 +5,6 @@ import vkdispatch_native
 from .context import get_context_handle
 from .errors import check_for_compute_stage_errors, check_for_errors
 
-from .command_list import CommandList
-from .descriptor_set import DescriptorSet
 
 class ComputePlan:
     """
@@ -28,28 +26,3 @@ class ComputePlan:
             get_context_handle(), shader_source.encode(), self.binding_list, pc_size, shader_name.encode()
         )
         check_for_compute_stage_errors()
-
-    def record(
-        self,
-        command_list: CommandList,
-        descriptor_set: DescriptorSet,
-        blocks: Tuple[int, int, int],
-    ) -> None:
-        """
-        Record the compute plan to a command list.
-
-        Args:
-            command_list (CommandList): The command list to record the compute plan to.
-            descriptor_set (DescriptorSet): The descriptor set to bind to the compute plan.
-            blocks (Tuple[int, int, int]): The number of blocks to run the compute shader in.
-        """
-
-        vkdispatch_native.stage_compute_record(
-            command_list._handle,
-            self._handle,
-            descriptor_set._handle,
-            blocks[0],
-            blocks[1],
-            blocks[2],
-        )
-        check_for_errors()

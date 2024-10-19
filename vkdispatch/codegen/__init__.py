@@ -7,6 +7,8 @@ from .struct_builder import StructBuilder, StructElement
 from .variables import BaseVariable, ShaderVariable
 from .variables import BoundVariable, BufferVariable, ImageVariable
 
+from .builder import ShaderBinding
+from .builder import ShaderDescription
 from .builder import ShaderBuilder
 
 from .global_builder import builder_obj

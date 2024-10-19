@@ -97,17 +97,12 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None, signature: t
         
         func(*func_args)
 
-        shader_source, pc_size, pc_dict, uniform_dict, binding_type_list = vc.builder_obj.build(
-            my_local_size[0], my_local_size[1], my_local_size[2]
+        shader_description = vc.builder_obj.build(
+            my_local_size[0], my_local_size[1], my_local_size[2], f"{func.__module__}.{func.__name__}"
         )
 
         wrapper: str = vd.ShaderLauncher(
-            shader_source,
-            func.__name__,
-            pc_size,
-            pc_dict,
-            uniform_dict,
-            binding_type_list,
+            shader_description,
             list(zip(func_args, arg_names, default_values)),
             my_local_size,
             workgroups,

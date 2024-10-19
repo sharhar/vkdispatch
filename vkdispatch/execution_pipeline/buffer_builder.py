@@ -24,7 +24,16 @@ class BufferUsage(enum.Enum):
     UNIFORM_BUFFER = 1
 
 class BufferBuilder:
-    """TODO: Docstring"""
+    """
+    A class for building buffers in memory that can be submitted to a compute pipeline.
+
+    Attributes:
+        struct_alignment (int): The alignment of the struct in the buffer.
+        instance_bytes (int): The size of the struct in bytes.
+        instance_count (int): The number of instances of the struct.
+        backing_buffer (np.ndarray): The backing buffer for the struct.
+        element_map (Dict[Tuple[str, str], BufferedStructEntry]): A map of the elements in the
+    """
 
     struct_alignment: int = -1
     instance_bytes: int = 0
@@ -120,13 +129,13 @@ class BufferBuilder:
             
             (self.backing_buffer[0, buffer_element.memory_slice]).view(buffer_element.dtype)[:] = arr
 
-    def __repr__(self) -> str:
-        result = "Push Constant Buffer:\n"
-
-        for elem in self.elements:
-            result += f"\t{elem.name} ({elem.dtype.name}): {self.numpy_arrays[elem.index]}\n"
-
-        return result[:-1]
+#    def __repr__(self) -> str:
+#        result = "Push Constant Buffer:\n"
+#
+#        for elem in self.elements:
+#            result += f"\t{elem.name} ({elem.dtype.name}): {self.numpy_arrays[elem.index]}\n"
+#
+#        return result[:-1]
 
     def prepare(self, instance_count: int) -> None:
         if self.instance_count != instance_count:

@@ -3,7 +3,7 @@ from typing import Tuple
 
 import dataclasses
 
-import vkdispatch.core.dtype as dtype
+import vkdispatch.base.dtype as dtype
 
 @dataclasses.dataclass
 class StructElement:
