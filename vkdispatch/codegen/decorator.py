@@ -18,12 +18,6 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None, signature: t
 
         vc.builder_obj.reset()
 
-        vc.builder_obj.exec_count = vc.builder_obj.declare_constant(vd.uvec4)
-
-        vc.if_statement(vc.builder_obj.exec_count.x <= vc.global_invocation.x)
-        vc.return_statement()
-        vc.end()
-
         func_args = []
         arg_names = []
         default_values = []
