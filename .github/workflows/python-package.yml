@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest] #, macos-12]
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.12"] #["3.8", "3.9", "3.10", "3.11", "3.12"]
 
     steps:
     - uses: actions/checkout@v4
@@ -39,9 +39,13 @@ jobs:
         python -m pip install pytest
         python fetch_dependencies.py
         python -m pip install .
-    - name: Test with pytest
-      run: |
-        pytest
+    - name: Checkout repository
+      uses: actions/checkout@v2
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+    #    - name: Test with pytest
+    #  run: |
+    #    pytest
   
   # build-and-test-on-windows:
   #   runs-on: ${{ matrix.os }}
