@@ -142,6 +142,20 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
     LOG_INFO("Created context at %p with %d devices", ctx, device_count);
 
+    for(int i = 0; i < ctx->stream_indicies.size(); i++) {
+        struct CommandInfo command = {};
+        command.type = COMMAND_TYPE_NOOP;
+        command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+
+        command_list_record_command(ctx->command_list, command);
+
+        Signal signal;
+        command_list_submit_extern(ctx->command_list, NULL, 1, &i, 1, &signal);
+        command_list_reset_extern(ctx->command_list);
+        RETURN_ON_ERROR(NULL)
+
+        signal.wait();
+    }
 
     return ctx;
 }
