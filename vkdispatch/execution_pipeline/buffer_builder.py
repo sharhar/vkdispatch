@@ -40,7 +40,7 @@ class BufferBuilder:
     instance_count: int = 0
     backing_buffer: np.ndarray = None
 
-    element_map: Dict[Tuple[str, str], BufferedStructEntry] = {}
+    element_map: Dict[Tuple[str, str], BufferedStructEntry]
 
     def __init__(self, struct_alignment: Optional[int] = None, usage: Optional[BufferUsage] = None) -> None:
         assert struct_alignment is not None or usage is not None, "Either struct_alignment or usage must be provided!"
@@ -54,8 +54,18 @@ class BufferBuilder:
                 raise ValueError("Invalid buffer usage!")
         
         self.struct_alignment = struct_alignment
+
+        self.reset()
+    
+    def reset(self) -> None:
+        self.instance_bytes = 0
+        self.instance_count = 0
+        self.backing_buffer = None
+        self.element_map = {}
         
-    def register_struct(self, name: str, elements: List[vc.StructElement]) -> None:
+    def register_struct(self, name: str, elements: List[vc.StructElement]) -> Tuple[int, int]:
+        offset = self.instance_bytes
+
         for elem in elements:
             np_dtype = np.dtype(vd.to_numpy_dtype(elem.dtype if elem.dtype.scalar is None else elem.dtype.scalar))
 
@@ -82,6 +92,8 @@ class BufferBuilder:
 
             if padded_size != self.instance_bytes:
                 self.instance_bytes = padded_size
+        
+        return offset, self.instance_bytes - offset
 
     def __setitem__(
         self, key: Tuple[str, str], value: Union[np.ndarray, list, tuple, int, float]
