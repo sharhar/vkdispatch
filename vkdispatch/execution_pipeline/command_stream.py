@@ -24,12 +24,13 @@ class CommandStream(vd.CommandList):
 
     uniform_builder: BufferBuilder
     uniform_values: Dict[Tuple[str, str], Any]
+    uniform_bindings: Any
 
-    static_constants_size: int
-    static_constants_valid: bool
-    static_constant_buffer: vd.Buffer
+    uniform_constants_size: int
+    uniform_constants_valid: bool
+    uniform_constants_buffer: vd.Buffer
 
-    descriptor_sets: List[vd.DescriptorSet]
+    uniform_descriptors: List[Tuple[vd.DescriptorSet, int, int]]
 
     def __init__(self, reset_on_submit: bool = False, submit_on_record: bool = False) -> None:
         super().__init__()
@@ -40,14 +41,14 @@ class CommandStream(vd.CommandList):
         self.pc_values = {}
         self.uniform_values = {}
 
-        self.descriptor_sets = []
+        self.uniform_descriptors = []
 
         self._reset_on_submit = reset_on_submit
         self.submit_on_record = submit_on_record
 
-        self.static_constants_size = 0
-        self.static_constants_valid = False
-        self.static_constant_buffer = vd.Buffer(shape=(4096,), var_type=vd.uint32) # Create a base static constants buffer at size 4k bytes
+        self.uniform_constants_size = 0
+        self.uniform_constants_valid = False
+        self.uniform_constants_buffer = vd.Buffer(shape=(4096,), var_type=vd.uint32) # Create a base static constants buffer at size 4k bytes
 
     def __del__(self) -> None:
         pass  # vkdispatch_native.command_list_destroy(self._handle)
@@ -56,12 +57,17 @@ class CommandStream(vd.CommandList):
         """Reset the command stream by clearing the push constant buffer and descriptor
         set lists.
         """
-        #self.pc_buffers = []
-        self.descriptor_sets = []
-        #self.uniform_buffers = []
 
-        self.static_constants_size = 0
-        self.static_constants_valid = False
+        super().reset()
+
+        self.pc_builder.reset()
+        self.uniform_builder.reset()
+
+        self.pc_values = {}
+        self.uniform_values = {}
+
+        self.uniform_descriptors = []
+        self.uniform_constants_valid = False
 
         super().reset()
     
@@ -80,7 +86,9 @@ class CommandStream(vd.CommandList):
         if len(shader_description.pc_structure) != 0:
             self.pc_builder.register_struct(shader_description.name, shader_description.pc_structure)
         
-        self.uniform_builder.register_struct(shader_description.name, shader_description.uniform_structure)
+        uniform_offset, uniform_range = self.uniform_builder.register_struct(shader_description.name, shader_description.uniform_structure)
+
+        self.uniform_descriptors.append((descriptor_set, uniform_offset, uniform_range))
 
         self.uniform_values[(shader_description.name, shader_description.exec_count_name)] = [exec_limits[0], exec_limits[1], exec_limits[2], 0]
 
@@ -99,24 +107,12 @@ class CommandStream(vd.CommandList):
 
         super().record_compute_plan(plan, descriptor_set, blocks)
 
+        self.static_constants_valid = False
+
         if self.submit_on_record:
             self.submit()       
 
-    def add_desctiptor_set_and_static_constants(self, descriptor_set: "vd.DescriptorSet", constants_buffer_proxy: "vc.BufferStructureProxy") -> None:
-        """Add a descriptor set to the command list."""
-        self.descriptor_sets.append(descriptor_set)
-
-        self.static_constants_size += constants_buffer_proxy.size
-        self.uniform_buffers.append(constants_buffer_proxy)
-
-        if(self.static_constants_size > self.static_constant_buffer.size):
-            new_size = int(np.ceil(self.static_constants_size / 4))
-            self.static_constant_buffer = vd.Buffer(shape=(new_size,), var_type=vd.uint32)
-        
-        self.static_constants_valid = False
-
-
-    def submit(self, data: Union[bytes, None] = None, stream_index: int = -2, instance_count: int = None) -> None:
+    def submit(self, instance_count: int = None, stream_index: int = -2) -> None:
         """Submit the command list to the specified device with additional data to
         append to the front of the command list.
         
@@ -125,17 +121,36 @@ class CommandStream(vd.CommandList):
                 Default is 0.
         data (bytes): The additional data to append to the front of the command list.
         """
-        if not self.static_constants_valid:
-            static_data = b""
-            for ii, uniform_buffer in enumerate(self.uniform_buffers):
-                self.descriptor_sets[ii].bind_buffer(self.static_constant_buffer, 0, len(static_data), uniform_buffer.data_size, 1)
-                static_data += uniform_buffer.get_bytes()
 
-            if len(static_data) > 0:
-                self.static_constant_buffer.write(static_data)
-            self.static_constants_valid = True
+        if instance_count is None:
+            instance_count = 1
 
-        super().submit(data=self.pc_builder.tobytes(), stream_index=stream_index, instance_count=instance_count)
+        if not self.uniform_constants_valid:
+            if len(self.pc_builder.element_map) > 0:
+                self.pc_builder.prepare(instance_count)
+
+                for key, value in self.pc_values.items():
+                    self.pc_builder[key] = value
+            
+            if len(self.uniform_builder.element_map) > 0:
+                self.uniform_builder.prepare(instance_count)
+
+                for key, value in self.uniform_values.items():
+                    self.uniform_builder[key] = value
+                
+                for descriptor_set, offset, size in self.uniform_descriptors:
+                    descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, 1)
+
+                self.uniform_constants_buffer.write(self.uniform_builder.tobytes())
+            
+            self.uniform_constants_valid = True
+
+        my_data = None
+
+        if len(self.pc_builder.element_map) > 0:
+            my_data = self.pc_builder.tobytes()
+
+        super().submit(data=my_data, stream_index=stream_index, instance_count=instance_count)
 
         if self._reset_on_submit:
             self.reset()
