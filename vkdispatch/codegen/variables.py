@@ -360,6 +360,9 @@ class BoundVariable(ShaderVariable):
             super().__init__(append_func, name_func, var_type, name)
 
             self.binding = binding
+    
+    def __int__(self):
+        return int(self.binding)
 
 class BufferVariable(BoundVariable):
     def __init__(self,

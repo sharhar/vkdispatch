@@ -89,8 +89,6 @@ class ShaderBuilder:
     pre_header: str
 
     def __init__(self, enable_subgroup_ops: bool = True, enable_atomic_float_ops: bool = True, enable_printf: bool = True) -> None:
-        self.reset()
-
         self.enable_subgroup_ops = enable_subgroup_ops
         self.enable_atomic_float_ops = enable_atomic_float_ops
         self.enable_printf = enable_printf
@@ -118,6 +116,8 @@ class ShaderBuilder:
 
         self.subgroup_size = self.make_var(vd.uint32, "gl_SubgroupSize")
         self.subgroup_invocation = self.make_var(vd.uint32, "gl_SubgroupInvocationID")
+        
+        self.reset()
 
     def reset(self) -> None:
         self.var_count = 0
@@ -127,8 +127,13 @@ class ShaderBuilder:
         self.binding_list = []
         self.shared_buffers = []
         self.scope_num = 1
-        self.exec_count = None
         self.contents = ""
+        
+        self.exec_count = self.declare_constant(vd.uvec4, var_name="exec_count")
+
+        self.if_statement(self.exec_count.x <= self.global_invocation.x)
+        self.return_statement()
+        self.end()
 
     def append_contents(self, contents: str) -> None:
         self.contents += ("\t" * self.scope_num) + contents
