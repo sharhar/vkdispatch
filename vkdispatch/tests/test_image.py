@@ -44,7 +44,7 @@ def test_1d_image_linear_sampling():
 
     result_arr = vd.Buffer((len(signal) * (sample_factor - 1),), vd.float32)
 
-    @vc.shader(exec_size=lambda args: args.buff.size)
+    @vd.shader(exec_size=lambda args: args.buff.size)
     def do_approx(buff: Buff[f32], line: Img1[f32]):
         ind = vc.global_invocation.x.copy()
         buff[ind] = line.sample((ind.cast_to(f32)) / sample_factor).x
@@ -65,7 +65,7 @@ def test_2d_image_linear_sampling():
 
     result_arr = vd.Buffer((signal_2d.shape[0] * (sample_factor - 1), signal_2d.shape[1] * (sample_factor - 1)), vd.float32)
 
-    @vc.shader(exec_size=lambda args: args.buff.size)
+    @vd.shader(exec_size=lambda args: args.buff.size)
     def do_approx(buff: Buff[f32], img: Img2[f32]):
         ind = vc.global_invocation.x.copy()
         ind_2d = vc.unravel_index(ind, buff.shape)

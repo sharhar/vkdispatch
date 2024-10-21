@@ -47,7 +47,16 @@ from .execution_pipeline.fft_dispatcher import fft
 from .execution_pipeline.fft_dispatcher import ifft
 from .execution_pipeline.fft_dispatcher import reset_fft_plans
 
-from .execution_pipeline.launcher import ShaderLauncher, LaunchVariables
-from .execution_pipeline.launcher import sanitize_dims_tuple
+from .shader_generation.signature import ShaderArgumentType
+from .shader_generation.signature import ShaderArgument
+from .shader_generation.signature import ShaderSignature
+
+from .shader_generation.launcher import ShaderLauncher, LaunchVariables
+from .shader_generation.launcher import sanitize_dims_tuple, ShaderArgument
+
+from .shader_generation.decorator import shader
+
+from .shader_generation.reductions import map_reduce
+
 
 __version__ = "0.0.17"

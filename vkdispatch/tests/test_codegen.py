@@ -19,7 +19,7 @@ def test_arithmetic():
 
         output = vd.Buffer(signal.shape, vd.float32)
 
-        @vc.shader(exec_size=lambda args: args.out.size)
+        @vd.shader(exec_size=lambda args: args.out.size)
         def my_shader(out: Buff[f32], a: Buff[f32], b: Buff[f32]):
             nonlocal signal, signal2
 

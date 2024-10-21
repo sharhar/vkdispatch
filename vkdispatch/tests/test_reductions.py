@@ -15,7 +15,7 @@ def test_reductions_sum():
     # Write the data to the buffer
     buf.write(data)
 
-    @vc.map_reduce(
+    @vd.map_reduce(
             exec_size=lambda args: args.buffer.size, 
             reduction=lambda x, y: x + y, 
             reduction_identity=0
@@ -41,7 +41,7 @@ def test_mapped_reductions():
     # Write the data to the buffer
     buf.write(data)
 
-    @vc.map_reduce(
+    @vd.map_reduce(
             exec_size=lambda args: args.buffer.size, 
             reduction=lambda x, y: x + y, 
             reduction_identity=0
