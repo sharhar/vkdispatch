@@ -31,7 +31,4 @@ from .global_builder import new_vec2, new_ivec2, new_uvec2
 from .global_builder import new_vec3, new_ivec3, new_uvec3
 from .global_builder import new_vec4, new_ivec4, new_uvec4
 
-from .decorator import shader
-from .reductions import map_reduce
-
 from .abreviations import *

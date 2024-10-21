@@ -1,6 +1,8 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
+import dataclasses
+
 import copy
 
 import typing
@@ -12,6 +14,35 @@ from typing import Union
 from typing import Callable
 
 import numpy as np
+
+@dataclasses.dataclass
+class ShaderArgument:
+    shader_variable: vc.BaseVariable
+    argument_name: str
+    default_value: typing.Any
+
+class LaunchParametersHolder:
+    def __init__(self, func_args, args, kwargs) -> None:
+        self.ref_dict = {}
+
+        for ii, arg_var in enumerate(func_args):
+            arg = None
+            
+            if ii < len(args):
+                arg = args[ii]
+            else:
+                if arg_var[1] not in kwargs:
+                    if arg_var[2] is None:
+                        raise ValueError(f"Missing argument '{arg_var[1]}'!")
+                    
+                    arg = arg_var[2]
+                else:
+                    arg = kwargs[arg_var[1]]
+            
+            self.ref_dict[arg_var[1]] = arg
+
+    def __getattr__(self, name: str):
+        return self.ref_dict[name]
 
 def sanitize_dims_tuple(func_args, in_val, args, kwargs) -> Tuple[int, int, int]:
     if callable(in_val):
@@ -63,54 +94,30 @@ class LaunchVariables:
     def __setitem__(self, name: str, value):
         self.pc_dict[name][0][self.pc_dict[name][1]] = value
 
-class LaunchParametersHolder:
-    def __init__(self, func_args, args, kwargs) -> None:
-        self.ref_dict = {}
 
-        for ii, arg_var in enumerate(func_args):
-            arg = None
-            
-            if ii < len(args):
-                arg = args[ii]
-            else:
-                if arg_var[1] not in kwargs:
-                    if arg_var[2] is None:
-                        raise ValueError(f"Missing argument '{arg_var[1]}'!")
-                    
-                    arg = arg_var[2]
-                else:
-                    arg = kwargs[arg_var[1]]
-            
-            self.ref_dict[arg_var[1]] = arg
-
-    def __getattr__(self, name: str):
-        return self.ref_dict[name]
 
 class ShaderLauncher:
     plan: vd.ComputePlan
     shader_description: vc.ShaderDescription
-    func_args: List[Tuple[vc.BaseVariable, str, typing.Any]]
+    shader_signature: vd.ShaderSignature
     my_local_size: Tuple[int, int, int]
     my_workgroups: Tuple[int, int, int]
     my_exec_size: Tuple[int, int, int]
-    args_dict: Dict[str, str]
 
     def __init__(
         self,
-        shader_description: vc.ShaderDescription,
-        func_args: List[Tuple[vc.BaseVariable, str, typing.Any]],
+        description: vc.ShaderDescription,
+        signature: vd.ShaderSignature,
         my_local_size: Tuple[int, int, int],
         my_workgroups: Tuple[int, int, int],
         my_exec_size: Tuple[int, int, int],
-        args_dict: Dict[str, str]
     ):
-        self.shader_description = shader_description
-        self.plan = vd.ComputePlan(shader_description.source, shader_description.binding_type_list, shader_description.pc_size, shader_description.name)
-        self.func_args = func_args
+        self.shader_description = description
+        self.plan = vd.ComputePlan(description.source, description.binding_type_list, description.pc_size, description.name)
+        self.shader_signature = signature
         self.my_local_size = my_local_size
         self.my_workgroups = my_workgroups
         self.my_exec_size = my_exec_size
-        self.args_dict = args_dict
 
     def __repr__(self) -> str:
         result = ""
@@ -127,7 +134,7 @@ class ShaderLauncher:
 
         if "workgroups" in kwargs or self.my_workgroups is not None:
             true_dims = sanitize_dims_tuple(
-                self.func_args,
+                self.shader_signature.get_func_args(),
                 kwargs["workgroups"]
                 if "workgroups" in kwargs
                 else self.my_workgroups,
@@ -141,7 +148,7 @@ class ShaderLauncher:
         
         if "exec_size" in kwargs or self.my_exec_size is not None:
             true_dims = sanitize_dims_tuple(
-                self.func_args,
+                self.shader_signature.get_func_args(),
                 kwargs["exec_size"]
                 if "exec_size" in kwargs
                 else self.my_exec_size,
@@ -170,49 +177,52 @@ class ShaderLauncher:
         uniform_values = {}
         pc_values = {}
 
-        for ii, arg_var in enumerate(self.func_args):
+
+        for ii, shader_arg in enumerate(self.shader_signature.arguments):
             arg = None
             
             if ii < len(args):
                 arg = args[ii]
             else:
-                if arg_var[1] not in kwargs:
-                    if arg_var[2] is None:
-                        raise ValueError(f"Missing argument '{arg_var[1]}'!")
+                if shader_arg.name not in kwargs:
+                    if shader_arg.default_value is None:
+                        raise ValueError(f"Missing argument '{shader_arg.name}'!")
                     
-                    arg = arg_var[2]
+                    arg = shader_arg.default_value
                 else:
-                    arg = kwargs[arg_var[1]]
+                    arg = kwargs[shader_arg.name]
 
-            if isinstance(arg_var[0], vc.BufferVariable):
+            if shader_arg.arg_type == vd.ShaderArgumentType.BUFFER:
                 if not isinstance(arg, vd.Buffer):
-                    raise ValueError(f"Expected a buffer for argument '{arg_var[1]}'!")
+                    raise ValueError(f"Expected a buffer for argument '{shader_arg.name}'!")
                 
-                bound_buffers.append((arg, arg_var[0].binding, arg_var[0].shape_name))
+                bound_buffers.append((arg, shader_arg.binding, shader_arg.shader_shape_name))
 
-            elif isinstance(arg_var[0], vc.ImageVariable):
+            elif shader_arg.arg_type == vd.ShaderArgumentType.IMAGE:
                 if not isinstance(arg, vd.Image):
-                    raise ValueError(f"Expected an image for argument '{arg_var[1]}'!")
+                    raise ValueError(f"Expected an image for argument '{shader_arg.name}'!")
                 
-                bound_images.append((arg, arg_var[0].binding))
+                bound_images.append((arg, shader_arg.binding))
             
-            elif isinstance(arg_var[0], vc.ShaderVariable):
-                if not arg_var[0]._varying:
-                    if isinstance(arg, LaunchBindObject):
-                        raise ValueError("Cannot use LaunchVariables for Constants")
+            elif shader_arg.arg_type == vd.ShaderArgumentType.CONSTANT:
+                if isinstance(arg, LaunchBindObject):
+                    raise ValueError("Cannot use LaunchVariables for Constants")
 
-                    uniform_values[arg_var[0].raw_name] = arg
+                uniform_values[shader_arg.shader_name] = arg
+
+            elif shader_arg.arg_type == vd.ShaderArgumentType.VARIABLE:
+                if len(self.shader_description.pc_structure) == 0:
+                    raise ValueError("Something went wrong with push constants!!")
+
+                if isinstance(arg, LaunchBindObject):
+                    if my_cmd_stream.submit_on_record:
+                        raise ValueError("Cannot bind Variables for default cmd list!")
+
+                    
+                    raise ValueError("Not implemented yet!")
+                    #arg.register_pc_var(pc_buff, arg_var[0].raw_name)
                 else:
-                    if len(self.shader_description.pc_structure) == 0:
-                        raise ValueError("Something went wrong with push constants!!")
-
-                    if isinstance(arg, LaunchBindObject):
-                        if my_cmd_stream.submit_on_record:
-                            raise ValueError("Cannot bind Variables for default cmd list!")
-
-                        arg.register_pc_var(pc_buff, arg_var[0].raw_name)
-                    else:
-                        pc_values[arg_var[0].raw_name] = arg
+                    pc_values[shader_arg.shader_name] = arg
             else:
                 raise ValueError(f"Something very wrong happened!")
         

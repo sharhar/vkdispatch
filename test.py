@@ -1,14 +1,21 @@
 #import vkdispatch as vd
-#import vkdispatch.codegen as vc
+import vkdispatch.codegen as vc
 #from vkdispatch.codegen.abreviations import *
 
 import numpy as np
 
-buffer = np.zeros((4, 16), dtype=np.uint8)
+import sys
 
-(buffer[:, 5:13]).view(np.int32)[:] = np.array([[19238, -1], [123098, 25687], [12301, 1234], [-102, -459145134]], dtype=np.int32)
+my_func = lambda x: x + 5
 
-print(buffer)
+print(my_func(x = 5))
+
+obj = (vc.Buffer[vc.f32], vc.Const[vc.i32])
+
+if sys.argv[1] == "1":
+    obj = (vc.Image1D[vc.f32], vc.Variable[vc.i32])
+
+print(obj)
 
 exit()
 
