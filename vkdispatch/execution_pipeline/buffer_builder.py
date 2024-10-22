@@ -120,7 +120,7 @@ class BufferBuilder:
             if arr.shape[1:] != buffer_element.shape:
                 if arr.shape != ():
                     raise ValueError(
-                        f"The shape of {key} is {buffer_element.shape} but {arr.shape} was given!"
+                        f"The shape of {key} is {(self.instance_count, *buffer_element.shape)} but {arr.shape} was given!"
                     )
                 else:
                     raise ValueError(

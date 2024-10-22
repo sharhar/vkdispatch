@@ -10,16 +10,10 @@ import typing
 from typing import Dict
 from typing import List
 from typing import Tuple
-from typing import Union
+from typing import Optional
 from typing import Callable
 
 import numpy as np
-
-@dataclasses.dataclass
-class ShaderArgument:
-    shader_variable: vc.BaseVariable
-    argument_name: str
-    default_value: typing.Any
 
 class LaunchParametersHolder:
     def __init__(self, func_args, args, kwargs) -> None:
@@ -67,34 +61,25 @@ def sanitize_dims_tuple(func_args, in_val, args, kwargs) -> Tuple[int, int, int]
     
     return (return_val[0], return_val[1], return_val[2])
 
-class LaunchBindObject:
-    def __init__(self, parent: "LaunchVariables", name: str) -> None:
-        self.parent = parent
-        self.name = name
-    
-    def register_pc_var(self, buff_obj: "vc.BufferStructureProxy", var_name: str):
-        self.parent._register(self.name, buff_obj, var_name)
-
 class LaunchVariables:
-    def __init__(self) -> None:
-        self.key_list = []
-        self.pc_dict = {}
+    def __init__(self, cmd_stream: Optional[vd.CommandStream] = None) -> None:
+        self.name_to_key_dict = {}
+        self.cmd_stream = cmd_stream if cmd_stream is not None else vd.default_cmd_stream()
 
-    def _register(self, name: str, buff_obj: "vc.BufferStructureProxy", var_name: str):
-        self.pc_dict[name] = (buff_obj, var_name)
-    
-    def __getitem__(self, name: str):
-        if name in self.key_list:
+    def new(self, name: str):
+        if name in self.name_to_key_dict.keys():
             raise ValueError("Variable already bound!")
         
-        self.key_list.append(name)
+        def register_var(key: Tuple[str, str]):
+            self.name_to_key_dict[name] = key
 
-        return LaunchBindObject(self, name)
+        return register_var
+
+    def set(self, name: str, value: typing.Any):
+        if name not in self.name_to_key_dict.keys():
+            raise ValueError("Variable not bound!")
     
-    def __setitem__(self, name: str, value):
-        self.pc_dict[name][0][self.pc_dict[name][1]] = value
-
-
+        self.cmd_stream.pc_builder[self.name_to_key_dict[name]] = value
 
 class ShaderLauncher:
     plan: vd.ComputePlan
@@ -177,7 +162,6 @@ class ShaderLauncher:
         uniform_values = {}
         pc_values = {}
 
-
         for ii, shader_arg in enumerate(self.shader_signature.arguments):
             arg = None
             
@@ -205,7 +189,7 @@ class ShaderLauncher:
                 bound_images.append((arg, shader_arg.binding))
             
             elif shader_arg.arg_type == vd.ShaderArgumentType.CONSTANT:
-                if isinstance(arg, LaunchBindObject):
+                if callable(arg): # isinstance(arg, LaunchBindObject):
                     raise ValueError("Cannot use LaunchVariables for Constants")
 
                 uniform_values[shader_arg.shader_name] = arg
@@ -214,13 +198,11 @@ class ShaderLauncher:
                 if len(self.shader_description.pc_structure) == 0:
                     raise ValueError("Something went wrong with push constants!!")
 
-                if isinstance(arg, LaunchBindObject):
+                if callable(arg): # isinstance(arg, LaunchBindObject):
                     if my_cmd_stream.submit_on_record:
                         raise ValueError("Cannot bind Variables for default cmd list!")
-
                     
-                    raise ValueError("Not implemented yet!")
-                    #arg.register_pc_var(pc_buff, arg_var[0].raw_name)
+                    arg((self.shader_description.name, shader_arg.shader_name))
                 else:
                     pc_values[shader_arg.shader_name] = arg
             else:
