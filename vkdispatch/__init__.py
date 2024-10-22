@@ -52,7 +52,7 @@ from .shader_generation.signature import ShaderArgument
 from .shader_generation.signature import ShaderSignature
 
 from .shader_generation.launcher import ShaderLauncher, LaunchVariables
-from .shader_generation.launcher import sanitize_dims_tuple, ShaderArgument
+from .shader_generation.launcher import sanitize_dims_tuple
 
 from .shader_generation.decorator import shader
 

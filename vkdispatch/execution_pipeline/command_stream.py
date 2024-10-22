@@ -4,6 +4,7 @@ from typing import List
 from typing import Dict
 from typing import Union
 from typing import Tuple
+from typing import Optional
 
 import numpy as np
 
@@ -112,7 +113,7 @@ class CommandStream(vd.CommandList):
         if self.submit_on_record:
             self.submit()       
 
-    def submit(self, instance_count: int = None, stream_index: int = -2) -> None:
+    def submit(self, instance_count: int = None, stream_index: int = -2, callback: Optional[Callable] = None) -> None:
         """Submit the command list to the specified device with additional data to
         append to the front of the command list.
         
@@ -131,9 +132,12 @@ class CommandStream(vd.CommandList):
 
                 for key, value in self.pc_values.items():
                     self.pc_builder[key] = value
+
+                if callable is not None:
+                    callback()
             
             if len(self.uniform_builder.element_map) > 0:
-                self.uniform_builder.prepare(instance_count)
+                self.uniform_builder.prepare(1)
 
                 for key, value in self.uniform_values.items():
                     self.uniform_builder[key] = value
