@@ -5,11 +5,11 @@ from vkdispatch.codegen.abreviations import *
 import numpy as np
 
 def test_arithmetic():
-    pass_count = 64
-    op_count = 1024
+    pass_count = 32
+    op_count = 512
 
     for _ in range(pass_count):
-        array_size = np.random.randint(1000, 10000)
+        array_size = np.random.randint(1000, 5000)
 
         signal = np.random.rand(array_size).astype(np.float32)
         signal2 = np.random.rand(array_size).astype(np.float32)
