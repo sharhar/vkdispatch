@@ -4,7 +4,7 @@ from typing import List
 from typing import Any
 from typing import Callable
 from typing import Optional
-from types import GenericAlias
+#from types import GenericAlias
 
 import dataclasses
 
@@ -58,7 +58,7 @@ class ShaderSignature:
         return self.make_from_type_annotations(annotations, names, defaults, builder)
 
     def make_from_type_annotations(self, 
-                       annotations: List[GenericAlias], 
+                       annotations: List, # [GenericAlias], adding this type annotation causes an error in python 3.8, so for now it is left as List
                        names: Optional[List[str]] = None,
                        defaults: Optional[List[Any]] = None,
                        builder: Optional[vc.ShaderBuilder] = None) -> List[vc.BaseVariable]:
