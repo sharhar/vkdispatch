@@ -267,7 +267,7 @@ static int record_program_instance(
     // Record the commands
     for (size_t i = 0; i < program_header->command_count; i++) {
         LOG_INFO("Recording command %d of type %d on worker %d", i, command_info_buffer[i].type, worker_id);
-
+        
         if(command_info_buffer[i].type == COMMAND_TYPE_CONDITIONAL) {
             LOG_INFO("Conditional command");
 
@@ -312,12 +312,13 @@ static int record_program_instance(
 
         LOG_INFO("Executing command %d", i);
 
-        if(record_command(command_info_buffer[i], cmd_buffer, device_index, stream_index, worker_id, *pCurrent_instance_data) != 0) {
+        if(record_command(command_info_buffer[i], cmd_buffer, device_index, stream_index, worker_id, instance_data) != 0) {
             LOG_ERROR("Unknown command type %d", command_info_buffer[i].type);
             return 1;
         }
 
-        if(!last_instance || i < program_header->command_count - 1)
+        if(i < program_header->command_count - 1) {
+            LOG_VERBOSE("Barrier between command %d and %d", i, i+1);
             vkCmdPipelineBarrier(
                 cmd_buffer, 
                 command_info_buffer[i].pipeline_stage, 
@@ -325,6 +326,15 @@ static int record_program_instance(
                 0, 1, 
                 &memory_barrier, 
                 0, 0, 0, 0);
+        } else if (!last_instance && i == program_header->command_count - 1) {
+            vkCmdPipelineBarrier(
+                cmd_buffer, 
+                command_info_buffer[i].pipeline_stage, 
+                command_info_buffer[0].pipeline_stage, 
+                0, 1, 
+                &memory_barrier, 
+                0, 0, 0, 0);
+        }
     }
 
     return 0;
@@ -393,7 +403,6 @@ void Stream::record_worker(int worker_id) {
 
         char* current_instance_data = (char*)&work_item.work_header[1];
         for(size_t instance = 0; instance < work_item.work_header->instance_count; instance++) {
-
             if(record_program_instance(
                     program_header, 
                     command_info_buffer, 
@@ -409,41 +418,6 @@ void Stream::record_worker(int worker_id) {
             {
                 return;
             }
-            
-            // Copy over the conditional bitmap
-            // if(program_header->conditional_boolean_count > 0) {
-            //     size_t bitmap_size_bytes = (program_header->conditional_boolean_count + 7) / 8;
-
-            //     if(bitmap_size_bytes > conditional_bitmap_size_bytes) {
-            //         conditionals_bitmap = (uint8_t*)realloc(conditionals_bitmap, bitmap_size_bytes);
-            //         memset(conditionals_bitmap, 0, bitmap_size_bytes);
-            //         conditional_bitmap_size_bytes = bitmap_size_bytes;
-            //     }
-
-            //     memcpy(conditionals_bitmap, current_instance_data, bitmap_size_bytes);
-            //     current_instance_data += bitmap_size_bytes;
-            // }
-
-            // for (size_t i = 0; i < program_header->command_count; i++) {
-            //     int pc_size = record_command(command_info_buffer[i], cmd_buffer, device_index, stream_index, worker_id, current_instance_data);
-            //     RETURN_ON_ERROR(;)
-                
-            //     if(pc_size < 0) {
-            //         LOG_ERROR("Unknown command type %d", command_info_buffer[i].type);
-            //         return;
-            //     }
-
-            //     current_instance_data += pc_size;
-
-            //     if(i < program_header->command_count - 1)
-            //         vkCmdPipelineBarrier(
-            //             cmd_buffer, 
-            //             command_info_buffer[i].pipeline_stage, 
-            //             command_info_buffer[i+1].pipeline_stage, 
-            //             0, 1, 
-            //             &memory_barrier, 
-            //             0, 0, 0, 0);
-            // }
         }
         
         VK_CALL(vkEndCommandBuffer(cmd_buffer));
