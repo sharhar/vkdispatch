@@ -277,6 +277,18 @@ class DeviceInfo:
 __initilized_instance: bool = False
 
 
+def is_initialized() -> bool:
+    """
+    A function which checks if the Vulkan dispatch library has been initialized.
+
+    Returns:
+        `bool`: A flag indicating whether the Vulkan dispatch library has been initialized.
+    """
+
+    global __initilized_instance
+
+    return __initilized_instance
+
 def initialize(debug_mode: bool = False, log_level: LogLevel = LogLevel.WARNING, loader_debug_logs: bool = False):
     """
     A function which initializes the Vulkan dispatch library.
