@@ -117,6 +117,9 @@ class BufferBuilder:
         if self.instance_count != 1:
             assert arr.shape[0] == self.instance_count, f"Invalid shape for {key}! Expected {self.instance_count} but got {arr.shape[0]}!"
 
+            if buffer_element.shape == (1,):
+                arr = arr.reshape(*arr.shape, 1)
+
             if arr.shape[1:] != buffer_element.shape:
                 if arr.shape != ():
                     raise ValueError(
