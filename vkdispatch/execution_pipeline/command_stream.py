@@ -20,6 +20,8 @@ class CommandStream(vd.CommandList):
     _reset_on_submit: bool
     submit_on_record: bool
     
+    buffers_valid: bool
+    
     pc_builder: BufferBuilder
     pc_values: Dict[Tuple[str, str], Any]
 
@@ -28,19 +30,25 @@ class CommandStream(vd.CommandList):
     uniform_bindings: Any
 
     uniform_constants_size: int
-    uniform_constants_valid: bool
     uniform_constants_buffer: vd.Buffer
 
     uniform_descriptors: List[Tuple[vd.DescriptorSet, int, int]]
 
+    name_to_pc_key_dict: Dict[str, Tuple[str, str]]
+    queued_pc_values: Dict[Tuple[str, str], Any]
+
     def __init__(self, reset_on_submit: bool = False, submit_on_record: bool = False) -> None:
         super().__init__()
 
+        self.buffers_valid = False
+        
         self.pc_builder = BufferBuilder(usage=BufferUsage.PUSH_CONSTANT)
         self.uniform_builder = BufferBuilder(usage=BufferUsage.UNIFORM_BUFFER)
 
         self.pc_values = {}
         self.uniform_values = {}
+        self.name_to_pc_key_dict = {}
+        self.queued_pc_values = {}
 
         self.uniform_descriptors = []
 
@@ -48,7 +56,6 @@ class CommandStream(vd.CommandList):
         self.submit_on_record = submit_on_record
 
         self.uniform_constants_size = 0
-        self.uniform_constants_valid = False
         self.uniform_constants_buffer = vd.Buffer(shape=(4096,), var_type=vd.uint32) # Create a base static constants buffer at size 4k bytes
 
     def __del__(self) -> None:
@@ -66,11 +73,28 @@ class CommandStream(vd.CommandList):
 
         self.pc_values = {}
         self.uniform_values = {}
+        self.name_to_pc_key_dict = {}
+        self.queued_pc_values = {}
 
         self.uniform_descriptors = []
-        self.uniform_constants_valid = False
+        self.buffers_valid = False
 
         super().reset()
+    
+    def bind_var(self, name: str):
+        if name in self.name_to_pc_key_dict.keys():
+            raise ValueError("Variable already bound!")
+        
+        def register_var(key: Tuple[str, str]):
+            self.name_to_pc_key_dict[name] = key
+
+        return register_var
+    
+    def set_var(self, name: str, value: Any):
+        if name not in self.name_to_pc_key_dict.keys():
+            raise ValueError("Variable not bound!")
+        
+        self.queued_pc_values[self.name_to_pc_key_dict[name]] = value
     
     def record_shader(self, 
                       plan: vd.ComputePlan,
@@ -108,47 +132,51 @@ class CommandStream(vd.CommandList):
 
         super().record_compute_plan(plan, descriptor_set, blocks)
 
-        self.static_constants_valid = False
+        self.buffers_valid = False
 
         if self.submit_on_record:
-            self.submit()       
+            self.submit()
 
-    def submit(self, instance_count: int = None, stream_index: int = -2, callback: Optional[Callable] = None) -> None:
+    def submit(self, instance_count: int = None, stream_index: int = -2) -> None:
         """Submit the command list to the specified device with additional data to
         append to the front of the command list.
         
         Parameters:
-        device_index (int): The device index to submit the command list to.\
+        device_index (int): The device index to submit the command list to.
                 Default is 0.
         data (bytes): The additional data to append to the front of the command list.
         """
 
         if instance_count is None:
             instance_count = 1
+        
+        if len(self.pc_builder.element_map) > 0 and (
+                self.pc_builder.instance_count != instance_count or not self.buffers_valid
+            ):
 
-        if not self.uniform_constants_valid:
-            if len(self.pc_builder.element_map) > 0:
-                self.pc_builder.prepare(instance_count)
+            self.pc_builder.prepare(instance_count)
 
-                for key, value in self.pc_values.items():
-                    self.pc_builder[key] = value
+            for key, value in self.pc_values.items():
+                self.pc_builder[key] = value
 
-                if callable is not None:
-                    callback()
+        if len(self.uniform_builder.element_map) > 0 and not self.buffers_valid:
+
+            self.uniform_builder.prepare(1)
+
+            for key, value in self.uniform_values.items():
+                self.uniform_builder[key] = value
             
-            if len(self.uniform_builder.element_map) > 0:
-                self.uniform_builder.prepare(1)
+            for descriptor_set, offset, size in self.uniform_descriptors:
+                descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, 1)
 
-                for key, value in self.uniform_values.items():
-                    self.uniform_builder[key] = value
-                
-                for descriptor_set, offset, size in self.uniform_descriptors:
-                    descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, 1)
+            self.uniform_constants_buffer.write(self.uniform_builder.tobytes())
 
-                self.uniform_constants_buffer.write(self.uniform_builder.tobytes())
-            
-            self.uniform_constants_valid = True
+        if not self.buffers_valid:
+            self.buffers_valid = True
 
+        for key, val in self.queued_pc_values.items():
+            self.pc_builder[key] = val
+        
         my_data = None
 
         if len(self.pc_builder.element_map) > 0:
@@ -159,28 +187,8 @@ class CommandStream(vd.CommandList):
         if self._reset_on_submit:
             self.reset()
     
-    def submit_any(self, data: bytes = None, instance_count: int = None) -> None:
-        self.submit(data=data, stream_index=-1, instance_count=instance_count)
-    
-    def iter_batched_params(self, mapping_function, param_iter, batch_size: int = 10):
-        data = b""
-        bsize = 0
-
-        for param in param_iter:
-            mapping_function(param)
-
-            for pc_buffer in self.pc_buffers:
-                data += pc_buffer.get_bytes()
-
-            bsize += 1
-
-            if bsize == batch_size:
-                yield data
-                data = b""
-                bsize = 0
-            
-        if bsize > 0:
-            yield data
+    def submit_any(self, instance_count: int = None) -> None:
+        self.submit(instance_count=instance_count, stream_index=-1)
 
 __default_cmd_stream = None
 __custom_stream = None

@@ -61,25 +61,31 @@ def sanitize_dims_tuple(func_args, in_val, args, kwargs) -> Tuple[int, int, int]
     
     return (return_val[0], return_val[1], return_val[2])
 
-class LaunchVariables:
-    def __init__(self, cmd_stream: Optional[vd.CommandStream] = None) -> None:
-        self.name_to_key_dict = {}
-        self.cmd_stream = cmd_stream if cmd_stream is not None else vd.default_cmd_stream()
+# class LaunchVariables:
+#     def __init__(self, cmd_stream: vd.CommandStream) -> None:
+#         self.name_to_key_dict = {}
+#         self.cmd_stream = cmd_stream
 
-    def new(self, name: str):
-        if name in self.name_to_key_dict.keys():
-            raise ValueError("Variable already bound!")
+#         self.queued_ops = {}
+
+#     def new(self, name: str):
+#         if name in self.name_to_key_dict.keys():
+#             raise ValueError("Variable already bound!")
         
-        def register_var(key: Tuple[str, str]):
-            self.name_to_key_dict[name] = key
+#         def register_var(key: Tuple[str, str]):
+#             self.name_to_key_dict[name] = key
 
-        return register_var
+#         return register_var
 
-    def set(self, name: str, value: typing.Any):
-        if name not in self.name_to_key_dict.keys():
-            raise ValueError("Variable not bound!")
-    
-        self.cmd_stream.pc_builder[self.name_to_key_dict[name]] = value
+#     def set(self, name: str, value: typing.Any):
+#         if name not in self.name_to_key_dict.keys():
+#             raise ValueError("Variable not bound!")
+        
+#         self.queued_ops[self.name_to_key_dict[name]] = value
+
+#     def build(self):
+#         for key, val in self.queued_ops.items():
+#             self.cmd_stream.pc_builder[key] = val
 
 class ShaderLauncher:
     plan: vd.ComputePlan

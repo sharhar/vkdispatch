@@ -1,6 +1,11 @@
 #include "../include/internal.h"
 
 struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size, int per_device) {
+    if(size == 0) {
+        set_error("Buffer size cannot be zero");
+        return NULL;
+    }
+    
     struct Buffer* buffer = new struct Buffer();
     
     LOG_INFO("Creating buffer of size %d with handle %p", size, buffer);
