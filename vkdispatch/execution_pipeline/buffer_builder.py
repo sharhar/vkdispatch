@@ -129,8 +129,11 @@ class BufferBuilder:
                     raise ValueError(
                         f"The shape of {key} is {buffer_element.shape} but a scalar was given!"
                     )
-        
-            (self.backing_buffer[:, buffer_element.memory_slice]).view(buffer_element.dtype)[:] = arr
+            
+            if len(buffer_element.shape) > 1:
+                (self.backing_buffer[:, buffer_element.memory_slice]).view(buffer_element.dtype).reshape(-1, *buffer_element.shape)[:] = arr
+            else:
+                (self.backing_buffer[:, buffer_element.memory_slice]).view(buffer_element.dtype)[:] = arr
         else:
             if arr.shape != buffer_element.shape:
                 if arr.shape != ():
@@ -141,8 +144,10 @@ class BufferBuilder:
                     raise ValueError(
                         f"The shape of {key} is {buffer_element.shape} but a scalar was given!"
                     )
-            
-            (self.backing_buffer[0, buffer_element.memory_slice]).view(buffer_element.dtype)[:] = arr
+            if len(buffer_element.shape) > 1:
+                (self.backing_buffer[0, buffer_element.memory_slice]).view(buffer_element.dtype).reshape(-1, *buffer_element.shape)[:] = arr
+            else:
+                (self.backing_buffer[0, buffer_element.memory_slice]).view(buffer_element.dtype)[:] = arr
 
 #    def __repr__(self) -> str:
 #        result = "Push Constant Buffer:\n"
