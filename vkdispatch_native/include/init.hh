@@ -1,7 +1,7 @@
 #ifndef SRC_INIT_H
 #define SRC_INIT_H
 
-#include "base.h"
+#include "base.hh"
 
 struct QueueFamilyProperties {
     unsigned int queueCount;

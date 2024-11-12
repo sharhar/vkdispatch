@@ -1,7 +1,7 @@
 #ifndef _STREAM_SRC_STREAM_H
 #define _STREAM_SRC_STREAM_H
 
-#include "base.h"
+#include "base.hh"
 
 #include <queue>
 #include <thread>

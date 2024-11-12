@@ -1,4 +1,4 @@
-#include "../include/internal.h"
+#include "../include/internal.hh"
 
 Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFamilyIndex, int stream_index) {
     this->ctx = ctx;

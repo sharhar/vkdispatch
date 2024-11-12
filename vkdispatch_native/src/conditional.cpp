@@ -1,4 +1,4 @@
-#include "../include/internal.h"
+#include "../include/internal.hh"
 
 int record_conditional_extern(struct CommandList* command_list) {
     LOG_INFO("Recording conditional command list with handle %p", command_list);

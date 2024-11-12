@@ -1,4 +1,4 @@
-#include "../include/internal.h"
+#include "../include/internal.hh"
 
 void stage_transfer_record_copy_buffer_extern(struct CommandList* command_list, struct BufferCopyInfo* copy_info) {
     // we allocate using `malloc` rather than new here because we need to free this memory later without knowing it's type

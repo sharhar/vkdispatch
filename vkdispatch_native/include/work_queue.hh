@@ -1,7 +1,7 @@
 #ifndef _SRC_WORK_QUEUE_H_
 #define _SRC_WORK_QUEUE_H_
 
-#include "base.h"
+#include "base.hh"
 
 #include <mutex>
 #include <condition_variable>
