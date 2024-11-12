@@ -1,7 +1,7 @@
 #ifndef SRC_STAGE_TRANSFER_H_
 #define SRC_STAGE_TRANSFER_H_
 
-#include "base.h"
+#include "base.hh"
 
 struct BufferCopyInfo {
     struct Buffer* src;

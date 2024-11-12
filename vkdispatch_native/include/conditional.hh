@@ -1,7 +1,7 @@
 #ifndef SRC_CONDITIONAL_H
 #define SRC_CONDITIONAL_H
 
-#include "base.h"
+#include "base.hh"
 
 struct ConditionalRecordInfo {
     unsigned int conditional_boolean_index;

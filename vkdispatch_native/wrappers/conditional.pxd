@@ -4,7 +4,7 @@ import sys
 
 from libc.stdlib cimport malloc, free
 
-cdef extern from "../include/conditional.h":
+cdef extern from "../include/conditional.hh":
     struct CommandList
 
     int record_conditional_extern(CommandList* command_list)

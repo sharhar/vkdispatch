@@ -1,7 +1,7 @@
 #ifndef SRC_INTERNAL_H
 #define SRC_INTERNAL_H
 
-#include "base.h"
+#include "base.hh"
 
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
@@ -85,20 +85,20 @@ void set_error(const char* format, ...);
 
 #include <vector>
 
-#include "init.h"
-#include "errors.h"
-#include "context.h"
-#include "buffer.h"
-#include "image.h"
-#include "stage_transfer.h"
-#include "stage_fft.h"
-#include "stage_compute.h"
-#include "command_list.h"
-#include "descriptor_set.h"
-#include "work_queue.h"
-#include "signal.h"
-#include "stream.h"
-#include "conditional.h"
+#include "init.hh"
+#include "errors.hh"
+#include "context.hh"
+#include "buffer.hh"
+#include "image.hh"
+#include "stage_transfer.hh"
+#include "stage_fft.hh"
+#include "stage_compute.hh"
+#include "command_list.hh"
+#include "descriptor_set.hh"
+#include "work_queue.hh"
+#include "signal.hh"
+#include "stream.hh"
+#include "conditional.hh"
 
 typedef struct {
     VkInstance instance;

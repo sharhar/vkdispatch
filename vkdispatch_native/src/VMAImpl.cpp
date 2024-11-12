@@ -1,2 +1,2 @@
 #define VMA_IMPLEMENTATION
-#include "../include/internal.h"
+#include "../include/internal.hh"

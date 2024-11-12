@@ -1,7 +1,7 @@
 #ifndef _STAGE_COMPUTE_H_
 #define _STAGE_COMPUTE_H_
 
-#include "base.h"
+#include "base.hh"
 
 enum DescriptorType {
     DESCRIPTOR_TYPE_STORAGE_BUFFER = 1,
