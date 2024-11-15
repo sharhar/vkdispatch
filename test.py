@@ -4,9 +4,10 @@ from vkdispatch.codegen.abreviations import *
 
 import numpy as np
 
-#vd.initialize(log_level=vd.LogLevel.VERBOSE, debug_mode=True)
+vd.initialize(log_level=vd.LogLevel.VERBOSE, debug_mode=True)
 
 vd.make_context(devices=[0], queue_families=[[2]])
+
 
 buff = vd.asbuffer(np.arange(10, dtype=np.float32))
 

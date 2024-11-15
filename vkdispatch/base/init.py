@@ -2,6 +2,8 @@ import typing
 from enum import Enum
 import os
 
+import inspect
+
 from .errors import check_for_errors
 
 import vkdispatch_native
@@ -331,3 +333,62 @@ def get_devices() -> typing.List[DeviceInfo]:
         DeviceInfo(ii, *dev_obj)
         for ii, dev_obj in enumerate(vkdispatch_native.get_devices())
     ]
+
+def log(text: str, level: LogLevel = LogLevel.ERROR, stack_offset: int = 1):
+    """
+    A function which logs a message at the specified log level.
+
+    Args:
+        level (`LogLevel`): The log level.
+        message (`str`): The message to log.
+    """
+
+    initialize()
+
+    frame = inspect.stack()[stack_offset]
+    vkdispatch_native.log(
+        level.value, 
+        text.encode(), 
+        os.path.relpath(frame.filename, os.getcwd()).encode(), 
+        frame.lineno
+    )
+
+def log_error(text: str):
+    """
+    A function which logs an error message.
+
+    Args:
+        message (`str`): The message to log.
+    """
+
+    log(text, LogLevel.ERROR, 2)
+
+def log_warning(text: str):
+    """
+    A function which logs a warning message.
+
+    Args:
+        message (`str`): The message to log.
+    """
+
+    log(text, LogLevel.WARNING, 2)
+
+def log_info(text: str):
+    """
+    A function which logs an info message.
+
+    Args:
+        message (`str`): The message to log.
+    """
+
+    log(text, LogLevel.INFO, 2)
+
+def log_verbose(text: str):
+    """
+    A function which logs a verbose message.
+
+    Args:
+        message (`str`): The message to log.
+    """
+
+    log(text, LogLevel.VERBOSE, 2)

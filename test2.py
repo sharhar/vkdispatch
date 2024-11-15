@@ -5,7 +5,7 @@ from vkdispatch.codegen.abreviations import *
 import numpy as np
 
 pass_count = 256
-op_count = 512
+op_count = 1512
 
 for i in range(pass_count):
     array_size = np.random.randint(100, 10000)
