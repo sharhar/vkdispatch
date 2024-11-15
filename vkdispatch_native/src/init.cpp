@@ -10,6 +10,13 @@ std::mutex __log_mutex = {};
 LogLevel __log_level_limit = LOG_LEVEL_WARNING;
 MyInstance _instance;
 
+const char* prefixes[] = {
+    "VERBOSE",
+    "INFO",
+    "WARNING",
+    "ERROR"
+};
+
 static VkBool32 VKAPI_PTR vulkan_custom_debug_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT messageTypes,
@@ -31,36 +38,31 @@ static VkBool32 VKAPI_PTR vulkan_custom_debug_callback(
         // Remove the prefix and substring
         size_t start_index = substring_location + shader_print_substring.size();
 
-        log_message(LOG_LEVEL_ERROR, "[SHADER PRINT] ", "\n", NULL, 0, message_str.substr(start_index).c_str());
+        log_message(LOG_LEVEL_ERROR, "\n", "Shader", 0, message_str.substr(start_index).c_str());
         return VK_FALSE;
     }
 
-    const char* prefix = "";
     LogLevel log_level = static_cast<LogLevel>(0);
 
     switch (messageSeverity)
     {
     case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-        prefix = "[VERBOSE - Vulkan] ";
         log_level = LOG_LEVEL_VERBOSE;
         break;
     case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-        prefix = "[INFO - Vulkan] ";
         log_level = LOG_LEVEL_INFO;
         break;
     case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-        prefix = "[WARNING - Vulkan] ";
         log_level = LOG_LEVEL_WARNING;
         break;
     case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-        prefix = "[ERROR - Vulkan] ";
         log_level = LOG_LEVEL_ERROR;
         break;
     default:
         break;
     }
 
-    log_message(log_level, prefix, "\n", NULL, 0, pCallbackData->pMessage);
+    log_message(log_level, "\n", "Vulkan", 0, pCallbackData->pMessage);
 
     if(log_level == LOG_LEVEL_ERROR) {
         exit(1);
@@ -308,4 +310,8 @@ void init_extern(bool debug, LogLevel log_level) {
 struct PhysicalDeviceDetails* get_devices_extern(int* count) {
     *count = _instance.device_details.size();
     return _instance.device_details.data();
+}
+
+void log_extern(LogLevel log_level, const char* text, const char* file_str, int line_str) {
+    log_message(log_level, "", file_str, line_str, text);
 }

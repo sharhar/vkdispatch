@@ -11,51 +11,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <thread>
-#include <queue>
-#include <mutex>
-#include <functional>
-#include <atomic>
-#include <condition_variable>
-
-#include <stdarg.h>
-
-extern std::mutex __log_mutex;
-extern LogLevel __log_level_limit;
-
-inline void log_message(LogLevel log_level, const char* prefix, const char* postfix, const char* file_str, int line_str, const char* format, ...) {
-    if(log_level >= __log_level_limit) {
-        __log_mutex.lock();
-
-        va_list args;
-        va_start(args, format);
-
-        if(file_str != NULL) {
-            printf("[%s %s:%d] ", prefix, file_str, line_str);
-        } else {
-            printf("[%s] ", prefix);
-        }
-
-        vprintf(format, args);
-        printf("%s", postfix);
-
-        va_end(args);
-
-        __log_mutex.unlock();
-    }
-}
-
-//#define LOG_VERBOSE_ENABLED
-
-#ifdef LOG_VERBOSE_ENABLED
-#define LOG_VERBOSE(format, ...) log_message(LOG_LEVEL_VERBOSE, "VERBOSE", "\n", __FILE__, __LINE__, format, ##__VA_ARGS__)
-#else
-#define LOG_VERBOSE(format, ...)
-#endif
-
-#define LOG_INFO(format, ...) log_message(LOG_LEVEL_INFO, "INFO", "\n", __FILE__, __LINE__, format, ##__VA_ARGS__)
-#define LOG_WARNING(format, ...) log_message(LOG_LEVEL_WARNING, "WARNING", "\n", __FILE__, __LINE__, format, ##__VA_ARGS__)
-#define LOG_ERROR(format, ...) log_message(LOG_LEVEL_ERROR, "ERROR", "\n", __FILE__, __LINE__, format, ##__VA_ARGS__)
 
 void set_error(const char* format, ...);
 
@@ -99,6 +54,7 @@ void set_error(const char* format, ...);
 #include "signal.hh"
 #include "stream.hh"
 #include "conditional.hh"
+#include "log.hh"
 
 typedef struct {
     VkInstance instance;
