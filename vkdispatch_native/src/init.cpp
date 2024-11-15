@@ -71,6 +71,8 @@ static VkBool32 VKAPI_PTR vulkan_custom_debug_callback(
 }
 
 void init_extern(bool debug, LogLevel log_level) {
+    init_print_system();
+
     __log_level_limit = log_level;
 
     #ifndef VKDISPATCH_USE_VOLK

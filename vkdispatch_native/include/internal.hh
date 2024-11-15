@@ -20,8 +20,17 @@
 
 #include <stdarg.h>
 
+#define ERROR_STRING_MAX 8192
+extern char __error_string_buffer[ERROR_STRING_MAX];
+
 extern std::mutex __log_mutex;
 extern LogLevel __log_level_limit;
+
+#define CHECK_STR_LEN() \
+    if(current_length >= ERROR_STRING_MAX) { \
+        printf("Error string too long\n"); \
+        exit(1); \
+    }
 
 inline void log_message(LogLevel log_level, const char* prefix, const char* postfix, const char* file_str, int line_str, const char* format, ...) {
     if(log_level >= __log_level_limit) {
@@ -30,14 +39,30 @@ inline void log_message(LogLevel log_level, const char* prefix, const char* post
         va_list args;
         va_start(args, format);
 
+        size_t current_length = 0;
+
         if(file_str != NULL) {
-            printf("[%s %s:%d] ", prefix, file_str, line_str);
+            current_length += snprintf(&__error_string_buffer[current_length], ERROR_STRING_MAX - 1, "[%s %s:%d] ", prefix, file_str, line_str);
+            CHECK_STR_LEN()
         } else {
-            printf("[%s] ", prefix);
+            current_length += snprintf(&__error_string_buffer[current_length], ERROR_STRING_MAX - 1, "[%s] ", prefix);
+            CHECK_STR_LEN()
         }
 
-        vprintf(format, args);
-        printf("%s", postfix);
+        current_length += vsnprintf(&__error_string_buffer[current_length], ERROR_STRING_MAX - current_length - 1, format, args);
+        CHECK_STR_LEN()
+
+        current_length += snprintf(&__error_string_buffer[current_length], ERROR_STRING_MAX - current_length - 1, "%s", postfix);
+        CHECK_STR_LEN()
+
+        __error_string_buffer[current_length] = 0;
+
+
+        printf("pre cython %s:%d\n", file_str, line_str);
+
+        thread_safe_print(__error_string_buffer);
+
+        printf("post cython\n");
 
         va_end(args);
 
@@ -45,7 +70,7 @@ inline void log_message(LogLevel log_level, const char* prefix, const char* post
     }
 }
 
-//#define LOG_VERBOSE_ENABLED
+#define LOG_VERBOSE_ENABLED
 
 #ifdef LOG_VERBOSE_ENABLED
 #define LOG_VERBOSE(format, ...) log_message(LOG_LEVEL_VERBOSE, "VERBOSE", "\n", __FILE__, __LINE__, format, ##__VA_ARGS__)

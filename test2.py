@@ -4,6 +4,8 @@ from vkdispatch.codegen.abreviations import *
 
 import numpy as np
 
+vd.initialize(log_level=vd.LogLevel.VERBOSE, debug_mode=True)
+
 pass_count = 256
 op_count = 512
 

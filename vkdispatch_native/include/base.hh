@@ -11,6 +11,23 @@
 
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Initialize the printing system
+void init_print_system(void);
+
+// Cleanup the printing system
+void cleanup_print_system(void);
+
+// Thread-safe printing function that can be called from any thread
+void thread_safe_print(const char* message);
+
+#ifdef __cplusplus
+}
+#endif
+
 enum LogLevel {
     LOG_LEVEL_VERBOSE = 0,
     LOG_LEVEL_INFO = 1,

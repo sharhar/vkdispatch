@@ -1,5 +1,7 @@
 #include "../include/internal.hh"
 
+char __error_string_buffer[ERROR_STRING_MAX];
+
 std::mutex __error_mutex = {};
 const char* __error_string = NULL;
 
