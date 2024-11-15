@@ -10,7 +10,7 @@ WorkQueue::WorkQueue(int max_work_items, int max_programs) {
     running = true;
 
     for(int i = 0; i < max_work_items; i++) {
-        work_infos[i].dirty.store(false);
+        work_infos[i].dirty = false;
         work_infos[i].header = (struct WorkHeader*)malloc(sizeof(struct WorkHeader) + 16 * 1024);
         memset(work_infos[i].header, 0, sizeof(struct WorkHeader) + 16 * 1024);
         work_infos[i].header->array_size = 16 * 1024;
@@ -38,6 +38,8 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
     auto start = std::chrono::high_resolution_clock::now();
 
     int found_indicies[2] = {-1, -1};
+
+    //LOG_WARNING("Pushing work to queue");
 
     this->cv_pop.wait(lock, [this, start, command_list, &found_indicies] () {
         auto end = std::chrono::high_resolution_clock::now();
@@ -73,7 +75,7 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
         int work_index = -1;
 
         for(int i = 0; i < this->work_info_count; i++) {
-            if(!this->work_infos[i].dirty.load()) {
+            if(!this->work_infos[i].dirty) {
                 work_index = i;
                 break;
             }
@@ -89,6 +91,8 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
         return true;
     });
 
+    //LOG_WARNING("Found room in queue");
+
     RETURN_ON_ERROR(;)
 
     auto end = std::chrono::high_resolution_clock::now();
@@ -100,7 +104,7 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
 
     work_infos[found_indicies[1]].program_index = found_indicies[0];
     work_infos[found_indicies[1]].stream_index = stream_index;
-    work_infos[found_indicies[1]].dirty.store(true);
+    work_infos[found_indicies[1]].dirty = true;
     work_infos[found_indicies[1]].state = WORK_STATE_PENDING;
     work_infos[found_indicies[1]].work_id = __work_id;
     __work_id += 1;
@@ -145,7 +149,7 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
     if(work_size > 0)
         memcpy(&work_header[1], instance_buffer, work_size);
     
-    this->program_infos[found_indicies[0]].ref_count.fetch_add(1, std::memory_order_relaxed);
+    this->program_infos[found_indicies[0]].ref_count += 1;
 
     this->cv_push.notify_all();
 }
@@ -172,7 +176,7 @@ bool WorkQueue::pop(struct WorkHeader** header, int stream_index) {
         size_t work_id = ~((size_t)0);
 
         for(int i = 0; i < this->work_info_count; i++) {
-            if(this->work_infos[i].dirty.load() &&
+            if(this->work_infos[i].dirty &&
                this->work_infos[i].state == WORK_STATE_PENDING &&
                this->work_infos[i].work_id < work_id &&
                (this->work_infos[i].stream_index == stream_index ||
@@ -204,7 +208,8 @@ bool WorkQueue::pop(struct WorkHeader** header, int stream_index) {
 }
 
 void WorkQueue::finish(struct WorkHeader* header) {
-    program_infos[header->program_header->info_index].ref_count.fetch_sub(1, std::memory_order_relaxed);
-    work_infos[header->info_index].dirty.store(false);
+    std::unique_lock<std::mutex> lock(this->mutex);
+    program_infos[header->program_header->info_index].ref_count -= 1;
+    work_infos[header->info_index].dirty = false;
     this->cv_pop.notify_all();
 }

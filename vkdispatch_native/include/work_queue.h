@@ -5,7 +5,6 @@
 
 #include <mutex>
 #include <condition_variable>
-#include <atomic>
 //#include <vector>
 
 struct ProgramHeader {
@@ -16,7 +15,7 @@ struct ProgramHeader {
 
 struct ProgramInfo {
     struct ProgramHeader* header;
-    std::atomic<int> ref_count;
+    int ref_count;
     size_t program_id;
 };
 
@@ -38,7 +37,7 @@ enum WorkState {
 struct WorkInfo2 {
     struct WorkHeader* header;
     WorkState state;
-    std::atomic<bool> dirty;
+    bool dirty;
     int stream_index;
     int program_index;
     size_t work_id;

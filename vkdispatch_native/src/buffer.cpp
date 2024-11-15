@@ -95,6 +95,8 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
         command_list_reset_extern(ctx->command_list);
         RETURN_ON_ERROR(;)
 
+        //LOG_WARNING("Buffer waiting on signal %p for write", &signals[i]);
+
         signals[i].wait();
     }
 
@@ -135,6 +137,8 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
     command_list_submit_extern(ctx->command_list, NULL, 1, &index, 1, 0, &signal); //buffer->per_device, &signal);
     command_list_reset_extern(ctx->command_list);
     RETURN_ON_ERROR(;)
+
+    //LOG_WARNING("Buffer waiting on signal %p for read", &signal);
 
     signal.wait();
 
