@@ -162,8 +162,6 @@ void Stream::ingest_worker() {
         
         work_item.next_index = current_index;
         
-        LOG_WARNING("Ingesting work item with signal %p in index %d", work_item.signal, work_item.current_index);
-        
         {
             std::unique_lock<std::mutex> lock(this->submit_queue_mutex);
             this->submit_queue.push(work_item);
@@ -303,8 +301,6 @@ void Stream::record_worker(int worker_id) {
         
         VK_CALL(vkEndCommandBuffer(cmd_buffer));
 
-        LOG_WARNING("Recording work item with signal %p at index %d", work_item.signal, work_item.current_index);
-
         ctx->work_queue->finish(work_item.work_header);
 
         {
@@ -323,22 +319,11 @@ void Stream::submit_worker() {
             std::unique_lock<std::mutex> lock(this->submit_queue_mutex);
 
             this->submit_queue_cv.wait(lock, [this]() {
-                LOG_WARNING("Checking submit queue");
-
                 if(!this->run_stream.load()) {
-                    LOG_WARNING("Stream is not running");
                     return true;
                 }
                 
                 if(this->submit_queue.empty()) {
-                    LOG_WARNING("Submit queue is empty");
-                    return false;
-                }
-
-                LOG_WARNING("Checking submit queue index %d", this->submit_queue.front().current_index);
-
-                if(!(*(this->submit_queue.front().recording_result->state))) {
-                    LOG_WARNING("Recording result is not ready at index %d", this->submit_queue.front().current_index);
                     return false;
                 }
 
@@ -354,10 +339,6 @@ void Stream::submit_worker() {
 
             this->submit_queue.pop();
         }
-
-        LOG_WARNING("Submitting work item with signal %p at index %d", work_item.signal, work_item.current_index);
-
-        
 
         VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
@@ -376,11 +357,7 @@ void Stream::submit_worker() {
         VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[work_item.current_index]));
         
         if(work_item.signal != NULL) {
-            //LOG_WARNING("Waiting for fence of signal %p", work_item.signal);
-
             VK_CALL(vkWaitForFences(device, 1, &fences[work_item.current_index], VK_TRUE, UINT64_MAX));
-
-            LOG_WARNING("Notifying signal %p", work_item.signal);
             work_item.signal->notify();
         }
     }

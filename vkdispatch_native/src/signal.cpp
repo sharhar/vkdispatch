@@ -18,8 +18,6 @@ void Signal::wait() {
     std::unique_lock<std::mutex> lock(mutex);
     
     auto start = std::chrono::high_resolution_clock::now();
-    
-    LOG_WARNING("Waiting for signal %p", this);
 
     cv.wait(lock, [this, start] {
         LOG_VERBOSE("Checking signal");
@@ -34,6 +32,4 @@ void Signal::wait() {
         
         return state;
     });
-
-    LOG_WARNING("Signal received");
 }
