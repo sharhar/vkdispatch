@@ -3,11 +3,12 @@
 
 #include "base.hh"
 
+#include <atomic>
 #include <queue>
 #include <thread>
 
 struct RecordingResultData {
-    std::atomic<bool>* state;
+    bool* state;
     VkCommandBuffer commandBuffer;
 };
 
@@ -38,7 +39,7 @@ public:
     std::atomic<bool> run_stream;
     
     std::vector<VkCommandBuffer>* commandBufferVectors;
-    std::atomic<bool>** commandBufferStates;
+    bool** commandBufferStates;
     std::vector<VkFence> fences;
     std::vector<VkSemaphore> semaphores;
     std::vector<struct RecordingResultData> recording_results;
