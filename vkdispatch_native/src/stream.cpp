@@ -1,5 +1,39 @@
 #include "../include/internal.hh"
 
+Fence::Fence(VkDevice device) {
+    VkFenceCreateInfo fenceInfo = {};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    VK_CALL(vkCreateFence(device, &fenceInfo, nullptr, &fence));
+
+    this->device = device;
+    this->submitted = true;
+}
+
+void Fence::waitAndReset() {
+    std::unique_lock<std::mutex> lock(mutex);
+
+    cv.wait(lock, [this]() {
+        return this->submitted;
+    });
+
+    VK_CALL(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX));
+    VK_CALL(vkResetFences(device, 1, &fence));
+
+    this->submitted = false;
+}
+
+void Fence::signalSubmission() {
+    std::unique_lock<std::mutex> lock(mutex);
+    this->submitted = true;
+    cv.notify_all();
+}
+
+void Fence::destroy() {
+    vkDestroyFence(device, fence, nullptr);
+}
+
 Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFamilyIndex, int stream_index) {
     this->ctx = ctx;
     this->device = device;
@@ -54,7 +88,7 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
     LOG_INFO("Creating %d fences and semaphores", inflight_cmd_buffer_count);
 
     for(int i = 0; i < inflight_cmd_buffer_count; i++) {
-        VK_CALL(vkCreateFence(device, &fenceInfo, nullptr, &fences[i]));
+        fences[i] = new Fence(device);
         VK_CALL(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &semaphores[i]));
     }
 
@@ -111,7 +145,7 @@ void Stream::destroy() {
     }
 
     for(int i = 0; i < fences.size(); i++) {
-        vkDestroyFence(device, fences[i], nullptr);
+        fences[i]->destroy();
     }
 
     for(int i = 0; i < recording_thread_count; i++) {
@@ -141,8 +175,14 @@ void Stream::ingest_worker() {
     int current_index = fences.size() - 1;
 
     while(this->run_stream.load()) {
-        VK_CALL(vkWaitForFences(device, 1, &fences[current_index], VK_TRUE, UINT64_MAX));
-        VK_CALL(vkResetFences(device, 1, &fences[current_index]));
+
+        //{
+        //    std::unique_lock<std::mutex> lock(fence_muticies[current_index]);
+        //    VK_CALL(vkWaitForFences(device, 1, &fences[current_index], VK_TRUE, UINT64_MAX));
+        //    VK_CALL(vkResetFences(device, 1, &fences[current_index]));
+        //}
+
+        fences[current_index]->waitAndReset();
         
         if(!work_queue->pop(&work_header, stream_index)) {
             LOG_INFO("Thread worker for device %d, stream %d has no more work", device_index, stream_index);
@@ -476,11 +516,13 @@ void Stream::submit_worker() {
 
         LOG_VERBOSE("Submitting command buffer waiting on sempahore %p and signaling semaphore %p", semaphores[work_item.current_index], semaphores[work_item.next_index]);
         
-        VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[work_item.current_index]));
-        
+        VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[work_item.current_index]->fence));
+    
         if(work_item.signal != NULL) {
-            VK_CALL(vkWaitForFences(device, 1, &fences[work_item.current_index], VK_TRUE, UINT64_MAX));
+            VK_CALL(vkWaitForFences(device, 1, &fences[work_item.current_index]->fence, VK_TRUE, UINT64_MAX));
             work_item.signal->notify();
         }
+
+        fences[work_item.current_index]->signalSubmission();
     }
 }

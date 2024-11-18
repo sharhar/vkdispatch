@@ -20,6 +20,24 @@ struct WorkQueueItem {
     RecordingResultData* recording_result;
 };
 
+class Fence {
+public:
+    Fence(VkDevice device);
+
+    void waitAndReset();
+    void signalSubmission();
+
+    void destroy();
+
+    VkDevice device;
+    VkFence fence;
+
+    bool submitted;
+
+    std::mutex mutex;
+    std::condition_variable cv;
+};
+
 class Stream {
 public:
     Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFamilyIndex, int stream_index);
@@ -40,7 +58,9 @@ public:
     
     std::vector<VkCommandBuffer>* commandBufferVectors;
     bool** commandBufferStates;
-    std::vector<VkFence> fences;
+    
+    std::vector<Fence*> fences;
+    
     std::vector<VkSemaphore> semaphores;
     std::vector<struct RecordingResultData> recording_results;
 
