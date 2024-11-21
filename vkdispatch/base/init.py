@@ -334,7 +334,7 @@ def get_devices() -> typing.List[DeviceInfo]:
         for ii, dev_obj in enumerate(vkdispatch_native.get_devices())
     ]
 
-def log(text: str, level: LogLevel = LogLevel.ERROR, stack_offset: int = 1):
+def log(text: str, end: str = '\n', level: LogLevel = LogLevel.ERROR, stack_offset: int = 1):
     """
     A function which logs a message at the specified log level.
 
@@ -348,12 +348,12 @@ def log(text: str, level: LogLevel = LogLevel.ERROR, stack_offset: int = 1):
     frame = inspect.stack()[stack_offset]
     vkdispatch_native.log(
         level.value, 
-        text.encode(), 
+        (text + end).encode(), 
         os.path.relpath(frame.filename, os.getcwd()).encode(), 
         frame.lineno
     )
 
-def log_error(text: str):
+def log_error(text: str, end: str = '\n'):
     """
     A function which logs an error message.
 
@@ -361,9 +361,9 @@ def log_error(text: str):
         message (`str`): The message to log.
     """
 
-    log(text, LogLevel.ERROR, 2)
+    log(text, end, LogLevel.ERROR, 2)
 
-def log_warning(text: str):
+def log_warning(text: str, end: str = '\n'):
     """
     A function which logs a warning message.
 
@@ -371,9 +371,9 @@ def log_warning(text: str):
         message (`str`): The message to log.
     """
 
-    log(text, LogLevel.WARNING, 2)
+    log(text, end, LogLevel.WARNING, 2)
 
-def log_info(text: str):
+def log_info(text: str, end: str = '\n'):
     """
     A function which logs an info message.
 
@@ -381,9 +381,9 @@ def log_info(text: str):
         message (`str`): The message to log.
     """
 
-    log(text, LogLevel.INFO, 2)
+    log(text, end, LogLevel.INFO, 2)
 
-def log_verbose(text: str):
+def log_verbose(text: str, end: str = '\n'):
     """
     A function which logs a verbose message.
 
@@ -391,4 +391,4 @@ def log_verbose(text: str):
         message (`str`): The message to log.
     """
 
-    log(text, LogLevel.VERBOSE, 2)
+    log(text, end, LogLevel.VERBOSE, 2)

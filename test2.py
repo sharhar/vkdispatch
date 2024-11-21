@@ -4,51 +4,35 @@ from vkdispatch.codegen.abreviations import *
 
 import numpy as np
 
-pass_count = 256
-op_count = 1512
+#vd.initialize(log_level=vd.LogLevel.VERBOSE, debug_mode=True)
 
-for i in range(pass_count):
-    array_size = np.random.randint(100, 10000)
+vd.log_info("Buffer1")
+buf = vd.Buffer((1024,) , v2)
+vd.log_info("Buffer2")
+buf2 = vd.Buffer((1,) , v2)
 
-    signal = np.random.rand(array_size).astype(np.float32)
-    signal2 = np.random.rand(array_size).astype(np.float32)
+# Create a numpy array
+data = np.random.rand(1024, 2).astype(np.float32)
 
-    buffer = vd.asbuffer(signal)
-    buffer2 = vd.asbuffer(signal2)
+# Write the data to the buffer
+buf.write(data)
 
-    output = vd.Buffer(signal.shape, vd.float32)
+@vd.map_reduce(
+        exec_size=lambda args: args.buffer.size, 
+        reduction=lambda x, y: x + y, 
+        reduction_identity=0
+)
+def sum_map(ind: Const[i32], buffer: Buff[v2]) -> v2:
+    return vc.sin(buffer[ind])
 
-    @vd.shader(exec_size=lambda args: args.out.size)
-    def my_shader(out: Buff[f32], a: Buff[f32], b: Buff[f32]):
-        global signal, signal2
+cmd_stream = vd.CommandStream()
 
-        tid = vc.global_invocation.x
+res_buf = sum_map(buf, cmd_stream=cmd_stream)
 
-        out_val = a[tid].copy()
-        other_val = b[tid].copy()
-        
-        for _ in range(op_count):
-            op_number = np.random.randint(0, 4)
+cmd_stream.submit()
 
-            if op_number == 0:
-                out_val[:] = out_val + other_val
-                signal = signal + signal2
-            elif op_number == 1:
-                out_val[:] = out_val - other_val
-                signal = signal - signal2
-            elif op_number == 2:
-                out_val[:] = out_val * other_val
-                signal = signal * signal2
-            elif op_number == 3:
-                out_val[:] = out_val * vc.sin(other_val)
-                signal = signal * np.sin(signal2).astype(np.float32)
-        
-        out[tid] = out_val
+read_data = res_buf.read(0)
 
-    my_shader(output, buffer, buffer2)
 
-    assert np.allclose(output.read(0), signal, atol=0.00025)
-
-    print(f"Pass {i + 1} passed!")
-
-print("All tests passed!")
+# Check that the data is the same
+assert np.allclose([np.sin(data).sum(axis=0)], [read_data[0]])

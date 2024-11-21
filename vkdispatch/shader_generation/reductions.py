@@ -122,27 +122,27 @@ def make_reduction(
     def create_reduction_stage(reduction_map, first_input_index, stage_signature):
         @vd.shader(local_size=(group_size, 1, 1), signature=stage_signature)
         def reduction_stage(*in_vars):
-            ind = vc.global_invocation.x.copy()
+            ind = vc.global_invocation.x.copy("ind")
             
-            offset = vc.new(vd.uint32, 1 - first_input_index)
+            offset = vc.new(vd.uint32, 1 - first_input_index, var_name="offset")
 
-            reduction_aggregate = vc.new(out_type, reduction_identity)
+            reduction_aggregate = vc.new(out_type, reduction_identity, var_name="reduction_aggregate")
 
-            N = in_vars[-1]
+            N = in_vars[-1].copy("N")
             buffers = in_vars[:-1]
 
             vc.while_statement(ind + offset < N)
 
             if reduction_map is not None:
-                reduction_aggregate[:] = reduction_func(reduction_aggregate, reduction_map(ind + offset, *buffers[1:]).copy())
+                reduction_aggregate[:] = reduction_func(reduction_aggregate, reduction_map(ind + offset, *buffers[1:]).copy("mapped_value"))
             else:
                 reduction_aggregate[:] = reduction_func(reduction_aggregate, buffers[first_input_index][ind + offset])
             offset += vc.workgroup_size.x * vc.num_workgroups.x
             vc.end()
 
-            tid = vc.local_invocation.x.copy()
+            tid = vc.local_invocation.x.copy("tid")
         
-            sdata = vc.shared_buffer(out_type, group_size)
+            sdata = vc.shared_buffer(out_type, group_size, var_name="sdata")
 
             sdata[tid] = reduction_aggregate
 
