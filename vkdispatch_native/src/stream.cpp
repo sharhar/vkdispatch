@@ -401,11 +401,11 @@ void Stream::record_worker(int worker_id) {
         struct WorkQueueItem work_item;
 
         {   
-            LOG_INFO("Worker %d waiting for work", worker_id);
+            LOG_VERBOSE("Record Worker %d waiting for work", worker_id);
 
             std::unique_lock<std::mutex> lock(this->record_queue_mutex);
 
-            LOG_INFO("Worker %d has lock", worker_id);
+            LOG_VERBOSE("Record Worker %d has lock", worker_id);
 
             this->record_queue_cv.wait(lock, [this]() {
                 if(!this->run_stream.load()) {
@@ -423,7 +423,7 @@ void Stream::record_worker(int worker_id) {
             work_item = this->record_queue.front();
             this->record_queue.pop();
 
-            LOG_INFO("Worker %d has work %p", worker_id, work_item.work_header);
+            LOG_INFO("Record Worker %d has work %p", worker_id, work_item.work_header);
         }
 
         VkCommandBuffer cmd_buffer = commandBufferVectors[worker_id][cmd_buffer_index];
@@ -514,7 +514,7 @@ void Stream::submit_worker() {
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = &semaphores[work_item.next_index];
 
-        LOG_VERBOSE("Submitting command buffer waiting on sempahore %p and signaling semaphore %p", semaphores[work_item.current_index], semaphores[work_item.next_index]);
+        LOG_VERBOSE("Submitting command buffer for work item %p", work_item.work_header);
         
         VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[work_item.current_index]->fence));
     

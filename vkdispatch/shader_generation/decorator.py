@@ -1,6 +1,8 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
+import uuid
+
 def shader(*args, local_size=None, workgroups=None, exec_size=None, signature: tuple = None):
     if workgroups is not None and exec_size is not None:
         raise ValueError("Cannot specify both 'workgroups' and 'exec_size'")
@@ -22,7 +24,7 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None, signature: t
             func(*shader_signature.make_from_type_annotations(signature, builder=vc.builder_obj))
 
         shader_description = vc.builder_obj.build(
-            my_local_size[0], my_local_size[1], my_local_size[2], f"{func.__module__}.{func.__name__}"
+            my_local_size[0], my_local_size[1], my_local_size[2], f"{func.__module__}.{func.__name__}.{uuid.uuid4()}"
         )
 
         wrapper: str = vd.ShaderLauncher(

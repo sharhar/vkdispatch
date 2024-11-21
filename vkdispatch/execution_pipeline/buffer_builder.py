@@ -161,6 +161,9 @@ class BufferBuilder:
         if self.instance_count != instance_count:
             self.instance_count = instance_count
             self.backing_buffer = np.zeros((self.instance_count, self.instance_bytes), dtype=np.uint8)
+        
+    def toints(self):
+        return self.backing_buffer.view(np.uint32)
     
     def tobytes(self):
         return self.backing_buffer.tobytes()
