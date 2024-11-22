@@ -3,7 +3,15 @@ import vkdispatch.codegen as vc
 
 from typing import List, Union, Optional
 
-builder_obj = vc.ShaderBuilder()
+__builder_obj = vc.ShaderBuilder()
+builder_obj = __builder_obj
+
+def set_global_builder(builder: vc.ShaderBuilder):
+    global builder_obj
+    old_value = builder_obj
+    builder_obj = builder
+    return old_value
+
 
 global_invocation = builder_obj.global_invocation
 local_invocation = builder_obj.local_invocation

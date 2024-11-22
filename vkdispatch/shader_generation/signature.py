@@ -4,6 +4,7 @@ from typing import List
 from typing import Any
 from typing import Callable
 from typing import Optional
+from typing import Tuple
 #from types import GenericAlias
 
 import dataclasses
@@ -129,6 +130,9 @@ class ShaderSignature:
             ))
     
         return shader_function_paramaters
+
+    def get_names_and_defaults(self) -> List[Tuple[str, Any]]:
+        return [(arg.name, arg.default_value) for arg in self.arguments]
     
-    def get_func_args(self) -> List[vc.BaseVariable]:
+    def get_func_args(self) -> List[Tuple[str, str, Any]]:
         return [(arg.shader_name, arg.name, arg.default_value) for arg in self.arguments]

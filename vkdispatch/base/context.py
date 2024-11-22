@@ -1,10 +1,12 @@
 from typing import List
 from typing import Tuple
 from typing import Union
+from typing import Callable
 
 from .errors import check_for_errors
 from .init import DeviceInfo, get_devices, initialize
 from .dtype import float32
+
 
 import vkdispatch_native
 
@@ -151,6 +153,7 @@ def select_devices(use_cpu: bool, all_devices) -> List[int]:
     return [result[0]]
 
 __context = None
+__postinit_funcs = []
 
 def make_context(
     devices: Union[int, List[int], None] = None,
@@ -161,6 +164,7 @@ def make_context(
     all_queues: bool = False
 ) -> Context:
     global __context
+    global __postinit_funcs
 
     device_list = [devices]
     
@@ -196,11 +200,21 @@ def make_context(
 
         __context = Context(device_list[0], queue_families)
 
+        for func in __postinit_funcs:
+            func()
+
     return __context
+
+def is_context_initialized() -> bool:
+    global __context
+    return not __context is None
+
+def stage_for_postinit(func: Callable):
+    global __postinit_funcs
+    __postinit_funcs.append(func)
 
 def get_context() -> Context:
     return make_context()
-
 
 def get_context_handle() -> int:
     return get_context()._handle

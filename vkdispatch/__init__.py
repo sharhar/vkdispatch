@@ -18,6 +18,7 @@ from .base.dtype import to_numpy_dtype, from_numpy_dtype, to_vector
 from .base.context import get_context
 from .base.context import get_context_handle
 from .base.context import make_context
+from .base.context import is_context_initialized
 
 from .base.buffer import asbuffer
 from .base.buffer import Buffer
@@ -53,8 +54,10 @@ from .shader_generation.signature import ShaderArgumentType
 from .shader_generation.signature import ShaderArgument
 from .shader_generation.signature import ShaderSignature
 
-from .shader_generation.launcher import ShaderLauncher #, LaunchVariables
-from .shader_generation.launcher import sanitize_dims_tuple
+#from .shader_generation.launcher import ShaderLauncher #, LaunchVariables
+#from .shader_generation.launcher import sanitize_dims_tuple
+
+from .shader_generation.shader_object import ShaderObject
 
 from .shader_generation.decorator import shader
 
