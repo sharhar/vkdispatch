@@ -6,6 +6,8 @@ from typing import Union
 from typing import Tuple
 from typing import Optional
 
+import uuid
+
 import numpy as np
 
 import vkdispatch as vd
@@ -104,31 +106,35 @@ class CommandStream(vd.CommandList):
                       bound_buffers: List[Tuple[vd.Buffer, int, str]],
                       bound_images: List[Tuple[vd.Image, int]],
                       uniform_values: Dict[str, Any] = {},
-                      pc_values: Dict[str, Any] = {}
+                      pc_values: Dict[str, Any] = {},
+                      shader_uuid: str = None
                     ) -> None:
         descriptor_set = vd.DescriptorSet(plan._handle)
 
+        if shader_uuid is None:
+            shader_uuid = shader_description.name + "_" + str(uuid.uuid4())
+
         if len(shader_description.pc_structure) != 0:
-            self.pc_builder.register_struct(shader_description.name, shader_description.pc_structure)
+            self.pc_builder.register_struct(shader_uuid, shader_description.pc_structure)
         
-        uniform_offset, uniform_range = self.uniform_builder.register_struct(shader_description.name, shader_description.uniform_structure)
+        uniform_offset, uniform_range = self.uniform_builder.register_struct(shader_uuid, shader_description.uniform_structure)
 
         self.uniform_descriptors.append((descriptor_set, uniform_offset, uniform_range))
 
-        self.uniform_values[(shader_description.name, shader_description.exec_count_name)] = [exec_limits[0], exec_limits[1], exec_limits[2], 0]
+        self.uniform_values[(shader_uuid, shader_description.exec_count_name)] = [exec_limits[0], exec_limits[1], exec_limits[2], 0]
 
         for buffer, binding, shape_name in bound_buffers:
             descriptor_set.bind_buffer(buffer, binding)
-            self.uniform_values[(shader_description.name, shape_name)] = buffer.shader_shape
+            self.uniform_values[(shader_uuid, shape_name)] = buffer.shader_shape
         
         for image, binding in bound_images:
             descriptor_set.bind_image(image, binding)
 
         for key, value in uniform_values.items():
-            self.uniform_values[(shader_description.name, key)] = value
+            self.uniform_values[(shader_uuid, key)] = value
         
         for key, value in pc_values.items():
-            self.pc_values[(shader_description.name, key)] = value
+            self.pc_values[(shader_uuid, key)] = value
 
         super().record_compute_plan(plan, descriptor_set, blocks)
 

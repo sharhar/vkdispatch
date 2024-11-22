@@ -13,6 +13,8 @@ from typing import Tuple
 from typing import Optional
 from typing import Callable
 
+import uuid
+
 import numpy as np
 
 class LaunchParametersHolder:
@@ -60,32 +62,6 @@ def sanitize_dims_tuple(func_args, in_val, args, kwargs) -> Tuple[int, int, int]
         return_val[ii] = val
     
     return (return_val[0], return_val[1], return_val[2])
-
-# class LaunchVariables:
-#     def __init__(self, cmd_stream: vd.CommandStream) -> None:
-#         self.name_to_key_dict = {}
-#         self.cmd_stream = cmd_stream
-
-#         self.queued_ops = {}
-
-#     def new(self, name: str):
-#         if name in self.name_to_key_dict.keys():
-#             raise ValueError("Variable already bound!")
-        
-#         def register_var(key: Tuple[str, str]):
-#             self.name_to_key_dict[name] = key
-
-#         return register_var
-
-#     def set(self, name: str, value: typing.Any):
-#         if name not in self.name_to_key_dict.keys():
-#             raise ValueError("Variable not bound!")
-        
-#         self.queued_ops[self.name_to_key_dict[name]] = value
-
-#     def build(self):
-#         for key, val in self.queued_ops.items():
-#             self.cmd_stream.pc_builder[key] = val
 
 class ShaderLauncher:
     plan: vd.ComputePlan
@@ -168,6 +144,8 @@ class ShaderLauncher:
         uniform_values = {}
         pc_values = {}
 
+        shader_uuid = f"{self.shader_description.name}.{uuid.uuid4()}"
+
         for ii, shader_arg in enumerate(self.shader_signature.arguments):
             arg = None
             
@@ -208,7 +186,7 @@ class ShaderLauncher:
                     if my_cmd_stream.submit_on_record:
                         raise ValueError("Cannot bind Variables for default cmd list!")
                     
-                    arg((self.shader_description.name, shader_arg.shader_name))
+                    arg((shader_uuid, shader_arg.shader_name))
                 else:
                     pc_values[shader_arg.shader_name] = arg
             else:
@@ -222,5 +200,6 @@ class ShaderLauncher:
             bound_buffers, 
             bound_images, 
             uniform_values, 
-            pc_values
+            pc_values,
+            shader_uuid=shader_uuid
         )
