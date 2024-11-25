@@ -23,12 +23,12 @@ subgroup_operations = {
 class ReductionDispatcher:
     def __init__(
             self, 
-            stage1: "vd.ShaderLauncher", 
-            stage2: "vd.ShaderLauncher", 
+            stage1: "vd.ShaderObject", 
+            stage2: "vd.ShaderObject", 
             arg_count: int, 
             group_size: int,
             out_type: vd.dtype,
-            exec_size = None,
+            exec_size = Union[Callable, int, None],
             func_args = None
         ) -> None:
         self.stage1 = stage1
@@ -43,26 +43,28 @@ class ReductionDispatcher:
         return f"Stage 1:\n{self.stage1}\nStage 2:\n{self.stage2}"
     
     def __call__(self, *args, **kwargs) -> vd.Buffer:
-        my_blocks = (0, 0, 0)
-        my_limits = (0, 0, 0)
         my_cmd_stream = None
 
-        if "exec_size" in kwargs or self.exec_size is not None:
-            true_dims = vd.sanitize_dims_tuple(
-                self.func_args,
-                kwargs["exec_size"]
-                if "exec_size" in kwargs
-                else self.exec_size,
-                (None, *args), kwargs
-            )
+        my_exec_size = self.exec_size
 
-            my_limits = true_dims
-            my_blocks = ((true_dims[0] + self.group_size - 1) // self.group_size,
-                         1,
-                         1)
+        if "exec_size" in kwargs:
+            my_exec_size = kwargs["exec_size"]
 
-        if my_blocks is None:
-            raise ValueError("Must provide 'exec_size'!")
+        if my_exec_size is None:
+            raise ValueError("Execution size must be provided!")
+
+        if callable(my_exec_size):
+
+            actual_arg_list = [
+                (arg[1], arg[2]) for arg in self.func_args[1:]
+            ]
+
+            my_exec_size = my_exec_size(vd.LaunchParametersHolder(actual_arg_list, args, kwargs))
+        
+        if not isinstance(my_exec_size, int) and not np.issubdtype(type(my_exec_size), np.integer):
+            raise ValueError("Execution size must be an integer!")
+        
+        my_exec_size = my_exec_size
         
         if "cmd_stream" in kwargs:
             my_cmd_stream = kwargs["cmd_stream"]
@@ -70,8 +72,7 @@ class ReductionDispatcher:
         if my_cmd_stream is None:
             my_cmd_stream = vd.global_cmd_stream()
 
-        data_size = my_limits[0]
-        stage1_blocks = int(np.ceil(data_size / self.group_size))
+        stage1_blocks = int(np.ceil(my_exec_size / self.group_size))
         
         if stage1_blocks > self.group_size:
             reduction_scale = int(np.ceil(stage1_blocks / self.group_size))
@@ -80,7 +81,7 @@ class ReductionDispatcher:
 
         reduction_buffer = vd.Buffer((stage1_blocks + 1,), self.out_type)
 
-        self.stage1(reduction_buffer, *args, data_size, exec_size=stage1_blocks * self.group_size, cmd_stream=my_cmd_stream)
+        self.stage1(reduction_buffer, *args, my_exec_size, exec_size=stage1_blocks * self.group_size, cmd_stream=my_cmd_stream)
         self.stage2(reduction_buffer, stage1_blocks+1, exec_size=self.group_size, cmd_stream=my_cmd_stream)
 
         return reduction_buffer
@@ -122,7 +123,7 @@ def make_reduction(
     def create_reduction_stage(reduction_map, first_input_index, stage_signature):
         @vd.shader(local_size=(group_size, 1, 1), signature=stage_signature)
         def reduction_stage(*in_vars):
-            ind = vc.global_invocation.x.copy("ind")
+            ind = vc.global_invocation().x.copy("ind")
             
             offset = vc.new(vd.uint32, 1 - first_input_index, var_name="offset")
 
@@ -137,10 +138,10 @@ def make_reduction(
                 reduction_aggregate[:] = reduction_func(reduction_aggregate, reduction_map(ind + offset, *buffers[1:]).copy("mapped_value"))
             else:
                 reduction_aggregate[:] = reduction_func(reduction_aggregate, buffers[first_input_index][ind + offset])
-            offset += vc.workgroup_size.x * vc.num_workgroups.x
+            offset += vc.workgroup_size().x * vc.num_workgroups().x
             vc.end()
 
-            tid = vc.local_invocation.x.copy("tid")
+            tid = vc.local_invocation().x.copy("tid")
         
             sdata = vc.shared_buffer(out_type, group_size, var_name="sdata")
 
@@ -171,7 +172,7 @@ def make_reduction(
                 local_var[:] = subgroup_operations[reduce][0](local_var)
 
                 vc.if_statement(tid == 0)
-                buffers[0][vc.workgroup.x + first_input_index] = local_var
+                buffers[0][vc.workgroup().x + first_input_index] = local_var
                 vc.end()
             else:
                 current_size = subgroup_size // 2
@@ -185,7 +186,7 @@ def make_reduction(
                     current_size //= 2
                 
                 vc.if_statement(tid == 0)
-                buffers[0][vc.workgroup.x + first_input_index] = reduction_func(sdata[tid], sdata[tid + current_size])
+                buffers[0][vc.workgroup().x + first_input_index] = reduction_func(sdata[tid], sdata[tid + current_size])
                 vc.end()
 
         return reduction_stage

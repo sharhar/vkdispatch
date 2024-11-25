@@ -10,7 +10,7 @@ def test_basic():
 
     @vd.shader(exec_size=lambda args: args.buff.size)
     def test_shader(buff: Buff[f32], A: Const[f32]):
-        tid = vc.global_invocation.x
+        tid = vc.global_invocation().x
 
         buff[tid] = buff[tid] + A
 
