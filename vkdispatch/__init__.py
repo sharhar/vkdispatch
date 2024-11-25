@@ -58,6 +58,8 @@ from .shader_generation.signature import ShaderSignature
 #from .shader_generation.launcher import sanitize_dims_tuple
 
 from .shader_generation.shader_object import ShaderObject
+from .shader_generation.shader_object import ExectionBounds
+from .shader_generation.shader_object import LaunchParametersHolder
 
 from .shader_generation.decorator import shader
 

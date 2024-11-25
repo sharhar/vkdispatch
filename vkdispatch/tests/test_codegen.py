@@ -23,7 +23,7 @@ def test_arithmetic():
         def my_shader(out: Buff[f32], a: Buff[f32], b: Buff[f32]):
             nonlocal signal, signal2
 
-            tid = vc.global_invocation.x
+            tid = vc.global_invocation().x
 
             out_val = a[tid].copy()
             other_val = b[tid].copy()

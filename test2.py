@@ -25,6 +25,8 @@ buf.write(data)
 def sum_map(ind: Const[i32], buffer: Buff[v2]) -> v2:
     return vc.sin(buffer[ind])
 
+
+
 cmd_stream = vd.CommandStream()
 
 res_buf = sum_map(buf, cmd_stream=cmd_stream)
@@ -32,7 +34,6 @@ res_buf = sum_map(buf, cmd_stream=cmd_stream)
 cmd_stream.submit()
 
 read_data = res_buf.read(0)
-
 
 # Check that the data is the same
 assert np.allclose([np.sin(data).sum(axis=0)], [read_data[0]])

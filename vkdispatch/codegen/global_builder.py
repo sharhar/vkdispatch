@@ -3,135 +3,148 @@ import vkdispatch.codegen as vc
 
 from typing import List, Union, Optional
 
-__builder_obj = vc.ShaderBuilder()
-builder_obj = __builder_obj
+class GlobalBuilder:
+    obj = vc.ShaderBuilder()
 
 def set_global_builder(builder: vc.ShaderBuilder):
-    global builder_obj
-    old_value = builder_obj
-    builder_obj = builder
+    old_value = GlobalBuilder.obj
+    GlobalBuilder.obj = builder  # Update the global reference.
     return old_value
 
+def global_invocation():
+    return GlobalBuilder.obj.global_invocation
 
-global_invocation = builder_obj.global_invocation
-local_invocation = builder_obj.local_invocation
-workgroup = builder_obj.workgroup
-workgroup_size = builder_obj.workgroup_size
-num_workgroups = builder_obj.num_workgroups
+def local_invocation():
+    return GlobalBuilder.obj.local_invocation
 
-num_subgroups = builder_obj.num_subgroups
-subgroup_id = builder_obj.subgroup_id
+def workgroup():
+    return GlobalBuilder.obj.workgroup
 
-subgroup_size = builder_obj.subgroup_size
-subgroup_invocation = builder_obj.subgroup_invocation
+def workgroup_size():
+    return GlobalBuilder.obj.workgroup_size
+
+def num_workgroups():
+    return GlobalBuilder.obj.num_workgroups
+
+def num_subgroups():
+    return GlobalBuilder.obj.num_subgroups
+
+def subgroup_id():
+    return GlobalBuilder.obj.subgroup_id
+
+def subgroup_size():
+    return GlobalBuilder.obj.subgroup_size
+
+def subgroup_invocation():
+    return GlobalBuilder.obj.subgroup_invocation
 
 def shared_buffer(var_type: vd.dtype, size: int, var_name: Optional[str] = None):
-    return builder_obj.shared_buffer(var_type, size, var_name)
+    return GlobalBuilder.obj.shared_buffer(var_type, size, var_name)
 
 def memory_barrier():
-    builder_obj.memory_barrier()
+    GlobalBuilder.obj.memory_barrier()
 
 def memory_barrier_shared():
-    builder_obj.memory_barrier_shared()
+    GlobalBuilder.obj.memory_barrier_shared()
 
 def barrier():
-    builder_obj.barrier()
+    GlobalBuilder.obj.barrier()
 
 def if_statement(arg: vc.ShaderVariable):
-    builder_obj.if_statement(arg)
+    GlobalBuilder.obj.if_statement(arg)
 
 def if_any(*args: List[vc.ShaderVariable]):
-    builder_obj.if_any(*args)
+    GlobalBuilder.obj.if_any(*args)
 
 def if_all(*args: List[vc.ShaderVariable]):
-    builder_obj.if_all(*args)
+    GlobalBuilder.obj.if_all(*args)
 
 def else_statement():
-    builder_obj.else_statement()
+    GlobalBuilder.obj.else_statement()
 
 def return_statement(arg=None):
-    builder_obj.return_statement(arg)
+    GlobalBuilder.obj.return_statement(arg)
 
 def while_statement(arg: vc.ShaderVariable):
-    builder_obj.while_statement(arg)
+    GlobalBuilder.obj.while_statement(arg)
 
 def length(arg: vc.ShaderVariable):
-    return builder_obj.length(arg)
+    return GlobalBuilder.obj.length(arg)
 
 def end():
-    builder_obj.end()
+    GlobalBuilder.obj.end()
 
 def logical_and(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
-    return builder_obj.logical_and(arg1, arg2)
+    return GlobalBuilder.obj.logical_and(arg1, arg2)
 
 def logical_or(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
-    return builder_obj.logical_or(arg1, arg2)
+    return GlobalBuilder.obj.logical_or(arg1, arg2)
 
 def ceil(arg: vc.ShaderVariable):
-    return builder_obj.ceil(arg)
+    return GlobalBuilder.obj.ceil(arg)
 
 def floor(arg: vc.ShaderVariable):
-    return builder_obj.floor(arg)
+    return GlobalBuilder.obj.floor(arg)
 
 def exp(arg: vc.ShaderVariable):
-    return builder_obj.exp(arg)
+    return GlobalBuilder.obj.exp(arg)
 
 def sin(arg: vc.ShaderVariable):
-    return builder_obj.sin(arg)
+    return GlobalBuilder.obj.sin(arg)
 
 def cos(arg: vc.ShaderVariable):
-    return builder_obj.cos(arg)
+    return GlobalBuilder.obj.cos(arg)
 
 def tan(arg: vc.ShaderVariable):
-    return builder_obj.tan(arg)
+    return GlobalBuilder.obj.tan(arg)
 
 def arctan2(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
-    return builder_obj.arctan2(arg1, arg2)
+    return GlobalBuilder.obj.arctan2(arg1, arg2)
 
 def sqrt(arg: vc.ShaderVariable):
-    return builder_obj.sqrt(arg)
+    return GlobalBuilder.obj.sqrt(arg)
 
 def mod(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
-    return builder_obj.mod(arg1, arg2)
+    return GlobalBuilder.obj.mod(arg1, arg2)
 
 def max(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
-    return builder_obj.max(arg1, arg2)
+    return GlobalBuilder.obj.max(arg1, arg2)
 
 def min(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
-    return builder_obj.min(arg1, arg2)
+    return GlobalBuilder.obj.min(arg1, arg2)
 
 def atomic_add(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
-    return builder_obj.atomic_add(arg1, arg2)
+    return GlobalBuilder.obj.atomic_add(arg1, arg2)
 
 def subgroup_add(arg1: vc.ShaderVariable):
-    return builder_obj.subgroup_add(arg1)
+    return GlobalBuilder.obj.subgroup_add(arg1)
 
 def subgroup_mul(arg1: vc.ShaderVariable):
-    return builder_obj.subgroup_mul(arg1)
+    return GlobalBuilder.obj.subgroup_mul(arg1)
 
 def subgroup_min(arg1: vc.ShaderVariable):
-    return builder_obj.subgroup_min(arg1)
+    return GlobalBuilder.obj.subgroup_min(arg1)
 
 def subgroup_max(arg1: vc.ShaderVariable):
-    return builder_obj.subgroup_max(arg1)
+    return GlobalBuilder.obj.subgroup_max(arg1)
 
 def subgroup_and(arg1: vc.ShaderVariable):
-    return builder_obj.subgroup_and(arg1)
+    return GlobalBuilder.obj.subgroup_and(arg1)
 
 def subgroup_or(arg1: vc.ShaderVariable):
-    return builder_obj.subgroup_or(arg1)
+    return GlobalBuilder.obj.subgroup_or(arg1)
 
 def subgroup_xor(arg1: vc.ShaderVariable):
-    return builder_obj.subgroup_xor(arg1)
+    return GlobalBuilder.obj.subgroup_xor(arg1)
 
 def subgroup_elect():
-    return builder_obj.subgroup_elect()
+    return GlobalBuilder.obj.subgroup_elect()
 
 def subgroup_barrier():
-    builder_obj.subgroup_barrier()
+    GlobalBuilder.obj.subgroup_barrier()
 
 def new(var_type: vd.dtype, *args, var_name: Optional[str] = None):
-    return builder_obj.new(var_type, *args, var_name=var_name)
+    return GlobalBuilder.obj.new(var_type, *args, var_name=var_name)
 
 def new_float(*args, var_name: Optional[str] = None):
     return new(vd.float32, *args, var_name=var_name)
@@ -170,16 +183,16 @@ def new_ivec4(*args, var_name: Optional[str] = None):
     return new(vd.ivec4, *args, var_name=var_name)
 
 def float_bits_to_int(arg: vc.ShaderVariable):
-    return builder_obj.float_bits_to_int(arg)
+    return GlobalBuilder.obj.float_bits_to_int(arg)
 
 def int_bits_to_float(arg: vc.ShaderVariable):
-    return builder_obj.int_bits_to_float(arg)
+    return GlobalBuilder.obj.int_bits_to_float(arg)
 
 def printf(format: str, *args: Union[vc.ShaderVariable, str], seperator=" "):
-    builder_obj.printf(format, *args, seperator=seperator)
+    GlobalBuilder.obj.printf(format, *args, seperator=seperator)
 
 def print_vars(*args: Union[vc.ShaderVariable, str], seperator=" "):
-    builder_obj.print_vars(*args, seperator=seperator)
+    GlobalBuilder.obj.print_vars(*args, seperator=seperator)
 
 def unravel_index(index: vc.ShaderVariable, shape: vc.ShaderVariable):
-    return builder_obj.unravel_index(index, shape)
+    return GlobalBuilder.obj.unravel_index(index, shape)

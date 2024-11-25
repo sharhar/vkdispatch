@@ -16,7 +16,7 @@ def test_builder_basic():
 
     uniform_var = my_builder.declare_constant(vc.f32)
 
-    var_buff[vc.global_invocation.x] += var_buff2[vc.global_invocation.x] - uniform_var
+    var_buff[vc.global_invocation().x] += var_buff2[vc.global_invocation().x] - uniform_var
 
     shader_description = my_builder.build(4, 1, 1, "my_shader")
 

@@ -13,7 +13,7 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None, signature: t
             if signature is None
             else shader_object.args_from_type_annotations(signature)
         )
-        
+
         old_builder = vc.set_global_builder(shader_object.builder)
         func(*func_args)
         vc.set_global_builder(old_builder)

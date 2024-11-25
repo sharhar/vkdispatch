@@ -139,7 +139,7 @@ class ShaderObject:
 
         self.bounds = ExectionBounds(self.shader_signature.get_names_and_defaults(), my_local_size, workgroups, exec_size)
 
-        self.shader_description = vc.builder_obj.build(
+        self.shader_description = self.builder.build(
             my_local_size[0], my_local_size[1], my_local_size[2], self.name
         )
 
