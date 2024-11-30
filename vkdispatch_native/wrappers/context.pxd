@@ -10,6 +10,8 @@ cdef extern from "../include/context.hh":
     Context* context_create_extern(int* device_indicies, int* queue_counts, int* queue_families, int device_count)
     void context_destroy_extern(Context* device_context);
 
+    void log_memory_extern(Context* ctx);
+
 cpdef inline context_create(list[int] device_indicies, list[list[int]] queue_families):
     assert len(device_indicies) == len(queue_families)
 
@@ -45,3 +47,6 @@ cpdef inline context_create(list[int] device_indicies, list[list[int]] queue_fam
 
 cpdef inline context_destroy(unsigned long long context):
     context_destroy_extern(<Context*>context)
+
+cpdef inline log_memory(unsigned long long context):
+    log_memory_extern(<Context*>context)

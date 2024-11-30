@@ -18,7 +18,7 @@ from .base.dtype import to_numpy_dtype, from_numpy_dtype, to_vector
 from .base.context import get_context
 from .base.context import get_context_handle
 from .base.context import make_context
-from .base.context import is_context_initialized
+from .base.context import log_memory_usage
 
 from .base.buffer import asbuffer
 from .base.buffer import Buffer

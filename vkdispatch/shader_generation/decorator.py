@@ -6,7 +6,7 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None, signature: t
         raise ValueError("Cannot specify both 'workgroups' and 'exec_size'")
 
     def process_function(func):
-        shader_object = vd.ShaderObject(f"{func.__module__}.{func.__name__}")
+        shader_object = vd.ShaderObject(f"{func.__module__}.{func.__name__}", local_size=local_size, workgroups=workgroups, exec_size=exec_size)
         
         func_args = (
             shader_object.args_from_inspectable_function(func)
@@ -17,8 +17,6 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None, signature: t
         old_builder = vc.set_global_builder(shader_object.builder)
         func(*func_args)
         vc.set_global_builder(old_builder)
-
-        shader_object.build(local_size=local_size, workgroups=workgroups, exec_size=exec_size)
 
         wrapper: str = shader_object # type: ignore
 

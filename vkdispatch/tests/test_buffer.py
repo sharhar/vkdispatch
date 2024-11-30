@@ -1,5 +1,6 @@
 import vkdispatch as vd
 
+vd.initialize(debug_mode=True)
 vd.make_context(use_cpu=True)
 
 import numpy as np

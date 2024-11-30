@@ -134,19 +134,33 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
     command.info.buffer_read_info.offset = offset;
     command.info.buffer_read_info.size = size;
 
+    printf("Recording command\n");
+
     command_list_record_command(ctx->command_list, command);
+
+    printf("Submitting command\n");
     
     Signal signal;
     command_list_submit_extern(ctx->command_list, NULL, 1, &index, 1, &signal); //buffer->per_device, &signal);
     command_list_reset_extern(ctx->command_list);
     RETURN_ON_ERROR(;)
 
+    printf("Waiting for signal\n");
+
     signal.wait();
+
+    printf("Reading data from buffer %d in device %d", index, device_index);
 
     void* mapped;
     VK_CALL(vmaMapMemory(ctx->allocators[device_index], buffer->stagingAllocations[index], &mapped));
+    printf("Copying data\n");
+
     memcpy(data, mapped, size);
+    
+    printf("Unmapping memory\n");
     vmaUnmapMemory(ctx->allocators[device_index], buffer->stagingAllocations[index]);
+
+    printf("Done\n");
 }
 
 void buffer_read_exec_internal(VkCommandBuffer cmd_buffer, const struct BufferReadInfo& info, int device_index, int stream_index) {

@@ -35,7 +35,8 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
         std::vector<const char*> desiredExtensions =  {
             "VK_KHR_shader_non_semantic_info",
-            "VK_EXT_shader_atomic_float"
+            "VK_EXT_shader_atomic_float",
+            "VK_EXT_memory_budget"
         };
 
 #ifdef __APPLE__
@@ -48,18 +49,36 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
         deviceExtensions.resize(extensionCount);
         VK_CALL_RETNULL(vkEnumerateDeviceExtensionProperties(ctx->physicalDevices[i], nullptr, &extensionCount, deviceExtensions.data()));
 
+        for(uint32_t i = 0; i < extensionCount; i++) {
+            LOG_VERBOSE("Device Extension '%s' is supported by device", deviceExtensions[i].extensionName);
+        }
+
+        bool memory_budget_supported = false;
+
         // Check if all desired extensions are supported
         std::vector<const char*> supportedExtensions;
-        for(auto& desiredExtension : desiredExtensions) {
-            auto it = std::find_if(deviceExtensions.begin(), deviceExtensions.end(), [&](const VkExtensionProperties& prop) {
-                return strcmp(desiredExtension, prop.extensionName) == 0;
-            });
-            if (it != deviceExtensions.end()) {
-                LOG_INFO("Device Extension '%s' is supported", desiredExtension);
-                supportedExtensions.push_back(desiredExtension);
-            } else {
-                LOG_WARNING("Extension '%s' is not supported", desiredExtension);
+        for(uint32_t j = 0; j < desiredExtensions.size(); j++) {
+            
+            bool found_extension = false;
+
+            for(uint32_t i = 0; i < deviceExtensions.size(); i++) {
+                if(strcmp(desiredExtensions[j], deviceExtensions[i].extensionName) == 0) {
+                    found_extension = true;
+                }
             }
+
+            if(!found_extension) {
+                LOG_WARNING("Device Extension '%s' is desired but not found", desiredExtensions[j]);
+                continue;
+            }
+
+            if(strcmp(desiredExtensions[j], "VK_EXT_memory_budget") == 0) {
+                memory_budget_supported = true;
+            }
+
+            LOG_INFO("Device Extension '%s' is supported", desiredExtensions[j]);
+
+            supportedExtensions.push_back(desiredExtensions[j]);
         }
 
         VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomicFloatFeaturesEnableStruct = {};
@@ -120,6 +139,10 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
         allocatorCreateInfo.device = ctx->devices[i];
         allocatorCreateInfo.instance = _instance.instance;
         allocatorCreateInfo.pVulkanFunctions = &vmaVulkanFunctions;
+        
+        if (memory_budget_supported)
+            allocatorCreateInfo.flags = VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT;
+        
         VK_CALL_RETNULL(vmaCreateAllocator(&allocatorCreateInfo, &ctx->allocators[i]));
 
         LOG_INFO("Created allocator %p", ctx->allocators[i]);
@@ -173,4 +196,31 @@ void context_destroy_extern(struct Context* context) {
     }
 
     delete context;
+}
+
+void log_memory_extern(Context* ctx) {
+    VmaBudget budgets[VK_MAX_MEMORY_HEAPS];
+    
+
+    for(int dev = 0; dev < ctx->allocators.size(); dev++) {
+        memset(budgets, 0, sizeof(budgets));
+        vmaGetHeapBudgets(ctx->allocators[dev], budgets);
+
+        printf("Memory Budgets for Device %d:\n", dev);
+
+        for (uint32_t i = 0; i < VK_MAX_MEMORY_HEAPS; i++) {
+            if(budgets[i].budget == 0)
+                continue;
+
+            printf("\tHeap %d: %llu MB used out of %llu MB total.\n", i, budgets[i].usage / (1024 * 1024), budgets[i].budget / (1024 * 1024));
+            
+            printf("\t\tAllocation Bytes: %llu\n", budgets[i].statistics.allocationBytes);
+            printf("\t\tAllocation Count: %llu\n", budgets[i].statistics.allocationCount);
+            printf("\t\tBlock Bytes: %llu\n", budgets[i].statistics.blockBytes);
+            printf("\t\tBlock Count: %llu\n", budgets[i].statistics.blockCount);
+        }
+    }
+
+    
+
 }

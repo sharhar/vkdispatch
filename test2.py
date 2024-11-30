@@ -4,36 +4,26 @@ from vkdispatch.codegen.abreviations import *
 
 import numpy as np
 
-#vd.initialize(log_level=vd.LogLevel.VERBOSE, debug_mode=True)
+def test_2d_image_linear_sampling():
+    # Create a 2D image
+    signal_2d = np.sin(np.array([[i/8 + j/17 for i in range(0, 50, 1)] for j in range(0, 50, 1)])).astype(np.float32)
+    sample_factor = 10
 
-vd.log_info("Buffer1")
-buf = vd.Buffer((1024,) , v2)
-vd.log_info("Buffer2")
-buf2 = vd.Buffer((1,) , v2)
+    test_img = vd.Image2D(signal_2d.shape, vd.float32)
+    test_img.write(signal_2d)
 
-# Create a numpy array
-data = np.random.rand(1024, 2).astype(np.float32)
+    result_arr = vd.Buffer((signal_2d.shape[0] * (sample_factor - 1), signal_2d.shape[1] * (sample_factor - 1)), vd.float32)    
 
-# Write the data to the buffer
-buf.write(data)
+    @vd.shader(exec_size=lambda args: args.buff.size)
+    def do_approx(buff: Buff[f32], img: Img2[f32]):
+        ind = vc.global_invocation().x.copy()
+        ind_2d = vc.unravel_index(ind, buff.shape)
+        buff[ind] = img.sample((ind_2d.cast_to(v2)) / sample_factor).x
 
-@vd.map_reduce(
-        exec_size=lambda args: args.buffer.size, 
-        reduction=lambda x, y: x + y, 
-        reduction_identity=0
-)
-def sum_map(ind: Const[i32], buffer: Buff[v2]) -> v2:
-    return vc.sin(buffer[ind])
+    do_approx(result_arr, test_img)
 
+    signal_full = np.sin(np.array([[i/80 + j/170 for i in range(0, 450, 1)] for j in range(0, 450, 1)])).astype(np.float32)
 
+    assert np.allclose(result_arr.read()[0], signal_full, atol=0.0025)
 
-cmd_stream = vd.CommandStream()
-
-res_buf = sum_map(buf, cmd_stream=cmd_stream)
-
-cmd_stream.submit()
-
-read_data = res_buf.read(0)
-
-# Check that the data is the same
-assert np.allclose([np.sin(data).sum(axis=0)], [read_data[0]])
+test_2d_image_linear_sampling()

@@ -1,4 +1,5 @@
 import vkdispatch as vd
+import resource
 
 vd.make_context(use_cpu=True)
 
@@ -35,6 +36,8 @@ def test_3d_image_creation():
     assert np.allclose(test_img.read(0), signal_3d)
 
 def test_1d_image_linear_sampling():
+    vd.log_memory_usage()
+
     # Create a 1D image
     signal = np.sin(np.array([i/8 for i in range(0, 50, 1)])).astype(np.float32)
     sample_factor = 10
@@ -44,12 +47,19 @@ def test_1d_image_linear_sampling():
 
     result_arr = vd.Buffer((len(signal) * (sample_factor - 1),), vd.float32)
 
+    vd.log_memory_usage()
+
     @vd.shader(exec_size=lambda args: args.buff.size)
     def do_approx(buff: Buff[f32], line: Img1[f32]):
         ind = vc.global_invocation().x.copy()
         buff[ind] = line.sample((ind.cast_to(f32)) / sample_factor).x
 
+
+    vd.log_memory_usage()
+
     do_approx(result_arr, test_line)
+
+    vd.log_memory_usage()
 
     signal_full = np.sin(np.array([i/80 for i in range(0, 450, 1)])).astype(np.float32)
 
@@ -57,14 +67,17 @@ def test_1d_image_linear_sampling():
 
 def test_2d_image_linear_sampling():
     # Create a 2D image
+    vd.log_memory_usage()
+
     signal_2d = np.sin(np.array([[i/8 + j/17 for i in range(0, 50, 1)] for j in range(0, 50, 1)])).astype(np.float32)
     sample_factor = 10
 
     test_img = vd.Image2D(signal_2d.shape, vd.float32)
     test_img.write(signal_2d)
 
-    result_arr = vd.Buffer((signal_2d.shape[0] * (sample_factor - 1), signal_2d.shape[1] * (sample_factor - 1)), vd.float32)
+    result_arr = vd.Buffer((signal_2d.shape[0] * (sample_factor - 1), signal_2d.shape[1] * (sample_factor - 1)), vd.float32)    
 
+    vd.log_memory_usage()
     @vd.shader(exec_size=lambda args: args.buff.size)
     def do_approx(buff: Buff[f32], img: Img2[f32]):
         ind = vc.global_invocation().x.copy()
@@ -73,9 +86,12 @@ def test_2d_image_linear_sampling():
 
     do_approx(result_arr, test_img)
 
+    vd.log_memory_usage()
     signal_full = np.sin(np.array([[i/80 + j/170 for i in range(0, 450, 1)] for j in range(0, 450, 1)])).astype(np.float32)
 
     assert np.allclose(result_arr.read()[0], signal_full, atol=0.0025)
+
+    print(signal_full)
 
 # def test_3d_image_linear_sampling():
 #     # Create a 3D image
