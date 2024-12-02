@@ -170,7 +170,7 @@ class ShaderObject:
 
         my_cmd_stream: vd.CommandStream = None
 
-        if "cmd_stream" in kwargs:
+        if "cmd_stream" in kwargs and kwargs["cmd_stream"] is not None:
             if not isinstance(kwargs["cmd_stream"], vd.CommandStream):
                 raise ValueError("Expected a CommandStream object for 'cmd_stream'!")
 
