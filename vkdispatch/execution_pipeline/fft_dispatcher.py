@@ -26,8 +26,13 @@ class FFTDispatcher:
         self.__inverse = inverse
         self.__do_r2c = do_r2c
 
-    def __call__(self, buffer: vd.Buffer, cmd_list: typing.Optional[vd.CommandList] = None):
+    def __call__(self, buffer: vd.Buffer, cmd_list: typing.Optional[vd.CommandList] = None, cmd_stream: typing.Optional[vd.CommandStream] = None):
         my_cmd_list = cmd_list
+
+        if cmd_stream is not None:
+            if my_cmd_list is not None:
+                raise ValueError("Cannot specify both cmd_list and cmd_stream")
+            my_cmd_list = cmd_stream
 
         if my_cmd_list is None:
             my_cmd_list = vd.global_cmd_stream()
