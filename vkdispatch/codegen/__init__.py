@@ -10,6 +10,7 @@ from .variables import BoundVariable, BufferVariable, ImageVariable
 from .builder import ShaderBinding
 from .builder import ShaderDescription
 from .builder import ShaderBuilder
+from .builder import get_source_from_description
 
 from .global_builder import set_global_builder
 #from .global_builder import builder_obj

@@ -121,7 +121,7 @@ def make_reduction(
     reduction_func = subgroup_operations[reduce][1] if isinstance(reduce, str) else reduce
 
     def create_reduction_stage(reduction_map, first_input_index, stage_signature):
-        @vd.shader(local_size=(group_size, 1, 1), signature=stage_signature)
+        @vd.shader(local_size=(group_size, 1, 1), annotations=stage_signature)
         def reduction_stage(*in_vars):
             ind = vc.global_invocation().x.copy("ind")
             

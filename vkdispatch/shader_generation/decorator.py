@@ -1,23 +1,21 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
-def shader(*args, local_size=None, workgroups=None, exec_size=None, signature: tuple = None):
+def shader(*args, local_size=None, workgroups=None, exec_size=None, annotations: tuple = None):
     if workgroups is not None and exec_size is not None:
         raise ValueError("Cannot specify both 'workgroups' and 'exec_size'")
 
     def process_function(func):
-        shader_object = vd.ShaderObject(f"{func.__module__}.{func.__name__}")
-        
-        func_args = (
-            shader_object.args_from_inspectable_function(func)
-            if signature is None
-            else shader_object.args_from_type_annotations(signature)
-        )
+        shader_name = f"{func.__module__}.{func.__name__}"
 
-        old_builder = vc.set_global_builder(shader_object.builder)
-        func(*func_args)
+        builder = vc.ShaderBuilder()
+        signature = vd.ShaderSignature()
+
+        old_builder = vc.set_global_builder(builder)
+        func(*signature.make_for_decorator(builder, func, annotations))
         vc.set_global_builder(old_builder)
 
+        shader_object = vd.ShaderObject(shader_name, builder.build(shader_name), signature)
         shader_object.build(local_size=local_size, workgroups=workgroups, exec_size=exec_size)
 
         wrapper: str = shader_object # type: ignore
