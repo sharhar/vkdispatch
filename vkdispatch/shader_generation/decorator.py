@@ -16,7 +16,15 @@ def shader(*args, local_size=None, workgroups=None, exec_size=None, annotations:
         vc.set_global_builder(old_builder)
 
         shader_object = vd.ShaderObject(shader_name, builder.build(shader_name), signature)
-        shader_object.build(local_size=local_size, workgroups=workgroups, exec_size=exec_size)
+
+        build_func = lambda: shader_object.build(local_size=local_size, workgroups=workgroups, exec_size=exec_size)
+
+        if not vd.is_context_initialized():
+            vd.stage_for_postinit(build_func)
+        else:
+            build_func()
+
+        #shader_object.build(local_size=local_size, workgroups=workgroups, exec_size=exec_size)
 
         wrapper: str = shader_object # type: ignore
 
