@@ -245,6 +245,9 @@ def to_vector(dtype: dtype, count: int) -> dtype: # type: ignore
     else:
         raise ValueError(f"Unsupported dtype ({dtype})!")
 
+def is_dtype(in_type: dtype) -> bool:
+    return issubclass(in_type, dtype) # type: ignore
+
 def is_scalar(dtype: dtype) -> bool:
     return issubclass(dtype, _Scalar) # type: ignore
 

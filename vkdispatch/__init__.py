@@ -12,7 +12,7 @@ from .base.dtype import dtype
 from .base.dtype import float32, int32, uint32, complex64
 from .base.dtype import vec2, vec3, vec4, ivec2, ivec3, ivec4, uvec2, uvec3, uvec4
 from .base.dtype import mat2, mat4
-from .base.dtype import is_scalar, is_complex, is_vector, is_matrix
+from .base.dtype import is_scalar, is_complex, is_vector, is_matrix, is_dtype
 from .base.dtype import to_numpy_dtype, from_numpy_dtype, to_vector
 
 from .base.context import get_context
