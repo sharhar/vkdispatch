@@ -9,6 +9,8 @@ from typing import Any
 
 import uuid
 
+import dataclasses
+
 import numpy as np
 
 class LaunchParametersHolder:
@@ -106,27 +108,21 @@ class ExectionBounds:
 
 class ShaderObject:
     name: str
-    builder: vc.ShaderBuilder
     plan: vd.ComputePlan
     shader_description: vc.ShaderDescription
     shader_signature: vd.ShaderSignature
     bounds: ExectionBounds
     ready: bool
+    source: str
 
-    def __init__(self, name: str, ):
+    def __init__(self, name: str, description: vc.ShaderDescription, signature: vd.ShaderSignature) -> None:
         self.name = name 
-        self.builder = vc.ShaderBuilder()
         self.plan = None
-        self.shader_description = None
-        self.shader_signature = vd.ShaderSignature()
+        self.shader_description = description
+        self.shader_signature = signature
         self.bounds = None
         self.ready = False
-    
-    def args_from_inspectable_function(self, func: Callable) -> List[vc.BaseVariable]:
-        return self.shader_signature.make_from_inspectable_function(func, builder=self.builder)
-
-    def args_from_type_annotations(self, signature: Tuple) -> List[vc.BaseVariable]:
-        return self.shader_signature.make_from_type_annotations(signature, builder=self.builder)
+        self.source = None
 
     def build(self, local_size: Tuple[int, int, int] = None, workgroups=None, exec_size=None):
         assert not self.ready, "Cannot build a shader that is already built!"
@@ -139,12 +135,12 @@ class ShaderObject:
 
         self.bounds = ExectionBounds(self.shader_signature.get_names_and_defaults(), my_local_size, workgroups, exec_size)
 
-        self.shader_description = self.builder.build(
-            my_local_size[0], my_local_size[1], my_local_size[2], self.name
+        self.source = vc.get_source_from_description(
+            self.shader_description, my_local_size[0], my_local_size[1], my_local_size[2] #, self.name
         )
 
         self.plan = vd.ComputePlan(
-            self.shader_description.source, 
+            self.source, 
             self.shader_description.binding_type_list, 
             self.shader_description.pc_size, 
             self.shader_description.name
@@ -155,7 +151,7 @@ class ShaderObject:
     def __repr__(self) -> str:
         result = ""
 
-        for ii, line in enumerate(self.shader_description.source.split("\n")):
+        for ii, line in enumerate(self.source.split("\n")):
             result += f"{ii + 1:4d}: {line}\n"
 
         return result
@@ -217,6 +213,13 @@ class ShaderObject:
                     raise ValueError("Cannot use LaunchVariables for Constants")
 
                 uniform_values[shader_arg.shader_name] = arg
+            
+            elif shader_arg.arg_type == vd.ShaderArgumentType.CONSTANT_DATACLASS:
+                if callable(arg):
+                    raise ValueError("Cannot use LaunchVariables for Constants")
+                
+                for field in dataclasses.fields(arg):
+                    uniform_values[shader_arg.shader_name[field.name]] = getattr(arg, field.name)
 
             elif shader_arg.arg_type == vd.ShaderArgumentType.VARIABLE:
                 if len(self.shader_description.pc_structure) == 0:

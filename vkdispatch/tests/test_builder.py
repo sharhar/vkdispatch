@@ -18,11 +18,11 @@ def test_builder_basic():
 
     var_buff[vc.global_invocation().x] += var_buff2[vc.global_invocation().x] - uniform_var
 
-    shader_description = my_builder.build(4, 1, 1, "my_shader")
+    shader_description = my_builder.build("my_shader")
 
-    print(shader_description.source)
+    source = vc.get_source_from_description(shader_description, 4, 1, 1)
 
-    compute_plan = vd.ComputePlan(shader_description.source, shader_description.binding_type_list, shader_description.pc_size, shader_description.name)
+    compute_plan = vd.ComputePlan(source, shader_description.binding_type_list, shader_description.pc_size, shader_description.name)
 
     descriptor_set = vd.DescriptorSet(compute_plan._handle)
 

@@ -4,6 +4,8 @@ from vkdispatch.codegen.abreviations import *
 
 import numpy as np
 
+import dataclasses
+
 #vd.initialize(log_level=vd.LogLevel.VERBOSE, debug_mode=True)
 
 vd.log_info("Buffer1")
@@ -16,6 +18,28 @@ data = np.random.rand(1024, 2).astype(np.float32)
 
 # Write the data to the buffer
 buf.write(data)
+
+@dataclasses.dataclass
+class Data:
+    phi: f32
+    theta: f32
+    psi: f32
+
+@vd.shader(exec_size=lambda args: args.buffer.size)
+def test_shader(buffer: Buff[v2], data: Data) -> v2:
+    tid = vc.global_invocation().x.copy()
+
+    buffer[tid] = buffer[tid] + data.psi
+
+print(test_shader)
+
+print(buf.read(0))
+
+test_shader(buf, Data(1.0, 2.0, 3.0))
+
+print(buf.read(0))
+
+exit()
 
 @vd.map_reduce(
         exec_size=lambda args: args.buffer.size, 

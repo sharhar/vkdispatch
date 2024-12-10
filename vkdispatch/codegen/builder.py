@@ -67,7 +67,8 @@ class ShaderDescription:
         binding_type_list (List[BindingType]): The list of binding types.
     """
 
-    source: str
+    header: str
+    body: str
     name: str
     pc_size: int
     pc_structure: List[vc.StructElement]
@@ -75,6 +76,9 @@ class ShaderDescription:
     binding_type_list: List[BindingType]
     exec_count_name: str
 
+def get_source_from_description(description: ShaderDescription, x: int, y: int, z: int) -> str:
+    layout_str = f"layout(local_size_x = {x}, local_size_y = {y}, local_size_z = {z}) in;"
+    return f"{description.header}\n{layout_str}\n{description.body}"
 
 class ShaderBuilder:
     var_count: int
@@ -460,7 +464,7 @@ class ShaderBuilder:
         
         return "\n".join(declerations)
 
-    def build(self, x: int, y: int, z: int, name: str) -> ShaderDescription:
+    def build(self, name: str) -> ShaderDescription:
         header = "" + self.pre_header
 
         for shared_buffer in self.shared_buffers:
@@ -492,11 +496,10 @@ class ShaderBuilder:
         
         if len(pc_decleration_contents) > 0:
             header += f"\nlayout(push_constant) uniform PushConstant {{\n { pc_decleration_contents } \n}} PC;\n"
-        
-        layout_str = f"layout(local_size_x = {x}, local_size_y = {y}, local_size_z = {z}) in;"
 
         return ShaderDescription(
-            source=f"{header}\n{layout_str}\nvoid main() {{\n{self.contents}\n}}\n",
+            header=header,
+            body=f"void main() {{\n{self.contents}\n}}\n",
             name=name,
             pc_size=self.pc_struct.size, 
             pc_structure=pc_elements, 
