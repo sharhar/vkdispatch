@@ -1,5 +1,7 @@
 import vkdispatch.codegen as vc
 
+from ..base.dtype import is_dtype
+
 from typing import List
 from typing import Any
 from typing import Callable
@@ -76,15 +78,6 @@ class ShaderSignature:
                        annotations: List, # [GenericAlias], adding this type annotation causes an error in python 3.8, so for now it is left as List
                        names: Optional[List[str]] = None,
                        defaults: Optional[List[Any]] = None) -> List[vc.BaseVariable]:
-        
-#        param_type_to_func = {
-#            vc.Buffer: 1,
-#            vc.Image1D: 2,
-#            vc.Image2D: 3,
-#            vc.Image3D: 4,
-#            vc.Constant: 5,
-#            vc.Variable: 6
-#        }
 
         shader_function_paramaters: List[vc.BaseVariable] = []
 
@@ -101,6 +94,8 @@ class ShaderSignature:
                 value_name = {}
 
                 for field_name, field_type in get_type_hints(annotations[i]).items():
+                    assert is_dtype(field_type), f"Unsupported type '{field_type}' for field '{annotations[i]}.{field_name}'"
+
                     creation_args[field_name] = builder.declare_constant(field_type)
                     value_name[field_name] = creation_args[field_name].raw_name
 
