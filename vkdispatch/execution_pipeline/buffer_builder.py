@@ -140,7 +140,7 @@ class BufferBuilder:
                     raise ValueError(
                         f"The shape of {key} is {buffer_element.shape} but {arr.shape} was given!"
                     )
-                else:
+                elif buffer_element.shape != (1,):
                     raise ValueError(
                         f"The shape of {key} is {buffer_element.shape} but a scalar was given!"
                     )
