@@ -3,7 +3,7 @@ import vkdispatch_native
 from .errors import check_for_errors
 
 from .buffer import Buffer
-from .image import Image
+from .image import Sampler
 
 class DescriptorSet:
     """TODO: Docstring"""
@@ -20,6 +20,6 @@ class DescriptorSet:
         )
         check_for_errors()
 
-    def bind_image(self, image: Image, binding: int) -> None:
-        vkdispatch_native.descriptor_set_write_image(self._handle, binding, image._handle)
+    def bind_sampler(self, sampler: Sampler, binding: int) -> None:
+        vkdispatch_native.descriptor_set_write_image(self._handle, binding, sampler.image._handle, sampler._handle)
         check_for_errors()

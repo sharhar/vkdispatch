@@ -32,6 +32,10 @@ from .base.image import Image1D
 from .base.image import Image2D
 from .base.image import Image2DArray
 from .base.image import Image3D
+from .base.image import Sampler
+from .base.image import Filter
+from .base.image import AddressMode
+from .base.image import BorderColor
 
 from .base.compute_plan import ComputePlan
 

@@ -12,7 +12,6 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
     image->stagingBuffers.resize(ctx->stream_indicies.size());
     image->stagingAllocations.resize(ctx->stream_indicies.size());
     image->barriers.resize(ctx->stream_indicies.size());
-    image->samplers.resize(ctx->stream_indicies.size());
     image->block_size = image_format_block_size_extern(format);
 
     for(int i = 0; i < ctx->deviceCount; i++) {
@@ -86,27 +85,6 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
 		vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
 		vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
         VK_CALL_RETNULL(vmaCreateBuffer(ctx->allocators[ctx->stream_indicies[i].first], &bufferCreateInfo, &vmaAllocationCreateInfo, &image->stagingBuffers[i], &image->stagingAllocations[i], NULL));
-
-        VkSamplerCreateInfo samplerCreateInfo;
-        memset(&samplerCreateInfo, 0, sizeof(VkSamplerCreateInfo));
-        samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-        samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-        samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        samplerCreateInfo.mipLodBias = 0.0f;
-        samplerCreateInfo.anisotropyEnable = VK_FALSE;
-        samplerCreateInfo.maxAnisotropy = 1.0f;
-        samplerCreateInfo.compareEnable = VK_FALSE;
-        samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-        samplerCreateInfo.minLod = 0.0f;
-        samplerCreateInfo.maxLod = 0.0f;
-        samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-        samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-
-        VK_CALL_RETNULL(vkCreateSampler(ctx->devices[ctx->stream_indicies[i].first], &samplerCreateInfo, NULL, &image->samplers[i]));
         
         memset(&image->barriers[i], 0, sizeof(VkImageMemoryBarrier));
         image->barriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -138,6 +116,54 @@ void image_destroy_extern(struct Image* image) {
     }
 
     delete image;
+}
+
+struct Sampler* image_create_sampler_extern(struct Context* ctx, 
+        unsigned int mag_filter, 
+        unsigned int min_filter, 
+        unsigned int mip_mode, 
+        unsigned int address_mode,
+        float mip_lod_bias, 
+        float min_lod, 
+        float max_lod,
+        unsigned int border_color) {
+
+    struct Sampler* sampler = new struct Sampler();
+    sampler->ctx = ctx;
+    sampler->samplers.resize(ctx->stream_indicies.size());
+
+    VkSamplerCreateInfo samplerCreateInfo;
+    memset(&samplerCreateInfo, 0, sizeof(VkSamplerCreateInfo));
+    samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerCreateInfo.magFilter = (VkFilter)mag_filter;
+    samplerCreateInfo.minFilter = (VkFilter)mag_filter;
+    samplerCreateInfo.mipmapMode = (VkSamplerMipmapMode)mip_mode;
+    samplerCreateInfo.addressModeU = (VkSamplerAddressMode)address_mode;
+    samplerCreateInfo.addressModeV = (VkSamplerAddressMode)address_mode;
+    samplerCreateInfo.addressModeW = (VkSamplerAddressMode)address_mode;
+    samplerCreateInfo.mipLodBias = mip_lod_bias;
+    samplerCreateInfo.anisotropyEnable = VK_FALSE;
+    samplerCreateInfo.maxAnisotropy = 1.0f;
+    samplerCreateInfo.compareEnable = VK_FALSE;
+    samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerCreateInfo.minLod = min_lod;
+    samplerCreateInfo.maxLod = max_lod;
+    samplerCreateInfo.borderColor = (VkBorderColor)border_color;
+    samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+
+    for (int i = 0; i < ctx->stream_indicies.size(); i++) {
+        VK_CALL_RETNULL(vkCreateSampler(ctx->devices[ctx->stream_indicies[i].first], &samplerCreateInfo, NULL, &sampler->samplers[i]));
+    }
+
+    return sampler;
+}
+
+void image_destroy_sampler_extern(struct Sampler* sampler) {
+    for (int i = 0; i < sampler->samplers.size(); i++) {
+        vkDestroySampler(sampler->ctx->devices[sampler->ctx->stream_indicies[i].first], sampler->samplers[i], NULL);
+    }
+
+    delete sampler;
 }
 
 unsigned int image_format_block_size_extern(unsigned int format) {

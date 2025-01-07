@@ -100,6 +100,10 @@ struct Image {
     uint32_t block_size;
 
     std::vector<VkImageMemoryBarrier> barriers;
+};
+
+struct Sampler {
+    struct Context* ctx;
     std::vector<VkSampler> samplers;
 };
 

@@ -104,7 +104,7 @@ class CommandStream(vd.CommandList):
                       exec_limits: Tuple[int, int, int], 
                       blocks: Tuple[int, int, int],
                       bound_buffers: List[Tuple[vd.Buffer, int, str]],
-                      bound_images: List[Tuple[vd.Image, int]],
+                      bound_samplers: List[Tuple[vd.Sampler, int]],
                       uniform_values: Dict[str, Any] = {},
                       pc_values: Dict[str, Any] = {},
                       shader_uuid: str = None
@@ -127,8 +127,8 @@ class CommandStream(vd.CommandList):
             descriptor_set.bind_buffer(buffer, binding)
             self.uniform_values[(shader_uuid, shape_name)] = buffer.shader_shape
         
-        for image, binding in bound_images:
-            descriptor_set.bind_image(image, binding)
+        for sampler, binding in bound_samplers:
+            descriptor_set.bind_sampler(sampler, binding)
 
         for key, value in uniform_values.items():
             self.uniform_values[(shader_uuid, key)] = value

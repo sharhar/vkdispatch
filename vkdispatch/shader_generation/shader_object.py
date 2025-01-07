@@ -176,7 +176,7 @@ class ShaderObject:
             my_cmd_stream = vd.global_cmd_stream()
         
         bound_buffers = []
-        bound_images = []
+        bound_samplers = []
         uniform_values = {}
         pc_values = {}
 
@@ -203,10 +203,10 @@ class ShaderObject:
                 bound_buffers.append((arg, shader_arg.binding, shader_arg.shader_shape_name))
 
             elif shader_arg.arg_type == vd.ShaderArgumentType.IMAGE:
-                if not isinstance(arg, vd.Image):
+                if not isinstance(arg, vd.Sampler):
                     raise ValueError(f"Expected an image for argument '{shader_arg.name}'!")
                 
-                bound_images.append((arg, shader_arg.binding))
+                bound_samplers.append((arg, shader_arg.binding))
             
             elif shader_arg.arg_type == vd.ShaderArgumentType.CONSTANT:
                 if callable(arg): # isinstance(arg, LaunchBindObject):
@@ -241,7 +241,7 @@ class ShaderObject:
             my_limits, 
             my_blocks, 
             bound_buffers, 
-            bound_images, 
+            bound_samplers, 
             uniform_values, 
             pc_values,
             shader_uuid=shader_uuid

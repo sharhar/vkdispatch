@@ -21,6 +21,7 @@ enum LogLevel {
 struct Context;
 struct Buffer;
 struct Image;
+struct Sampler;
 struct Stage;
 struct CommandList;
 struct FFTPlan;

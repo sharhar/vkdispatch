@@ -22,6 +22,17 @@ struct ImageReadInfo {
 struct Image* image_create_extern(struct Context* context, VkExtent3D extent, unsigned int layers, unsigned int format, unsigned int type, unsigned int view_type);
 void image_destroy_extern(struct Image* image);
 
+struct Sampler* image_create_sampler_extern(struct Context* context, 
+    unsigned int mag_filter, 
+    unsigned int min_filter, 
+    unsigned int mip_mode, 
+    unsigned int address_mode,
+    float mip_lod_bias, 
+    float min_lod, 
+    float max_lod,
+    unsigned int border_color);
+void image_destroy_sampler_extern(struct Sampler* sampler);
+
 unsigned int image_format_block_size_extern(unsigned int format);
 
 void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkExtent3D extent, unsigned int baseLayer, unsigned int layerCount, int device_index);
