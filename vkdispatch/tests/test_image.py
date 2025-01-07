@@ -49,7 +49,7 @@ def test_1d_image_linear_sampling():
         ind = vc.global_invocation().x.copy()
         buff[ind] = line.sample((ind.cast_to(f32)) / sample_factor).x
 
-    do_approx(result_arr, test_line)
+    do_approx(result_arr, test_line.sample())
 
     signal_full = np.sin(np.array([i/80 for i in range(0, 450, 1)])).astype(np.float32)
 
@@ -71,7 +71,7 @@ def test_2d_image_linear_sampling():
         ind_2d = vc.unravel_index(ind, buff.shape)
         buff[ind] = img.sample((ind_2d.cast_to(v2)) / sample_factor).x
 
-    do_approx(result_arr, test_img)
+    do_approx(result_arr, test_img.sample())
 
     signal_full = np.sin(np.array([[i/80 + j/170 for i in range(0, 450, 1)] for j in range(0, 450, 1)])).astype(np.float32)
 

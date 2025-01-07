@@ -181,6 +181,50 @@ class image_view_type(Enum):
     VIEW_TYPE_3D = (2,)
     VIEW_TYPE_2D_ARRAY = (5,)
 
+class Filter(Enum):
+    NEAREST = 0
+    LINEAR = 1
+
+class AddressMode(Enum):
+    REPEAT = 0
+    MIRRORED_REPEAT = 1
+    CLAMP_TO_EDGE = 2
+    CLAMP_TO_BORDER = 3
+    MIRROR_CLAMP_TO_EDGE = 4
+
+class BorderColor(Enum):
+    FLOAT_TRANSPARENT_BLACK = 0
+    INT_TRANSPARENT_BLACK = 1
+    FLOAT_OPAQUE_BLACK = 2
+    INT_OPAQUE_BLACK = 3
+    FLOAT_OPAQUE_WHITE = 4
+    INT_OPAQUE_WHITE = 5
+
+class Sampler:
+    def __init__(self,
+                    image: "Image",
+                    mag_filter: Filter = Filter.LINEAR,
+                    min_filter: Filter = Filter.LINEAR,
+                    mip_filter: Filter = Filter.LINEAR,
+                    address_mode: AddressMode = AddressMode.CLAMP_TO_EDGE,
+                    mip_lod_bias: float = 0.0,
+                    min_lod: float = 0.0,
+                    max_lod: float = 0.0,
+                    border_color: BorderColor = BorderColor.FLOAT_OPAQUE_WHITE
+                ) -> None:
+        self.image = image
+        
+        self._handle = vkdispatch_native.image_create_sampler(
+            vd.get_context_handle(),
+            mag_filter.value,
+            min_filter.value,
+            mip_filter.value,
+            address_mode.value,
+            mip_lod_bias,
+            min_lod,
+            max_lod,
+            border_color.value
+        )
 
 class Image:
     def __init__(
@@ -279,8 +323,27 @@ class Image:
         )
         return np.frombuffer(out_bytes, dtype=vd.to_numpy_dtype(true_scalar)).reshape(self.array_shape)
     
-    def sample(self, coords: "vd.ShaderVariable") -> "vd.ShaderVariable":
-        raise RuntimeError("Cannot sample an image object outside of shader!")
+    def sample(self, 
+                    mag_filter: Filter = Filter.LINEAR,
+                    min_filter: Filter = Filter.LINEAR,
+                    mip_filter: Filter = Filter.LINEAR,
+                    address_mode: AddressMode = AddressMode.CLAMP_TO_EDGE,
+                    mip_lod_bias: float = 0.0,
+                    min_lod: float = 0.0,
+                    max_lod: float = 0.0,
+                    border_color: BorderColor = BorderColor.FLOAT_OPAQUE_WHITE
+                ) -> Sampler:
+        return Sampler(
+            self,
+            mag_filter,
+            min_filter,
+            mip_filter,
+            address_mode,
+            mip_lod_bias,
+            min_lod,
+            max_lod,
+            border_color    
+        )
 
 class Image1D(Image):
     def __init__(self, shape: int, dtype: type, channels: int = 1) -> None:

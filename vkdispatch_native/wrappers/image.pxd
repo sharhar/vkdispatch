@@ -7,6 +7,7 @@ from libc.stdlib cimport malloc, free
 cdef extern from "../include/image.hh":
     struct Context
     struct Image
+    struct Sampler
     struct VkOffset3D:
         int x
         int y
@@ -19,6 +20,18 @@ cdef extern from "../include/image.hh":
 
     Image* image_create_extern(Context* context, VkExtent3D extent, unsigned int layers, unsigned int format, unsigned int type, unsigned int view_type)
     void image_destroy_extern(Image* image)
+
+    Sampler* image_create_sampler_extern(Context* context, 
+        unsigned int mag_filter, 
+        unsigned int min_filter, 
+        unsigned int mip_mode, 
+        unsigned int address_mode,
+        float mip_lod_bias, 
+        float min_lod, 
+        float max_lod,
+        unsigned int border_color)
+    
+    void image_destroy_sampler_extern(Sampler* sampler)
 
     unsigned int image_format_block_size_extern(unsigned int format)
 
@@ -39,6 +52,12 @@ cpdef inline image_create(unsigned long long context, tuple[unsigned int, unsign
 
 cpdef inline image_destroy(unsigned long long image):
     image_destroy_extern(<Image*>image)
+
+cpdef inline image_create_sampler(unsigned long long context, unsigned int mag_filter, unsigned int min_filter, unsigned int mip_mode, unsigned int address_mode, float mip_lod_bias, float min_lod, float max_lod, unsigned int border_color):
+    return <unsigned long long>image_create_sampler_extern(<Context*>context, mag_filter, min_filter, mip_mode, address_mode, mip_lod_bias, min_lod, max_lod, border_color)
+
+cpdef inline image_destroy_sampler(unsigned long long sampler):
+    image_destroy_sampler_extern(<Sampler*>sampler)
 
 cpdef inline image_write(unsigned long long image, bytes data, tuple[int, int, int] offset, tuple[unsigned int, unsigned int, unsigned int] extent, unsigned int baseLayer, unsigned int layerCount, int device_index):
     assert len(offset) == 3
