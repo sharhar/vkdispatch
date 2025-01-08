@@ -234,6 +234,7 @@ class Image:
         dtype: type,
         channels: int,
         view_type: image_view_type,
+        enable_mipmaps: bool = False,
     ) -> None:
         assert len(shape) == 1 or len(shape) == 2 or len(shape) == 3, "Shape must be 2D or 3D!"
 
@@ -293,6 +294,7 @@ class Image:
             self.format.value,
             self.type.value[0],
             self.view_type.value[0],
+            1 if enable_mipmaps else 0,
         )
 
     def __del__(self) -> None:
@@ -346,8 +348,8 @@ class Image:
         )
 
 class Image1D(Image):
-    def __init__(self, shape: int, dtype: type, channels: int = 1) -> None:
-        super().__init__((shape, ), 1, dtype, channels, image_view_type.VIEW_TYPE_1D)
+    def __init__(self, shape: int, dtype: type, channels: int = 1, enable_mipmaps: bool = False) -> None:
+        super().__init__((shape, ), 1, dtype, channels, image_view_type.VIEW_TYPE_1D, enable_mipmaps)
 
 
     @classmethod
@@ -356,10 +358,10 @@ class Image1D(Image):
 
 class Image2D(Image):
     def __init__(
-        self, shape: typing.Tuple[int, int], dtype: type = np.float32, channels: int = 1
+        self, shape: typing.Tuple[int, int], dtype: type = np.float32, channels: int = 1, enable_mipmaps: bool = False
     ) -> None:
         assert len(shape) == 2, "Shape must be 2D!"
-        super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_2D)
+        super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_2D, enable_mipmaps)
     
     @classmethod
     def __class_getitem__(cls, arg: vd.dtype) -> type:
@@ -373,10 +375,11 @@ class Image2DArray(Image):
         layers: int,
         dtype: type = np.float32,
         channels: int = 1,
+        enable_mipmaps: bool = False
     ) -> None:
         assert len(shape) == 2, "Shape must be 2D!"
         super().__init__(
-            shape, layers, dtype, channels, image_view_type.VIEW_TYPE_2D_ARRAY
+            shape, layers, dtype, channels, image_view_type.VIEW_TYPE_2D_ARRAY, enable_mipmaps
         )
     
     @classmethod
@@ -386,10 +389,10 @@ class Image2DArray(Image):
 
 class Image3D(Image):
     def __init__(
-        self, shape: typing.Tuple[int, int, int], dtype: type = np.float32, channels: int = 1
+        self, shape: typing.Tuple[int, int, int], dtype: type = np.float32, channels: int = 1, enable_mipmaps: bool = False
     ) -> None:
         assert len(shape) == 3, "Shape must be 3D!"
-        super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_3D)
+        super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_3D, enable_mipmaps)
     
     @classmethod
     def __class_getitem__(cls, arg: vd.dtype) -> type:

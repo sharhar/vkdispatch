@@ -113,6 +113,12 @@ def max(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
 def min(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
     return GlobalBuilder.obj.min(arg1, arg2)
 
+def log(arg: vc.ShaderVariable):
+    return GlobalBuilder.obj.log(arg)
+
+def log2(arg: vc.ShaderVariable):
+    return GlobalBuilder.obj.log2(arg)
+
 def atomic_add(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
     return GlobalBuilder.obj.atomic_add(arg1, arg2)
 

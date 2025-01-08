@@ -325,6 +325,12 @@ class ShaderBuilder:
     def min(self, arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
         return self.make_var(arg1.var_type, f"min({arg1}, {arg2})")
 
+    def log(self, arg: vc.ShaderVariable):
+        return self.make_var(arg.var_type, f"log({arg})")
+
+    def log2(self, arg: vc.ShaderVariable):
+        return self.make_var(arg.var_type, f"log2({arg})")
+
     def atomic_add(self, arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
         new_var = self.make_var(arg1.var_type)
         self.append_contents(f"{new_var.var_type.glsl_type} {new_var} = atomicAdd({arg1}, {arg2});\n")
