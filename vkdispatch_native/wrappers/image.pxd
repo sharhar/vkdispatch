@@ -18,7 +18,7 @@ cdef extern from "../include/image.hh":
         int height
         int depth
 
-    Image* image_create_extern(Context* context, VkExtent3D extent, unsigned int layers, unsigned int format, unsigned int type, unsigned int view_type)
+    Image* image_create_extern(Context* context, VkExtent3D extent, unsigned int layers, unsigned int format, unsigned int type, unsigned int view_type, unsigned int generate_mips)
     void image_destroy_extern(Image* image)
 
     Sampler* image_create_sampler_extern(Context* context, 
@@ -41,14 +41,14 @@ cdef extern from "../include/image.hh":
     #void image_copy_extern(Image* src, Image* dst, VkOffset3D src_offset, unsigned int src_baseLayer, unsigned int src_layerCount, 
     #                                               VkOffset3D dst_offset, unsigned int dst_baseLayer, unsigned int dst_layerCount, VkExtent3D extent, int device_index)
 
-cpdef inline image_create(unsigned long long context, tuple[unsigned int, unsigned int, unsigned int] extent, unsigned int layers, unsigned int format, unsigned int type, unsigned int view_type):
+cpdef inline image_create(unsigned long long context, tuple[unsigned int, unsigned int, unsigned int] extent, unsigned int layers, unsigned int format, unsigned int type, unsigned int view_type, unsigned int generate_mips):
     assert len(extent) == 3
 
     cdef unsigned int width = extent[0]
     cdef unsigned int height = extent[1]
     cdef unsigned int depth = extent[2]
 
-    return <unsigned long long>image_create_extern(<Context*>context, VkExtent3D(width, height, depth), layers, format, type, view_type)
+    return <unsigned long long>image_create_extern(<Context*>context, VkExtent3D(width, height, depth), layers, format, type, view_type, generate_mips)
 
 cpdef inline image_destroy(unsigned long long image):
     image_destroy_extern(<Image*>image)

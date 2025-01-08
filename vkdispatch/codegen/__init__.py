@@ -22,6 +22,7 @@ from .global_builder import if_statement, if_any, if_all, else_statement
 from .global_builder import return_statement, while_statement, end
 from .global_builder import logical_and, logical_or, mod, arctan2
 from .global_builder import ceil, floor, exp, sin, cos, sqrt, max, min
+from .global_builder import log, log2
 from .global_builder import atomic_add, subgroup_add, subgroup_mul
 from .global_builder import subgroup_min, subgroup_max, subgroup_and
 from .global_builder import subgroup_or, subgroup_xor, subgroup_elect

@@ -246,6 +246,11 @@ static int record_command(const struct CommandInfo& command_info, VkCommandBuffe
         return 0;
     }
 
+    if(command_info.type == COMMAND_TYPE_IMAGE_MIP_MAP) {
+        image_generate_mipmaps_internal(cmd_buffer, command_info.info.image_mip_map_info, device_index, stream_index);
+        return 0;
+    }
+
     if(command_info.type == COMMAND_TYPE_FFT_INIT) {
         stage_fft_plan_init_internal(command_info.info.fft_init_info, device_index, stream_index, recorder_index);
         return 0;
@@ -423,7 +428,7 @@ void Stream::record_worker(int worker_id) {
             work_item = this->record_queue.front();
             this->record_queue.pop();
 
-            LOG_INFO("Record Worker %d has work %p", worker_id, work_item.work_header);
+            LOG_INFO("Record Worker %d has work %p of index (%d) with next index (%d)", worker_id, work_item.work_header, work_item.current_index, work_item.next_index);
         }
 
         VkCommandBuffer cmd_buffer = commandBufferVectors[worker_id][cmd_buffer_index];

@@ -92,6 +92,10 @@ struct Buffer {
 
 struct Image {
     struct Context* ctx;
+    VkExtent3D extent;
+    uint32_t layers;
+    uint32_t mip_levels;
+
     std::vector<VkImage> images;
     std::vector<VmaAllocation> allocations;
     std::vector<VkImageView> imageViews;
@@ -122,12 +126,13 @@ enum CommandType {
     COMMAND_TYPE_BUFFER_READ = 2,
     COMMAND_TYPE_BUFFER_WRITE = 3,
     COMMAND_TYPE_IMAGE_READ = 4,
-    COMMAND_TYPE_IMAGE_WRITE = 5,
-    COMMAND_TYPE_FFT_INIT = 6,
-    COMMAND_TYPE_FFT_EXEC = 7,
-    COMMAND_TYPE_COMPUTE = 8,
-    COMMAND_TYPE_CONDITIONAL = 9,
-    COMMAND_TYPE_CONDITIONAL_END = 10
+    COMMAND_TYPE_IMAGE_MIP_MAP = 5,
+    COMMAND_TYPE_IMAGE_WRITE = 6,
+    COMMAND_TYPE_FFT_INIT = 7,
+    COMMAND_TYPE_FFT_EXEC = 8,
+    COMMAND_TYPE_COMPUTE = 9,
+    COMMAND_TYPE_CONDITIONAL = 10,
+    COMMAND_TYPE_CONDITIONAL_END = 11
 };
 
 struct CommandInfo {
@@ -138,6 +143,7 @@ struct CommandInfo {
         struct BufferReadInfo buffer_read_info;
         struct BufferWriteInfo buffer_write_info;
         struct ImageReadInfo image_read_info;
+        struct ImageMipMapInfo image_mip_map_info;
         struct ImageWriteInfo image_write_info;
         struct FFTInitRecordInfo fft_init_info;
         struct FFTExecRecordInfo fft_exec_info;

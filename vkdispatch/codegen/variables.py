@@ -397,7 +397,7 @@ class ImageVariable(BoundVariable):
 
             self.dimensions = dimensions
     
-    def sample(self, coord: "ShaderVariable") -> "ShaderVariable":
+    def sample(self, coord: "ShaderVariable", lod: "ShaderVariable" = None) -> "ShaderVariable":
         if self.dimensions == 0:
             raise ValueError("Cannot sample a texture with dimension 0!")
         
@@ -412,5 +412,8 @@ class ImageVariable(BoundVariable):
         else:
             raise ValueError("Unsupported number of dimensions!")
 
-        return self.new(vd.vec4, f"texture({self}, {sample_coord_string})")
+        if lod is None:
+            return self.new(vd.vec4, f"texture({self}, {sample_coord_string})")
+        
+        return self.new(vd.vec4, f"textureLod({self}, {sample_coord_string}, {lod})")
     
