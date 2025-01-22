@@ -10,6 +10,8 @@ struct CommandList* command_list_create_extern(struct Context* context) {
     command_list->conditional_boolean_count = 0;
     command_list->compute_instance_size = 0;
 
+    command_list->post_submit_action = POST_SUBMIT_ACTION_NONE;
+
     return command_list;
 }
 
@@ -18,8 +20,14 @@ void command_list_destroy_extern(struct CommandList* command_list) {
     delete command_list;
 }
 
-void command_list_record_command(struct CommandList* command_list, struct CommandInfo command) {
+void command_list_record_command(struct CommandList* command_list, struct CommandInfo command, PostSubmitAction post_submit_action) {
     //LOG_INFO("Recording command with type %d", command.type);
+
+    if(post_submit_action != POST_SUBMIT_ACTION_NONE) {
+        assert(command_list->post_submit_action == POST_SUBMIT_ACTION_NONE);
+
+        command_list->post_submit_action = post_submit_action;
+    }
 
     command_list->program_id = program_id;
     program_id += 1;

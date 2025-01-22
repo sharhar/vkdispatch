@@ -126,6 +126,11 @@ enum CommandType {
     COMMAND_TYPE_CONDITIONAL_END = 10
 };
 
+enum PostSubmitAction {
+    POST_SUBMIT_ACTION_NONE = 0,
+    POST_SUBMIT_ACTION_DECRIPTOR_SET_FREE = 1,
+};
+
 struct CommandInfo {
     enum CommandType type;
     VkPipelineStageFlags pipeline_stage;
@@ -144,13 +149,14 @@ struct CommandInfo {
 
 struct CommandList {
     struct Context* ctx;
+    enum PostSubmitAction post_submit_action;
     std::vector<struct CommandInfo> commands;
     size_t compute_instance_size;
     size_t program_id;
     size_t conditional_boolean_count;
 };
 
-void command_list_record_command(struct CommandList* command_list, struct CommandInfo command);
+void command_list_record_command(struct CommandList* command_list, struct CommandInfo command, PostSubmitAction post_submit_action);
 
 struct ComputePlan {
     struct Context* ctx;

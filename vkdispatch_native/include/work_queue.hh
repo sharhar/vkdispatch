@@ -21,6 +21,7 @@ struct ProgramInfo {
 
 struct WorkHeader {
     Signal* signal;
+    enum PostSubmitAction post_submit_action;
     struct ProgramHeader* program_header;
     size_t array_size;
     int info_index;

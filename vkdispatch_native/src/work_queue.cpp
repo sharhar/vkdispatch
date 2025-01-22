@@ -142,6 +142,7 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
     work_header->instance_size = command_list_get_instance_size_extern(command_list);
     work_header->signal = signal;
     work_header->program_header = program_header;
+    work_header->post_submit_action = command_list->post_submit_action;
     
     if(work_size > 0)
         memcpy(&work_header[1], instance_buffer, work_size);

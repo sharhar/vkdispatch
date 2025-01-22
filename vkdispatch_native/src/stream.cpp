@@ -196,6 +196,7 @@ void Stream::ingest_worker() {
         work_item.signal = work_header->signal;
         work_item.recording_result = &recording_results[current_index];
         work_item.recording_result->state = &commandBufferStates[0][current_index];
+        work_item.post_submit_action = work_header->post_submit_action;
 
         int last_index = current_index;
         current_index = (current_index + 1) % fences.size();
@@ -472,6 +473,8 @@ void Stream::record_worker(int worker_id) {
     }
 }
 
+
+
 void Stream::submit_worker() {
     while(this->run_stream.load()) {
         struct WorkQueueItem work_item;
@@ -518,9 +521,22 @@ void Stream::submit_worker() {
         
         VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[work_item.current_index]->fence));
     
-        if(work_item.signal != NULL) {
+        if(work_item.signal != NULL || work_item.post_submit_action == POST_SUBMIT_ACTION_NONE) {
             VK_CALL(vkWaitForFences(device, 1, &fences[work_item.current_index]->fence, VK_TRUE, UINT64_MAX));
-            work_item.signal->notify();
+            
+            if(work_item.signal != NULL)
+                work_item.signal->notify();
+            
+            switch (work_item.post_submit_action)
+            {
+            case POST_SUBMIT_ACTION_DECRIPTOR_SET_FREE:
+                /* code */
+                break;
+            
+            case POST_SUBMIT_ACTION_NONE:
+            default:
+                break;
+            }
         }
 
         fences[work_item.current_index]->signalSubmission();

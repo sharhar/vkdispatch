@@ -31,6 +31,10 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
     return descriptor_set;
 }
 
+void descriptor_set_initilize_internal(struct DescriptorSet* descriptor_set, struct ComputePlan* plan) {
+
+}
+
 void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set) {
     for (int i = 0; i < descriptor_set->plan->ctx->stream_indicies.size(); i++) {
         int device_index = descriptor_set->plan->ctx->stream_indicies[i].first;

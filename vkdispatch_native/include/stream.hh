@@ -17,6 +17,7 @@ struct WorkQueueItem {
     int next_index;
     struct WorkHeader* work_header;
     Signal* signal;
+    enum PostSubmitAction post_submit_action;
     RecordingResultData* recording_result;
 };
 
