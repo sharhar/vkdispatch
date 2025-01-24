@@ -58,7 +58,7 @@ class ExectionBounds:
         if not isinstance(in_val, tuple):
             raise ValueError("Must provide a tuple of dimensions!")
         
-        if len(in_val) > 0 and len(in_val) < 4:
+        if len(in_val) < 0 or len(in_val) > 4:
             raise ValueError("Must provide a tuple of length 1, 2, or 3!")
         
         return_val = [1, 1, 1]
