@@ -297,6 +297,9 @@ class ShaderBuilder:
 
     def floor(self, arg: vc.ShaderVariable):
         return self.make_var(arg.var_type, f"floor({arg})")
+    
+    def abs(self, arg: vc.ShaderVariable):
+        return self.make_var(arg.var_type, f"abs({arg})")
 
     def exp(self, arg: vc.ShaderVariable):
         return self.make_var(arg.var_type, f"exp({arg})")

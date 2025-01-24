@@ -86,6 +86,9 @@ def ceil(arg: vc.ShaderVariable):
 def floor(arg: vc.ShaderVariable):
     return GlobalBuilder.obj.floor(arg)
 
+def abs(arg: vc.ShaderVariable):
+    return GlobalBuilder.obj.abs(arg)
+
 def exp(arg: vc.ShaderVariable):
     return GlobalBuilder.obj.exp(arg)
 
