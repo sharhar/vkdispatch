@@ -135,7 +135,7 @@ class BufferBuilder:
             else:
                 (self.backing_buffer[:, buffer_element.memory_slice]).view(buffer_element.dtype)[:] = arr
         else:
-            if arr.shape != buffer_element.shape:
+            if arr.shape != buffer_element.shape and (len(arr.shape) > 1 and (arr.shape[0] != 1 or arr.shape[1:] != buffer_element.shape)):
                 if arr.shape != ():
                     raise ValueError(
                         f"The shape of {key} is {buffer_element.shape} but {arr.shape} was given!"
