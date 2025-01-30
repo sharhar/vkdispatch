@@ -1,18 +1,22 @@
-#include "../include/internal.h"
+#include "../include/internal.hh"
 
 #include <vulkan/utility/vk_format_utils.h>
 #include <vulkan/vk_enum_string_helper.h>
 
-struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsigned int layers, unsigned int format, unsigned int type, unsigned int view_type) {
+#include <math.h>
+
+struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsigned int layers, unsigned int format, unsigned int type, unsigned int view_type, unsigned int generate_mips) {
     struct Image* image = new struct Image();
     image->ctx = ctx;
+    image->extent = extent;
+    image->layers = layers;
+    image->mip_levels = 1;
     image->images.resize(ctx->stream_indicies.size());
     image->allocations.resize(ctx->stream_indicies.size());
     image->imageViews.resize(ctx->stream_indicies.size());
     image->stagingBuffers.resize(ctx->stream_indicies.size());
     image->stagingAllocations.resize(ctx->stream_indicies.size());
     image->barriers.resize(ctx->stream_indicies.size());
-    image->samplers.resize(ctx->stream_indicies.size());
     image->block_size = image_format_block_size_extern(format);
 
     for(int i = 0; i < ctx->deviceCount; i++) {
@@ -38,6 +42,10 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
     }
 
 
+    if(generate_mips) {
+        image->mip_levels = (uint32_t)floor(log2(std::max(extent.width, std::max(extent.height, extent.depth))) + 1);
+    }
+
     VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
                             | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
@@ -47,7 +55,7 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
         imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         imageCreateInfo.imageType = (VkImageType)type;
         imageCreateInfo.extent = extent;
-        imageCreateInfo.mipLevels = 1;
+        imageCreateInfo.mipLevels = image->mip_levels;
         imageCreateInfo.arrayLayers = layers;
         imageCreateInfo.format = (VkFormat)format;
         imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -69,7 +77,7 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
         imageViewCreateInfo.format = (VkFormat)format;
         imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-        imageViewCreateInfo.subresourceRange.levelCount = 1;
+        imageViewCreateInfo.subresourceRange.levelCount = image->mip_levels;
         imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
         imageViewCreateInfo.subresourceRange.layerCount = layers;
 
@@ -86,27 +94,6 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
 		vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
 		vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
         VK_CALL_RETNULL(vmaCreateBuffer(ctx->allocators[ctx->stream_indicies[i].first], &bufferCreateInfo, &vmaAllocationCreateInfo, &image->stagingBuffers[i], &image->stagingAllocations[i], NULL));
-
-        VkSamplerCreateInfo samplerCreateInfo;
-        memset(&samplerCreateInfo, 0, sizeof(VkSamplerCreateInfo));
-        samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-        samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-        samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        samplerCreateInfo.mipLodBias = 0.0f;
-        samplerCreateInfo.anisotropyEnable = VK_FALSE;
-        samplerCreateInfo.maxAnisotropy = 1.0f;
-        samplerCreateInfo.compareEnable = VK_FALSE;
-        samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-        samplerCreateInfo.minLod = 0.0f;
-        samplerCreateInfo.maxLod = 0.0f;
-        samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-        samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-
-        VK_CALL_RETNULL(vkCreateSampler(ctx->devices[ctx->stream_indicies[i].first], &samplerCreateInfo, NULL, &image->samplers[i]));
         
         memset(&image->barriers[i], 0, sizeof(VkImageMemoryBarrier));
         image->barriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -120,13 +107,13 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
         image->barriers[i].image = image->images[i];
         image->barriers[i].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         image->barriers[i].subresourceRange.baseMipLevel = 0;
-        image->barriers[i].subresourceRange.levelCount = 1;
+        image->barriers[i].subresourceRange.levelCount = image->mip_levels;
         image->barriers[i].subresourceRange.baseArrayLayer = 0;
         image->barriers[i].subresourceRange.layerCount = layers;
     }
 
     image_write_extern(image, NULL, {0, 0, 0}, extent, 0, 0, -1);
-
+    
     return image;
 }
 
@@ -138,6 +125,54 @@ void image_destroy_extern(struct Image* image) {
     }
 
     delete image;
+}
+
+struct Sampler* image_create_sampler_extern(struct Context* ctx, 
+        unsigned int mag_filter, 
+        unsigned int min_filter, 
+        unsigned int mip_mode, 
+        unsigned int address_mode,
+        float mip_lod_bias, 
+        float min_lod, 
+        float max_lod,
+        unsigned int border_color) {
+
+    struct Sampler* sampler = new struct Sampler();
+    sampler->ctx = ctx;
+    sampler->samplers.resize(ctx->stream_indicies.size());
+
+    VkSamplerCreateInfo samplerCreateInfo;
+    memset(&samplerCreateInfo, 0, sizeof(VkSamplerCreateInfo));
+    samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerCreateInfo.magFilter = (VkFilter)mag_filter;
+    samplerCreateInfo.minFilter = (VkFilter)mag_filter;
+    samplerCreateInfo.mipmapMode = (VkSamplerMipmapMode)mip_mode;
+    samplerCreateInfo.addressModeU = (VkSamplerAddressMode)address_mode;
+    samplerCreateInfo.addressModeV = (VkSamplerAddressMode)address_mode;
+    samplerCreateInfo.addressModeW = (VkSamplerAddressMode)address_mode;
+    samplerCreateInfo.mipLodBias = mip_lod_bias;
+    samplerCreateInfo.anisotropyEnable = VK_FALSE;
+    samplerCreateInfo.maxAnisotropy = 1.0f;
+    samplerCreateInfo.compareEnable = VK_FALSE;
+    samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerCreateInfo.minLod = min_lod;
+    samplerCreateInfo.maxLod = max_lod;
+    samplerCreateInfo.borderColor = (VkBorderColor)border_color;
+    samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+
+    for (int i = 0; i < ctx->stream_indicies.size(); i++) {
+        VK_CALL_RETNULL(vkCreateSampler(ctx->devices[ctx->stream_indicies[i].first], &samplerCreateInfo, NULL, &sampler->samplers[i]));
+    }
+
+    return sampler;
+}
+
+void image_destroy_sampler_extern(struct Sampler* sampler) {
+    for (int i = 0; i < sampler->samplers.size(); i++) {
+        vkDestroySampler(sampler->ctx->devices[sampler->ctx->stream_indicies[i].first], sampler->samplers[i], NULL);
+    }
+
+    delete sampler;
 }
 
 unsigned int image_format_block_size_extern(unsigned int format) {
@@ -196,7 +231,19 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
         command.info.image_write_info.layerCount = layerCount;
 
         command_list_record_command(ctx->command_list, command);
-        command_list_submit_extern(ctx->command_list, NULL, 1, &buffer_index, 1, 0, &signals[i]);
+        
+
+        if(image->mip_levels > 1) {
+            struct CommandInfo command = {};
+            command.type = COMMAND_TYPE_IMAGE_MIP_MAP;
+            command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            command.info.image_mip_map_info.image = image;
+            command.info.image_mip_map_info.mip_count = image->mip_levels;
+
+            command_list_record_command(ctx->command_list, command);
+        }
+
+        command_list_submit_extern(ctx->command_list, NULL, 1, &buffer_index, 1, &signals[i]);
         command_list_reset_extern(ctx->command_list);
         RETURN_ON_ERROR(;)
     }
@@ -245,6 +292,82 @@ void image_write_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageWri
     );
 }
 
+void image_generate_mipmaps_internal(VkCommandBuffer cmd_buffer, const struct ImageMipMapInfo& info, int device_index, int stream_index) {
+    LOG_VERBOSE("Generating mipmaps for image %p", info.image);
+
+    image_memory_barrier_internal(
+        info.image,
+        stream_index, 
+        cmd_buffer, 
+        VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT, 
+        VK_IMAGE_LAYOUT_GENERAL, 
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+        VK_PIPELINE_STAGE_TRANSFER_BIT
+    );
+
+    LOG_VERBOSE("Did barrier for image %p", info.image);
+
+    int32_t mipWidth = info.image->extent.width;
+    int32_t mipHeight = info.image->extent.height;
+    int32_t mipDepth = info.image->extent.depth;
+
+    for(int i = 1; i < info.mip_count; i++) {
+        LOG_VERBOSE("Generating mip %d for image %p", i, info.image);
+
+        image_memory_barrier_internal(
+            info.image,
+            stream_index, 
+            cmd_buffer, 
+            VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT, 
+            VK_IMAGE_LAYOUT_GENERAL, 
+            VK_PIPELINE_STAGE_TRANSFER_BIT, 
+            VK_PIPELINE_STAGE_TRANSFER_BIT
+        );
+
+        LOG_VERBOSE("Did barrier for mip %d image %p", i, info.image);
+
+        VkImageBlit imageBlit;
+        imageBlit.srcOffsets[0] = { 0, 0, 0 };
+        imageBlit.srcOffsets[1] = { mipWidth, mipHeight, mipDepth };
+        imageBlit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        imageBlit.srcSubresource.mipLevel = i - 1;
+        imageBlit.srcSubresource.baseArrayLayer = 0;
+        imageBlit.srcSubresource.layerCount = info.image->layers;
+        imageBlit.dstOffsets[0] = { 0, 0, 0 };
+        imageBlit.dstOffsets[1] = { mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, mipDepth > 1 ? mipDepth / 2 : 1 };
+        imageBlit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        imageBlit.dstSubresource.mipLevel = i;
+        imageBlit.dstSubresource.baseArrayLayer = 0;
+        imageBlit.dstSubresource.layerCount = info.image->layers;
+
+        vkCmdBlitImage(
+            cmd_buffer,
+            info.image->images[stream_index], VK_IMAGE_LAYOUT_GENERAL,
+            info.image->images[stream_index], VK_IMAGE_LAYOUT_GENERAL,
+            1, &imageBlit,
+            VK_FILTER_LINEAR
+        );
+
+        LOG_VERBOSE("Did blit for mip %d image %p", i, info.image);
+
+        if (mipWidth > 1) mipWidth /= 2;
+        if (mipHeight > 1) mipHeight /= 2;
+        if (mipDepth > 1) mipDepth /= 2;
+    }
+    
+    image_memory_barrier_internal(
+        info.image,
+        stream_index, 
+        cmd_buffer, 
+        VK_ACCESS_SHADER_READ_BIT, 
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+        VK_PIPELINE_STAGE_TRANSFER_BIT, 
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
+    );
+
+    LOG_VERBOSE("Finish image %p", info.image);
+}
+
 void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExtent3D extent, unsigned int baseLayer, unsigned int layerCount, int index) {
     LOG_INFO("Reading data from image (%p) at offset (%d, %d, %d) with extent (%d, %d, %d)", image, offset.x, offset.y, offset.z, extent.width, extent.height, extent.depth);
 
@@ -269,7 +392,7 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
     command_list_record_command(ctx->command_list, command);
     
     Signal signal;
-    command_list_submit_extern(ctx->command_list, NULL, 1, &index, 1, 0, &signal);
+    command_list_submit_extern(ctx->command_list, NULL, 1, &index, 1, &signal);
     command_list_reset_extern(ctx->command_list);
     RETURN_ON_ERROR(;)
     

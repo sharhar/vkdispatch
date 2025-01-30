@@ -2,6 +2,7 @@ from typing import Callable
 from typing import List
 from typing import Tuple
 from typing import Union
+from typing import Optional
 
 import numpy as np
 
@@ -97,7 +98,7 @@ class ShaderVariable(BaseVariable):
                  append_func: Callable[[str], None], 
                  name_func: Callable[[str], Tuple[str, str]], 
                  var_type: vd.dtype, 
-                 name: str = None
+                 name: Optional[str] = None
         ) -> None:
         super().__init__(append_func, name_func, var_type, name)
 
@@ -354,11 +355,14 @@ class BoundVariable(ShaderVariable):
                  name_func: Callable[[str], str],
                  var_type: vd.dtype,
                  binding: int,
-                 name: str = None,
+                 name: Optional[str] = None,
             ) -> None:
             super().__init__(append_func, name_func, var_type, name)
 
             self.binding = binding
+    
+    def __int__(self):
+        return int(self.binding)
 
 class BufferVariable(BoundVariable):
     def __init__(self,
@@ -366,10 +370,10 @@ class BufferVariable(BoundVariable):
                  name_func: Callable[[str], Tuple[str, str]], 
                  var_type: vd.dtype,
                  binding: int,
-                 name: str = None,
+                 name: Optional[str] = None,
                  shape_var: "ShaderVariable" = None,
-                 shape_name: str = None,
-                 raw_name: str = None
+                 shape_name: Optional[str] = None,
+                 raw_name: Optional[str] = None
             ) -> None:
             super().__init__(append_func, name_func, var_type, binding, name)
 
@@ -387,13 +391,13 @@ class ImageVariable(BoundVariable):
                  var_type: vd.dtype,
                  binding: int,
                  dimensions: int,
-                 name: str = None,
+                 name: Optional[str] = None,
             ) -> None:
             super().__init__(append_func, name_func, var_type, binding, name)
 
             self.dimensions = dimensions
     
-    def sample(self, coord: "ShaderVariable") -> "ShaderVariable":
+    def sample(self, coord: "ShaderVariable", lod: "ShaderVariable" = None) -> "ShaderVariable":
         if self.dimensions == 0:
             raise ValueError("Cannot sample a texture with dimension 0!")
         
@@ -408,5 +412,8 @@ class ImageVariable(BoundVariable):
         else:
             raise ValueError("Unsupported number of dimensions!")
 
-        return self.new(vd.vec4, f"texture({self}, {sample_coord_string})")
+        if lod is None:
+            return self.new(vd.vec4, f"texture({self}, {sample_coord_string})")
+        
+        return self.new(vd.vec4, f"textureLod({self}, {sample_coord_string}, {lod})")
     

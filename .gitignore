@@ -161,7 +161,7 @@ dmypy.json
 cython_debug/
 
 # Cython-created .cpp file
-vkdispatch_native/wrapper.cpp
+vkdispatch_native/wrappers/wrapper.cpp
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can

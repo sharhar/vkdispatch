@@ -15,7 +15,7 @@ def test_reductions_sum():
     # Write the data to the buffer
     buf.write(data)
 
-    @vc.map_reduce(
+    @vd.map_reduce(
             exec_size=lambda args: args.buffer.size, 
             reduction=lambda x, y: x + y, 
             reduction_identity=0
@@ -41,7 +41,7 @@ def test_mapped_reductions():
     # Write the data to the buffer
     buf.write(data)
 
-    @vc.map_reduce(
+    @vd.map_reduce(
             exec_size=lambda args: args.buffer.size, 
             reduction=lambda x, y: x + y, 
             reduction_identity=0
@@ -56,3 +56,41 @@ def test_mapped_reductions():
 
     # Check that the data is the same
     assert np.allclose([np.sin(data).sum()], [read_data[0]])
+
+
+def test_listed_reductions():
+    # Create a buffer
+    buf = vd.Buffer((1024,) , v2)
+    buf2 = vd.Buffer((1,) , v2)
+
+    # Create a numpy array
+    data = np.random.rand(1024, 2).astype(np.float32)
+
+    # Write the data to the buffer
+    buf.write(data)
+
+    @vd.map_reduce(
+            exec_size=lambda args: args.buffer.size, 
+            reduction=lambda x, y: x + y, 
+            reduction_identity=0
+    )
+    def sum_map(ind: Const[i32], buffer: Buff[v2]) -> v2:
+        return vc.sin(buffer[ind])
+    
+    cmd_stream = vd.CommandStream()
+
+    print(cmd_stream)
+
+    old_list = vd.set_global_cmd_stream(cmd_stream)
+
+    res_buf = sum_map(buf, cmd_stream=cmd_stream)
+
+    vd.set_global_cmd_stream(old_list)
+
+    cmd_stream.submit()
+
+    # Read the data from the buffer
+    read_data = res_buf.read(0)
+
+    # Check that the data is the same
+    assert np.allclose([np.sin(data).sum(axis=0)], [read_data[0]])
