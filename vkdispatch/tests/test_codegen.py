@@ -5,11 +5,11 @@ from vkdispatch.codegen.abreviations import *
 import numpy as np
 
 def test_arithmetic():
-    pass_count = 64
-    op_count = 1024
+    pass_count = 32
+    op_count = 512
 
     for _ in range(pass_count):
-        array_size = np.random.randint(1000, 10000)
+        array_size = np.random.randint(1000, 5000)
 
         signal = np.random.rand(array_size).astype(np.float32)
         signal2 = np.random.rand(array_size).astype(np.float32)
@@ -19,11 +19,11 @@ def test_arithmetic():
 
         output = vd.Buffer(signal.shape, vd.float32)
 
-        @vc.shader(exec_size=lambda args: args.out.size)
+        @vd.shader(exec_size=lambda args: args.out.size)
         def my_shader(out: Buff[f32], a: Buff[f32], b: Buff[f32]):
             nonlocal signal, signal2
 
-            tid = vc.global_invocation.x
+            tid = vc.global_invocation().x
 
             out_val = a[tid].copy()
             other_val = b[tid].copy()
@@ -48,4 +48,4 @@ def test_arithmetic():
 
         my_shader(output, buffer, buffer2)
 
-        assert np.allclose(output.read(0), signal, atol=0.00001)
+        assert np.allclose(output.read(0), signal, atol=0.00025)

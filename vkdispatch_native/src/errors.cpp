@@ -1,4 +1,4 @@
-#include "../include/internal.h"
+#include "../include/internal.hh"
 
 std::mutex __error_mutex = {};
 const char* __error_string = NULL;

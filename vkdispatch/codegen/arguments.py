@@ -1,8 +1,7 @@
 import typing
 
-
 from vkdispatch.codegen.variables import ShaderVariable, BufferVariable, ImageVariable
-from vkdispatch.dtype import dtype
+from vkdispatch.base.dtype import dtype
 
 _ArgType = typing.TypeVar('_ArgType', bound=dtype)
 _ArgCount = typing.TypeVar('_ArgCount', bound=int)

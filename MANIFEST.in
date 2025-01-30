@@ -1,5 +1,5 @@
-include vkdispatch_native/include/*.h
-include vkdispatch_native/*.pxd
+include vkdispatch_native/include/*.hh
+include vkdispatch_native/wrappers/*.pxd
 include deps/VMA/include/*.h
 include deps/VMA/LICENSE.txt
 include deps/volk/volk/volk.h

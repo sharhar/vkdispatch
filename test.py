@@ -3,46 +3,33 @@ import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import *
 
 import numpy as np
-import tqdm
 
-from matplotlib import pyplot as plt
+vd.initialize(log_level=vd.LogLevel.VERBOSE, debug_mode=True)
 
-import sys
+vd.make_context(devices=[0], queue_families=[[2]])
 
-vd.initialize(log_level=vd.LogLevel.INFO)
 
-print("Initializing...")
+buff = vd.asbuffer(np.arange(10, dtype=np.float32))
 
-vd.make_context(devices=[0], queue_families=[[0, 2, 2]])
+cmd_stream = vd.CommandStream()
 
-print("Context created")
+@vd.shader(exec_size=lambda args: args.buff.size)
+def add_five(buff: Buff[f32], value: Var[f32], value2: Var[f32]):
+    tid = vc.global_invocation.x
+    #vc.print(tid, value)
+    buff[tid] += value
+    buff[tid] += value2
 
-shape = (512, 512)
+launch_vars = vd.LaunchVariables(cmd_stream)
 
-arr = np.random.rand(shape[0], shape[1]) + 1j * np.random.rand(shape[0], shape[1])
+add_five(buff, launch_vars.new("val"), launch_vars.new("val2"), cmd_stream=cmd_stream)
 
-buffer = vd.asbuffer(arr.astype(np.complex64))
-buffer2 = vd.asbuffer(np.zeros(shape, dtype=np.complex64))
+def callback():
+    launch_vars.set("val", [0.1, 0.02, 0.003, 0.0004])
+    launch_vars.set("val2", [10, 200, 3000, 40000])
 
-cmd_list = vd.CommandList()
+#callback = lambda: launch_vars.set("val", np.array([1, 2, 3, 4]).reshape(4, 1))
 
-fft_count = 20
-submit_count = 100000
-
-for _ in range(fft_count):
-    vd.fft(buffer, cmd_list=cmd_list)
-
-print("FFT commands generated")
-
-status_bar = tqdm.tqdm(total=fft_count * submit_count * 100)
-
-for i in range(submit_count):
-    cmd_list.submit_any(instance_count=100) #data=data_buff.tobytes())
-    status_bar.update(fft_count * 100)
-
-    #if i % 10 == 0:
-    #    buffer.read()
-    #    buffer2.read()
-
-buffer.read()
-buffer2.read()
+print(buff.read(0))
+cmd_stream.submit(instance_count=4, callback=callback)
+print(buff.read(0))
