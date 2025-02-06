@@ -1,12 +1,14 @@
 import vkdispatch as vd
-import vkdispatch.codegen as vc
+
+from .variables import ShaderVariable
+from .builder import ShaderBuilder
 
 from typing import List, Union, Optional
 
 class GlobalBuilder:
-    obj = vc.ShaderBuilder()
+    obj = ShaderBuilder()
 
-def set_global_builder(builder: vc.ShaderBuilder):
+def set_global_builder(builder: ShaderBuilder):
     old_value = GlobalBuilder.obj
     GlobalBuilder.obj = builder  # Update the global reference.
     return old_value
@@ -50,13 +52,13 @@ def memory_barrier_shared():
 def barrier():
     GlobalBuilder.obj.barrier()
 
-def if_statement(arg: vc.ShaderVariable):
+def if_statement(arg: ShaderVariable):
     GlobalBuilder.obj.if_statement(arg)
 
-def if_any(*args: List[vc.ShaderVariable]):
+def if_any(*args: List[ShaderVariable]):
     GlobalBuilder.obj.if_any(*args)
 
-def if_all(*args: List[vc.ShaderVariable]):
+def if_all(*args: List[ShaderVariable]):
     GlobalBuilder.obj.if_all(*args)
 
 def else_statement():
@@ -65,85 +67,85 @@ def else_statement():
 def return_statement(arg=None):
     GlobalBuilder.obj.return_statement(arg)
 
-def while_statement(arg: vc.ShaderVariable):
+def while_statement(arg: ShaderVariable):
     GlobalBuilder.obj.while_statement(arg)
 
-def length(arg: vc.ShaderVariable):
+def length(arg: ShaderVariable):
     return GlobalBuilder.obj.length(arg)
 
 def end():
     GlobalBuilder.obj.end()
 
-def logical_and(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
+def logical_and(arg1: ShaderVariable, arg2: ShaderVariable):
     return GlobalBuilder.obj.logical_and(arg1, arg2)
 
-def logical_or(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
+def logical_or(arg1: ShaderVariable, arg2: ShaderVariable):
     return GlobalBuilder.obj.logical_or(arg1, arg2)
 
-def ceil(arg: vc.ShaderVariable):
+def ceil(arg: ShaderVariable):
     return GlobalBuilder.obj.ceil(arg)
 
-def floor(arg: vc.ShaderVariable):
+def floor(arg: ShaderVariable):
     return GlobalBuilder.obj.floor(arg)
 
-def abs(arg: vc.ShaderVariable):
+def abs(arg: ShaderVariable):
     return GlobalBuilder.obj.abs(arg)
 
-def exp(arg: vc.ShaderVariable):
+def exp(arg: ShaderVariable):
     return GlobalBuilder.obj.exp(arg)
 
-def sin(arg: vc.ShaderVariable):
+def sin(arg: ShaderVariable):
     return GlobalBuilder.obj.sin(arg)
 
-def cos(arg: vc.ShaderVariable):
+def cos(arg: ShaderVariable):
     return GlobalBuilder.obj.cos(arg)
 
-def tan(arg: vc.ShaderVariable):
+def tan(arg: ShaderVariable):
     return GlobalBuilder.obj.tan(arg)
 
-def arctan2(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
+def arctan2(arg1: ShaderVariable, arg2: ShaderVariable):
     return GlobalBuilder.obj.arctan2(arg1, arg2)
 
-def sqrt(arg: vc.ShaderVariable):
+def sqrt(arg: ShaderVariable):
     return GlobalBuilder.obj.sqrt(arg)
 
-def mod(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
+def mod(arg1: ShaderVariable, arg2: ShaderVariable):
     return GlobalBuilder.obj.mod(arg1, arg2)
 
-def max(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
+def max(arg1: ShaderVariable, arg2: ShaderVariable):
     return GlobalBuilder.obj.max(arg1, arg2)
 
-def min(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
+def min(arg1: ShaderVariable, arg2: ShaderVariable):
     return GlobalBuilder.obj.min(arg1, arg2)
 
-def log(arg: vc.ShaderVariable):
+def log(arg: ShaderVariable):
     return GlobalBuilder.obj.log(arg)
 
-def log2(arg: vc.ShaderVariable):
+def log2(arg: ShaderVariable):
     return GlobalBuilder.obj.log2(arg)
 
-def atomic_add(arg1: vc.ShaderVariable, arg2: vc.ShaderVariable):
+def atomic_add(arg1: ShaderVariable, arg2: ShaderVariable):
     return GlobalBuilder.obj.atomic_add(arg1, arg2)
 
-def subgroup_add(arg1: vc.ShaderVariable):
+def subgroup_add(arg1: ShaderVariable):
     return GlobalBuilder.obj.subgroup_add(arg1)
 
-def subgroup_mul(arg1: vc.ShaderVariable):
+def subgroup_mul(arg1: ShaderVariable):
     return GlobalBuilder.obj.subgroup_mul(arg1)
 
-def subgroup_min(arg1: vc.ShaderVariable):
+def subgroup_min(arg1: ShaderVariable):
     return GlobalBuilder.obj.subgroup_min(arg1)
 
-def subgroup_max(arg1: vc.ShaderVariable):
+def subgroup_max(arg1: ShaderVariable):
     return GlobalBuilder.obj.subgroup_max(arg1)
 
-def subgroup_and(arg1: vc.ShaderVariable):
+def subgroup_and(arg1: ShaderVariable):
     return GlobalBuilder.obj.subgroup_and(arg1)
 
-def subgroup_or(arg1: vc.ShaderVariable):
+def subgroup_or(arg1: ShaderVariable):
     return GlobalBuilder.obj.subgroup_or(arg1)
 
-def subgroup_xor(arg1: vc.ShaderVariable):
+def subgroup_xor(arg1: ShaderVariable):
     return GlobalBuilder.obj.subgroup_xor(arg1)
 
 def subgroup_elect():
@@ -191,17 +193,17 @@ def new_ivec3(*args, var_name: Optional[str] = None):
 def new_ivec4(*args, var_name: Optional[str] = None):
     return new(vd.ivec4, *args, var_name=var_name)
 
-def float_bits_to_int(arg: vc.ShaderVariable):
+def float_bits_to_int(arg: ShaderVariable):
     return GlobalBuilder.obj.float_bits_to_int(arg)
 
-def int_bits_to_float(arg: vc.ShaderVariable):
+def int_bits_to_float(arg: ShaderVariable):
     return GlobalBuilder.obj.int_bits_to_float(arg)
 
-def printf(format: str, *args: Union[vc.ShaderVariable, str], seperator=" "):
+def printf(format: str, *args: Union[ShaderVariable, str], seperator=" "):
     GlobalBuilder.obj.printf(format, *args, seperator=seperator)
 
-def print_vars(*args: Union[vc.ShaderVariable, str], seperator=" "):
+def print_vars(*args: Union[ShaderVariable, str], seperator=" "):
     GlobalBuilder.obj.print_vars(*args, seperator=seperator)
 
-def unravel_index(index: vc.ShaderVariable, shape: vc.ShaderVariable):
+def unravel_index(index: ShaderVariable, shape: ShaderVariable):
     return GlobalBuilder.obj.unravel_index(index, shape)

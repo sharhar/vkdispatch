@@ -3,6 +3,8 @@ import vkdispatch.codegen as vc
 
 import numpy as np
 
+vd.initialize(log_level=vd.LogLevel.ERROR)
+
 def test_builder_basic():
     buff = vd.asbuffer(np.array([1, 2, 3, 4], dtype=np.float32))
     buff2 = vd.asbuffer(np.array([10, 20, 30, 40], dtype=np.float32))
@@ -16,7 +18,7 @@ def test_builder_basic():
 
     uniform_var = my_builder.declare_constant(vc.f32)
 
-    var_buff[vc.global_invocation().x] += var_buff2[vc.global_invocation().x] - uniform_var
+    var_buff[my_builder.global_invocation.x] += var_buff2[my_builder.global_invocation.x] - uniform_var
 
     shader_description = my_builder.build("my_shader")
 
@@ -43,5 +45,6 @@ def test_builder_basic():
     cmd_list.record_compute_plan(compute_plan, descriptor_set, [1, 1, 1])
 
     cmd_list.submit(instance_count=1)
+    cmd_list.submit(instance_count=1)
 
-    assert np.allclose(buff.read(0), np.array([6, 17, 3, 4], dtype=np.float32))
+    assert np.allclose(buff.read(0), np.array([11, 32, 3, 4], dtype=np.float32))

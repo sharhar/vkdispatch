@@ -4,6 +4,40 @@
 #include <unordered_map>
 #include <utility>
 
+#include <climits>
+
+#include <glslang_c_interface.h>
+#include <glslang/Public/resource_limits_c.h>
+
+/*
+
+        subgroup_sizes = []
+        max_workgroup_sizes_x = []
+        max_workgroup_sizes_y = []
+        max_workgroup_sizes_z = []
+        uniform_buffer_alignments = []
+
+        for device in self.device_infos:
+            subgroup_sizes.append(device.sub_group_size)
+            
+            max_workgroup_sizes_x.append(device.max_workgroup_size[0])
+            max_workgroup_sizes_y.append(device.max_workgroup_size[1])
+            max_workgroup_sizes_z.append(device.max_workgroup_size[2])
+
+            uniform_buffer_alignments.append(device.uniform_buffer_alignment)
+
+        self.subgroup_size = min(subgroup_sizes)
+        self.max_workgroup_size = (min(max_workgroup_sizes_x), min(max_workgroup_sizes_y), min(max_workgroup_sizes_z))
+        self.uniform_buffer_alignment = max(uniform_buffer_alignments)
+
+*/
+
+void inplace_min(int* a, int b) {
+    if(b < *a) {
+        *a = b;
+    }
+}
+
 struct Context* context_create_extern(int* device_indicies, int* queue_counts, int* queue_families, int device_count) {
     LOG_INFO("Creating context with %d devices", device_count);
 
@@ -13,6 +47,18 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     ctx->devices.resize(device_count);
     ctx->streams.resize(device_count);
     ctx->allocators.resize(device_count);
+    ctx->glslang_resource_limits = new glslang_resource_t();
+    memcpy(ctx->glslang_resource_limits, glslang_default_resource(), sizeof(glslang_resource_t));
+
+    glslang_resource_t* resource = reinterpret_cast<glslang_resource_t*>(ctx->glslang_resource_limits);
+
+    resource->max_compute_work_group_size_x = INT_MAX;
+    resource->max_compute_work_group_size_y = INT_MAX;
+    resource->max_compute_work_group_size_z = INT_MAX;
+
+    resource->max_compute_work_group_count_x = INT_MAX;
+    resource->max_compute_work_group_count_y = INT_MAX;
+    resource->max_compute_work_group_count_z = INT_MAX;
     
     ctx->work_queue = new WorkQueue(device_count * 4, 4);
     ctx->command_list = command_list_create_extern(ctx);
@@ -23,6 +69,16 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
     for(int i = 0; i < device_count; i++) {
         LOG_INFO("Device %d Index: %d", i, device_indicies[i]);
+
+        struct PhysicalDeviceDetails* details = &_instance.device_details[device_indicies[i]];
+
+        inplace_min(&resource->max_compute_work_group_size_x, details->max_workgroup_size_x);
+        inplace_min(&resource->max_compute_work_group_size_y, details->max_workgroup_size_y);
+        inplace_min(&resource->max_compute_work_group_size_z, details->max_workgroup_size_z);
+
+        inplace_min(&resource->max_compute_work_group_count_x, details->max_workgroup_count_x);
+        inplace_min(&resource->max_compute_work_group_count_y, details->max_workgroup_count_y);
+        inplace_min(&resource->max_compute_work_group_count_z, details->max_workgroup_count_z);
 
         ctx->physicalDevices[i] = _instance.physicalDevices[device_indicies[i]];
 
@@ -140,6 +196,10 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
         queue_index_offset += queue_counts[i];
     }
 
+    LOG_INFO("Created a context with the following glsl_resource properties:");
+    LOG_INFO("  Max Compute Work Group Size: (%d, %d, %d)", resource->max_compute_work_group_size_x, resource->max_compute_work_group_size_y, resource->max_compute_work_group_size_z);
+    LOG_INFO("  Max Compute Work Group Count: (%d, %d, %d)", resource->max_compute_work_group_count_x, resource->max_compute_work_group_count_y, resource->max_compute_work_group_count_z);
+
     LOG_INFO("Created context at %p with %d devices", ctx, device_count);
 
     for(int i = 0; i < ctx->stream_indicies.size(); i++) {
@@ -156,6 +216,8 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
         signal.wait();
     }
+
+    
 
     return ctx;
 }

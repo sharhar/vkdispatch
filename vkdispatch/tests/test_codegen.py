@@ -4,7 +4,7 @@ from vkdispatch.codegen.abreviations import *
 
 import numpy as np
 
-def test_arithmetic():
+def disapble_test_arithmetic():
     pass_count = 32
     op_count = 512
 

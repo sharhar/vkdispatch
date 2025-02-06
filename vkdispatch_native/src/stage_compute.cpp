@@ -1,9 +1,8 @@
 #include "../include/internal.hh"
 
 #include <glslang_c_interface.h>
-#include <glslang/Public/resource_limits_c.h>
 
-static uint32_t* glsl_to_spirv_util(glslang_stage_t stage, size_t* size, const char* shader_source, const char* shader_name) {
+static uint32_t* glsl_to_spirv_util(glslang_stage_t stage, glslang_resource_t* resource_limits, size_t* size, const char* shader_source, const char* shader_name) {
     glslang_input_t input = {};
 	input.language = GLSLANG_SOURCE_GLSL;
 	input.stage = stage;
@@ -17,7 +16,7 @@ static uint32_t* glsl_to_spirv_util(glslang_stage_t stage, size_t* size, const c
 	input.force_default_version_and_profile = false;
 	input.forward_compatible = false;
 	input.messages = GLSLANG_MSG_DEFAULT_BIT;
-	input.resource = glslang_default_resource();
+	input.resource = resource_limits;
 
     glslang_shader_t* shader = glslang_shader_create(&input);
 
@@ -88,7 +87,13 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
         LOG_INFO("Creating Compute Plan for device %d", i);
 
         size_t code_size;
-        uint32_t* code = glsl_to_spirv_util(GLSLANG_STAGE_COMPUTE, &code_size, create_info->shader_source, create_info->shader_name);
+        uint32_t* code = glsl_to_spirv_util(
+            GLSLANG_STAGE_COMPUTE, 
+            reinterpret_cast<glslang_resource_t*>(ctx->glslang_resource_limits), 
+            &code_size, 
+            create_info->shader_source, 
+            create_info->shader_name
+        );
         
         if(code == NULL) {
             //set_error("Failed to compile compute shader!");

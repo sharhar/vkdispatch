@@ -78,6 +78,8 @@ struct Context {
     std::vector<std::vector<Stream*>> streams;
     std::vector<VmaAllocator> allocators;
 
+    void* glslang_resource_limits;
+
     struct CommandList* command_list;
     WorkQueue* work_queue;
 };

@@ -3,8 +3,10 @@ from enum import Enum
 
 import numpy as np
 
-import vkdispatch as vd
 import vkdispatch_native
+
+from . import dtype as vdt
+from .context import get_context_handle
 
 __MAPPING__ = {
     (np.uint8, 1),
@@ -66,7 +68,7 @@ class image_format(Enum):  # TODO: Fix class naming scheme to adhere to conventi
 
 
 # TODO: This can be moved into the enum class as an indexing method
-def select_image_format(dtype: vd.dtype, channels: int) -> image_format:
+def select_image_format(dtype: vdt.dtype, channels: int) -> image_format:
     assert channels in [1, 2, 3, 4], f"Unsupported number of channels ({channels})! Must be 1, 2, 3 or 4!"
 
     # NOTE: These large if-else statements can be better indexed and maintained by a
@@ -120,7 +122,7 @@ def select_image_format(dtype: vd.dtype, channels: int) -> image_format:
             return image_format.R16G16B16A16_SINT
     el """
     
-    if dtype == vd.uint32:
+    if dtype == vdt.uint32:
         if channels == 1:
             return image_format.R32_UINT
         elif channels == 2:
@@ -129,7 +131,7 @@ def select_image_format(dtype: vd.dtype, channels: int) -> image_format:
             return image_format.R32G32B32_UINT
         elif channels == 4:
             return image_format.R32G32B32A32_UINT
-    elif dtype == vd.int32:
+    elif dtype == vdt.int32:
         if channels == 1:
             return image_format.R32_SINT
         elif channels == 2:
@@ -147,7 +149,7 @@ def select_image_format(dtype: vd.dtype, channels: int) -> image_format:
     #        return image_format.R16G16B16_SFLOAT
     #    elif channels == 4:
     #        return image_format.R16G16B16A16_SFLOAT
-    elif dtype == vd.float32:
+    elif dtype == vdt.float32:
         if channels == 1:
             return image_format.R32_SFLOAT
         elif channels == 2:
@@ -215,7 +217,7 @@ class Sampler:
         self.image = image
         
         self._handle = vkdispatch_native.image_create_sampler(
-            vd.get_context_handle(),
+            get_context_handle(),
             mag_filter.value,
             min_filter.value,
             mip_filter.value,
@@ -246,7 +248,7 @@ class Image:
         if len(shape) == 3:
             assert type(shape[2]) == int, "Shape must be a tuple of integers!"
 
-        assert issubclass(dtype, vd.dtype), "Dtype must be a dtype!"
+        assert issubclass(dtype, vdt.dtype), "Dtype must be a dtype!"
         assert type(channels) == int, "Channels must be an integer!"
 
         self.type = image_type.TYPE_1D
@@ -259,7 +261,7 @@ class Image:
         
         self.view_type = view_type
         self.format: image_format = select_image_format(dtype, channels)
-        self.dtype: vd.dtype = dtype
+        self.dtype: vdt.dtype = dtype
         self.layers: int = layers
         self.channels: int = channels
 
@@ -288,7 +290,7 @@ class Image:
         self.mem_size: int = np.prod(self.shape) * self.block_size
 
         self._handle: int = vkdispatch_native.image_create(
-            vd.get_context_handle(),
+            get_context_handle(),
             self.extent,
             self.layers,
             self.format.value,
@@ -323,7 +325,7 @@ class Image:
         out_bytes = vkdispatch_native.image_read(
             self._handle, out_size, [0, 0, 0], self.extent, 0, self.layers, device_index
         )
-        return np.frombuffer(out_bytes, dtype=vd.to_numpy_dtype(true_scalar)).reshape(self.array_shape)
+        return np.frombuffer(out_bytes, dtype=vdt.to_numpy_dtype(true_scalar)).reshape(self.array_shape)
     
     def sample(self, 
                     mag_filter: Filter = Filter.LINEAR,
@@ -353,7 +355,7 @@ class Image1D(Image):
 
 
     @classmethod
-    def __class_getitem__(cls, arg: vd.dtype) -> type:
+    def __class_getitem__(cls, arg: vdt.dtype) -> type:
         raise RuntimeError("Cannot index into vd.Image1D! Perhaps you meant to use vc.Image1D?")
 
 class Image2D(Image):
@@ -364,7 +366,7 @@ class Image2D(Image):
         super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_2D, enable_mipmaps)
     
     @classmethod
-    def __class_getitem__(cls, arg: vd.dtype) -> type:
+    def __class_getitem__(cls, arg: vdt.dtype) -> type:
         raise RuntimeError("Cannot index into vd.Image2D! Perhaps you meant to use vc.Image2D?")
 
 
@@ -395,5 +397,5 @@ class Image3D(Image):
         super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_3D, enable_mipmaps)
     
     @classmethod
-    def __class_getitem__(cls, arg: vd.dtype) -> type:
+    def __class_getitem__(cls, arg: vdt.dtype) -> type:
         raise RuntimeError("Cannot index into vd.Image3D! Perhaps you meant to use vc.Image3D?")
