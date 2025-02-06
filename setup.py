@@ -34,7 +34,10 @@ include_directories = [
 
 if os.name == "posix":
     platform_extra_link_args.append("-g")
-    platform_link_libraries.extend(["dl", "pthread", "stdc++fs"])
+    platform_link_libraries.extend(["dl", "pthread"])
+
+if system == "Linux":
+    platform_link_libraries.extend(["stdc++fs"])
 
 if vulkan_sdk_root is None:
     include_directories.extend([
