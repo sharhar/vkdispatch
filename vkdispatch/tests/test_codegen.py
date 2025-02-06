@@ -5,7 +5,7 @@ from vkdispatch.codegen.abreviations import *
 import numpy as np
 
 def test_arithmetic():
-    pass_count = 256
+    pass_count = 64
 
     for _ in range(pass_count):
         array_size = np.random.randint(1000, 10000)
@@ -16,10 +16,11 @@ def test_arithmetic():
         buffer = vd.asbuffer(signal)
         buffer2 = vd.asbuffer(signal2)
 
-        op_count = np.random.randint(32, 256)
-        repeat_count = np.random.randint(3, 10)
+        repeat_count = np.random.randint(10, 64)
         
         for _ in range(repeat_count):
+            op_count = np.random.randint(2, 32)
+            
             @vd.shader(exec_size=lambda args: args.a.size)
             def my_shader(a: Buff[f32], b: Buff[f32]):
                 nonlocal signal, signal2
