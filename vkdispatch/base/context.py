@@ -5,12 +5,8 @@ from typing import Callable
 
 from .errors import check_for_errors
 from .init import DeviceInfo, get_devices, initialize
-from .dtype import float32
-
 
 import vkdispatch_native
-
-import numpy as np
 
 class Context:
     """
