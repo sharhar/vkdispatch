@@ -1,8 +1,22 @@
 import os
 import platform
+import subprocess
 
 from setuptools import Extension
 from setuptools import setup
+from setuptools.command.build_ext import build_ext
+
+import re
+
+# Typically you'll put `packaging` in your setup_requires or pyproject.toml if needed.
+try:
+    from packaging.version import Version
+except ImportError:
+    # As a fallback, if you absolutely can't rely on `packaging`,
+    # you could use distutils: from distutils.version import LooseVersion as Version
+    print("Warning: 'packaging' not found; version comparisons might be less accurate.")
+    from distutils.version import LooseVersion as Version
+
 
 system = platform.system()
 
@@ -35,6 +49,7 @@ include_directories = [
 if os.name == "posix":
     platform_extra_link_args.append("-g")
     platform_link_libraries.extend(["dl", "pthread"])
+
 
 if vulkan_sdk_root is None:
     include_directories.extend([
@@ -165,6 +180,67 @@ if vulkan_sdk_root is None:
         "CInterface/spirv_c_interface.cpp"
     ])
 
+def parse_compiler_version(version_output):
+    if not isinstance(version_output, str):
+        return None
+    
+    # Try to match either clang or gcc version string
+    clang_match = re.search(r'clang version ([^\s]+)', version_output)
+    gcc_match = re.search(r'gcc.+?([\d.]+(?:-[a-zA-Z0-9]+)?)', version_output, re.IGNORECASE)
+    
+    match = clang_match or gcc_match
+    if not match:
+        return None
+
+    try:
+        return Version(match.group(1))
+    except Exception as e:
+        print(f"Invalid version: {e}")
+        return None
+
+def detect_unix_compiler(compiler_exe):
+    """
+    Given the 'compiler_exe' (like 'gcc', 'clang', etc.), returns a string
+    denoting the compiler family: 'clang', 'gcc', or 'unknown'.
+    """
+    try:
+        # Run e.g. `gcc --version` or `clang --version`
+        version_output = subprocess.check_output([compiler_exe, '--version'],
+                                                 stderr=subprocess.STDOUT,
+                                                 universal_newlines=True)
+
+        if 'clang' in version_output:
+            return 'clang', parse_compiler_version(version_output)
+        elif 'gcc' in version_output or 'Free Software Foundation' in version_output:
+            return 'gcc', parse_compiler_version(version_output)
+        else:
+            return 'unknown', None
+    except Exception:
+        return 'unknown', None
+    
+class CustomBuildExt(build_ext):
+    def build_extensions(self):
+        compiler_type = self.compiler.compiler_type
+        print(f"Detected compiler type: {compiler_type}")
+        print(f"Detected compiler: {self.compiler.compiler}")
+
+        if compiler_type == 'unix':
+            compiler_family, version = detect_unix_compiler(self.compiler.compiler[0])
+            print(f"Detected compiler family: {compiler_family}")
+            print(f"Detected compiler version: {version}")
+
+            if version is not None:
+                for ext in self.extensions:
+                    if compiler_family == 'clang' and version < Version('9.0'):
+                        ext.libraries.append('c++fs')
+                    elif compiler_family == 'gcc' and version < Version('9.1'):
+                        ext.libraries.append('stdc++fs')
+                    else:
+                        print("WARNING: Unknown compiler family, not adding filesystem library")
+
+        # Now actually build the extensions
+        super().build_extensions()
+
 setup(
     name="vkdispatch",
     packages=["vkdispatch", "vkdispatch.base", "vkdispatch.codegen", "vkdispatch.execution_pipeline", "vkdispatch.shader_generation"],
@@ -181,6 +257,9 @@ setup(
             include_dirs=include_directories,
         )
     ],
-    version="0.0.18",
+    cmdclass={
+       'build_ext': CustomBuildExt,
+    },
+    version="0.0.19",
     zip_safe=False,
 )

@@ -1,6 +1,6 @@
 import typing
 
-from vkdispatch.codegen.variables import ShaderVariable, BufferVariable, ImageVariable
+from .variables import ShaderVariable, BufferVariable, ImageVariable
 from vkdispatch.base.dtype import dtype
 
 _ArgType = typing.TypeVar('_ArgType', bound=dtype)

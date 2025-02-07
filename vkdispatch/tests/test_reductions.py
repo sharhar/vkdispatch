@@ -3,20 +3,28 @@ import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import *
 import numpy as np
 
+#vd.initialize(debug_mode=True)
+#vd.make_context(devices=[2])
+
 vd.make_context(use_cpu=True)
 
 def test_reductions_sum():
+    print(vd.get_context().devices)
+
     # Create a buffer
-    buf = vd.Buffer((1024,) , vd.float32)
+    buf = vd.Buffer((1536,) , vd.float32)
 
     # Create a numpy array
-    data = np.random.rand(1024).astype(np.float32)
+    data = np.random.rand(1536).astype(np.float32)
 
     # Write the data to the buffer
     buf.write(data)
 
+    print(vd.get_context().max_workgroup_size)
+
     @vd.map_reduce(
-            exec_size=lambda args: args.buffer.size, 
+            exec_size=lambda args: args.buffer.size,
+            group_size=512,
             reduction=lambda x, y: x + y, 
             reduction_identity=0
     )
@@ -42,7 +50,8 @@ def test_mapped_reductions():
     buf.write(data)
 
     @vd.map_reduce(
-            exec_size=lambda args: args.buffer.size, 
+            exec_size=lambda args: args.buffer.size,
+            group_size=512,
             reduction=lambda x, y: x + y, 
             reduction_identity=0
     )
@@ -70,7 +79,8 @@ def test_listed_reductions():
     buf.write(data)
 
     @vd.map_reduce(
-            exec_size=lambda args: args.buffer.size, 
+            exec_size=lambda args: args.buffer.size,
+            group_size=512,
             reduction=lambda x, y: x + y, 
             reduction_identity=0
     )
