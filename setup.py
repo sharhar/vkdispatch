@@ -222,9 +222,9 @@ class CustomBuildExt(build_ext):
     def build_extensions(self):
         compiler_type = self.compiler.compiler_type
         print(f"Detected compiler type: {compiler_type}")
-        print(f"Detected compiler: {self.compiler.compiler}")
 
         if compiler_type == 'unix':
+            print(f"Detected compiler: {self.compiler.compiler}")
             compiler_family, version = detect_unix_compiler(self.compiler.compiler[0])
             print(f"Detected compiler family: {compiler_family}")
             print(f"Detected compiler version: {version}")
