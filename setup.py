@@ -7,7 +7,16 @@ from setuptools import setup
 from setuptools.command.build_ext import build_ext
 
 import re
-from packaging import version
+
+# Typically you'll put `packaging` in your setup_requires or pyproject.toml if needed.
+try:
+    from packaging.version import Version
+except ImportError:
+    # As a fallback, if you absolutely can't rely on `packaging`,
+    # you could use distutils: from distutils.version import LooseVersion as Version
+    print("Warning: 'packaging' not found; version comparisons might be less accurate.")
+    from distutils.version import LooseVersion as Version
+
 
 system = platform.system()
 
@@ -184,8 +193,8 @@ def parse_compiler_version(version_output):
         return None
 
     try:
-        return version.parse(match.group(1))
-    except version.InvalidVersion as e:
+        return Version(match.group(1))
+    except Exception as e:
         print(f"Invalid version: {e}")
         return None
 
@@ -205,9 +214,9 @@ def detect_unix_compiler(compiler_exe):
         elif 'gcc' in version_output or 'Free Software Foundation' in version_output:
             return 'gcc', parse_compiler_version(version_output)
         else:
-            return 'unknown'
+            return 'unknown', None
     except Exception:
-        return 'unknown'
+        return 'unknown', None
     
 class CustomBuildExt(build_ext):
     def build_extensions(self):
@@ -220,17 +229,14 @@ class CustomBuildExt(build_ext):
             print(f"Detected compiler family: {compiler_family}")
             print(f"Detected compiler version: {version}")
 
-            print(f"Detected linker: {self.compiler.linker_so}")
-
-            for ext in self.extensions:
-                print(f"Detected Ext: {ext.name}")
-
-                if compiler_family == 'clang': # and version < version.parse('9.0'):
-                    ext.libraries.append('c++fs')
-                elif compiler_family == 'gcc':
-                    ext.extra_link_args.append('stdc++fs')
-                else:
-                    print("WARNING: Unknown compiler family, not adding filesystem library")
+            if version is not None:
+                for ext in self.extensions:
+                    if compiler_family == 'clang' and version < Version('9.0'):
+                        ext.libraries.append('c++fs')
+                    elif compiler_family == 'gcc' and version < Version('9.1'):
+                        ext.libraries.append('stdc++fs')
+                    else:
+                        print("WARNING: Unknown compiler family, not adding filesystem library")
 
         # Now actually build the extensions
         super().build_extensions()
@@ -252,7 +258,7 @@ setup(
         )
     ],
     cmdclass={
-        'build_ext': CustomBuildExt,
+       'build_ext': CustomBuildExt,
     },
     version="0.0.19",
     zip_safe=False,
