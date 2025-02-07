@@ -135,8 +135,8 @@ class ShaderObject:
 
         self.bounds = ExectionBounds(self.shader_signature.get_names_and_defaults(), my_local_size, workgroups, exec_size)
 
-        self.source = vc.get_source_from_description(
-            self.shader_description, my_local_size[0], my_local_size[1], my_local_size[2] #, self.name
+        self.source = self.shader_description.make_source(
+            my_local_size[0], my_local_size[1], my_local_size[2]
         )
 
         self.plan = vd.ComputePlan(

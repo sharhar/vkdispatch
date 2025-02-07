@@ -22,7 +22,7 @@ def test_builder_basic():
 
     shader_description = my_builder.build("my_shader")
 
-    source = vc.get_source_from_description(shader_description, 4, 1, 1)
+    source = shader_description.make_source(4, 1, 1)
 
     compute_plan = vd.ComputePlan(source, shader_description.binding_type_list, shader_description.pc_size, shader_description.name)
 
