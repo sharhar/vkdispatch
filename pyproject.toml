@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    "setuptools>=61.0",
+    "setuptools>=59.0",
     "wheel",
     "Cython"
 ]
@@ -8,13 +8,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vkdispatch"
-version = "0.0.18"
+version = "0.0.19"
 authors = [
   { name="Shahar Sandhaus", email="shahar.sandhaus@gmail.com" },
 ]
 description = "A Python module for orchestrating and dispatching large computations across multi-GPU systems using Vulkan."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.6"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -22,7 +22,7 @@ classifiers = [
     "Development Status :: 2 - Pre-Alpha",
 ]
 dependencies = [
-    "setuptools>=61.0",
+    "setuptools>=59.0",
     "numpy",
 ]
 scripts = { vdlist = 'vkdispatch.cli:cli_entrypoint' }
