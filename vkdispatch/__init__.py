@@ -68,4 +68,4 @@ from .shader_generation.decorator import shader
 from .shader_generation.reductions import map_reduce
 
 
-__version__ = "0.0.20"
+__version__ = "0.0.21"
