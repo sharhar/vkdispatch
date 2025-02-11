@@ -14,9 +14,9 @@ class DescriptorSet:
         self._handle = vkdispatch_native.descriptor_set_create(compute_plan_handle)
         check_for_errors()
 
-    def bind_buffer(self, buffer: Buffer, binding: int, offset: int = 0, range: int = 0, type: int = 0) -> None:
+    def bind_buffer(self, buffer: Buffer, binding: int, offset: int = 0, range: int = 0, uniform: bool = False) -> None:
         vkdispatch_native.descriptor_set_write_buffer(
-            self._handle, binding, buffer._handle, offset, range, type
+            self._handle, binding, buffer._handle, offset, range, 1 if uniform else 0
         )
         check_for_errors()
 
