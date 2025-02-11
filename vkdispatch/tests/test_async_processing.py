@@ -21,6 +21,11 @@ class CommandType(enum.Enum):
     SIN_VALUE = 4
     COS_VALUE = 5
 
+valid_commands = [
+    CommandType.ADD_VALUE,
+    CommandType.SUB_VALUE,
+]
+
 command_type_to_str = {
     CommandType.ADD_VALUE: "ADD",
     CommandType.SUB_VALUE: "SUB",
@@ -63,9 +68,9 @@ class RunConfig:
 
 def make_random_config() -> RunConfig:
     buffer_count = np.random.randint(2, 15)
-    buffer_sizes = np.random.randint(100, 1000, size=buffer_count).tolist()
+    buffer_sizes = np.random.randint(50, 250, size=buffer_count).tolist()
 
-    program_count = np.random.randint(2, 4)
+    program_count = np.random.randint(2, 15)
     program_commands = []
 
     for _ in range(program_count):
@@ -73,7 +78,7 @@ def make_random_config() -> RunConfig:
         commands = []
 
         for _ in range(command_count):
-            command_type = np.random.choice(list(CommandType))
+            command_type = np.random.choice(valid_commands)
             value = np.random.uniform(-10, 10)
 
             commands.append(ProgramCommand(command_type, value))
@@ -102,12 +107,26 @@ def get_buffer(index: int, config: RunConfig) -> vd.Buffer:
 
     return buffer_cache[index]
 
+array_cache: Dict[int, np.ndarray] = {}
+
+def get_array(index: int, config: RunConfig) -> np.ndarray:
+    global array_cache
+
+    if index not in array_cache:
+        array_cache[index] = np.zeros(
+            shape=(config.buffer_sizes[index],), 
+            dtype=np.float32
+        )
+
+    return array_cache[index]
+
 def make_source(commands: List[ProgramCommand]):
     local_size_x = vd.get_context().max_workgroup_size[0]
 
     header = """
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
+//#extension GL_EXT_debug_printf : enable
 
 layout(push_constant) uniform PushConstant {
     uint exec_count;
@@ -128,12 +147,28 @@ void main() {
         float value = bufIn.data[tid];
 """
 
+    body = ""
+
+    for command in commands:
+        if command.command_type == CommandType.ADD_VALUE:
+            body += f"        value += {command.value};\n"
+        elif command.command_type == CommandType.SUB_VALUE:
+            body += f"        value -= {command.value};\n"
+        elif command.command_type == CommandType.MULT_VALUE:
+            body += f"        value *= {command.value};\n"
+        elif command.command_type == CommandType.DIV_VALUE:
+            body += f"        value /= {command.value};\n"
+        elif command.command_type == CommandType.SIN_VALUE:
+            body += f"        value = sin(value);\n"
+        elif command.command_type == CommandType.COS_VALUE:
+            body += f"        value = cos(value);\n"
+
     ending = """
         bufOut.data[tid] = value;
 }
 """
 
-    return header + ending
+    return header + body + ending
 
 program_cache: Dict[int, vd.ComputePlan] = {}
 
@@ -143,9 +178,9 @@ def get_program(index: int, config: RunConfig) -> vd.ComputePlan:
     if index not in program_cache:
         program_cache[index] = vd.ComputePlan(
             shader_source=make_source(config.program_commands[index]),
-            binding_types=[1, 1],
-            push_constant_size=4,
-            name=f"program_{index}"
+            binding_type_list=[1, 1],
+            pc_size=4,
+            shader_name=f"program_{index}"
         )
 
     return program_cache[index]
@@ -171,10 +206,12 @@ def get_descriptor_set(out_buffer: int, in_buffer: int, program_handle, config: 
 
 def clear_caches():
     global buffer_cache
+    global array_cache
     global program_cache
     global descriptor_set_cache
 
     buffer_cache.clear()
+    array_cache.clear()
     program_cache.clear()
     descriptor_set_cache.clear()
 
@@ -194,13 +231,66 @@ def do_vkdispatch_command(cmd_list: vd.CommandList, out_buffer: int, in_buffer: 
 
     cmd_list.submit(data=np.array([total_exec_size], dtype=np.uint32).tobytes())
 
-config = make_random_config()
+def do_numpy_command(out_buffer: int, in_buffer: int, program: int, config: RunConfig):
+    output_array = get_array(out_buffer, config)
+    input_array = get_array(in_buffer, config)
 
-print(config)
+    total_exec_size = min(config.buffer_sizes[out_buffer], config.buffer_sizes[in_buffer])
 
+    temp_array = np.zeros(shape=(total_exec_size,), dtype=np.float32)
+    temp_array[:] = input_array[:total_exec_size]
 
-#def do_numpy_command():
-#    pass
+    commands = config.program_commands[program]
 
-#def test_async_commands():
-#    pass
+    for command in commands:
+        if command.command_type == CommandType.ADD_VALUE:
+            temp_array += command.value
+            temp_array = temp_array.astype(np.float32)
+        elif command.command_type == CommandType.SUB_VALUE:
+            temp_array -= command.value
+            temp_array = temp_array.astype(np.float32)
+        elif command.command_type == CommandType.MULT_VALUE:
+            temp_array *= command.value
+            temp_array = temp_array.astype(np.float32)
+        elif command.command_type == CommandType.DIV_VALUE:
+            temp_array /= command.value
+            temp_array = temp_array.astype(np.float32)
+        elif command.command_type == CommandType.SIN_VALUE:
+            temp_array = np.sin(temp_array)
+            temp_array = temp_array.astype(np.float32)
+        elif command.command_type == CommandType.COS_VALUE:
+            temp_array = np.cos(temp_array)
+            temp_array = temp_array.astype(np.float32)
+
+    output_array[:total_exec_size] = temp_array
+
+def test_async_commands():
+    for _ in range(150):
+        clear_caches()
+        
+        config = make_random_config()
+
+        cmd_list = vd.CommandList()
+
+        exec_count = np.random.randint(50, 100)
+
+        input_buffers = np.random.randint(0, config.buffer_count, size=exec_count)
+        output_buffers = np.random.randint(0, config.buffer_count, size=exec_count)
+        programs = np.random.randint(0, config.program_count, size=exec_count)
+
+        for input_buffer, output_buffer, program in zip(input_buffers, output_buffers, programs):
+            if input_buffer == output_buffer:
+                continue
+
+            do_vkdispatch_command(cmd_list, output_buffer, input_buffer, program, config)
+        
+        for input_buffer, output_buffer, program in zip(input_buffers, output_buffers, programs):
+            if input_buffer == output_buffer:
+                continue
+            do_numpy_command(output_buffer, input_buffer, program, config)
+
+        for i in range(config.buffer_count):
+            numpy_buffer = get_array(i, config)
+            vkbuffer = get_buffer(i, config).read(0)
+
+            assert np.allclose(vkbuffer, numpy_buffer, atol=0.00005)
