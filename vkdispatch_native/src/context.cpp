@@ -204,8 +204,13 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
     for(int i = 0; i < ctx->stream_indicies.size(); i++) {
         struct CommandInfo command = {};
-        command.type = COMMAND_TYPE_NOOP;
+        //command.type = COMMAND_TYPE_NOOP;
+        command.name = "noop";
+        command.pc_size = 0;
         command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        command.func = [](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+            // Do nothing
+        };
 
         command_list_record_command(ctx->command_list, command);
 
