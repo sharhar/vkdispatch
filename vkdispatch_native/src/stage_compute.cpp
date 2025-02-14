@@ -179,13 +179,11 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
 
 
 void stage_compute_record_extern(struct CommandList* command_list, struct ComputePlan* plan, struct DescriptorSet* descriptor_set, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z) {
-    struct CommandInfo command = {};
-    command.name = "compute-stage";
-    command.pc_size = plan->pc_size;
-    command.pipeline_stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-    command.func = [plan, descriptor_set, blocks_x, blocks_y, blocks_z](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
-        stage_compute_plan_exec_internal(cmd_buffer, {plan, descriptor_set, blocks_x, blocks_y, blocks_z, plan->pc_size}, pc_data, device_index, stream_index);
-    };
+    // struct CommandInfo command = {};
+    // command.name = "compute-stage";
+    // command.pc_size = plan->pc_size;
+    // command.pipeline_stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    // command.func = ;
 
     //command.info.compute_info.plan = plan;
     //command.info.compute_info.descriptor_set = descriptor_set;
@@ -194,7 +192,14 @@ void stage_compute_record_extern(struct CommandList* command_list, struct Comput
     //command.info.compute_info.blocks_z = blocks_z;
     //command.info.compute_info.pc_size = plan->pc_size;
 
-    command_list_record_command(command_list, command);
+    command_list_record_command(command_list,
+        "compute-stage",
+        plan->pc_size,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        [plan, descriptor_set, blocks_x, blocks_y, blocks_z](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+            stage_compute_plan_exec_internal(cmd_buffer, {plan, descriptor_set, blocks_x, blocks_y, blocks_z, plan->pc_size}, pc_data, device_index, stream_index);
+        }
+    );
 }
 
 void stage_compute_plan_exec_internal(VkCommandBuffer cmd_buffer, const struct ComputeRecordInfo& info, void* instance_data, int device_index, int stream_index) {

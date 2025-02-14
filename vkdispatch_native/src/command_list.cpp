@@ -18,15 +18,25 @@ void command_list_destroy_extern(struct CommandList* command_list) {
     delete command_list;
 }
 
-void command_list_record_command(struct CommandList* command_list, struct CommandInfo command) {
-    //LOG_INFO("Recording command with type %d", command.type);
+void command_list_record_command(
+    struct CommandList* command_list, 
+    const char* name,
+    size_t pc_size,
+    VkPipelineStageFlags pipeline_stage,
+    std::function<void(VkCommandBuffer, int, int, int, void*)> func
+) {
+    LOG_VERBOSE("Recording command %d", name);
 
     command_list->program_id = program_id;
     program_id += 1;
 
-    command_list->commands.push_back(command);
+    struct CommandInfo command = {};
+    command.name = name;
+    command.pc_size = pc_size;
+    command.pipeline_stage = pipeline_stage;
+    command.func = std::make_shared<std::function<void(VkCommandBuffer, int, int, int, void*)>>(func);
 
-    //if(command.type == COMMAND_TYPE_COMPUTE)
+    command_list->commands.push_back(command);
     
     command_list->compute_instance_size += command.pc_size;
 }
