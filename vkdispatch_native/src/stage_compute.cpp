@@ -178,17 +178,6 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
 }
 
 
-void stage_compute_record_extern(struct CommandList* command_list, struct ComputePlan* plan, struct DescriptorSet* descriptor_set, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z) {
-    command_list_record_command(command_list,
-        "compute-stage",
-        plan->pc_size,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        [plan, descriptor_set, blocks_x, blocks_y, blocks_z](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
-            stage_compute_plan_exec_internal(cmd_buffer, {plan, descriptor_set, blocks_x, blocks_y, blocks_z, plan->pc_size}, pc_data, device_index, stream_index);
-        }
-    );
-}
-
 void stage_compute_plan_exec_internal(VkCommandBuffer cmd_buffer, const struct ComputeRecordInfo& info, void* instance_data, int device_index, int stream_index) {
     vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, info.plan->pipelines[device_index]);
 
@@ -215,4 +204,15 @@ void stage_compute_plan_exec_internal(VkCommandBuffer cmd_buffer, const struct C
         );
 
     vkCmdDispatch(cmd_buffer, info.blocks_x, info.blocks_y, info.blocks_z);
+}
+
+void stage_compute_record_extern(struct CommandList* command_list, struct ComputePlan* plan, struct DescriptorSet* descriptor_set, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z) {
+    command_list_record_command(command_list,
+        "compute-stage",
+        plan->pc_size,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        [plan, descriptor_set, blocks_x, blocks_y, blocks_z](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+            stage_compute_plan_exec_internal(cmd_buffer, {plan, descriptor_set, blocks_x, blocks_y, blocks_z, plan->pc_size}, pc_data, device_index, stream_index);
+        }
+    );
 }

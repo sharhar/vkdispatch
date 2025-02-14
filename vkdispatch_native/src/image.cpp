@@ -190,87 +190,7 @@ void image_memory_barrier_internal(struct Image* image, int stream_index, VkComm
 	image->barriers[stream_index].oldLayout = image->barriers[stream_index].newLayout;
 }
 
-void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkExtent3D extent, unsigned int baseLayer, unsigned int layerCount, int index) {
-    LOG_INFO("Writing data to image (%p) at offset (%d, %d, %d) with extent (%d, %d, %d)", image, offset.x, offset.y, offset.z, extent.width, extent.height, extent.depth);
 
-    struct Context* ctx = image->ctx;
-
-    int enum_count = index == -1 ? image->images.size() : 1;
-    int start_index = index == -1 ? 0 : index;
-
-    size_t data_size = extent.width * extent.height * extent.depth * layerCount * image->block_size;
-
-    Signal* signals = new Signal[enum_count];
-
-    for (int i = 0; i < enum_count; i++) {
-        int buffer_index = start_index + i;
-
-        LOG_INFO("Writing data to buffer %d", buffer_index);
-
-        int device_index = 0;
-
-        auto stream_index = ctx->stream_indicies[buffer_index];
-        device_index = stream_index.first;
-
-        LOG_INFO("Writing data to buffer %d in device %d", buffer_index, device_index);
-
-        if(data != NULL) {
-            void* mapped;
-            VK_CALL(vmaMapMemory(ctx->allocators[device_index], image->stagingAllocations[buffer_index], &mapped));
-            memcpy(mapped, data, data_size);
-            vmaUnmapMemory(ctx->allocators[device_index], image->stagingAllocations[buffer_index]);
-        }
-
-        struct ImageWriteInfo image_write_info = {};
-        image_write_info.image = image;
-        image_write_info.offset = offset;
-        image_write_info.extent = extent;
-        image_write_info.baseLayer = baseLayer;
-        image_write_info.layerCount = layerCount;
-
-        command_list_record_command(ctx->command_list, 
-            "image-write",
-            0,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            [image_write_info](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
-                LOG_INFO(
-                    "Writing data to image (%p) at offset (%d, %d, %d) with extent (%d, %d, %d)", 
-                    image_write_info.image, image_write_info.offset.x, image_write_info.offset.y, 
-                    image_write_info.offset.z, image_write_info.extent.width, 
-                    image_write_info.extent.height, image_write_info.extent.depth
-                );
-
-                image_write_exec_internal(cmd_buffer, image_write_info, device_index, stream_index);
-            }
-        );
-        
-
-        if(image->mip_levels > 1) {
-            command_list_record_command(ctx->command_list, 
-                "mip-map-generation",
-                0,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                [image](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
-                    struct ImageMipMapInfo image_mip_map_info = {};
-                    image_mip_map_info.image = image;
-                    image_mip_map_info.mip_count = image->mip_levels;
-
-                    image_generate_mipmaps_internal(cmd_buffer, image_mip_map_info, device_index, stream_index);
-                }
-            );
-        }
-
-        command_list_submit_extern(ctx->command_list, NULL, 1, &buffer_index, 1, &signals[i]);
-        command_list_reset_extern(ctx->command_list);
-        RETURN_ON_ERROR(;)
-    }
-
-    for (int i = 0; i < enum_count; i++) {
-        signals[i].wait();
-    }
-
-    delete[] signals;
-}
 
 void image_write_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageWriteInfo& info, int device_index, int stream_index) {
     VkBufferImageCopy bufferImageCopy;
@@ -385,6 +305,123 @@ void image_generate_mipmaps_internal(VkCommandBuffer cmd_buffer, const struct Im
     LOG_VERBOSE("Finish image %p", info.image);
 }
 
+void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkExtent3D extent, unsigned int baseLayer, unsigned int layerCount, int index) {
+    LOG_INFO("Writing data to image (%p) at offset (%d, %d, %d) with extent (%d, %d, %d)", image, offset.x, offset.y, offset.z, extent.width, extent.height, extent.depth);
+
+    struct Context* ctx = image->ctx;
+
+    int enum_count = index == -1 ? image->images.size() : 1;
+    int start_index = index == -1 ? 0 : index;
+
+    size_t data_size = extent.width * extent.height * extent.depth * layerCount * image->block_size;
+
+    Signal* signals = new Signal[enum_count];
+
+    for (int i = 0; i < enum_count; i++) {
+        int buffer_index = start_index + i;
+
+        LOG_INFO("Writing data to buffer %d", buffer_index);
+
+        int device_index = 0;
+
+        auto stream_index = ctx->stream_indicies[buffer_index];
+        device_index = stream_index.first;
+
+        LOG_INFO("Writing data to buffer %d in device %d", buffer_index, device_index);
+
+        if(data != NULL) {
+            void* mapped;
+            VK_CALL(vmaMapMemory(ctx->allocators[device_index], image->stagingAllocations[buffer_index], &mapped));
+            memcpy(mapped, data, data_size);
+            vmaUnmapMemory(ctx->allocators[device_index], image->stagingAllocations[buffer_index]);
+        }
+
+        struct ImageWriteInfo image_write_info = {};
+        image_write_info.image = image;
+        image_write_info.offset = offset;
+        image_write_info.extent = extent;
+        image_write_info.baseLayer = baseLayer;
+        image_write_info.layerCount = layerCount;
+
+        command_list_record_command(ctx->command_list, 
+            "image-write",
+            0,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            [image_write_info](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+                LOG_INFO(
+                    "Writing data to image (%p) at offset (%d, %d, %d) with extent (%d, %d, %d)", 
+                    image_write_info.image, image_write_info.offset.x, image_write_info.offset.y, 
+                    image_write_info.offset.z, image_write_info.extent.width, 
+                    image_write_info.extent.height, image_write_info.extent.depth
+                );
+
+                image_write_exec_internal(cmd_buffer, image_write_info, device_index, stream_index);
+            }
+        );
+        
+
+        if(image->mip_levels > 1) {
+            command_list_record_command(ctx->command_list, 
+                "mip-map-generation",
+                0,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                [image](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+                    struct ImageMipMapInfo image_mip_map_info = {};
+                    image_mip_map_info.image = image;
+                    image_mip_map_info.mip_count = image->mip_levels;
+
+                    image_generate_mipmaps_internal(cmd_buffer, image_mip_map_info, device_index, stream_index);
+                }
+            );
+        }
+
+        command_list_submit_extern(ctx->command_list, NULL, 1, &buffer_index, 1, &signals[i]);
+        command_list_reset_extern(ctx->command_list);
+        RETURN_ON_ERROR(;)
+    }
+
+    for (int i = 0; i < enum_count; i++) {
+        signals[i].wait();
+    }
+
+    delete[] signals;
+}
+
+void image_read_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageReadInfo& info, int device_index, int stream_index) {
+    VkBufferImageCopy bufferImageCopy;
+    memset(&bufferImageCopy, 0, sizeof(VkBufferImageCopy));
+    bufferImageCopy.bufferOffset = 0;
+    bufferImageCopy.bufferRowLength = 0;
+    bufferImageCopy.bufferImageHeight = 0;
+    bufferImageCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    bufferImageCopy.imageSubresource.baseArrayLayer = info.baseLayer;
+    bufferImageCopy.imageSubresource.layerCount = info.layerCount;
+    bufferImageCopy.imageOffset = info.offset;
+    bufferImageCopy.imageExtent = info.extent;
+
+    image_memory_barrier_internal(
+        info.image,
+        stream_index, 
+        cmd_buffer, 
+        VK_ACCESS_TRANSFER_READ_BIT, 
+        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+        VK_PIPELINE_STAGE_TRANSFER_BIT
+    );
+
+    vkCmdCopyImageToBuffer(cmd_buffer, info.image->images[stream_index], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, info.image->stagingBuffers[stream_index], 1, &bufferImageCopy);
+
+    image_memory_barrier_internal(
+        info.image,
+        stream_index, 
+        cmd_buffer, 
+        VK_ACCESS_SHADER_READ_BIT, 
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+        VK_PIPELINE_STAGE_TRANSFER_BIT, 
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
+    );
+}
+
 void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExtent3D extent, unsigned int baseLayer, unsigned int layerCount, int index) {
     LOG_INFO("Reading data from image (%p) at offset (%d, %d, %d) with extent (%d, %d, %d)", image, offset.x, offset.y, offset.z, extent.width, extent.height, extent.depth);
 
@@ -426,41 +463,6 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
     VK_CALL(vmaMapMemory(ctx->allocators[device_index], image->stagingAllocations[index], &mapped));
     memcpy(data, mapped, data_size);
     vmaUnmapMemory(ctx->allocators[device_index], image->stagingAllocations[index]);
-}
-
-void image_read_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageReadInfo& info, int device_index, int stream_index) {
-    VkBufferImageCopy bufferImageCopy;
-    memset(&bufferImageCopy, 0, sizeof(VkBufferImageCopy));
-    bufferImageCopy.bufferOffset = 0;
-    bufferImageCopy.bufferRowLength = 0;
-    bufferImageCopy.bufferImageHeight = 0;
-    bufferImageCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    bufferImageCopy.imageSubresource.baseArrayLayer = info.baseLayer;
-    bufferImageCopy.imageSubresource.layerCount = info.layerCount;
-    bufferImageCopy.imageOffset = info.offset;
-    bufferImageCopy.imageExtent = info.extent;
-
-    image_memory_barrier_internal(
-        info.image,
-        stream_index, 
-        cmd_buffer, 
-        VK_ACCESS_TRANSFER_READ_BIT, 
-        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
-        VK_PIPELINE_STAGE_TRANSFER_BIT
-    );
-
-    vkCmdCopyImageToBuffer(cmd_buffer, info.image->images[stream_index], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, info.image->stagingBuffers[stream_index], 1, &bufferImageCopy);
-
-    image_memory_barrier_internal(
-        info.image,
-        stream_index, 
-        cmd_buffer, 
-        VK_ACCESS_SHADER_READ_BIT, 
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-        VK_PIPELINE_STAGE_TRANSFER_BIT, 
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
-    );
 }
 
 void image_copy_extern(struct Image* src, struct Image* dst, VkOffset3D src_offset, unsigned int src_baseLayer, unsigned int src_layerCount, 
