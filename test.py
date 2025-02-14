@@ -1,6 +1,6 @@
 import vkdispatch as vd
 
-vd.make_context(use_cpu=True)
+#vd.make_context(use_cpu=True)
 
 import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import *
