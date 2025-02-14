@@ -6,16 +6,7 @@
 #include <mutex>
 #include <condition_variable>
 
-// struct ProgramHeader {
-//     unsigned int command_count;
-//     int info_index;
-//     size_t array_size;
-//     size_t conditional_boolean_count;
-// };
-
 struct ProgramInfo {
-    // struct ProgramHeader* header;
-    
     std::shared_ptr<std::vector<struct CommandInfo>> commands;
     int ref_count;
     size_t program_id;
@@ -23,7 +14,6 @@ struct ProgramInfo {
 
 struct WorkHeader {
     Signal* signal;
-    //struct ProgramHeader* program_header;
     std::shared_ptr<std::vector<struct CommandInfo>> commands;
     int program_info_index;
     size_t array_size;

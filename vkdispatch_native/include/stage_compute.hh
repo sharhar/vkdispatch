@@ -31,6 +31,4 @@ struct ComputeRecordInfo {
 struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct ComputePlanCreateInfo* create_info);
 void stage_compute_record_extern(struct CommandList* command_list, struct ComputePlan* plan, struct DescriptorSet* descriptor_set, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z);
 
-void stage_compute_plan_exec_internal(VkCommandBuffer cmd_buffer, const struct ComputeRecordInfo& info, void* instance_data, int device_index, int stream_index);
-
 #endif // _STAGE_COMPUTE_H_
