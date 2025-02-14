@@ -109,6 +109,19 @@ void stage_fft_plan_init_internal(const struct FFTInitRecordInfo& info, int devi
     }
 }
 
+void stage_fft_plan_exec_internal(VkCommandBuffer cmd_buffer, const struct FFTExecRecordInfo& info, int device_index, int stream_index, int recorder_index) {
+    int index = stream_index * info.plan->recorder_count + recorder_index;
+
+    info.plan->launchParams[index].buffer = &info.buffer->buffers[stream_index];
+    info.plan->launchParams[index].commandBuffer = &cmd_buffer;
+
+    VkFFTResult fftRes = VkFFTAppend(&info.plan->apps[index], info.inverse, &info.plan->launchParams[index]);
+
+    if (fftRes != VKFFT_SUCCESS) {
+        LOG_ERROR("(VkFFTResult is %d) VkFFTAppend inside '%s' at %s:%d\n", fftRes, __FUNCTION__, __FILE__, __LINE__);
+    }
+}
+
 void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* plan, struct Buffer* buffer, int inverse) {
     //LOG_INFO("Recording FFT");
     command_list_record_command(command_list, 
@@ -124,17 +137,4 @@ void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* p
             stage_fft_plan_exec_internal(cmd_buffer, info, device_index, stream_index, recorder_index);
         }
     );
-}
-
-void stage_fft_plan_exec_internal(VkCommandBuffer cmd_buffer, const struct FFTExecRecordInfo& info, int device_index, int stream_index, int recorder_index) {
-    int index = stream_index * info.plan->recorder_count + recorder_index;
-
-    info.plan->launchParams[index].buffer = &info.buffer->buffers[stream_index];
-    info.plan->launchParams[index].commandBuffer = &cmd_buffer;
-
-    VkFFTResult fftRes = VkFFTAppend(&info.plan->apps[index], info.inverse, &info.plan->launchParams[index]);
-
-    if (fftRes != VKFFT_SUCCESS) {
-        LOG_ERROR("(VkFFTResult is %d) VkFFTAppend inside '%s' at %s:%d\n", fftRes, __FUNCTION__, __FILE__, __LINE__);
-    }
 }
