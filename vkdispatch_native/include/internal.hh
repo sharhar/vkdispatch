@@ -137,7 +137,7 @@ enum CommandType {
     COMMAND_TYPE_CONDITIONAL_END = 11
 };
 
-struct CommandInfo {
+struct CommandInfoOld {
     enum CommandType type;
     VkPipelineStageFlags pipeline_stage;
     union {
@@ -154,12 +154,20 @@ struct CommandInfo {
     } info;
 };
 
+struct CommandInfo {
+    std::function<void(VkCommandBuffer, int, int, int, void*)> func;
+    VkPipelineStageFlags pipeline_stage;
+    size_t pc_size;
+    const char* name;
+};
+
 struct CommandList {
     struct Context* ctx;
+    //std::vector<struct CommandInfo> commands;
     std::vector<struct CommandInfo> commands;
     size_t compute_instance_size;
     size_t program_id;
-    size_t conditional_boolean_count;
+    //size_t conditional_boolean_count;
 };
 
 void command_list_record_command(struct CommandList* command_list, struct CommandInfo command);

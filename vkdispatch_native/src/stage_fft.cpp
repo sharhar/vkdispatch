@@ -33,8 +33,12 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
 
     for (int i = 0; i < ctx->stream_indicies.size(); i++) {
         struct CommandInfo command = {};
-        command.type = COMMAND_TYPE_NOOP;
+        command.name = "noop";
+        command.pc_size = 0;
         command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        command.func = [](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+            // Do nothing
+        };
 
         command_list_record_command(ctx->command_list, command);
         
@@ -119,11 +123,21 @@ void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* p
     //}
 
     struct CommandInfo command = {};
-    command.type = COMMAND_TYPE_FFT_EXEC;
+    command.name = "fft-exec";
+    command.pc_size = 0;
     command.pipeline_stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-    command.info.fft_exec_info.plan = plan;
-    command.info.fft_exec_info.buffer = buffer;
-    command.info.fft_exec_info.inverse = inverse;
+    command.func = [plan, buffer, inverse](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+        struct FFTExecRecordInfo info = {};
+        info.plan = plan;
+        info.buffer = buffer;
+        info.inverse = inverse;
+
+        stage_fft_plan_exec_internal(cmd_buffer, info, device_index, stream_index, recorder_index);
+    };
+
+    //command.info.fft_exec_info.plan = plan;
+    //command.info.fft_exec_info.buffer = buffer;
+    //command.info.fft_exec_info.inverse = inverse;
 
     command_list_record_command(command_list, command);
 }
