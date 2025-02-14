@@ -9,29 +9,6 @@
 #include <glslang_c_interface.h>
 #include <glslang/Public/resource_limits_c.h>
 
-/*
-
-        subgroup_sizes = []
-        max_workgroup_sizes_x = []
-        max_workgroup_sizes_y = []
-        max_workgroup_sizes_z = []
-        uniform_buffer_alignments = []
-
-        for device in self.device_infos:
-            subgroup_sizes.append(device.sub_group_size)
-            
-            max_workgroup_sizes_x.append(device.max_workgroup_size[0])
-            max_workgroup_sizes_y.append(device.max_workgroup_size[1])
-            max_workgroup_sizes_z.append(device.max_workgroup_size[2])
-
-            uniform_buffer_alignments.append(device.uniform_buffer_alignment)
-
-        self.subgroup_size = min(subgroup_sizes)
-        self.max_workgroup_size = (min(max_workgroup_sizes_x), min(max_workgroup_sizes_y), min(max_workgroup_sizes_z))
-        self.uniform_buffer_alignment = max(uniform_buffer_alignments)
-
-*/
-
 void inplace_min(int* a, int b) {
     if(b < *a) {
         *a = b;
@@ -203,15 +180,6 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     LOG_INFO("Created context at %p with %d devices", ctx, device_count);
 
     for(int i = 0; i < ctx->stream_indicies.size(); i++) {
-        // struct CommandInfo command = {};
-        //command.type = COMMAND_TYPE_NOOP;
-        // command.name = "noop";
-        // command.pc_size = 0;
-        // command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        // command.func = [](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
-        //     // Do nothing
-        // };
-
         command_list_record_command(ctx->command_list, 
             "noop-on-init",
             0,
@@ -228,8 +196,6 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
         signal.wait();
     }
-
-    
 
     return ctx;
 }

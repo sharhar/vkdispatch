@@ -12,6 +12,9 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <functional>
+#include <memory>
+
 void set_error(const char* format, ...);
 
 #include <vulkan/vk_enum_string_helper.h>

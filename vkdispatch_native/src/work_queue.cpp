@@ -21,11 +21,6 @@ WorkQueue::WorkQueue(int max_work_items, int max_programs) {
         program_infos[i].ref_count = 0;
         program_infos[i].commands = std::make_shared<std::vector<struct CommandInfo>>();
         program_infos[i].program_id = 0;
-
-        //program_infos[i].header = (struct ProgramHeader*)malloc(sizeof(struct ProgramHeader) + 16 * 1024);
-        //memset(program_infos[i].header, 0, sizeof(struct ProgramHeader) + 16 * 1024);
-        //program_infos[i].header->array_size = 16 * 1024;
-        //program_infos[i].header->info_index = i;
     }
 }
 
@@ -41,14 +36,6 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
     auto start = std::chrono::high_resolution_clock::now();
 
     int found_indicies[2] = {-1, -1};
-
-    //for()
-    //LOG_INFO("ref_count: %d", this->program_infos[found_indicies[0]].ref_count);
-
-    // LOG all refcounts
-    for(int i = 0; i < this->program_info_count; i++) {
-        LOG_INFO("%d ref_count: %d", i, this->program_infos[i].ref_count);
-    }
 
     this->cv_pop.wait(lock, [this, start, command_list, &found_indicies] () {
         auto end = std::chrono::high_resolution_clock::now();
@@ -116,7 +103,6 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
     work_infos[found_indicies[1]].work_id = __work_id;
     __work_id += 1;
 
-    //struct ProgramHeader* program_header = this->program_infos[found_indicies[0]].header;
     struct WorkHeader* work_header = this->work_infos[found_indicies[1]].header;
 
     if(this->program_infos[found_indicies[0]].program_id != command_list->program_id) {
@@ -124,18 +110,6 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
             set_error("Program ID mismatch!!");
             return;
         }
-
-        // size_t program_size = command_list->commands.size() * sizeof(struct CommandInfo);
-
-        // if(program_size > program_header->array_size) {
-        //     program_header = (struct ProgramHeader*)realloc(program_header, sizeof(struct ProgramHeader) + program_size);
-        //     program_header->array_size = program_size;
-        //     program_header->info_index = found_indicies[0];
-        //     this->program_infos[found_indicies[0]].header = program_header;
-        // }
-
-        // memcpy(&program_header[1], command_list->commands.data(), program_size);
-        // program_header->command_count = command_list->commands.size();
 
         this->program_infos[found_indicies[0]].commands->clear();
         for(CommandInfo command : command_list->commands) {

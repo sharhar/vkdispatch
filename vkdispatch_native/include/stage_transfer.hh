@@ -40,6 +40,4 @@ void stage_transfer_record_copy_image_extern(struct CommandList* command_list, s
 void stage_transfer_record_copy_buffer_to_image_extern(struct CommandList* command_list, struct ImageBufferCopyInfo* copy_info);
 void stage_transfer_record_copy_image_to_buffer_extern(struct CommandList* command_list, struct ImageBufferCopyInfo* copy_info);
 
-void stage_transfer_copy_buffer_exec_internal(VkCommandBuffer cmd_buffer, const struct BufferCopyInfo& info, int device_index, int stream_index);
-
 #endif // SRC_STAGE_TRANSFER_H_

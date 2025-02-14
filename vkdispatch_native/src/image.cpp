@@ -227,16 +227,6 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
         image_write_info.extent = extent;
         image_write_info.baseLayer = baseLayer;
         image_write_info.layerCount = layerCount;
-        
-        //struct CommandInfo command = {};
-        //command.name = "image-write";
-        //command.pc_size = 0;
-        //command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        //command.func = [image_write_info](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
-        //    LOG_INFO("Writing data to image (%p) at offset (%d, %d, %d) with extent (%d, %d, %d)", image_write_info.image, image_write_info.offset.x, image_write_info.offset.y, image_write_info.offset.z, image_write_info.extent.width, image_write_info.extent.height, image_write_info.extent.depth);
-        //    image_write_exec_internal(cmd_buffer, image_write_info, device_index, stream_index);
-        //};
-
 
         command_list_record_command(ctx->command_list, 
             "image-write",
@@ -256,18 +246,6 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
         
 
         if(image->mip_levels > 1) {
-            // struct CommandInfo command = {};
-            // command.name = "mip-map-generation";
-            // command.pc_size = 0;
-            // command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            // command.func = [image](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
-            //     struct ImageMipMapInfo image_mip_map_info = {};
-            //     image_mip_map_info.image = image;
-            //     image_mip_map_info.mip_count = image->mip_levels;
-
-            //     image_generate_mipmaps_internal(cmd_buffer, image_mip_map_info, device_index, stream_index);
-            // };
-
             command_list_record_command(ctx->command_list, 
                 "mip-map-generation",
                 0,
@@ -418,21 +396,6 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
     device_index = stream_index.first;
 
     size_t data_size = extent.width * extent.height * extent.depth * layerCount * image->block_size;
-
-    // struct CommandInfo command = {};
-    // command.name = "image-read";
-    // command.pc_size = 0;
-    // command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-    // command.func = [image, offset, extent, baseLayer, layerCount](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
-    //     struct ImageReadInfo image_read_info = {};
-    //     image_read_info.image = image;
-    //     image_read_info.offset = offset;
-    //     image_read_info.extent = extent;
-    //     image_read_info.baseLayer = baseLayer;
-    //     image_read_info.layerCount = layerCount;
-
-    //     image_read_exec_internal(cmd_buffer, image_read_info, device_index, stream_index);
-    // };
 
     command_list_record_command(ctx->command_list,
         "image-read",

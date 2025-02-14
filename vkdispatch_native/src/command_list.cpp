@@ -42,7 +42,7 @@ void command_list_record_command(
 }
 
 unsigned long long command_list_get_instance_size_extern(struct CommandList* command_list) {
-    return command_list->compute_instance_size; // + ((command_list->conditional_boolean_count + 7) / 8);
+    return command_list->compute_instance_size;
 }
 
 void command_list_reset_extern(struct CommandList* command_list) {
@@ -50,7 +50,6 @@ void command_list_reset_extern(struct CommandList* command_list) {
     
     command_list->commands.clear();
     command_list->compute_instance_size = 0;
-    //command_list->conditional_boolean_count = 0;
 
     LOG_INFO("Command list reset");
 }

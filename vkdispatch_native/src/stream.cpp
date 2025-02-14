@@ -175,13 +175,6 @@ void Stream::ingest_worker() {
     int current_index = fences.size() - 1;
 
     while(this->run_stream.load()) {
-
-        //{
-        //    std::unique_lock<std::mutex> lock(fence_muticies[current_index]);
-        //    VK_CALL(vkWaitForFences(device, 1, &fences[current_index], VK_TRUE, UINT64_MAX));
-        //    VK_CALL(vkResetFences(device, 1, &fences[current_index]));
-        //}
-
         fences[current_index]->waitAndReset();
         
         if(!work_queue->pop(&work_header, stream_index)) {
@@ -270,17 +263,12 @@ void Stream::record_worker(int worker_id) {
 
         VK_CALL(vkBeginCommandBuffer(cmd_buffer, &beginInfo));
 
-        //struct ProgramHeader* program_header = work_item.work_header->program_header;
-        //struct CommandInfo* command_info_buffer = (struct CommandInfo*)&program_header[1];
-
         std::shared_ptr<std::vector<struct CommandInfo>> command_buffer = work_item.work_header->commands;
 
         char* current_instance_data = (char*)&work_item.work_header[1];
         for(size_t instance = 0; instance < work_item.work_header->instance_count; instance++) {
             for (size_t i = 0; i < command_buffer->size(); i++) {
                 LOG_INFO("Recording command %d of type %s on worker %d", i, command_buffer->operator[](i).name, worker_id);
-
-                //command_buffer->operator[](i).func->operator()(cmd_buffer, device_index, stream_index, worker_id, current_instance_data);
 
                 LOG_INFO("Executing command %d");
 
