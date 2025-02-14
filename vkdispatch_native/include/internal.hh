@@ -155,7 +155,7 @@ struct CommandInfoOld {
 };
 
 struct CommandInfo {
-    std::function<void(VkCommandBuffer, int, int, int, void*)> func;
+    std::shared_ptr<std::function<void(VkCommandBuffer, int, int, int, void*)>> func;
     VkPipelineStageFlags pipeline_stage;
     size_t pc_size;
     const char* name;
@@ -170,7 +170,13 @@ struct CommandList {
     //size_t conditional_boolean_count;
 };
 
-void command_list_record_command(struct CommandList* command_list, struct CommandInfo command);
+void command_list_record_command(
+    struct CommandList* command_list, 
+    const char* name,
+    size_t pc_size,
+    VkPipelineStageFlags pipeline_stage,
+    std::function<void(VkCommandBuffer, int, int, int, void*)> func
+);
 
 struct ComputePlan {
     struct Context* ctx;
