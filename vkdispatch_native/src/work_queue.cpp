@@ -125,7 +125,6 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
 
         memcpy(&program_header[1], command_list->commands.data(), program_size);
         program_header->command_count = command_list->commands.size();
-        program_header->conditional_boolean_count = command_list->conditional_boolean_count;
         this->program_infos[found_indicies[0]].program_id = command_list->program_id;
     }
 

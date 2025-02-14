@@ -7,7 +7,7 @@ struct CommandList* command_list_create_extern(struct Context* context) {
     LOG_INFO("Creating command list with handle %p", command_list);
 
     command_list->ctx = context;
-    command_list->conditional_boolean_count = 0;
+    //command_list->conditional_boolean_count = 0;
     command_list->compute_instance_size = 0;
 
     return command_list;
@@ -26,12 +26,13 @@ void command_list_record_command(struct CommandList* command_list, struct Comman
 
     command_list->commands.push_back(command);
 
-    if(command.type == COMMAND_TYPE_COMPUTE)
-        command_list->compute_instance_size += command.info.compute_info.pc_size;
+    //if(command.type == COMMAND_TYPE_COMPUTE)
+    
+    command_list->compute_instance_size += command.pc_size;
 }
 
 unsigned long long command_list_get_instance_size_extern(struct CommandList* command_list) {
-    return command_list->compute_instance_size + ((command_list->conditional_boolean_count + 7) / 8);
+    return command_list->compute_instance_size; // + ((command_list->conditional_boolean_count + 7) / 8);
 }
 
 void command_list_reset_extern(struct CommandList* command_list) {
@@ -39,7 +40,7 @@ void command_list_reset_extern(struct CommandList* command_list) {
     
     command_list->commands.clear();
     command_list->compute_instance_size = 0;
-    command_list->conditional_boolean_count = 0;
+    //command_list->conditional_boolean_count = 0;
 
     LOG_INFO("Command list reset");
 }

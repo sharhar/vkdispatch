@@ -13,16 +13,16 @@ void stage_transfer_record_copy_buffer_extern(struct CommandList* command_list, 
 
     LOG_INFO("Recording copy buffer stage");
 
-    struct CommandInfo command = {};
-    command.type = COMMAND_TYPE_BUFFER_COPY;
-    command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-    command.info.buffer_copy_info.src = copy_info->src;
-    command.info.buffer_copy_info.dst = copy_info->dst;
-    command.info.buffer_copy_info.src_offset = copy_info->src_offset;
-    command.info.buffer_copy_info.dst_offset = copy_info->dst_offset;
-    command.info.buffer_copy_info.size = copy_info->size;
+    // struct CommandInfo command = {};
+    // command.type = COMMAND_TYPE_BUFFER_COPY;
+    // command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    // command.info.buffer_copy_info.src = copy_info->src;
+    // command.info.buffer_copy_info.dst = copy_info->dst;
+    // command.info.buffer_copy_info.src_offset = copy_info->src_offset;
+    // command.info.buffer_copy_info.dst_offset = copy_info->dst_offset;
+    // command.info.buffer_copy_info.size = copy_info->size;
 
-    command_list_record_command(command_list, command);
+    // command_list_record_command(command_list, command);
 }
 
 void stage_transfer_copy_buffer_exec_internal(VkCommandBuffer cmd_buffer, const struct BufferCopyInfo& info, int device_index, int stream_index) {
