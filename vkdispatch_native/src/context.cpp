@@ -203,16 +203,23 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     LOG_INFO("Created context at %p with %d devices", ctx, device_count);
 
     for(int i = 0; i < ctx->stream_indicies.size(); i++) {
-        struct CommandInfo command = {};
+        // struct CommandInfo command = {};
         //command.type = COMMAND_TYPE_NOOP;
-        command.name = "noop";
-        command.pc_size = 0;
-        command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        command.func = [](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
-            // Do nothing
-        };
+        // command.name = "noop";
+        // command.pc_size = 0;
+        // command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        // command.func = [](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+        //     // Do nothing
+        // };
 
-        command_list_record_command(ctx->command_list, command);
+        command_list_record_command(ctx->command_list, 
+            "noop-on-init",
+            0,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            [](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+                // Do nothing
+            }
+        );
 
         Signal signal;
         command_list_submit_extern(ctx->command_list, NULL, 1, &i, 1, &signal);

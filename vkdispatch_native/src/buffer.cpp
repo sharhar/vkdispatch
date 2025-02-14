@@ -97,22 +97,37 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
         // command.info.buffer_write_info.offset = offset;
         // command.info.buffer_write_info.size = size;
 
-        struct CommandInfo command = {};
-        command.name = "buffer_write";
-        command.pc_size = 0;
-        command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        command.func = [buffer, offset, size](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
-            VkBufferCopy bufferCopy;
-            bufferCopy.size = size;
-            bufferCopy.dstOffset = offset;
-            bufferCopy.srcOffset = 0;
+        // struct CommandInfo command = {};
+        // command.name = "buffer_write";
+        // command.pc_size = 0;
+        // command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        // command.func = [buffer, offset, size](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+        //     VkBufferCopy bufferCopy;
+        //     bufferCopy.size = size;
+        //     bufferCopy.dstOffset = offset;
+        //     bufferCopy.srcOffset = 0;
 
-            int buffer_index = stream_index;
+        //     int buffer_index = stream_index;
 
-            vkCmdCopyBuffer(cmd_buffer, buffer->stagingBuffers[buffer_index], buffer->buffers[buffer_index], 1, &bufferCopy);
-        };
+        //     vkCmdCopyBuffer(cmd_buffer, buffer->stagingBuffers[buffer_index], buffer->buffers[buffer_index], 1, &bufferCopy);
+        // };
 
-        command_list_record_command(ctx->command_list, command);
+        command_list_record_command(ctx->command_list, 
+            "buffer_write",
+            0,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            [buffer, offset, size](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+                VkBufferCopy bufferCopy;
+                bufferCopy.size = size;
+                bufferCopy.dstOffset = offset;
+                bufferCopy.srcOffset = 0;
+
+                int buffer_index = stream_index;
+
+                vkCmdCopyBuffer(cmd_buffer, buffer->stagingBuffers[buffer_index], buffer->buffers[buffer_index], 1, &bufferCopy);
+            }
+        );
+
         command_list_submit_extern(ctx->command_list, NULL, 1, &buffer_index, 1, &signals[i]); // buffer->per_device, &signals[i]);
         command_list_reset_extern(ctx->command_list);
         RETURN_ON_ERROR(;)
@@ -144,28 +159,42 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
     auto stream_index = ctx->stream_indicies[index];
     device_index = stream_index.first;
 
-    struct CommandInfo command = {};
+    // struct CommandInfo command = {};
     //command.type = COMMAND_TYPE_BUFFER_READ;
     //command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
     //command.info.buffer_read_info.buffer = buffer;
     //command.info.buffer_read_info.offset = offset;
     //command.info.buffer_read_info.size = size;
 
-    command.name = "buffer_read";
-    command.pc_size = 0;
-    command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-    command.func = [buffer, offset, size](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
-        VkBufferCopy bufferCopy;
-        bufferCopy.size = size;
-        bufferCopy.dstOffset = 0;
-        bufferCopy.srcOffset = offset;
+    // command.name = "buffer_read";
+    // command.pc_size = 0;
+    // command.pipeline_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    // command.func = [buffer, offset, size](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+    //     VkBufferCopy bufferCopy;
+    //     bufferCopy.size = size;
+    //     bufferCopy.dstOffset = 0;
+    //     bufferCopy.srcOffset = offset;
 
-        int buffer_index = stream_index;
+    //     int buffer_index = stream_index;
 
-        vkCmdCopyBuffer(cmd_buffer, buffer->buffers[buffer_index], buffer->stagingBuffers[buffer_index], 1, &bufferCopy);
-    };
+    //     vkCmdCopyBuffer(cmd_buffer, buffer->buffers[buffer_index], buffer->stagingBuffers[buffer_index], 1, &bufferCopy);
+    // };
 
-    command_list_record_command(ctx->command_list, command);
+    command_list_record_command(ctx->command_list,
+        "buffer_read",
+        0,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        [buffer, offset, size](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+            VkBufferCopy bufferCopy;
+            bufferCopy.size = size;
+            bufferCopy.dstOffset = 0;
+            bufferCopy.srcOffset = offset;
+
+            int buffer_index = stream_index;
+
+            vkCmdCopyBuffer(cmd_buffer, buffer->buffers[buffer_index], buffer->stagingBuffers[buffer_index], 1, &bufferCopy);
+        }
+    );
 
     Signal signal;
     command_list_submit_extern(ctx->command_list, NULL, 1, &index, 1, &signal); //buffer->per_device, &signal);

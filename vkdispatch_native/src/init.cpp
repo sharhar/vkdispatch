@@ -75,9 +75,6 @@ static VkBool32 VKAPI_PTR vulkan_custom_debug_callback(
 void init_extern(bool debug, LogLevel log_level) {
     __log_level_limit = log_level;
 
-    // printf log level
-    printf("Log Level: %s", prefixes[log_level]);
-
     #ifndef VKDISPATCH_USE_VOLK
     setenv("MVK_CONFIG_LOG_LEVEL", "2", 0);
     #else

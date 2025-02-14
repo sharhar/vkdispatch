@@ -19,10 +19,13 @@ WorkQueue::WorkQueue(int max_work_items, int max_programs) {
 
     for(int i = 0; i < max_programs; i++) {
         program_infos[i].ref_count = 0;
-        program_infos[i].header = (struct ProgramHeader*)malloc(sizeof(struct ProgramHeader) + 16 * 1024);
-        memset(program_infos[i].header, 0, sizeof(struct ProgramHeader) + 16 * 1024);
-        program_infos[i].header->array_size = 16 * 1024;
-        program_infos[i].header->info_index = i;
+        program_infos[i].commands = std::make_shared<std::vector<struct CommandInfo>>();
+        program_infos[i].program_id = 0;
+
+        //program_infos[i].header = (struct ProgramHeader*)malloc(sizeof(struct ProgramHeader) + 16 * 1024);
+        //memset(program_infos[i].header, 0, sizeof(struct ProgramHeader) + 16 * 1024);
+        //program_infos[i].header->array_size = 16 * 1024;
+        //program_infos[i].header->info_index = i;
     }
 }
 
@@ -39,6 +42,14 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
 
     int found_indicies[2] = {-1, -1};
 
+    //for()
+    //LOG_INFO("ref_count: %d", this->program_infos[found_indicies[0]].ref_count);
+
+    // LOG all refcounts
+    for(int i = 0; i < this->program_info_count; i++) {
+        LOG_INFO("%d ref_count: %d", i, this->program_infos[i].ref_count);
+    }
+
     this->cv_pop.wait(lock, [this, start, command_list, &found_indicies] () {
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
@@ -52,7 +63,7 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
 
         for(int i = 0; i < this->program_info_count; i++) {
             if(this->program_infos[i].ref_count < 0) {
-                set_error("Program reference count is negative!!!!");
+                set_error("Program reference count (%d) is negative!!!!", this->program_infos[i].ref_count);
                 return true;
             }
 
@@ -105,7 +116,7 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
     work_infos[found_indicies[1]].work_id = __work_id;
     __work_id += 1;
 
-    struct ProgramHeader* program_header = this->program_infos[found_indicies[0]].header;
+    //struct ProgramHeader* program_header = this->program_infos[found_indicies[0]].header;
     struct WorkHeader* work_header = this->work_infos[found_indicies[1]].header;
 
     if(this->program_infos[found_indicies[0]].program_id != command_list->program_id) {
@@ -114,17 +125,23 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
             return;
         }
 
-        size_t program_size = command_list->commands.size() * sizeof(struct CommandInfo);
+        // size_t program_size = command_list->commands.size() * sizeof(struct CommandInfo);
 
-        if(program_size > program_header->array_size) {
-            program_header = (struct ProgramHeader*)realloc(program_header, sizeof(struct ProgramHeader) + program_size);
-            program_header->array_size = program_size;
-            program_header->info_index = found_indicies[0];
-            this->program_infos[found_indicies[0]].header = program_header;
+        // if(program_size > program_header->array_size) {
+        //     program_header = (struct ProgramHeader*)realloc(program_header, sizeof(struct ProgramHeader) + program_size);
+        //     program_header->array_size = program_size;
+        //     program_header->info_index = found_indicies[0];
+        //     this->program_infos[found_indicies[0]].header = program_header;
+        // }
+
+        // memcpy(&program_header[1], command_list->commands.data(), program_size);
+        // program_header->command_count = command_list->commands.size();
+
+        this->program_infos[found_indicies[0]].commands->clear();
+        for(CommandInfo command : command_list->commands) {
+            this->program_infos[found_indicies[0]].commands->push_back(command);
         }
 
-        memcpy(&program_header[1], command_list->commands.data(), program_size);
-        program_header->command_count = command_list->commands.size();
         this->program_infos[found_indicies[0]].program_id = command_list->program_id;
     }
 
@@ -140,7 +157,8 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
     work_header->instance_count = instance_count;
     work_header->instance_size = command_list_get_instance_size_extern(command_list);
     work_header->signal = signal;
-    work_header->program_header = program_header;
+    work_header->commands = this->program_infos[found_indicies[0]].commands;
+    work_header->program_info_index = found_indicies[0];
     
     if(work_size > 0)
         memcpy(&work_header[1], instance_buffer, work_size);
@@ -188,7 +206,8 @@ bool WorkQueue::pop(struct WorkHeader** header, int stream_index) {
 
 void WorkQueue::finish(struct WorkHeader* header) {
     std::unique_lock<std::mutex> lock(this->mutex);
-    program_infos[header->program_header->info_index].ref_count -= 1;
+    LOG_INFO("%d ref_count: %d", header->program_info_index, program_infos[header->program_info_index].ref_count);
+    program_infos[header->program_info_index].ref_count -= 1; //program_header->info_index].ref_count -= 1;
     work_infos[header->info_index].dirty = false;
     this->cv_pop.notify_all();
 }
