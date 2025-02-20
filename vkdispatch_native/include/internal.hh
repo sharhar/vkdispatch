@@ -78,7 +78,7 @@ struct Context {
     std::vector<VkPhysicalDevice> physicalDevices;
     std::vector<VkDevice> devices;
     std::vector<std::pair<int, int>> stream_indicies;
-    std::vector<std::vector<Stream*>> streams;
+    std::vector<Stream*> streams;
     std::vector<VmaAllocator> allocators;
 
     void* glslang_resource_limits;
