@@ -18,6 +18,11 @@ enum LogLevel {
     LOG_LEVEL_ERROR = 3
 };
 
+enum RecordType {
+    RECORD_TYPE_ASYNC = 0,
+    RECORD_TYPE_SYNC = 1,
+};
+
 struct Context;
 struct Buffer;
 struct Image;

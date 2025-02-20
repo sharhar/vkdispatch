@@ -69,6 +69,8 @@ public:
     int recording_thread_count;
 
     std::mutex record_submit_mutex;
+    bool sync_record;
+    std::vector<bool> record_thread_states;
     std::thread submit_thread;
 
     std::mutex submit_queue_mutex;

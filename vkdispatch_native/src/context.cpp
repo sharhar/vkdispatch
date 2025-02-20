@@ -190,7 +190,7 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
         );
 
         Signal signal;
-        command_list_submit_extern(ctx->command_list, NULL, 1, &i, 1, &signal);
+        command_list_submit_extern(ctx->command_list, NULL, 1, &i, 1, &signal, RECORD_TYPE_SYNC);
         command_list_reset_extern(ctx->command_list);
         RETURN_ON_ERROR(NULL)
 

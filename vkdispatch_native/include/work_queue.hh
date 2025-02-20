@@ -20,6 +20,7 @@ struct WorkHeader {
     int info_index;
     unsigned int instance_count;
     unsigned int instance_size;
+    RecordType record_type;
 };
 
 enum WorkState {
@@ -42,7 +43,7 @@ public:
     WorkQueue(int max_work_items, int max_programs);
 
     void stop();
-    void push(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int stream_index, Signal* signal);
+    void push(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int stream_index, Signal* signal, int record_type);
     bool pop(struct WorkHeader** header, int stream_index);
     void finish(struct WorkHeader* header);
 

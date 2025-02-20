@@ -9,6 +9,6 @@ void command_list_destroy_extern(struct CommandList* command_list);
 unsigned long long command_list_get_instance_size_extern(struct CommandList* command_list);
 
 void command_list_reset_extern(struct CommandList* command_list);
-void command_list_submit_extern(struct CommandList* command_list, void* instance_buffer, unsigned int instanceCount, int* indicies, int count, void* signal);
+void command_list_submit_extern(struct CommandList* command_list, void* instance_buffer, unsigned int instanceCount, int* indicies, int count, void* signal, int recordType);
 
 #endif // SRC_COMMAND_LIST_H
