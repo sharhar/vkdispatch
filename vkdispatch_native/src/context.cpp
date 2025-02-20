@@ -23,6 +23,7 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     ctx->physicalDevices.resize(device_count);
     ctx->devices.resize(device_count);
     //ctx->streams.resize(device_count);
+    ctx->stream_index_map.resize(device_count);
     ctx->allocators.resize(device_count);
     ctx->glslang_resource_limits = new glslang_resource_t();
     memcpy(ctx->glslang_resource_limits, glslang_default_resource(), sizeof(glslang_resource_t));
@@ -157,9 +158,7 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
         LOG_INFO("Created allocator %p", ctx->allocators[i]);
 
-        //ctx->streams[i] = {};
-
-        int queue_index = 0;
+        ctx->stream_index_map[i] = {};
 
         for(int j = 0; j < queueCreateInfos.size(); j++) {
             LOG_INFO("Creating %d queues for family %d", queueCreateInfos[j].queueCount, queueCreateInfos[j].queueFamilyIndex);
@@ -168,9 +167,8 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
                 vkGetDeviceQueue(ctx->devices[i], queueCreateInfos[j].queueFamilyIndex, k, &queue);
                 LOG_INFO("Creating queue %d with handle %p", k, queue);
 
-                ctx->stream_indicies.push_back(std::make_pair(i, queue_index));
-                ctx->streams.push_back(new Stream(ctx, ctx->devices[i], queue, queueCreateInfos[j].queueFamilyIndex, ctx->streams.size()));
-                queue_index++;
+                ctx->stream_index_map[i].push_back(ctx->streams.size());
+                ctx->streams.push_back(new Stream(ctx, ctx->devices[i], queue, queueCreateInfos[j].queueFamilyIndex, i, ctx->streams.size()));
             }            
         }
 
@@ -183,7 +181,7 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
     LOG_INFO("Created context at %p with %d devices", ctx, device_count);
 
-    for(int i = 0; i < ctx->stream_indicies.size(); i++) {
+    for(int i = 0; i < ctx->streams.size(); i++) {
         command_list_record_command(ctx->command_list, 
             "noop-on-init",
             0,
@@ -213,12 +211,6 @@ void context_destroy_extern(struct Context* context) {
     context->streams.clear();
 
     for(int i = 0; i < context->deviceCount; i++) {
-        //for(int j = 0; j < context->streams[i].size(); j++) {
-        //    context->streams[i][j]->destroy();
-        //    delete context->streams[i][j];
-        //}
-        //context->streams[i].clear();
-
         vmaDestroyAllocator(context->allocators[i]);
         vkDestroyDevice(context->devices[i], nullptr);
     }

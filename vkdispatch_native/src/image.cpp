@@ -11,12 +11,12 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
     image->extent = extent;
     image->layers = layers;
     image->mip_levels = 1;
-    image->images.resize(ctx->stream_indicies.size());
-    image->allocations.resize(ctx->stream_indicies.size());
-    image->imageViews.resize(ctx->stream_indicies.size());
-    image->stagingBuffers.resize(ctx->stream_indicies.size());
-    image->stagingAllocations.resize(ctx->stream_indicies.size());
-    image->barriers.resize(ctx->stream_indicies.size());
+    image->images.resize(ctx->streams.size());
+    image->allocations.resize(ctx->streams.size());
+    image->imageViews.resize(ctx->streams.size());
+    image->stagingBuffers.resize(ctx->streams.size());
+    image->stagingAllocations.resize(ctx->streams.size());
+    image->barriers.resize(ctx->streams.size());
     image->block_size = image_format_block_size_extern(format);
 
     for(int i = 0; i < ctx->deviceCount; i++) {
@@ -49,7 +49,9 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
     VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
                             | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-    for (int i = 0; i < ctx->stream_indicies.size(); i++) {
+    for (int i = 0; i < ctx->streams.size(); i++) {
+        int device_index = ctx->streams[i]->device_index;
+
         VkImageCreateInfo imageCreateInfo;
         memset(&imageCreateInfo, 0, sizeof(VkImageCreateInfo));
         imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -67,7 +69,7 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
         VmaAllocationCreateInfo vmaAllocationCreateInfo = {};
         vmaAllocationCreateInfo.flags = 0;
         vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-        VK_CALL_RETNULL(vmaCreateImage(ctx->allocators[ctx->stream_indicies[i].first], &imageCreateInfo, &vmaAllocationCreateInfo, &image->images[i], &image->allocations[i], NULL));
+        VK_CALL_RETNULL(vmaCreateImage(ctx->allocators[device_index], &imageCreateInfo, &vmaAllocationCreateInfo, &image->images[i], &image->allocations[i], NULL));
 
         VkImageViewCreateInfo imageViewCreateInfo;
         memset(&imageViewCreateInfo, 0, sizeof(VkImageViewCreateInfo));
@@ -81,7 +83,7 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
         imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
         imageViewCreateInfo.subresourceRange.layerCount = layers;
 
-        VK_CALL_RETNULL(vkCreateImageView(ctx->devices[ctx->stream_indicies[i].first], &imageViewCreateInfo, NULL, &image->imageViews[i]));
+        VK_CALL_RETNULL(vkCreateImageView(ctx->devices[device_index], &imageViewCreateInfo, NULL, &image->imageViews[i]));
 
         VkBufferCreateInfo bufferCreateInfo;
         memset(&bufferCreateInfo, 0, sizeof(VkBufferCreateInfo));
@@ -93,7 +95,7 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
         vmaAllocationCreateInfo = {};
 		vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
 		vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-        VK_CALL_RETNULL(vmaCreateBuffer(ctx->allocators[ctx->stream_indicies[i].first], &bufferCreateInfo, &vmaAllocationCreateInfo, &image->stagingBuffers[i], &image->stagingAllocations[i], NULL));
+        VK_CALL_RETNULL(vmaCreateBuffer(ctx->allocators[device_index], &bufferCreateInfo, &vmaAllocationCreateInfo, &image->stagingBuffers[i], &image->stagingAllocations[i], NULL));
         
         memset(&image->barriers[i], 0, sizeof(VkImageMemoryBarrier));
         image->barriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -119,9 +121,11 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
 
 void image_destroy_extern(struct Image* image) {
     for (int i = 0; i < image->images.size(); i++) {
-        vkDestroyImageView(image->ctx->devices[image->ctx->stream_indicies[i].first], image->imageViews[i], NULL);
-        vmaDestroyImage(image->ctx->allocators[image->ctx->stream_indicies[i].first], image->images[i], image->allocations[i]);
-        vmaDestroyBuffer(image->ctx->allocators[image->ctx->stream_indicies[i].first], image->stagingBuffers[i], image->stagingAllocations[i]);
+        int device_index = image->ctx->streams[i]->device_index;
+
+        vkDestroyImageView(image->ctx->devices[device_index], image->imageViews[i], NULL);
+        vmaDestroyImage(image->ctx->allocators[device_index], image->images[i], image->allocations[i]);
+        vmaDestroyBuffer(image->ctx->allocators[device_index], image->stagingBuffers[i], image->stagingAllocations[i]);
     }
 
     delete image;
@@ -139,7 +143,7 @@ struct Sampler* image_create_sampler_extern(struct Context* ctx,
 
     struct Sampler* sampler = new struct Sampler();
     sampler->ctx = ctx;
-    sampler->samplers.resize(ctx->stream_indicies.size());
+    sampler->samplers.resize(ctx->streams.size());
 
     VkSamplerCreateInfo samplerCreateInfo;
     memset(&samplerCreateInfo, 0, sizeof(VkSamplerCreateInfo));
@@ -160,8 +164,9 @@ struct Sampler* image_create_sampler_extern(struct Context* ctx,
     samplerCreateInfo.borderColor = (VkBorderColor)border_color;
     samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
 
-    for (int i = 0; i < ctx->stream_indicies.size(); i++) {
-        VK_CALL_RETNULL(vkCreateSampler(ctx->devices[ctx->stream_indicies[i].first], &samplerCreateInfo, NULL, &sampler->samplers[i]));
+    for (int i = 0; i < ctx->streams.size(); i++) {
+        int device_index = ctx->streams[i]->device_index;
+        VK_CALL_RETNULL(vkCreateSampler(ctx->devices[device_index], &samplerCreateInfo, NULL, &sampler->samplers[i]));
     }
 
     return sampler;
@@ -169,7 +174,8 @@ struct Sampler* image_create_sampler_extern(struct Context* ctx,
 
 void image_destroy_sampler_extern(struct Sampler* sampler) {
     for (int i = 0; i < sampler->samplers.size(); i++) {
-        vkDestroySampler(sampler->ctx->devices[sampler->ctx->stream_indicies[i].first], sampler->samplers[i], NULL);
+        int device_index = sampler->ctx->streams[i]->device_index;
+        vkDestroySampler(sampler->ctx->devices[device_index], sampler->samplers[i], NULL);
     }
 
     delete sampler;
@@ -322,10 +328,7 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
 
         LOG_INFO("Writing data to buffer %d", buffer_index);
 
-        int device_index = 0;
-
-        auto stream_index = ctx->stream_indicies[buffer_index];
-        device_index = stream_index.first;
+        int device_index = ctx->streams[buffer_index]->device_index;
 
         LOG_INFO("Writing data to buffer %d in device %d", buffer_index, device_index);
 
@@ -427,10 +430,7 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
 
     struct Context* ctx = image->ctx;
 
-    int device_index = 0;
-
-    auto stream_index = ctx->stream_indicies[index];
-    device_index = stream_index.first;
+    int device_index = ctx->streams[index]->device_index;
 
     size_t data_size = extent.width * extent.height * extent.depth * layerCount * image->block_size;
 

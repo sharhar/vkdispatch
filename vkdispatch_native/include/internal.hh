@@ -77,7 +77,7 @@ struct Context {
     uint32_t deviceCount;
     std::vector<VkPhysicalDevice> physicalDevices;
     std::vector<VkDevice> devices;
-    std::vector<std::pair<int, int>> stream_indicies;
+    std::vector<std::vector<int>> stream_index_map;
     std::vector<Stream*> streams;
     std::vector<VmaAllocator> allocators;
 

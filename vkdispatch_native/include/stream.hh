@@ -40,7 +40,7 @@ public:
 
 class Stream {
 public:
-    Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFamilyIndex, int stream_index);
+    Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFamilyIndex, int device_index, int stream_index);
     void destroy();
 
     void ingest_worker();
@@ -49,6 +49,7 @@ public:
 
     struct Context* ctx;
     VkDevice device;
+    int device_index;
     VkQueue queue;
     VkCommandPool* commandPools;
     void* data_buffer;
