@@ -12,7 +12,7 @@ cdef extern from "../include/command_list.hh":
     void command_list_destroy_extern(CommandList* command_list)
     unsigned long long command_list_get_instance_size_extern(CommandList* command_list) 
     void command_list_reset_extern(CommandList* command_list)
-    void command_list_submit_extern(CommandList* command_list, void* instance_buffer, unsigned int instanceCount, int* indicies, int count, void* signal)
+    void command_list_submit_extern(CommandList* command_list, void* instance_buffer, unsigned int instanceCount, int* indicies, int count, void* signal, int recordType)
 
 cpdef inline command_list_create(unsigned long long context):
     return <unsigned long long>command_list_create_extern(<Context*>context)
@@ -37,4 +37,4 @@ cpdef inline command_list_submit(unsigned long long command_list, bytes data, un
     if data is not None:
         data_view = data
 
-    command_list_submit_extern(<CommandList*>command_list, <void*>data_view, instance_count, indicies_c, len_indicies, <void*>0)
+    command_list_submit_extern(<CommandList*>command_list, <void*>data_view, instance_count, indicies_c, len_indicies, <void*>0, 0)

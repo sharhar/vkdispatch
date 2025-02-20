@@ -42,6 +42,9 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
     this->data_buffer = malloc(1024 * 1024);
     this->data_buffer_size = 1024 * 1024;
     this->recording_thread_count = 2;
+    this->sync_record = false;
+    this->record_thread_states.resize(recording_thread_count);
+    this->run_stream.store(false);
 
     int inflight_cmd_buffer_count = 4;
 
@@ -222,6 +225,8 @@ void Stream::record_worker(int worker_id) {
 
     int cmd_buffer_index = 0;
 
+    bool doing_synchronouns_record = false;
+
     while(this->run_stream.load()) {
         struct WorkQueueItem work_item;
 
@@ -230,22 +235,54 @@ void Stream::record_worker(int worker_id) {
 
             std::unique_lock<std::mutex> lock(this->record_queue_mutex);
 
-            LOG_VERBOSE("Record Worker %d has lock", worker_id);
+            LOG_VERBOSE("Record Worker %d has lock, sync = %d, flag = %d", worker_id, this->sync_record, doing_synchronouns_record);
+
+            if(doing_synchronouns_record) {
+                this->sync_record = false;
+                doing_synchronouns_record = false;
+
+                this->record_queue_cv.notify_all();
+            }
+
+            this->record_thread_states[worker_id] = false;
 
             this->record_queue_cv.wait(lock, [this]() {
                 if(!this->run_stream.load()) {
                     return true;
                 }
 
-                return !this->record_queue.empty();
+                if(this->sync_record) {
+                    return false;
+                }
+
+                if(this->record_queue.empty()) {
+                    return false;
+                }
+
+                struct WorkQueueItem temp_item = this->record_queue.front();
+
+                if(temp_item.work_header->record_type == RECORD_TYPE_SYNC)
+                    for(int i = 0; i < this->recording_thread_count; i++)
+                        if(this->record_thread_states[i])
+                            return false;
+
+
+                return true;
             });
 
             if(!this->run_stream.load()) {
                 break;
             }
 
+            this->record_thread_states[worker_id] = true;
 
             work_item = this->record_queue.front();
+
+            if(work_item.work_header->record_type == RECORD_TYPE_SYNC) {
+                this->sync_record = true;
+                doing_synchronouns_record = true;
+            }
+            
             this->record_queue.pop();
 
             LOG_INFO("Record Worker %d has work %p of index (%d) with next index (%d)", worker_id, work_item.work_header, work_item.current_index, work_item.next_index);

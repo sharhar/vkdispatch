@@ -38,7 +38,7 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
         );
         
         Signal signal;
-        command_list_submit_extern(ctx->command_list, NULL, 1, &i, 1, &signal);
+        command_list_submit_extern(ctx->command_list, NULL, 1, &i, 1, &signal, RECORD_TYPE_SYNC);
         command_list_reset_extern(ctx->command_list);
         RETURN_ON_ERROR(NULL)
 

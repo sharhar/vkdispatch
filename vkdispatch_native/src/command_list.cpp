@@ -54,7 +54,7 @@ void command_list_reset_extern(struct CommandList* command_list) {
     LOG_INFO("Command list reset");
 }
 
-void command_list_submit_extern(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int* indicies, int count, void* signal) {
+void command_list_submit_extern(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int* indicies, int count, void* signal, int recordType) {
     struct Context* ctx = command_list->ctx;
     
     LOG_INFO("Submitting command list with handle %p to stream %d", command_list, indicies[0]);
@@ -66,9 +66,9 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
         }
 
         for(int i = 0; i < ctx->stream_indicies.size(); i++) {
-            ctx->work_queue->push(command_list, instance_buffer, instance_count, i, reinterpret_cast<Signal*>(signal));
+            ctx->work_queue->push(command_list, instance_buffer, instance_count, i, reinterpret_cast<Signal*>(signal), recordType);
         }
     } else {
-        ctx->work_queue->push(command_list, instance_buffer, instance_count, indicies[0], reinterpret_cast<Signal*>(signal));
+        ctx->work_queue->push(command_list, instance_buffer, instance_count, indicies[0], reinterpret_cast<Signal*>(signal), recordType);
     }
 }

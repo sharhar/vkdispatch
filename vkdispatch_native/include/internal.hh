@@ -166,11 +166,9 @@ struct CommandInfo {
 
 struct CommandList {
     struct Context* ctx;
-    //std::vector<struct CommandInfo> commands;
     std::vector<struct CommandInfo> commands;
     size_t compute_instance_size;
     size_t program_id;
-    //size_t conditional_boolean_count;
 };
 
 void command_list_record_command(
