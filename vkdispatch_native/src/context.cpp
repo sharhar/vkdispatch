@@ -22,7 +22,7 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     ctx->deviceCount = device_count;
     ctx->physicalDevices.resize(device_count);
     ctx->devices.resize(device_count);
-    ctx->streams.resize(device_count);
+    //ctx->streams.resize(device_count);
     ctx->allocators.resize(device_count);
     ctx->glslang_resource_limits = new glslang_resource_t();
     memcpy(ctx->glslang_resource_limits, glslang_default_resource(), sizeof(glslang_resource_t));
@@ -157,7 +157,10 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
         LOG_INFO("Created allocator %p", ctx->allocators[i]);
 
-        ctx->streams[i] = {};
+        //ctx->streams[i] = {};
+
+        int queue_index = 0;
+
         for(int j = 0; j < queueCreateInfos.size(); j++) {
             LOG_INFO("Creating %d queues for family %d", queueCreateInfos[j].queueCount, queueCreateInfos[j].queueFamilyIndex);
             for(int k = 0; k < queueCreateInfos[j].queueCount; k++) {
@@ -165,8 +168,9 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
                 vkGetDeviceQueue(ctx->devices[i], queueCreateInfos[j].queueFamilyIndex, k, &queue);
                 LOG_INFO("Creating queue %d with handle %p", k, queue);
 
-                ctx->stream_indicies.push_back(std::make_pair(i, ctx->streams[i].size()));
-                ctx->streams[i].push_back(new Stream(ctx, ctx->devices[i], queue, queueCreateInfos[j].queueFamilyIndex, ctx->stream_indicies.size() - 1));
+                ctx->stream_indicies.push_back(std::make_pair(i, queue_index));
+                ctx->streams.push_back(new Stream(ctx, ctx->devices[i], queue, queueCreateInfos[j].queueFamilyIndex, ctx->streams.size()));
+                queue_index++;
             }            
         }
 
@@ -201,12 +205,19 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 }
 
 void context_destroy_extern(struct Context* context) {
+    for(int i = 0; i < context->streams.size(); i++) {
+        context->streams[i]->destroy();
+        delete context->streams[i];
+    }
+
+    context->streams.clear();
+
     for(int i = 0; i < context->deviceCount; i++) {
-        for(int j = 0; j < context->streams[i].size(); j++) {
-            context->streams[i][j]->destroy();
-            delete context->streams[i][j];
-        }
-        context->streams[i].clear();
+        //for(int j = 0; j < context->streams[i].size(); j++) {
+        //    context->streams[i][j]->destroy();
+        //    delete context->streams[i][j];
+        //}
+        //context->streams[i].clear();
 
         vmaDestroyAllocator(context->allocators[i]);
         vkDestroyDevice(context->devices[i], nullptr);
