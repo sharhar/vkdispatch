@@ -14,15 +14,15 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
     
     buffer->ctx = ctx;
     
-    LOG_INFO("Creating %d buffers (one per stream)", ctx->stream_indicies.size());
+    LOG_INFO("Creating %d buffers (one per stream)", ctx->streams.size());
 
-    buffer->allocations.resize(ctx->stream_indicies.size());
-    buffer->buffers.resize(ctx->stream_indicies.size());
-    buffer->stagingAllocations.resize(ctx->stream_indicies.size());
-    buffer->stagingBuffers.resize(ctx->stream_indicies.size());
+    buffer->allocations.resize(ctx->streams.size());
+    buffer->buffers.resize(ctx->streams.size());
+    buffer->stagingAllocations.resize(ctx->streams.size());
+    buffer->stagingBuffers.resize(ctx->streams.size());
 
     for (int i = 0; i < buffer->buffers.size(); i++) {
-        int device_index = ctx->stream_indicies[i].first;
+        int device_index = ctx->streams[i]->device_index;
 
         VkBufferCreateInfo bufferCreateInfo;
         memset(&bufferCreateInfo, 0, sizeof(VkBufferCreateInfo));
@@ -54,7 +54,7 @@ void buffer_destroy_extern(struct Buffer* buffer) {
     LOG_INFO("Destroying buffer with handle %p", buffer);
 
     for(int i = 0; i < buffer->buffers.size(); i++) {
-        int device_index = buffer->ctx->stream_indicies[i].first;
+        int device_index = buffer->ctx->streams[i]->device_index;
 
         vmaDestroyBuffer(buffer->ctx->allocators[device_index], buffer->buffers[i], buffer->allocations[i]);
         vmaDestroyBuffer(buffer->ctx->allocators[device_index], buffer->stagingBuffers[i], buffer->stagingAllocations[i]);
@@ -78,10 +78,7 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
 
         LOG_INFO("Writing data to buffer %d", buffer_index);
 
-        int device_index = 0;
-        
-        auto stream_index = ctx->stream_indicies[buffer_index];
-        device_index = stream_index.first;
+        int device_index = ctx->streams[buffer_index]->device_index;
 
         LOG_INFO("Writing data to buffer %d in device %d", buffer_index, device_index);
 
@@ -120,11 +117,8 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
     LOG_INFO("Reading data from buffer (%p) at offset %d with size %d", buffer, offset, size);
 
     struct Context* ctx = buffer->ctx;
-
-    int device_index = 0;
     
-    auto stream_index = ctx->stream_indicies[index];
-    device_index = stream_index.first;
+    int device_index = ctx->streams[index]->device_index;
 
     command_list_record_command(ctx->command_list,
         "buffer_read",

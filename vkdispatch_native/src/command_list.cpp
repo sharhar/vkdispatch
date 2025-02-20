@@ -65,7 +65,7 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
             return;
         }
 
-        for(int i = 0; i < ctx->stream_indicies.size(); i++) {
+        for(int i = 0; i < ctx->streams.size(); i++) {
             ctx->work_queue->push(command_list, instance_buffer, instance_count, i, reinterpret_cast<Signal*>(signal), recordType);
         }
     } else {

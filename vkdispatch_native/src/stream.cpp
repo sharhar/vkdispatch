@@ -34,10 +34,11 @@ void Fence::destroy() {
     vkDestroyFence(device, fence, nullptr);
 }
 
-Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFamilyIndex, int stream_index) {
+Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFamilyIndex, int device_index, int stream_index) {
     this->ctx = ctx;
     this->device = device;
     this->queue = queue;
+    this->device_index = device_index;
     this->stream_index = stream_index;
     this->data_buffer = malloc(1024 * 1024);
     this->data_buffer_size = 1024 * 1024;
@@ -172,7 +173,6 @@ void Stream::destroy() {
 void Stream::ingest_worker() {
     struct Context* ctx = this->ctx;
     WorkQueue* work_queue = ctx->work_queue;
-    int device_index = ctx->stream_indicies[stream_index].first;
     struct WorkHeader* work_header = NULL;
 
     int current_index = fences.size() - 1;
@@ -214,8 +214,6 @@ void Stream::ingest_worker() {
 }
 
 void Stream::record_worker(int worker_id) {
-    int device_index = ctx->stream_indicies[stream_index].first;
-
     VkMemoryBarrier memory_barrier = {
         VK_STRUCTURE_TYPE_MEMORY_BARRIER,
         0,

@@ -3,11 +3,11 @@
 struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
     struct DescriptorSet* descriptor_set = new struct DescriptorSet();
     descriptor_set->plan = plan;
-    descriptor_set->pools.resize(plan->ctx->stream_indicies.size());
-    descriptor_set->sets.resize(plan->ctx->stream_indicies.size());
+    descriptor_set->pools.resize(plan->ctx->streams.size());
+    descriptor_set->sets.resize(plan->ctx->streams.size());
 
-    for (int i = 0; i < plan->ctx->stream_indicies.size(); i++) {
-        int device_index = plan->ctx->stream_indicies[i].first;
+    for (int i = 0; i < plan->ctx->streams.size(); i++) {
+        int device_index = plan->ctx->streams[i]->device_index;
 
         VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
         memset(&descriptorPoolCreateInfo, 0, sizeof(VkDescriptorPoolCreateInfo));
@@ -32,8 +32,8 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
 }
 
 void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set) {
-    for (int i = 0; i < descriptor_set->plan->ctx->stream_indicies.size(); i++) {
-        int device_index = descriptor_set->plan->ctx->stream_indicies[i].first;
+    for (int i = 0; i < descriptor_set->plan->ctx->streams.size(); i++) {
+        int device_index = descriptor_set->plan->ctx->streams[i]->device_index;
         vkDestroyDescriptorPool(descriptor_set->plan->ctx->devices[device_index], descriptor_set->pools[i], NULL);        
     }
 
@@ -43,8 +43,8 @@ void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set) {
 void descriptor_set_write_buffer_extern(struct DescriptorSet* descriptor_set, unsigned int binding, void* object, unsigned long long offset, unsigned long long range, int uniform) {
     struct Buffer* buffer = (struct Buffer*)object;
 
-    for (int i = 0; i < descriptor_set->plan->ctx->stream_indicies.size(); i++) {
-        int device_index = descriptor_set->plan->ctx->stream_indicies[i].first;
+    for (int i = 0; i < descriptor_set->plan->ctx->streams.size(); i++) {
+        int device_index = descriptor_set->plan->ctx->streams[i]->device_index;
 
         VkDescriptorBufferInfo buffDesc;
         buffDesc.buffer = buffer->buffers[i];
@@ -76,8 +76,8 @@ void descriptor_set_write_image_extern(struct DescriptorSet* descriptor_set, uns
     struct Image* image = (struct Image*)object;
     struct Sampler* sampler = (struct Sampler*)sampler_obj;
 
-    for (int i = 0; i < descriptor_set->plan->ctx->stream_indicies.size(); i++) {
-        int device_index = descriptor_set->plan->ctx->stream_indicies[i].first;
+    for (int i = 0; i < descriptor_set->plan->ctx->streams.size(); i++) {
+        int device_index = descriptor_set->plan->ctx->streams[i]->device_index;
 
         VkDescriptorImageInfo imageDesc;
         imageDesc.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;

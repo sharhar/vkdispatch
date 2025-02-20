@@ -17,7 +17,7 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
     struct FFTPlan* plan = new struct FFTPlan();
     plan->ctx = ctx;
 
-    int plan_count = ctx->stream_indicies.size() * ctx->streams[0]->recording_thread_count;
+    int plan_count = ctx->streams.size() * ctx->streams[0]->recording_thread_count;
 
     int recorder_count = ctx->streams[0]->recording_thread_count;
 
