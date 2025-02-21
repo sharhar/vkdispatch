@@ -25,8 +25,6 @@ void command_list_record_command(
     VkPipelineStageFlags pipeline_stage,
     std::function<void(VkCommandBuffer, int, int, int, void*)> func
 ) {
-    LOG_VERBOSE("Recording command %d", name);
-
     command_list->program_id = program_id;
     program_id += 1;
 

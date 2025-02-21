@@ -23,7 +23,7 @@ cpdef inline stage_fft_plan_create(unsigned long long context, list[int] dims, u
     cdef unsigned long long* dims__ = <unsigned long long*>malloc(3 * sizeof(unsigned long long))
 
     for i in range(3):
-        dims__[i] = 0
+        dims__[i] = 1
 
     for i in range(dims_):
         dims__[i] = dims[i]    

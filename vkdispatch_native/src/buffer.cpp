@@ -13,6 +13,7 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
     LOG_INFO("Creating buffer of size %d with handle %p", size, buffer);
     
     buffer->ctx = ctx;
+    buffer->size = size;
     
     LOG_INFO("Creating %d buffers (one per stream)", ctx->streams.size());
 

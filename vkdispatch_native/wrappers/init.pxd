@@ -63,6 +63,7 @@ cdef extern from "../include/init.hh":
     void init_extern(bool debug, LogLevel log_level)
     PhysicalDeviceDetails* get_devices_extern(int* count)
     void log_extern(LogLevel log_level, const char* text, const char* file_str, int line_str)
+    void set_log_level_extern(LogLevel log_level)
     
 
 cpdef inline init(bool debug, int log_level):
@@ -73,6 +74,9 @@ cpdef inline log(int log_level, bytes text, bytes file_str, int line_str):
     cdef const char* file_str_c = file_str
 
     log_extern(<LogLevel>(log_level), text_c, file_str_c, line_str)
+
+cpdef inline set_log_level(int log_level):
+    set_log_level_extern(<LogLevel>(log_level))
 
 cpdef inline get_devices():
     cdef int count = 0

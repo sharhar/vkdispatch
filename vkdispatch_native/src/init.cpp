@@ -7,6 +7,7 @@
 #include <glslang_c_interface.h>
 
 std::mutex __log_mutex = {};
+std::mutex __log_level_mutex = {};
 LogLevel __log_level_limit = LOG_LEVEL_WARNING;
 MyInstance _instance;
 
@@ -16,6 +17,12 @@ const char* prefixes[] = {
     "WARNING",
     "ERROR"
 };
+
+void set_log_level_extern(LogLevel log_level) {
+    //__log_level_mutex.lock();
+    __log_level_limit = log_level;
+   // __log_level_mutex.unlock();
+}
 
 static VkBool32 VKAPI_PTR vulkan_custom_debug_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,

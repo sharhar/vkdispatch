@@ -392,3 +392,15 @@ def log_verbose(text: str, end: str = '\n'):
     """
 
     log(text, end, LogLevel.VERBOSE, 2)
+
+def set_log_level(level: LogLevel):
+    """
+    A function which sets the log level.
+
+    Args:
+        level (`LogLevel`): The log level.
+    """
+
+    initialize()
+
+    vkdispatch_native.set_log_level(level.value)

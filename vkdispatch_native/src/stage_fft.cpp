@@ -41,24 +41,24 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
             for(int j = 0; j < recorder_count; j++) {
                 int app_index = stream_index * recorder_count + j;
 
-                VkFFTConfiguration config = {};
+                //VkFFTConfiguration config = {};
 
-                config.FFTdim = dims;
-                config.size[0] = rows;
-                config.size[1] = cols;
-                config.size[2] = depth;
+                plan->configs[stream_index].FFTdim = dims;
+                plan->configs[stream_index].size[0] = rows;
+                plan->configs[stream_index].size[1] = cols;
+                plan->configs[stream_index].size[2] = depth;
 
-                config.physicalDevice = &ctx->physicalDevices[device_index];
-                config.device = &ctx->devices[device_index];
-                config.queue = &ctx->streams[stream_index]->queue;
-                config.commandPool = &ctx->streams[stream_index]->commandPools[j];
-                config.fence = &plan->fences[app_index];
-                config.isCompilerInitialized = true;
-                config.bufferSize = (uint64_t*)malloc(sizeof(uint64_t));
-                *config.bufferSize = 1024 * 1024;
-                config.performR2C = do_r2c;
+                plan->configs[stream_index].physicalDevice = &ctx->physicalDevices[device_index];
+                plan->configs[stream_index].device = &ctx->devices[device_index];
+                plan->configs[stream_index].queue = &ctx->streams[stream_index]->queue;
+                plan->configs[stream_index].commandPool = &ctx->streams[stream_index]->commandPools[j];
+                plan->configs[stream_index].fence = &plan->fences[app_index];
+                plan->configs[stream_index].isCompilerInitialized = true;
+                plan->configs[stream_index].bufferSize = (uint64_t*)malloc(sizeof(uint64_t));
+                *plan->configs[stream_index].bufferSize = rows * cols * depth * sizeof(float) * 2;//1024 * 1024;
+                plan->configs[stream_index].performR2C = do_r2c;
 
-                VkFFTResult resFFT = initializeVkFFT(&plan->apps[app_index], config);
+                VkFFTResult resFFT = initializeVkFFT(&plan->apps[app_index], plan->configs[stream_index]);
                 if (resFFT != VKFFT_SUCCESS) {
                     set_error("(VkFFTResult is %d) initializeVkFFT inside '%s' at %s:%d\n", resFFT, __FUNCTION__, __FILE__, __LINE__);
                 }
@@ -83,17 +83,24 @@ void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* p
         0,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         [plan, buffer, inverse](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
-            struct FFTExecRecordInfo info = {};
-            info.plan = plan;
-            info.buffer = buffer;
-            info.inverse = inverse;
+            int index = stream_index * plan->recorder_count + recorder_index;
 
-            int index = stream_index * info.plan->recorder_count + recorder_index;
+            plan->launchParams[index].buffer = &buffer->buffers[stream_index];
+            plan->launchParams[index].commandBuffer = &cmd_buffer;
 
-            info.plan->launchParams[index].buffer = &info.buffer->buffers[stream_index];
-            info.plan->launchParams[index].commandBuffer = &cmd_buffer;
+            for(int i = 0; i < plan->configs[stream_index].FFTdim; i++) {
+                LOG_INFO("%d: %d", i, plan->configs[stream_index].size[i]);
+            }
 
-            VkFFTResult fftRes = VkFFTAppend(&info.plan->apps[index], info.inverse, &info.plan->launchParams[index]);
+            LOG_INFO("Buffer size: %d", *plan->configs[stream_index].bufferSize);
+
+            LOG_INFO("Buffer object size: %d", buffer->size);
+
+            LOG_INFO("Executing FFT with inverse %d", inverse);
+
+            VkFFTResult fftRes = VkFFTAppend(&plan->apps[index], inverse, &plan->launchParams[index]);
+
+            LOG_INFO("FFT executed");
 
             if (fftRes != VKFFT_SUCCESS) {
                 LOG_ERROR("(VkFFTResult is %d) VkFFTAppend inside '%s' at %s:%d\n", fftRes, __FUNCTION__, __FILE__, __LINE__);

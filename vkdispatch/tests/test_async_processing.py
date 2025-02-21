@@ -11,6 +11,7 @@ from typing import Tuple
 
 import numpy as np
 
+vd.initialize(debug_mode=True, log_level=vd.LogLevel.WARNING)
 vd.make_context(use_cpu=True)
 
 class CommandType(enum.Enum):
@@ -192,7 +193,7 @@ def get_descriptor_set(out_buffer: int, in_buffer: int, program_handle, config: 
 
     dict_key = (out_buffer, in_buffer, program_handle)
 
-    if dict_key not in descriptor_set_cache:
+    if dict_key not in descriptor_set_cache:        
         output_buffer = get_buffer(out_buffer, config)
         input_buffer = get_buffer(in_buffer, config)
 
@@ -215,7 +216,7 @@ def clear_caches():
     program_cache.clear()
     descriptor_set_cache.clear()
 
-def do_vkdispatch_command(cmd_list: vd.CommandList, out_buffer: int, in_buffer: int, program: int, config: RunConfig):    
+def do_vkdispatch_command(cmd_list: vd.CommandList, out_buffer: int, in_buffer: int, program: int, config: RunConfig):
     compute_plan = get_program(program, config)
     descriptor_set = get_descriptor_set(out_buffer, in_buffer, compute_plan._handle, config)
 

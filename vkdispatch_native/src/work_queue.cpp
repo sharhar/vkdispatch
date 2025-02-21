@@ -181,8 +181,7 @@ bool WorkQueue::pop(struct WorkHeader** header, int stream_index) {
 
 void WorkQueue::finish(struct WorkHeader* header) {
     std::unique_lock<std::mutex> lock(this->mutex);
-    LOG_INFO("%d ref_count: %d", header->program_info_index, program_infos[header->program_info_index].ref_count);
-    program_infos[header->program_info_index].ref_count -= 1; //program_header->info_index].ref_count -= 1;
+    program_infos[header->program_info_index].ref_count -= 1;
     work_infos[header->info_index].dirty = false;
     this->cv_pop.notify_all();
 }
