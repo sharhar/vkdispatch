@@ -21,6 +21,7 @@ enum LogLevel {
 enum RecordType {
     RECORD_TYPE_ASYNC = 0,
     RECORD_TYPE_SYNC = 1,
+    RECORD_TYPE_SYNC_GPU = 2
 };
 
 struct Context;

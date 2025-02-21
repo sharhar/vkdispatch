@@ -1,7 +1,5 @@
 #include "../include/internal.hh"
 
-
-
 HandleManager::HandleManager(Context* ctx) {
     next_handle = 1;
     stream_count = ctx->streams.size();
@@ -11,7 +9,6 @@ HandleManager::HandleManager(Context* ctx) {
         stream_to_device_map[i] = ctx->streams[i]->device_index;
     }
 }
-
 
 uint64_t HandleManager::register_handle(bool per_device) {
     std::unique_lock lock(handle_mutex);
@@ -36,7 +33,7 @@ void HandleManager::set_handle(int stream_index, uint64_t handle, uint64_t value
     std::unique_lock lock(handle_mutex);
 
     if(handles[handle].per_device) {
-        set_error("Handle is per device");
+        LOG_ERROR("Handle is per device");
         return;
     }
 
@@ -47,7 +44,7 @@ void HandleManager::set_handle_per_device(int device_index, uint64_t handle, std
     std::unique_lock lock(handle_mutex);
 
     if(!handles[handle].per_device) {
-        set_error("Handle is not per device");
+        LOG_ERROR("Handle is not per device");
         return;
     }
 
@@ -62,12 +59,12 @@ void HandleManager::set_handle_per_device(int device_index, uint64_t handle, std
     }
 
     if(found_any && !found_all) {
-        set_error("Handle already set for some streams but not all");
+        LOG_ERROR("Handle already set for some streams but not all");
         return;
     }
 
     if(!found_any && found_all) {
-        set_error("Some weird stuff is going on");
+        LOG_ERROR("Some weird stuff is going on");
         return;
     }
 
