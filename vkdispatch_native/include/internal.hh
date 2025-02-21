@@ -42,6 +42,8 @@ void set_error(const char* format, ...);
 #define VK_CALL_RETNULL(EXPRESSION) VK_CALL_RETURN(EXPRESSION, NULL)
 
 #include <vector>
+#include <shared_mutex>
+#include <unordered_map>
 
 #include "init.hh"
 #include "errors.hh"
@@ -58,6 +60,37 @@ void set_error(const char* format, ...);
 #include "stream.hh"
 #include "conditional.hh"
 #include "log.hh"
+
+struct HandleHeader {
+    uint64_t handle;
+    bool per_device;
+    uint64_t* data;
+};
+
+class HandleManager {
+public:
+    uint64_t next_handle;
+    int stream_count;
+    int* stream_to_device_map;
+    std::shared_mutex handle_mutex;
+
+    std::unordered_map<uint64_t, struct HandleHeader> handles;
+
+    HandleManager(Context* ctx);
+    uint64_t register_handle(bool per_device);
+
+    //template <typename T>
+    void set_handle(int stream_index, uint64_t handle, uint64_t value);
+
+    //template <typename T>
+    void set_handle_per_device(int device_index, uint64_t handle, std::function<uint64_t(int)> value_func);
+
+    //template <typename T>
+    uint64_t get_handle(int stream_index, uint64_t handle);
+
+    //template <typename T>
+    void destroy_handle(int stream_index, uint64_t handle, std::function<void(uint64_t)> destroy_func);
+};
 
 typedef struct {
     VkInstance instance;
@@ -80,6 +113,8 @@ struct Context {
     std::vector<std::vector<int>> stream_index_map;
     std::vector<Stream*> streams;
     std::vector<VmaAllocator> allocators;
+
+    HandleManager* handle_manager;
 
     void* glslang_resource_limits;
 
@@ -192,8 +227,11 @@ struct ComputePlan {
 
 struct DescriptorSet {
     struct ComputePlan* plan;
-    std::vector<VkDescriptorSet> sets;
-    std::vector<VkDescriptorPool> pools;
+    uint64_t sets_handle;
+    uint64_t pools_handle;
+    
+    //std::vector<VkDescriptorSet> sets;
+    //std::vector<VkDescriptorPool> pools;
 };
 
 #endif // INTERNAL_H

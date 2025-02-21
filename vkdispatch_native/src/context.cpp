@@ -199,6 +199,8 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
         signal.wait();
     }
 
+    ctx->handle_manager = new HandleManager(ctx);
+
     return ctx;
 }
 

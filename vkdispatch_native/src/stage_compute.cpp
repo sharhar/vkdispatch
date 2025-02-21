@@ -83,31 +83,29 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
     plan->pipelineLayouts.resize(ctx->deviceCount);
     plan->pipelines.resize(ctx->deviceCount);
 
+    size_t code_size;
+    uint32_t* code = glsl_to_spirv_util(
+        GLSLANG_STAGE_COMPUTE, 
+        reinterpret_cast<glslang_resource_t*>(ctx->glslang_resource_limits), 
+        &code_size, 
+        create_info->shader_source, 
+        create_info->shader_name
+    );
+    
+    if(code == NULL) {
+        //set_error("Failed to compile compute shader!");
+        return NULL;
+    }
+
     for (int i = 0; i < ctx->deviceCount; i++) {
         LOG_INFO("Creating Compute Plan for device %d", i);
-
-        size_t code_size;
-        uint32_t* code = glsl_to_spirv_util(
-            GLSLANG_STAGE_COMPUTE, 
-            reinterpret_cast<glslang_resource_t*>(ctx->glslang_resource_limits), 
-            &code_size, 
-            create_info->shader_source, 
-            create_info->shader_name
-        );
-        
-        if(code == NULL) {
-            //set_error("Failed to compile compute shader!");
-            return NULL;
-        }
 
         VkShaderModuleCreateInfo shaderModuleCreateInfo;
         memset(&shaderModuleCreateInfo, 0, sizeof(VkShaderModuleCreateInfo));
         shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
         shaderModuleCreateInfo.codeSize = code_size;
         shaderModuleCreateInfo.pCode = code;
-        VK_CALL_RETNULL(vkCreateShaderModule(ctx->devices[i], &shaderModuleCreateInfo, NULL, &plan->modules[i]));
-
-        free(code);
+        VK_CALL_RETNULL(vkCreateShaderModule(ctx->devices[i], &shaderModuleCreateInfo, NULL, &plan->modules[i]));        
 
         std::vector<VkDescriptorSetLayoutBinding> bindings;
         for (int j = 0; j < create_info->binding_count; j++) {
@@ -174,28 +172,37 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
         VK_CALL_RETNULL(vkCreateComputePipelines(ctx->devices[i], VK_NULL_HANDLE, 1, &pipelineCreateInfo, NULL, &plan->pipelines[i]));
     }
 
+    free(code);
+
     return plan;
 }
 
 void stage_compute_record_extern(struct CommandList* command_list, struct ComputePlan* plan, struct DescriptorSet* descriptor_set, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z) {
+    uint64_t sets_handle = 0;
+    if(descriptor_set != NULL)
+        sets_handle = descriptor_set->sets_handle;
+
     command_list_record_command(command_list,
         "compute-stage",
         plan->pc_size,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        [plan, descriptor_set, blocks_x, blocks_y, blocks_z](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+        [plan, sets_handle, blocks_x, blocks_y, blocks_z](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
             vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, plan->pipelines[device_index]);
 
-            if(descriptor_set != NULL)
+            if(sets_handle != 0) {
+                VkDescriptorSet desc_set = (VkDescriptorSet)plan->ctx->handle_manager->get_handle(stream_index, sets_handle);
+
                 vkCmdBindDescriptorSets(
                     cmd_buffer,
                     VK_PIPELINE_BIND_POINT_COMPUTE,
                     plan->pipelineLayouts[device_index],
                     0,
                     1,
-                    &descriptor_set->sets[stream_index],
+                    &desc_set,
                     0,
                     NULL
                 );
+            }
 
             if(plan->pc_size > 0)
                 vkCmdPushConstants(
