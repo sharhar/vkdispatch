@@ -8,14 +8,19 @@
 #include <stdarg.h>
 
 extern std::mutex __log_mutex;
+extern std::mutex __log_level_mutex;
 extern LogLevel __log_level_limit;
 
 extern const char* prefixes[];
 
 inline void log_message(LogLevel log_level, const char* postfix, const char* file_str, int line_str, const char* format, ...) {
+    //__log_level_mutex.lock();
+
     if(log_level < __log_level_limit) {
         return;
     }
+
+    //__log_level_mutex.unlock();
 
     __log_mutex.lock();
 

@@ -61,4 +61,6 @@ struct PhysicalDeviceDetails* get_devices_extern(int* count);
 
 void log_extern(LogLevel log_level, const char* text, const char* file_str, int line_str);
 
+void set_log_level_extern(LogLevel log_level);
+
 #endif // INIT_H

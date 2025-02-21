@@ -1,5 +1,8 @@
 #include "../include/internal.hh"
 
+#include <chrono>
+#include <thread>
+
 #include <glslang_c_interface.h>
 
 static uint32_t* glsl_to_spirv_util(glslang_stage_t stage, glslang_resource_t* resource_limits, size_t* size, const char* shader_source, const char* shader_name) {

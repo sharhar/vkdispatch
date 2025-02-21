@@ -18,6 +18,7 @@ class FFTPlan:
 
         self.shape = shape
         self.do_r2c = do_r2c
+
         self.mem_size = (
             np.prod(shape) * np.dtype(np.complex64).itemsize
         )  # currently only support complex64

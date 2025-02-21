@@ -117,6 +117,7 @@ struct Context {
 
 struct Buffer {
     struct Context* ctx;
+    uint64_t size;
     std::vector<VkBuffer> buffers;
     std::vector<VmaAllocation> allocations;
     std::vector<VkBuffer> stagingBuffers;

@@ -24,7 +24,7 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
             descriptorPoolCreateInfo.pPoolSizes = plan->poolSizes[device_index].data();
 
             VkDescriptorPool pool;
-            VK_CALL_RETNULL(vkCreateDescriptorPool(ctx->devices[device_index], &descriptorPoolCreateInfo, NULL, &pool));
+            VK_CALL(vkCreateDescriptorPool(ctx->devices[device_index], &descriptorPoolCreateInfo, NULL, &pool));
 
             VkDescriptorSetAllocateInfo descriptorSetAllocateInfo;
             memset(&descriptorSetAllocateInfo, 0, sizeof(VkDescriptorSetAllocateInfo));
@@ -34,7 +34,7 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
             descriptorSetAllocateInfo.pSetLayouts = &plan->descriptorSetLayouts[device_index];
 
             VkDescriptorSet set;
-            VK_CALL_RETNULL(vkAllocateDescriptorSets(ctx->devices[device_index], &descriptorSetAllocateInfo, &set));
+            VK_CALL(vkAllocateDescriptorSets(ctx->devices[device_index], &descriptorSetAllocateInfo, &set));
 
             ctx->handle_manager->set_handle(stream_index, sets_handle, (uint64_t)set);
             ctx->handle_manager->set_handle(stream_index, pools_handle, (uint64_t)pool);
@@ -79,13 +79,17 @@ void descriptor_set_write_buffer_extern(struct DescriptorSet* descriptor_set, un
 
     uint64_t sets_handle = descriptor_set->sets_handle;
 
+    LOG_INFO("RANGE %d", range);
+
     command_list_record_command(ctx->command_list, 
-        "descriptor-set-init",
+        "descriptor-set-write-buffer",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
         [buffer, ctx, sets_handle, offset, range, binding, uniform](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
             VkDescriptorBufferInfo buffDesc;
             buffDesc.buffer = buffer->buffers[stream_index];
+
+            LOG_INFO("RANGE 2 %d", range);
 
             buffDesc.offset = offset;
             buffDesc.range = range == 0 ? VK_WHOLE_SIZE : range;
@@ -149,7 +153,7 @@ void descriptor_set_write_image_extern(struct DescriptorSet* descriptor_set, uns
     uint64_t sets_handle = descriptor_set->sets_handle;
 
     command_list_record_command(ctx->command_list, 
-        "descriptor-set-init",
+        "descriptor-set-write-image",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
         [image, sampler, ctx, sets_handle, binding](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
