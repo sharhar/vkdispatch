@@ -79,8 +79,6 @@ void descriptor_set_write_buffer_extern(struct DescriptorSet* descriptor_set, un
 
     uint64_t sets_handle = descriptor_set->sets_handle;
 
-    LOG_INFO("RANGE %d", range);
-
     command_list_record_command(ctx->command_list, 
         "descriptor-set-write-buffer",
         0,
@@ -88,8 +86,6 @@ void descriptor_set_write_buffer_extern(struct DescriptorSet* descriptor_set, un
         [buffer, ctx, sets_handle, offset, range, binding, uniform](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
             VkDescriptorBufferInfo buffDesc;
             buffDesc.buffer = buffer->buffers[stream_index];
-
-            LOG_INFO("RANGE 2 %d", range);
 
             buffDesc.offset = offset;
             buffDesc.range = range == 0 ? VK_WHOLE_SIZE : range;
@@ -114,33 +110,6 @@ void descriptor_set_write_buffer_extern(struct DescriptorSet* descriptor_set, un
     command_list_submit_extern(ctx->command_list, NULL, 1, &submit_index, 1, NULL, RECORD_TYPE_SYNC);
     command_list_reset_extern(ctx->command_list);
     RETURN_ON_ERROR(;)
-
-    // for (int i = 0; i < descriptor_set->plan->ctx->streams.size(); i++) {
-    //     int device_index = descriptor_set->plan->ctx->streams[i]->device_index;
-
-    //     VkDescriptorBufferInfo buffDesc;
-    //     buffDesc.buffer = buffer->buffers[i];
-        
-    //     //if(buffer->per_device)
-    //     //    buffDesc.buffer = buffer->buffers[device_index];
-
-    //     buffDesc.offset = offset;
-    //     buffDesc.range = range == 0 ? VK_WHOLE_SIZE : range;
-
-    //     VkWriteDescriptorSet writeDescriptor;
-    //     memset(&writeDescriptor, 0, sizeof(VkWriteDescriptorSet));
-    //     writeDescriptor.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    //     writeDescriptor.dstSet = descriptor_set->sets[i];
-    //     writeDescriptor.dstBinding = binding;
-    //     writeDescriptor.dstArrayElement = 0;
-    //     writeDescriptor.descriptorCount = 1;
-    //     writeDescriptor.descriptorType = uniform == 1 ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    //     writeDescriptor.pImageInfo = NULL;
-    //     writeDescriptor.pBufferInfo = &buffDesc;
-    //     writeDescriptor.pTexelBufferView = NULL;
-
-    //     vkUpdateDescriptorSets(descriptor_set->plan->ctx->devices[device_index], 1, &writeDescriptor, 0, NULL);
-    // }
 }
 
 
@@ -182,27 +151,4 @@ void descriptor_set_write_image_extern(struct DescriptorSet* descriptor_set, uns
     command_list_submit_extern(ctx->command_list, NULL, 1, &submit_index, 1, NULL, RECORD_TYPE_SYNC);
     command_list_reset_extern(ctx->command_list);
     RETURN_ON_ERROR(;)
-
-    // for (int i = 0; i < descriptor_set->plan->ctx->streams.size(); i++) {
-    //     int device_index = descriptor_set->plan->ctx->streams[i]->device_index;
-
-    //     VkDescriptorImageInfo imageDesc;
-    //     imageDesc.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    //     imageDesc.imageView = image->imageViews[i];
-    //     imageDesc.sampler = sampler->samplers[i];
-
-    //     VkWriteDescriptorSet writeDescriptor;
-    //     memset(&writeDescriptor, 0, sizeof(VkWriteDescriptorSet));
-    //     writeDescriptor.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    //     writeDescriptor.dstSet = descriptor_set->sets[i];
-    //     writeDescriptor.dstBinding = binding;
-    //     writeDescriptor.dstArrayElement = 0;
-    //     writeDescriptor.descriptorCount = 1;
-    //     writeDescriptor.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    //     writeDescriptor.pImageInfo = &imageDesc;
-    //     writeDescriptor.pBufferInfo = NULL;
-    //     writeDescriptor.pTexelBufferView = NULL;
-
-    //     vkUpdateDescriptorSets(descriptor_set->plan->ctx->devices[device_index], 1, &writeDescriptor, 0, NULL);
-    // }
 }

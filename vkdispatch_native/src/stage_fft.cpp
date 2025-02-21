@@ -48,6 +48,8 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
                 plan->configs[stream_index].size[1] = cols;
                 plan->configs[stream_index].size[2] = depth;
 
+                plan->configs[stream_index].omitDimension[0] = false;
+
                 plan->configs[stream_index].physicalDevice = &ctx->physicalDevices[device_index];
                 plan->configs[stream_index].device = &ctx->devices[device_index];
                 plan->configs[stream_index].queue = &ctx->streams[stream_index]->queue;
@@ -88,19 +90,7 @@ void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* p
             plan->launchParams[index].buffer = &buffer->buffers[stream_index];
             plan->launchParams[index].commandBuffer = &cmd_buffer;
 
-            for(int i = 0; i < plan->configs[stream_index].FFTdim; i++) {
-                LOG_INFO("%d: %d", i, plan->configs[stream_index].size[i]);
-            }
-
-            LOG_INFO("Buffer size: %d", *plan->configs[stream_index].bufferSize);
-
-            LOG_INFO("Buffer object size: %d", buffer->size);
-
-            LOG_INFO("Executing FFT with inverse %d", inverse);
-
             VkFFTResult fftRes = VkFFTAppend(&plan->apps[index], inverse, &plan->launchParams[index]);
-
-            LOG_INFO("FFT executed");
 
             if (fftRes != VKFFT_SUCCESS) {
                 LOG_ERROR("(VkFFTResult is %d) VkFFTAppend inside '%s' at %s:%d\n", fftRes, __FUNCTION__, __FILE__, __LINE__);

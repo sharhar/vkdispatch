@@ -26,7 +26,6 @@ public:
 
     void waitAndReset();
     void doSubmit(VkQueue queue, VkSubmitInfo* submitInfo, Signal* signal);
-    //void signalSubmission();
 
     void destroy();
 

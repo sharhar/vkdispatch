@@ -29,8 +29,8 @@ class FFTPlan:
         check_for_errors()
 
     def record(self, command_list: CommandList, buffer: Buffer, inverse: bool = False):
-        assert buffer.var_type == complex64, "buffer must be of dtype complex64"
-        assert buffer.mem_size == self.mem_size, "buffer size must match plan size"
+        #assert buffer.var_type == complex64, "buffer must be of dtype complex64"
+        #assert buffer.mem_size == self.mem_size, "buffer size must match plan size"
 
         vkdispatch_native.stage_fft_record(
             command_list._handle, self._handle, buffer._handle, 1 if inverse else -1
