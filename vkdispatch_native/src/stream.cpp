@@ -38,12 +38,6 @@ void Fence::doSubmit(VkQueue queue, VkSubmitInfo* submitInfo, Signal* signal) {
     cv.notify_all();
 }
 
-//void Fence::signalSubmission() {
-//    std::unique_lock<std::mutex> lock(mutex);
-//    this->submitted = true;
-//    cv.notify_all();
-//}
-
 void Fence::destroy() {
     vkDestroyFence(device, fence, nullptr);
 }
