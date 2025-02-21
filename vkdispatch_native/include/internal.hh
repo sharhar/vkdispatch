@@ -79,16 +79,9 @@ public:
     HandleManager(Context* ctx);
     uint64_t register_handle(bool per_device);
 
-    //template <typename T>
     void set_handle(int stream_index, uint64_t handle, uint64_t value);
-
-    //template <typename T>
     void set_handle_per_device(int device_index, uint64_t handle, std::function<uint64_t(int)> value_func);
-
-    //template <typename T>
     uint64_t get_handle(int stream_index, uint64_t handle);
-
-    //template <typename T>
     void destroy_handle(int stream_index, uint64_t handle, std::function<void(uint64_t)> destroy_func);
 };
 
@@ -229,9 +222,6 @@ struct DescriptorSet {
     struct ComputePlan* plan;
     uint64_t sets_handle;
     uint64_t pools_handle;
-    
-    //std::vector<VkDescriptorSet> sets;
-    //std::vector<VkDescriptorPool> pools;
 };
 
 #endif // INTERNAL_H

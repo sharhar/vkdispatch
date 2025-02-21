@@ -25,7 +25,8 @@ public:
     Fence(VkDevice device);
 
     void waitAndReset();
-    void signalSubmission();
+    void doSubmit(VkQueue queue, VkSubmitInfo* submitInfo, Signal* signal);
+    //void signalSubmission();
 
     void destroy();
 
