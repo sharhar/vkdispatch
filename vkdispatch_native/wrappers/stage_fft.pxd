@@ -11,24 +11,39 @@ cdef extern from "../include/stage_fft.hh":
     struct FFTPlan
 
 
-    FFTPlan* stage_fft_plan_create_extern(Context* ctx, unsigned long long dims, unsigned long long rows, unsigned long long cols, unsigned long long depth, unsigned long long buffer_size, unsigned int do_r2c)
+    FFTPlan* stage_fft_plan_create_extern(
+        Context* ctx, 
+        unsigned long long dims, 
+        unsigned long long rows,
+        unsigned long long cols, 
+        unsigned long long depth, 
+        unsigned long long buffer_size, 
+        unsigned int do_r2c,
+        int omit_rows,
+        int omit_cols,
+        int omit_depth)
     void stage_fft_record_extern(CommandList* command_list, FFTPlan* plan, Buffer* buffer, int inverse)
 
-cpdef inline stage_fft_plan_create(unsigned long long context, list[int] dims, unsigned long long buffer_size, unsigned int do_r2c):
+cpdef inline stage_fft_plan_create(unsigned long long context, list[int] dims, list[int] axes, unsigned long long buffer_size, unsigned int do_r2c):
     assert len(dims) > 0 and len(dims) < 4, "dims must be a list of length 1, 2, or 3"
 
     cdef Context* ctx = <Context*>context
     cdef unsigned long long dims_ = len(dims)
 
     cdef unsigned long long* dims__ = <unsigned long long*>malloc(3 * sizeof(unsigned long long))
+    cdef int* omits__ = <int*>malloc(3 * sizeof(int))
 
     for i in range(3):
         dims__[i] = 1
+        omits__[i] = 1
 
     for i in range(dims_):
-        dims__[i] = dims[i]    
+        dims__[i] = dims[i]
+
+    for i in range(len(axes)):
+        omits__[axes[i]] = 0
     
-    cdef FFTPlan* plan = stage_fft_plan_create_extern(ctx, dims_, dims__[0], dims__[1], dims__[2], buffer_size, do_r2c)
+    cdef FFTPlan* plan = stage_fft_plan_create_extern(ctx, dims_, dims__[0], dims__[1], dims__[2], buffer_size, do_r2c, omits__[0], omits__[1], omits__[2])
 
     free(dims__)
 
