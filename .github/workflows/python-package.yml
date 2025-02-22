@@ -38,11 +38,11 @@ jobs:
           gdb
 
     # On macOS, install LLDB via Homebrew
-    - name: Install LLDB (macOS)
-      if: startsWith(runner.os, 'macos')
-      run: |
-        brew update
-        brew install lldb
+    # - name: Install LLDB (macOS)
+    #   if: startsWith(runner.os, 'macos')
+    #   run: |
+    #     brew update
+    #     brew install lldb
 
     - name: Install Python dependencies
       run: |
