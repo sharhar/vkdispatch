@@ -313,7 +313,7 @@ void Stream::record_worker(int worker_id) {
             for (size_t i = 0; i < command_buffer->size(); i++) {
                 LOG_INFO("Recording command %d of type %s on worker %d", i, command_buffer->operator[](i).name, worker_id);
 
-                LOG_INFO("Executing command %d");
+                LOG_INFO("Executing command %d", i);
                 command_buffer->operator[](i).func->operator()(cmd_buffer, device_index, stream_index, worker_id, current_instance_data);
                 current_instance_data += command_buffer->operator[](i).pc_size;
 
