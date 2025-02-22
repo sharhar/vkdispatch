@@ -43,7 +43,7 @@ jobs:
     #  uses: mxschmitt/action-tmate@v3
     - name: Test with pytest
       run: |
-        pytest -2
+        pytest -s
   
   # build-and-test-on-windows:
   #   runs-on: ${{ matrix.os }}
