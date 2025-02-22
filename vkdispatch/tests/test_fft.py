@@ -79,15 +79,93 @@ def test_ifft_3d():
 
     assert np.allclose(test_img.read(0), np.fft.ifftn(signal_3d) * np.prod(signal_3d.shape), atol=0.01)
 
-#def test_fft_2d_384x384():
-#    # Create a 2D buffer
-#    signal_2d = make_random_complex_signal((384, 384))
-#
-#    test_img = vd.Buffer(signal_2d.shape, vd.complex64)
-#    test_img.write(signal_2d)
-#
-#    # Perform an FFT on the buffer
-#    vd.fft(test_img)
-#
-#    assert np.allclose(test_img.read(0), np.fft.fft2(signal_2d), atol=0.01)
+def test_rfft_1d():
+    # Create a 1D buffer
+    signal = np.random.random((50,))
+
+    test_line = vd.asrfftbuffer(signal)
+
+    # Perform an RFFT on the buffer
+    vd.rfft(test_line)
+
+    assert np.allclose(test_line.read_fourier(0), np.fft.rfft(signal), atol=0.01)
+
+def test_rfft_2d():
+    # Create a 2D buffer
+    signal_2d = np.random.random((50, 50))
+
+    test_img = vd.asrfftbuffer(signal_2d)
+
+    # Perform an RFFT on the buffer
+    vd.rfft(test_img)
+
+    assert np.allclose(test_img.read_fourier(0), np.fft.rfft2(signal_2d), atol=0.01)
+
+def test_rfft_3d():
+    # Create a 3D buffer
+    signal_3d = np.random.random((50, 50, 50))
+
+    test_img = vd.asrfftbuffer(signal_3d)
+
+    # Perform an RFFT on the buffer
+    vd.rfft(test_img)
+
+    assert np.allclose(test_img.read_fourier(0), np.fft.rfftn(signal_3d), atol=0.01)
+
+def test_irfft_1d():
+    # Create a 1D buffer
+    signal = np.random.random((50,))
+
+    signal_complex = np.fft.rfft(signal)
+
+    test_line = vd.RFFTBuffer(signal.shape)
+    test_line.write_fourier(signal_complex)
+
+    # Perform an IRFFT on the buffer
+    vd.irfft(test_line)
+
+    assert np.allclose(test_line.read_real(0), signal * np.prod(test_line.real_shape), atol=0.01)
+
+def test_irfft_2d():
+    # Create a 2D buffer
+    signal_2d = np.random.random((50, 50))
+
+    signal_2d_complex = np.fft.rfft2(signal_2d)
+
+    test_img = vd.RFFTBuffer(signal_2d.shape)
+    test_img.write_fourier(signal_2d_complex)
+
+    # Perform an IRFFT on the buffer
+    vd.irfft(test_img)
+
+    assert np.allclose(test_img.read_real(0), signal_2d * np.prod(test_img.real_shape), atol=0.01)
+
+def test_irfft_3d():
+    # Create a 3D buffer
+    signal_3d = np.random.random((50, 50, 50))
+
+    signal_3d_complex = np.fft.rfftn(signal_3d)
+
+    test_img = vd.RFFTBuffer(signal_3d.shape)
+    test_img.write_fourier(signal_3d_complex)
+
+    # Perform an IRFFT on the buffer
+    vd.irfft(test_img)
+
+    calculated_value = test_img.read_real(0)
+    expected_value = signal_3d * np.prod(test_img.real_shape)
+
+    assert np.allclose(calculated_value, expected_value, atol=0.05)
+
+def test_fft_2d_384x384():
+    # Create a 2D buffer
+    signal_2d = make_random_complex_signal((384, 384))
+
+    test_img = vd.Buffer(signal_2d.shape, vd.complex64)
+    test_img.write(signal_2d)
+
+    # Perform an FFT on the buffer
+    vd.fft(test_img)
+
+    assert np.allclose(test_img.read(0), np.fft.fft2(signal_2d), atol=0.01)
 

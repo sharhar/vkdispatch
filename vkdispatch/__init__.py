@@ -51,9 +51,10 @@ from .execution_pipeline.buffer_builder import BufferUsage, BufferedStructEntry,
 from .execution_pipeline.command_stream import CommandStream
 from .execution_pipeline.command_stream import global_cmd_stream, set_global_cmd_stream, default_cmd_stream
 
-from .execution_pipeline.fft_dispatcher import fft
-from .execution_pipeline.fft_dispatcher import ifft
+from .execution_pipeline.fft_dispatcher import fft, rfft
+from .execution_pipeline.fft_dispatcher import ifft, irfft
 from .execution_pipeline.fft_dispatcher import reset_fft_plans
+from .execution_pipeline.fft_dispatcher import RFFTBuffer, asrfftbuffer
 
 from .shader_generation.signature import ShaderArgumentType
 from .shader_generation.signature import ShaderArgument
