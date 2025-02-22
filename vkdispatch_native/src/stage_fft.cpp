@@ -50,6 +50,12 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
 
                 plan->configs[stream_index].omitDimension[0] = false;
 
+                unsigned long long true_rows = rows;
+
+                if(do_r2c) {
+                    true_rows = (rows / 2) + 1;
+                }
+
                 plan->configs[stream_index].physicalDevice = &ctx->physicalDevices[device_index];
                 plan->configs[stream_index].device = &ctx->devices[device_index];
                 plan->configs[stream_index].queue = &ctx->streams[stream_index]->queue;
@@ -57,7 +63,7 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
                 plan->configs[stream_index].fence = &plan->fences[app_index];
                 plan->configs[stream_index].isCompilerInitialized = true;
                 plan->configs[stream_index].bufferSize = (uint64_t*)malloc(sizeof(uint64_t));
-                *plan->configs[stream_index].bufferSize = rows * cols * depth * sizeof(float) * 2;//1024 * 1024;
+                *plan->configs[stream_index].bufferSize = true_rows * cols * depth * sizeof(float) * 2;
                 plan->configs[stream_index].performR2C = do_r2c;
 
                 VkFFTResult resFFT = initializeVkFFT(&plan->apps[app_index], plan->configs[stream_index]);

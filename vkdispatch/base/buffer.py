@@ -85,7 +85,7 @@ class Buffer:
         )
         check_for_errors()
 
-    def read(self, index: Union[int, None] = None) -> Union[np.ndarray, List[np.ndarray]]:
+    def read(self, index: Union[int, None] = None) -> np.ndarray:
         """Read the data in the buffer at the specified device index and return it as a
         numpy array.
 
@@ -96,14 +96,14 @@ class Buffer:
         (np.ndarray): The data in the buffer as a numpy array.
         """
 
+        true_scalar = self.var_type.scalar
+
+        if true_scalar is None:
+            true_scalar = self.var_type
+
         if index is not None:
             if index < 0:
                 raise ValueError(f"Invalid buffer index {index}!")
-            
-            true_scalar = self.var_type.scalar
-
-            if true_scalar is None:
-                true_scalar = self.var_type
             
             result_bytes = vkdispatch_native.buffer_read(
                 self._handle, 0, self.mem_size, index
@@ -113,10 +113,10 @@ class Buffer:
 
             check_for_errors()
         else:
-            result = []
+            result = np.zeros((self.ctx.stream_count,) + self.shape + self.var_type.true_numpy_shape, dtype=to_numpy_dtype(true_scalar))
 
             for i in range(self.ctx.stream_count):
-                result.append(self.read(i))
+                result[i] = self.read(i)
 
         return result
 

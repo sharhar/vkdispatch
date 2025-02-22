@@ -12,27 +12,18 @@ signal = np.exp(-X**2 - Y**2)  # Gaussian function
 
 print(signal.shape, signal.dtype)
 
-# Compute its Fourier transform
-F_signal = np.fft.fft2(signal)
-
 Fr_signal = np.fft.rfft2(signal)
 
-padded_signal = np.zeros(shape=(H, W + 2), dtype=np.float32)
-padded_signal[:, :W] = signal
+signal_buffer = vd.asrfftbuffer(signal)
 
-signal_buffer = vd.asbuffer(padded_signal)
+vd.rfft(signal_buffer)
 
-cmd_stream = vd.CommandStream()
-
-fft_plan = vd.FFTPlan((H, W), do_r2c=True)
-
-fft_plan.record_forward(cmd_stream, signal_buffer)
-
-cmd_stream.submit()
-
-raw_data = signal_buffer.read(0)
-
-raw_data.view(np.complex64)
-
-plt.imshow(np.abs(raw_data.view(np.complex64) - Fr_signal))
+plt.imshow(np.abs(signal_buffer.read_fourier(0) - Fr_signal))
 plt.show()
+
+vd.irfft(signal_buffer)
+
+plt.imshow(signal_buffer.read_real(0) / np.prod(signal_buffer.real_shape) - signal)
+plt.show()
+
+
