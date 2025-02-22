@@ -88,7 +88,7 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
 
     size_t code_size;
 
-    //ctx->glslang_mutex.lock();
+    ctx->glslang_mutex.lock();
 
     uint32_t* code = glsl_to_spirv_util(
         GLSLANG_STAGE_COMPUTE, 
@@ -98,7 +98,7 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
         create_info->shader_name
     );
 
-    //ctx->glslang_mutex.unlock();
+    ctx->glslang_mutex.unlock();
     
     if(code == NULL) {
         //set_error("Failed to compile compute shader!");
