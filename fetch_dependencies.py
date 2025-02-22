@@ -43,7 +43,7 @@ def clone_and_checkout(repo_url, commit_hash, output_dir):
         sys.exit(1)
 
 dependencies = [
-    ("https://github.com/sharhar/VkFFT.git", "2dca64bc8caf81d58d72f1e5ca64d9a1cfb2e0ff", "deps/VkFFT"), # my fork of VkFFT, will change to official repo once PR is merged
+    ("https://github.com/sharhar/VkFFT.git", "eb2ee2fc471a585285e822f489127a98f142c5c8", "deps/VkFFT"), # my fork of VkFFT, will change to official repo once PR is merged
     ("https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git", "5677097bafb8477097c6e3354ce68b7a44fd01a4", "deps/VMA"),
     ("https://github.com/KhronosGroup/Vulkan-Headers.git", "eaa319dade959cb61ed2229c8ea42e307cc8f8b3", "deps/Vulkan-Headers"),
     ("https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git", "ad7f699a7b2b5deb66eb3de19f24aa33597ed65b", "deps/Vulkan-Utility-Libraries"),
