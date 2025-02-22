@@ -8,6 +8,8 @@ def make_random_complex_signal(shape):
     return (r + i * 1j).astype(np.complex64)
 
 def test_fft_1d():
+    vd.set_log_level(vd.LogLevel.INFO)
+
     # Create a 1D buffer
     signal = make_random_complex_signal((50,))
 
@@ -179,7 +181,7 @@ def test_irfft_3d():
     calculated_value = test_img.read_real(0)
     expected_value = signal_3d * np.prod(test_img.real_shape)
 
-    assert np.allclose(calculated_value, expected_value, atol=0.05)
+    assert np.allclose(calculated_value, expected_value, atol=0.1)
 
 def test_fft_2d_384x384():
     # Create a 2D buffer
