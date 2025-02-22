@@ -11,7 +11,17 @@ struct FFTPlan {
     int recorder_count;
 };
 
-struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long long dims, unsigned long long rows, unsigned long long cols, unsigned long long depth, unsigned long long buffer_size, unsigned int do_r2c) {
+struct FFTPlan* stage_fft_plan_create_extern(
+    struct Context* ctx, 
+    unsigned long long dims, 
+    unsigned long long rows, 
+    unsigned long long cols, 
+    unsigned long long depth, 
+    unsigned long long buffer_size, 
+    unsigned int do_r2c,
+    int omit_rows,
+    int omit_cols,
+    int omit_depth) {
     LOG_INFO("Creating FFT plan with handle %p", ctx);
     
     struct FFTPlan* plan = new struct FFTPlan();
@@ -37,7 +47,8 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
         "fft-init",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        [ctx, plan, recorder_count, dims, rows, cols, depth, do_r2c](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+        [ctx, plan, recorder_count, dims, rows, cols, depth, do_r2c, omit_rows, omit_cols, omit_depth]
+        (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
             for(int j = 0; j < recorder_count; j++) {
                 int app_index = stream_index * recorder_count + j;
 
@@ -48,7 +59,9 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
                 plan->configs[stream_index].size[1] = cols;
                 plan->configs[stream_index].size[2] = depth;
 
-                plan->configs[stream_index].omitDimension[0] = false;
+                plan->configs[stream_index].omitDimension[0] = omit_rows;
+                plan->configs[stream_index].omitDimension[1] = omit_cols;
+                plan->configs[stream_index].omitDimension[2] = omit_depth;
 
                 unsigned long long true_rows = rows;
 
@@ -66,11 +79,14 @@ struct FFTPlan* stage_fft_plan_create_extern(struct Context* ctx, unsigned long 
                 *plan->configs[stream_index].bufferSize = true_rows * cols * depth * sizeof(float) * 2;
                 plan->configs[stream_index].performR2C = do_r2c;
 
+                plan->ctx->glslang_mutex.lock();
+
                 VkFFTResult resFFT = initializeVkFFT(&plan->apps[app_index], plan->configs[stream_index]);
                 if (resFFT != VKFFT_SUCCESS) {
                     set_error("(VkFFTResult is %d) initializeVkFFT inside '%s' at %s:%d\n", resFFT, __FUNCTION__, __FILE__, __LINE__);
                 }
 
+                plan->ctx->glslang_mutex.unlock();
             }
         }
     );
