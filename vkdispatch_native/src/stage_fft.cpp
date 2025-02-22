@@ -87,7 +87,7 @@ struct FFTPlan* stage_fft_plan_create_extern(
 
                 LOG_INFO("FFT Configuration: %p, %p, %p, %p, %p, %p, %p", config.physicalDevice, config.device, config.queue, config.commandPool, config.fence, config.bufferSize, config.performR2C);
 
-                plan->ctx->glslang_mutex.lock();
+                //plan->ctx->glslang_mutex.lock();
 
                 LOG_INFO("Initializing VkFFT");
 
@@ -98,7 +98,7 @@ struct FFTPlan* stage_fft_plan_create_extern(
 
                 LOG_INFO("VkFFT Initialized");
 
-                plan->ctx->glslang_mutex.unlock();
+                //plan->ctx->glslang_mutex.unlock();
             }
         }
     );
