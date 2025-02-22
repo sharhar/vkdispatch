@@ -11,6 +11,7 @@ on:
 
 jobs:
   build-and-test-on-unix:
+
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -20,58 +21,29 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-
-    - name: Set up Python
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
-
-    # On Linux, install Vulkan dependencies + GDB
-    - name: Install Vulkan and GDB (Linux)
+    - name: Install Vulkan dependencies
       if: startsWith(runner.os, 'Linux')
       run: |
         sudo apt-get update
         sudo apt-get install -y \
           libvulkan1 \
           vulkan-tools \
-          mesa-vulkan-drivers \
-          gdb
-
-    # On macOS, install LLDB via Homebrew
-    # - name: Install LLDB (macOS)
-    #   if: startsWith(runner.os, 'macos')
-    #   run: |
-    #     brew update
-    #     brew install lldb
-
-    - name: Install Python dependencies
+          mesa-vulkan-drivers
+    - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         python -m pip install pytest
         python fetch_dependencies.py
         python -m pip install .
-
-    # Run tests under GDB on Linux so we get a backtrace on segfault
-    - name: Test with pytest under GDB (Linux)
-      if: startsWith(runner.os, 'Linux')
+    #- name: Setup tmate session
+    #  uses: mxschmitt/action-tmate@v3
+    - name: Test with pytest
       run: |
-        # Explanation:
-        #  -ex "run" tells GDB to run the program
-        #  -ex "thread apply all bt" prints backtraces of all threads on crash
-        #  -ex "quit" exits GDB afterwards
-        gdb -q -ex "run" -ex "thread apply all bt" -ex "quit" --args python -m pytest -s
-
-    # Run tests under LLDB on macOS so we get a backtrace on segfault
-    - name: Test with pytest under LLDB (macOS)
-      if: startsWith(runner.os, 'macos')
-      run: |
-        lldb -b \
-          -o "settings set stop-on-sharedlibrary-events false" \
-          -o "run" \
-          -o "continue" \
-          -o "thread backtrace all" \
-          -o "quit" \
-          -- python -m pytest -s
+        pytest -2
   
   # build-and-test-on-windows:
   #   runs-on: ${{ matrix.os }}
