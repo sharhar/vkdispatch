@@ -65,12 +65,13 @@ jobs:
     - name: Test with pytest under LLDB (macOS)
       if: startsWith(runner.os, 'macos')
       run: |
-        # Explanation:
-        #  -b means batch mode (no interactive prompt)
-        #  -o "run" tells LLDB to run the program
-        #  -o "thread backtrace all" prints backtraces of all threads on crash
-        #  -o "quit" exits LLDB
-        lldb -b -o "run" -o "thread backtrace all" -o "quit" -- python -m pytest -s
+        lldb -b \
+          -o "settings set stop-on-sharedlibrary-events false" \
+          -o "run" \
+          -o "continue" \
+          -o "thread backtrace all" \
+          -o "quit" \
+          -- python -m pytest -s
   
   # build-and-test-on-windows:
   #   runs-on: ${{ matrix.os }}
