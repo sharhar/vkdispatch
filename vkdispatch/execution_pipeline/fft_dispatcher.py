@@ -1,17 +1,21 @@
 
-import typing
+from typing import Tuple
+from typing import Union
+from typing import List
+
+import numpy as np
 
 import vkdispatch as vd
 
 __fft_plans = {}
 
-def get_fft_plan(buffer_handle: int, shape: typing.Tuple[int, ...], do_r2c: bool) -> vd.FFTPlan:
+def get_fft_plan(buffer_handle: int, shape: Tuple[int, ...], do_r2c: bool, axes: List[int]) -> vd.FFTPlan:
     global __fft_plans
 
-    fft_plan_key = (buffer_handle, *shape, do_r2c)
+    fft_plan_key = (buffer_handle, *shape, do_r2c, axes if axes is None else tuple(axes))
 
     if fft_plan_key not in __fft_plans:
-        __fft_plans[fft_plan_key] = vd.FFTPlan(shape, do_r2c)
+        __fft_plans[fft_plan_key] = vd.FFTPlan(shape, do_r2c, axes=axes)
 
     return __fft_plans[fft_plan_key]
 
@@ -20,33 +24,68 @@ def reset_fft_plans():
     global __fft_plans
     __fft_plans = {}
 
+def execute_fft_plan(buffer: vd.Buffer, fft_shape: tuple, axes: List[int] = None, cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None, do_r2c: bool = False, inverse: bool = False):
+    if cmd_stream is None:
+        cmd_stream = vd.global_cmd_stream()
 
-class FFTDispatcher:
-    def __init__(self, inverse: bool = False, do_r2c: bool = False):
-        self.__inverse = inverse
-        self.__do_r2c = do_r2c
+    plan = get_fft_plan(buffer._handle, fft_shape, do_r2c, axes)
+    plan.record(cmd_stream, buffer, inverse)
+    
+    if isinstance(cmd_stream, vd.CommandStream):
+        if cmd_stream.submit_on_record:
+            cmd_stream.submit()
 
-    def __call__(self, buffer: vd.Buffer, cmd_list: typing.Optional[vd.CommandList] = None, cmd_stream: typing.Optional[vd.CommandStream] = None):
-        my_cmd_list = cmd_list
+def fft(buffer: vd.Buffer, axes: List[int] = None, cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None):
+    execute_fft_plan(buffer, buffer.shape, axes, cmd_stream, False, False)
 
-        if cmd_stream is not None:
-            if my_cmd_list is not None:
-                raise ValueError("Cannot specify both cmd_list and cmd_stream")
-            my_cmd_list = cmd_stream
+def ifft(buffer: vd.Buffer, axes: List[int] = None, cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None):
+    execute_fft_plan(buffer, buffer.shape, axes, cmd_stream, False, True)
 
-        if my_cmd_list is None:
-            my_cmd_list = vd.global_cmd_stream()
+def rfft(buffer: vd.Buffer, axes: List[int] = None, cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None):
+    assert buffer.shape[-1] > 2, "Buffer shape must have at least 3 elements in the last dimension"
 
-        plan = get_fft_plan(buffer._handle, buffer.shape, self.__do_r2c)
-        plan.record(my_cmd_list, buffer, self.__inverse)
-        
-        if isinstance(my_cmd_list, vd.CommandStream):
-            if my_cmd_list.submit_on_record:
-                my_cmd_list.submit()
+    execute_fft_plan(buffer, buffer.shape[:-1] + (buffer.shape[-1] - 2,), axes, cmd_stream, True, False)
+
+def irfft(buffer: vd.Buffer, axes: List[int] = None, cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None):
+    assert buffer.shape[-1] > 2, "Buffer shape must have at least 3 elements in the last dimension"
+
+    execute_fft_plan(buffer, buffer.shape[:-1] + (buffer.shape[-1] - 2,), axes, cmd_stream, True, True)
+
+class RFFTBuffer(vd.Buffer):
+    def __init__(self, shape: Tuple[int, ...]):
+        assert shape[-1] % 2 == 0, "Last dimension of RFFTBuffer must be even!"
+        super().__init__(shape[:-1] + (shape[-1] + 2,), vd.float32)
+
+        self.real_shape = shape
+        self.fourier_shape = self.shape[:-1] + (self.shape[-1] / 2,)
+    
+    def read_real(self, index: Union[int, None] = None) -> np.ndarray:
+        return self.read(index)[..., :self.real_shape[-1]]
+
+    def read_fourier(self, index: Union[int, None] = None) -> np.ndarray:
+        return self.read(index).view(np.complex64)
+    
+    def write_real(self, data: np.ndarray, index: int = -1):
+        assert data.shape == self.real_shape, "Data shape must match real shape!"
+        assert not np.issubdtype(data.dtype, np.complexfloating) , "Data dtype must be scalar!"
+
+        true_data = np.zeros(self.shape, dtype=np.float32)
+        true_data[..., :self.real_shape[-1]] = data
+
+        self.write(true_data, index)
+
+    def write_fourier(self, data: np.ndarray, index: int = -1):
+        assert data.shape == self.fourier_shape, "Data shape must match fourier shape!"
+        assert np.issubdtype(data.dtype, np.complexfloating) , "Data dtype must be complex!"
+
+        self.write(np.ascontiguousarray(data.astype(np.complex64)).view(np.float32), index)
+
+def asrfftbuffer(data: np.ndarray) -> RFFTBuffer:
+    assert not np.issubdtype(data.dtype, np.complexfloating), "Data dtype must be scalar!"
+
+    buffer = RFFTBuffer(data.shape)
+    buffer.write_real(data)
+
+    return buffer
 
 
-fft = FFTDispatcher(False, False)
-ifft = FFTDispatcher(True, False)
-
-rfft = FFTDispatcher(False, True)
-rifft = FFTDispatcher(True, True)

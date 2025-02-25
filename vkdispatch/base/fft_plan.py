@@ -13,7 +13,7 @@ from .command_list import CommandList
 from .dtype import complex64
 
 class FFTPlan:
-    def __init__(self, shape: typing.Tuple[int, ...], do_r2c: bool = False):
+    def __init__(self, shape: typing.Tuple[int, ...], do_r2c: bool = False, axes: typing.List[int] = None):
         assert len(shape) > 0 and len(shape) < 4, "shape must be 1D, 2D, or 3D"
 
         self.shape = shape
@@ -23,14 +23,19 @@ class FFTPlan:
             np.prod(shape) * np.dtype(np.complex64).itemsize
         )  # currently only support complex64
 
+        if axes is None:
+            axes = [0, 1, 2]
+
+        actual_axes = [(len(self.shape) - 1)-a for a in axes]
+
         self._handle = vkdispatch_native.stage_fft_plan_create(
-            get_context_handle(), list(reversed(self.shape)), self.mem_size, 1 if do_r2c else 0 
+            get_context_handle(), list(reversed(self.shape)), actual_axes, self.mem_size, 1 if do_r2c else 0 
         )
         check_for_errors()
 
     def record(self, command_list: CommandList, buffer: Buffer, inverse: bool = False):
-        assert buffer.var_type == complex64, "buffer must be of dtype complex64"
-        assert buffer.mem_size == self.mem_size, "buffer size must match plan size"
+        #assert buffer.var_type == complex64, "buffer must be of dtype complex64"
+        #assert buffer.mem_size == self.mem_size, "buffer size must match plan size"
 
         vkdispatch_native.stage_fft_record(
             command_list._handle, self._handle, buffer._handle, 1 if inverse else -1
