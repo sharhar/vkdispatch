@@ -26,6 +26,10 @@ cdef extern from "../include/stage_fft.hh":
 
 cpdef inline stage_fft_plan_create(unsigned long long context, list[int] dims, list[int] axes, unsigned long long buffer_size, unsigned int do_r2c):
     assert len(dims) > 0 and len(dims) < 4, "dims must be a list of length 1, 2, or 3"
+    assert len(axes) <= 3, "axes must be a list of length less than or equal to 3"
+
+    for ax in axes:
+        assert ax < len(dims), "axes must be less than the length of dims"
 
     cdef Context* ctx = <Context*>context
     cdef unsigned long long dims_ = len(dims)
@@ -41,7 +45,11 @@ cpdef inline stage_fft_plan_create(unsigned long long context, list[int] dims, l
         dims__[i] = dims[i]
 
     for i in range(len(axes)):
-        omits__[axes[i]] = 0
+        if 0 <= axes[i] < 3:  # Ensure the index is within bounds
+            omits__[axes[i]] = 0
+        else:
+            print("Invalid axis index: ", axes[i])
+            sys.exit(1)
     
     cdef FFTPlan* plan = stage_fft_plan_create_extern(ctx, dims_, dims__[0], dims__[1], dims__[2], buffer_size, do_r2c, omits__[0], omits__[1], omits__[2])
 

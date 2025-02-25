@@ -21,7 +21,7 @@ const char* prefixes[] = {
 void set_log_level_extern(LogLevel log_level) {
     //__log_level_mutex.lock();
     __log_level_limit = log_level;
-   // __log_level_mutex.unlock();
+    //__log_level_mutex.unlock();
 }
 
 static VkBool32 VKAPI_PTR vulkan_custom_debug_callback(
