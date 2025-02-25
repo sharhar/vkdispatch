@@ -219,6 +219,9 @@ struct ComputePlan {
     std::vector<VkPipeline> pipelines;
     unsigned int binding_count;
     unsigned int pc_size;
+
+    uint32_t* code;
+    size_t code_size;
 };
 
 struct DescriptorSet {

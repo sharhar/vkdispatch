@@ -8,6 +8,8 @@ def make_random_complex_signal(shape):
     return (r + i * 1j).astype(np.complex64)
 
 def test_fft_1d():
+    #vd.set_log_level(vd.LogLevel.INFO)
+
     # Create a 1D buffer
     signal = make_random_complex_signal((50,))
 

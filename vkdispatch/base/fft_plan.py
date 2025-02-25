@@ -26,10 +26,10 @@ class FFTPlan:
         if axes is None:
             axes = [0, 1, 2]
 
-        actual_axes = [(len(self.shape) - 1)-a for a in axes]
+        flipped_axes = [(len(self.shape) - 1)-a for a in axes]
 
         self._handle = vkdispatch_native.stage_fft_plan_create(
-            get_context_handle(), list(reversed(self.shape)), actual_axes, self.mem_size, 1 if do_r2c else 0, normalize
+            get_context_handle(), list(reversed(self.shape)), [axis for axis in flipped_axes if axis >= 0 and axis < 3], self.mem_size, 1 if do_r2c else 0, normalize
         )
         check_for_errors()
 
