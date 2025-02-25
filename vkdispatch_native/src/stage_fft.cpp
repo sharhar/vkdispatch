@@ -89,18 +89,18 @@ struct FFTPlan* stage_fft_plan_create_extern(
                 *config.bufferSize = true_rows * cols * depth * sizeof(float) * 2;
                 config.performR2C = do_r2c;
 
-                LOG_INFO("FFT Configuration: %p, %p, %p, %p, %p, %p, %p", config.physicalDevice, config.device, config.queue, config.commandPool, config.fence, config.bufferSize, config.performR2C);
+                LOG_VERBOSE("FFT Configuration: %p, %p, %p, %p, %p, %p, %p", config.physicalDevice, config.device, config.queue, config.commandPool, config.fence, config.bufferSize, config.performR2C);
 
                 plan->ctx->glslang_mutex.lock();
 
-                LOG_INFO("Initializing VkFFT");
+                LOG_VERBOSE("Initializing VkFFT");
 
                 VkFFTResult resFFT = initializeVkFFT(&plan->apps[app_index], config);
                 if (resFFT != VKFFT_SUCCESS) {
                     set_error("(VkFFTResult is %d) initializeVkFFT inside '%s' at %s:%d\n", resFFT, __FUNCTION__, __FILE__, __LINE__);
                 }
 
-                LOG_INFO("VkFFT Initialized");
+                LOG_VERBOSE("VkFFT Initialized");
 
                 plan->ctx->glslang_mutex.unlock();
             }
