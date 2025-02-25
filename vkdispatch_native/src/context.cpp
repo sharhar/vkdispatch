@@ -96,13 +96,13 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
             }
         }
 
-        VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomicFloatFeaturesEnableStruct = {};
-        atomicFloatFeaturesEnableStruct.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT;
-        atomicFloatFeaturesEnableStruct.shaderBufferFloat32AtomicAdd = VK_TRUE;
+        //VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomicFloatFeaturesEnableStruct = {};
+        //atomicFloatFeaturesEnableStruct.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT;
+        //atomicFloatFeaturesEnableStruct.shaderBufferFloat32AtomicAdd = VK_TRUE;
 
-        VkPhysicalDeviceFeatures2 features2EnableStruct = {};
-        features2EnableStruct.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-        features2EnableStruct.pNext = &atomicFloatFeaturesEnableStruct;
+        //VkPhysicalDeviceFeatures2 features2EnableStruct = {};
+        //features2EnableStruct.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+        //features2EnableStruct.pNext = &atomicFloatFeaturesEnableStruct;
 
         float* queue_priorities = (float*)malloc(sizeof(float) * queue_counts[i]);
         for(int j = 0; j < queue_counts[i]; j++) {
@@ -132,11 +132,15 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
         VkDeviceCreateInfo deviceCreateInfo = {};
         deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        deviceCreateInfo.pNext = NULL; //&features2EnableStruct;
+        deviceCreateInfo.pNext = NULL;
+        deviceCreateInfo.flags = 0;
         deviceCreateInfo.queueCreateInfoCount = queueCreateInfos.size();
         deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
+        deviceCreateInfo.enabledLayerCount = 0;
+        deviceCreateInfo.ppEnabledLayerNames = nullptr;
         deviceCreateInfo.enabledExtensionCount = supportedExtensions.size();
         deviceCreateInfo.ppEnabledExtensionNames = supportedExtensions.data();
+        deviceCreateInfo.pEnabledFeatures = nullptr;
 
         VK_CALL_RETNULL(vkCreateDevice(ctx->physicalDevices[i], &deviceCreateInfo, nullptr, &ctx->devices[i]));
 
@@ -147,6 +151,10 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
         VmaVulkanFunctions vmaVulkanFunctions = {};
         vmaVulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
         vmaVulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
+        vmaVulkanFunctions.vkAllocateMemory = vkAllocateMemory;
+        vmaVulkanFunctions.vkFreeMemory = vkFreeMemory;
+        vmaVulkanFunctions.vkMapMemory = vkMapMemory;
+        vmaVulkanFunctions.vkUnmapMemory = vkUnmapMemory;
 
         VmaAllocatorCreateInfo allocatorCreateInfo = {};
         allocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_2;

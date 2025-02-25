@@ -140,21 +140,18 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
             plan->poolSizes[i].push_back(poolSize);
         }
 
-        VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo;
-        memset(&descriptorSetLayoutCreateInfo, 0, sizeof(VkDescriptorSetLayoutCreateInfo));
+        VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
         descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         descriptorSetLayoutCreateInfo.bindingCount = bindings.size();
         descriptorSetLayoutCreateInfo.pBindings = bindings.data();
         VK_CALL_RETNULL(vkCreateDescriptorSetLayout(ctx->devices[i], &descriptorSetLayoutCreateInfo, NULL, &plan->descriptorSetLayouts[i]));
 
-        VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo;
-        memset(&pipelineLayoutCreateInfo, 0, sizeof(VkPipelineLayoutCreateInfo));
+        VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
         pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutCreateInfo.setLayoutCount = 1;
         pipelineLayoutCreateInfo.pSetLayouts = &plan->descriptorSetLayouts[i];
 
-        VkPushConstantRange pushConstantRange;
-        memset(&pushConstantRange, 0, sizeof(VkPushConstantRange));
+        VkPushConstantRange pushConstantRange = {};
         pushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
         pushConstantRange.offset = 0;
         pushConstantRange.size = create_info->pc_size;
@@ -164,14 +161,22 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
         }
         VK_CALL_RETNULL(vkCreatePipelineLayout(ctx->devices[i], &pipelineLayoutCreateInfo, NULL, &plan->pipelineLayouts[i]));
 
-        VkComputePipelineCreateInfo pipelineCreateInfo;
-        memset(&pipelineCreateInfo, 0, sizeof(VkComputePipelineCreateInfo));
+        VkComputePipelineCreateInfo pipelineCreateInfo = {};
         pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        pipelineCreateInfo.pNext = nullptr;
+        pipelineCreateInfo.flags = 0;
         pipelineCreateInfo.layout = plan->pipelineLayouts[i];
+        pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+        pipelineCreateInfo.basePipelineIndex = -1;
+
         pipelineCreateInfo.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        pipelineCreateInfo.stage.pNext = nullptr;
+        pipelineCreateInfo.stage.flags = 0;
         pipelineCreateInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
         pipelineCreateInfo.stage.module = plan->modules[i];
         pipelineCreateInfo.stage.pName = "main";
+        pipelineCreateInfo.stage.pSpecializationInfo = nullptr;
+
         VK_CALL_RETNULL(vkCreateComputePipelines(ctx->devices[i], VK_NULL_HANDLE, 1, &pipelineCreateInfo, NULL, &plan->pipelines[i]));
     }
 
