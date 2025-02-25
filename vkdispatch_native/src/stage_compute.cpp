@@ -86,33 +86,32 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
     plan->pipelineLayouts.resize(ctx->deviceCount);
     plan->pipelines.resize(ctx->deviceCount);
 
-    size_t code_size;
-
     ctx->glslang_mutex.lock();
 
-    uint32_t* code = glsl_to_spirv_util(
+    plan->code = glsl_to_spirv_util(
         GLSLANG_STAGE_COMPUTE, 
         reinterpret_cast<glslang_resource_t*>(ctx->glslang_resource_limits), 
-        &code_size, 
+        &plan->code_size, 
         create_info->shader_source, 
         create_info->shader_name
     );
 
     ctx->glslang_mutex.unlock();
     
-    if(code == NULL) {
-        //set_error("Failed to compile compute shader!");
+    if(plan->code == NULL) {
+        set_error("Failed to compile compute shader!");
         return NULL;
     }
 
     for (int i = 0; i < ctx->deviceCount; i++) {
         LOG_INFO("Creating Compute Plan for device %d", i);
 
-        VkShaderModuleCreateInfo shaderModuleCreateInfo;
-        memset(&shaderModuleCreateInfo, 0, sizeof(VkShaderModuleCreateInfo));
+        VkShaderModuleCreateInfo shaderModuleCreateInfo = {};
         shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        shaderModuleCreateInfo.codeSize = code_size;
-        shaderModuleCreateInfo.pCode = code;
+        shaderModuleCreateInfo.pNext = nullptr;
+        shaderModuleCreateInfo.flags = 0;
+        shaderModuleCreateInfo.codeSize = plan->code_size;
+        shaderModuleCreateInfo.pCode = plan->code;
         VK_CALL_RETNULL(vkCreateShaderModule(ctx->devices[i], &shaderModuleCreateInfo, NULL, &plan->modules[i]));        
 
         std::vector<VkDescriptorSetLayoutBinding> bindings;
@@ -130,16 +129,15 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
             else if(create_info->descriptorTypes[j] == DESCRIPTOR_TYPE_SAMPLER)
                 descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 
-            VkDescriptorSetLayoutBinding binding;
-            memset(&binding, 0, sizeof(VkDescriptorSetLayoutBinding));
+            VkDescriptorSetLayoutBinding binding = {};
             binding.binding = j;
             binding.descriptorType = descriptorType;
             binding.descriptorCount = 1;
             binding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+            binding.pImmutableSamplers = NULL;
             bindings.push_back(binding);
 
-            VkDescriptorPoolSize poolSize;
-            memset(&poolSize, 0, sizeof(VkDescriptorPoolSize));
+            VkDescriptorPoolSize poolSize = {};
             poolSize.type = descriptorType;
             poolSize.descriptorCount = 1;
             plan->poolSizes[i].push_back(poolSize);
@@ -147,14 +145,20 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
 
         VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
         descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        descriptorSetLayoutCreateInfo.pNext = nullptr;
+        descriptorSetLayoutCreateInfo.flags = 0;
         descriptorSetLayoutCreateInfo.bindingCount = bindings.size();
         descriptorSetLayoutCreateInfo.pBindings = bindings.data();
         VK_CALL_RETNULL(vkCreateDescriptorSetLayout(ctx->devices[i], &descriptorSetLayoutCreateInfo, NULL, &plan->descriptorSetLayouts[i]));
 
         VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
         pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutCreateInfo.pNext = nullptr;
+        pipelineLayoutCreateInfo.flags = 0;
         pipelineLayoutCreateInfo.setLayoutCount = 1;
         pipelineLayoutCreateInfo.pSetLayouts = &plan->descriptorSetLayouts[i];
+        pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
+        pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;    
 
         VkPushConstantRange pushConstantRange = {};
         pushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
@@ -184,8 +188,6 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
 
         VK_CALL_RETNULL(vkCreateComputePipelines(ctx->devices[i], VK_NULL_HANDLE, 1, &pipelineCreateInfo, NULL, &plan->pipelines[i]));
     }
-
-    free(code);
 
     return plan;
 }

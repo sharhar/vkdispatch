@@ -49,10 +49,10 @@ struct FFTPlan* stage_fft_plan_create_extern(
         VK_PIPELINE_STAGE_TRANSFER_BIT,
         [ctx, plan, recorder_count, dims, rows, cols, depth, do_r2c, omit_rows, omit_cols, omit_depth]
         (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
-            LOG_INFO("Initializing FFT on device %d, stream %d, recorder %d", device_index, stream_index, recorder_index);
+            LOG_VERBOSE("Initializing FFT on device %d, stream %d, recorder %d", device_index, stream_index, recorder_index);
 
             for(int j = 0; j < recorder_count; j++) {
-                LOG_INFO("Initializing FFT for recorder %d", j);
+                LOG_VERBOSE("Initializing FFT for recorder %d", j);
 
                 int app_index = stream_index * recorder_count + j;
 
@@ -67,7 +67,7 @@ struct FFTPlan* stage_fft_plan_create_extern(
                 config.omitDimension[1] = omit_cols;
                 config.omitDimension[2] = omit_depth;
 
-                LOG_INFO("FFT Configuration: %d, %d, %d, %d, %d, %d, %d", config.FFTdim, config.size[0], config.size[1], config.size[2], config.omitDimension[0], config.omitDimension[1], config.omitDimension[2]);
+                LOG_VERBOSE("FFT Configuration: %d, %d, %d, %d, %d, %d, %d", config.FFTdim, config.size[0], config.size[1], config.size[2], config.omitDimension[0], config.omitDimension[1], config.omitDimension[2]);
 
                 unsigned long long true_rows = rows;
 
@@ -85,18 +85,18 @@ struct FFTPlan* stage_fft_plan_create_extern(
                 *config.bufferSize = true_rows * cols * depth * sizeof(float) * 2;
                 config.performR2C = do_r2c;
 
-                LOG_INFO("FFT Configuration: %p, %p, %p, %p, %p, %p, %p", config.physicalDevice, config.device, config.queue, config.commandPool, config.fence, config.bufferSize, config.performR2C);
+                LOG_VERBOSE("FFT Configuration: %p, %p, %p, %p, %p, %p, %p", config.physicalDevice, config.device, config.queue, config.commandPool, config.fence, config.bufferSize, config.performR2C);
 
                 plan->ctx->glslang_mutex.lock();
 
-                LOG_INFO("Initializing VkFFT");
+                LOG_VERBOSE("Initializing VkFFT");
 
                 VkFFTResult resFFT = initializeVkFFT(&plan->apps[app_index], config);
                 if (resFFT != VKFFT_SUCCESS) {
                     set_error("(VkFFTResult is %d) initializeVkFFT inside '%s' at %s:%d\n", resFFT, __FUNCTION__, __FILE__, __LINE__);
                 }
 
-                LOG_INFO("VkFFT Initialized");
+                LOG_VERBOSE("VkFFT Initialized");
 
                 plan->ctx->glslang_mutex.unlock();
             }
