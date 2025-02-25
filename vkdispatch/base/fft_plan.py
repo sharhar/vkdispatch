@@ -13,7 +13,7 @@ from .command_list import CommandList
 from .dtype import complex64
 
 class FFTPlan:
-    def __init__(self, shape: typing.Tuple[int, ...], do_r2c: bool = False, axes: typing.List[int] = None):
+    def __init__(self, shape: typing.Tuple[int, ...], do_r2c: bool = False, axes: typing.List[int] = None, normalize: bool = False):
         assert len(shape) > 0 and len(shape) < 4, "shape must be 1D, 2D, or 3D"
 
         self.shape = shape
@@ -29,7 +29,7 @@ class FFTPlan:
         actual_axes = [(len(self.shape) - 1)-a for a in axes]
 
         self._handle = vkdispatch_native.stage_fft_plan_create(
-            get_context_handle(), list(reversed(self.shape)), actual_axes, self.mem_size, 1 if do_r2c else 0 
+            get_context_handle(), list(reversed(self.shape)), actual_axes, self.mem_size, 1 if do_r2c else 0, normalize
         )
         check_for_errors()
 

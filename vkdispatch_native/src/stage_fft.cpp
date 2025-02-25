@@ -4,10 +4,13 @@
 
 struct FFTPlan {
     struct Context* ctx;
+    
+    uint64_t fences_handle;
+    
     VkFence* fences;
     VkFFTApplication* apps;
-    VkFFTConfiguration* configs;
-    VkFFTLaunchParams* launchParams;
+    //VkFFTConfiguration* configs;
+    //VkFFTLaunchParams* launchParams;
     int recorder_count;
 };
 
@@ -21,7 +24,8 @@ struct FFTPlan* stage_fft_plan_create_extern(
     unsigned int do_r2c,
     int omit_rows,
     int omit_cols,
-    int omit_depth) {
+    int omit_depth,
+    int normalize) {
     LOG_INFO("Creating FFT plan with handle %p", ctx);
     
     struct FFTPlan* plan = new struct FFTPlan();
@@ -31,15 +35,13 @@ struct FFTPlan* stage_fft_plan_create_extern(
 
     int recorder_count = ctx->streams[0]->recording_thread_count;
 
+    //plan->fences_handle = ctx->handle_manager->register_handle(false);
+
     plan->apps = new VkFFTApplication[plan_count];
-    plan->configs = new VkFFTConfiguration[plan_count];
-    plan->launchParams = new VkFFTLaunchParams[plan_count];
     plan->fences = new VkFence[plan_count];
     plan->recorder_count = recorder_count;
 
     for(int i = 0; i < plan_count; i++) {
-        plan->launchParams[i] = {};
-        //plan->configs[i] = {};
         plan->apps[i] = {};
     }
 
@@ -47,12 +49,12 @@ struct FFTPlan* stage_fft_plan_create_extern(
         "fft-init",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        [ctx, plan, recorder_count, dims, rows, cols, depth, do_r2c, omit_rows, omit_cols, omit_depth]
+        [ctx, plan, recorder_count, dims, rows, cols, depth, do_r2c, omit_rows, omit_cols, omit_depth, normalize]
         (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
-            LOG_INFO("Initializing FFT on device %d, stream %d, recorder %d", device_index, stream_index, recorder_index);
+            LOG_VERBOSE("Initializing FFT on device %d, stream %d, recorder %d", device_index, stream_index, recorder_index);
 
             for(int j = 0; j < recorder_count; j++) {
-                LOG_INFO("Initializing FFT for recorder %d", j);
+                LOG_VERBOSE("Initializing FFT for recorder %d", j);
 
                 int app_index = stream_index * recorder_count + j;
 
@@ -67,7 +69,9 @@ struct FFTPlan* stage_fft_plan_create_extern(
                 config.omitDimension[1] = omit_cols;
                 config.omitDimension[2] = omit_depth;
 
-                LOG_INFO("FFT Configuration: %d, %d, %d, %d, %d, %d, %d", config.FFTdim, config.size[0], config.size[1], config.size[2], config.omitDimension[0], config.omitDimension[1], config.omitDimension[2]);
+                config.normalize = normalize;
+
+                LOG_VERBOSE("FFT Configuration: %d, %d, %d, %d, %d, %d, %d", config.FFTdim, config.size[0], config.size[1], config.size[2], config.omitDimension[0], config.omitDimension[1], config.omitDimension[2]);
 
                 unsigned long long true_rows = rows;
 
@@ -121,10 +125,11 @@ void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* p
         [plan, buffer, inverse](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
             int index = stream_index * plan->recorder_count + recorder_index;
 
-            plan->launchParams[index].buffer = &buffer->buffers[stream_index];
-            plan->launchParams[index].commandBuffer = &cmd_buffer;
+            VkFFTLaunchParams launchParams = {};
+            launchParams.buffer = &buffer->buffers[stream_index];
+            launchParams.commandBuffer = &cmd_buffer;
 
-            VkFFTResult fftRes = VkFFTAppend(&plan->apps[index], inverse, &plan->launchParams[index]);
+            VkFFTResult fftRes = VkFFTAppend(&plan->apps[index], inverse, &launchParams);
 
             if (fftRes != VKFFT_SUCCESS) {
                 LOG_ERROR("(VkFFTResult is %d) VkFFTAppend inside '%s' at %s:%d\n", fftRes, __FUNCTION__, __FILE__, __LINE__);

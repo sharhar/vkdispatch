@@ -9,26 +9,25 @@ import vkdispatch as vd
 
 __fft_plans = {}
 
-def get_fft_plan(buffer_handle: int, shape: Tuple[int, ...], do_r2c: bool, axes: List[int]) -> vd.FFTPlan:
+def get_fft_plan(buffer_handle: int, shape: Tuple[int, ...], do_r2c: bool, axes: List[int], inverse: bool, normalize: bool) -> vd.FFTPlan:
     global __fft_plans
 
-    fft_plan_key = (buffer_handle, *shape, do_r2c, axes if axes is None else tuple(axes))
+    fft_plan_key = (buffer_handle, *shape, do_r2c, axes if axes is None else tuple(axes), normalize)
 
     if fft_plan_key not in __fft_plans:
-        __fft_plans[fft_plan_key] = vd.FFTPlan(shape, do_r2c, axes=axes)
+        __fft_plans[fft_plan_key] = vd.FFTPlan(shape, do_r2c, axes=axes, normalize=normalize)
 
     return __fft_plans[fft_plan_key]
-
 
 def reset_fft_plans():
     global __fft_plans
     __fft_plans = {}
 
-def execute_fft_plan(buffer: vd.Buffer, fft_shape: tuple, axes: List[int] = None, cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None, do_r2c: bool = False, inverse: bool = False):
+def execute_fft_plan(buffer: vd.Buffer, fft_shape: tuple, axes: List[int] = None, cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None, do_r2c: bool = False, inverse: bool = False, normalize_inverse: bool = False):
     if cmd_stream is None:
         cmd_stream = vd.global_cmd_stream()
 
-    plan = get_fft_plan(buffer._handle, fft_shape, do_r2c, axes)
+    plan = get_fft_plan(buffer._handle, fft_shape, do_r2c, axes, inverse, normalize_inverse)
     plan.record(cmd_stream, buffer, inverse)
     
     if isinstance(cmd_stream, vd.CommandStream):
@@ -38,18 +37,18 @@ def execute_fft_plan(buffer: vd.Buffer, fft_shape: tuple, axes: List[int] = None
 def fft(buffer: vd.Buffer, axes: List[int] = None, cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None):
     execute_fft_plan(buffer, buffer.shape, axes, cmd_stream, False, False)
 
-def ifft(buffer: vd.Buffer, axes: List[int] = None, cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None):
-    execute_fft_plan(buffer, buffer.shape, axes, cmd_stream, False, True)
+def ifft(buffer: vd.Buffer, axes: List[int] = None, cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None, normalize: bool = False):
+    execute_fft_plan(buffer, buffer.shape, axes, cmd_stream, False, True, normalize)
 
 def rfft(buffer: vd.Buffer, axes: List[int] = None, cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None):
     assert buffer.shape[-1] > 2, "Buffer shape must have at least 3 elements in the last dimension"
 
     execute_fft_plan(buffer, buffer.shape[:-1] + (buffer.shape[-1] - 2,), axes, cmd_stream, True, False)
 
-def irfft(buffer: vd.Buffer, axes: List[int] = None, cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None):
+def irfft(buffer: vd.Buffer, axes: List[int] = None, cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None, normalize: bool = False):
     assert buffer.shape[-1] > 2, "Buffer shape must have at least 3 elements in the last dimension"
 
-    execute_fft_plan(buffer, buffer.shape[:-1] + (buffer.shape[-1] - 2,), axes, cmd_stream, True, True)
+    execute_fft_plan(buffer, buffer.shape[:-1] + (buffer.shape[-1] - 2,), axes, cmd_stream, True, True, normalize)
 
 class RFFTBuffer(vd.Buffer):
     def __init__(self, shape: Tuple[int, ...]):
