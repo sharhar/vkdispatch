@@ -123,8 +123,6 @@ class ReductionDispatcher:
         self.stage1 = None
         self.stage2 = None
 
-        #self.stage1 = create_reduction_stage(map, 1, (vc.Buffer[out_type], *var_types[1:], vc.Const[vc.i32]), out_type, reduce, reduction_identity, group_size, subgroup_size)
-        #self.stage2 = create_reduction_stage(None, 0, (vc.Buffer[out_type], vc.Const[vc.i32]), out_type, reduce, reduction_identity, group_size, subgroup_size)
         self.arg_count = len(var_types[1:])
         self.group_size = group_size
         self.out_type = out_type

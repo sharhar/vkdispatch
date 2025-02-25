@@ -311,13 +311,13 @@ void Stream::record_worker(int worker_id) {
         char* current_instance_data = (char*)&work_item.work_header[1];
         for(size_t instance = 0; instance < work_item.work_header->instance_count; instance++) {
             for (size_t i = 0; i < command_buffer->size(); i++) {
-                LOG_INFO("Recording command %d of type %s on worker %d", i, command_buffer->operator[](i).name, worker_id);
+                LOG_VERBOSE("Recording command %d of type %s on worker %d", i, command_buffer->operator[](i).name, worker_id);
 
-                LOG_INFO("Executing command %d", i);
+                LOG_VERBOSE("Executing command %d", i);
                 command_buffer->operator[](i).func->operator()(cmd_buffer, device_index, stream_index, worker_id, current_instance_data);
                 current_instance_data += command_buffer->operator[](i).pc_size;
 
-                LOG_INFO("Command %d executed", i);
+                LOG_VERBOSE("Command %d executed", i);
 
                 if(i < command_buffer->size() - 1) {
                     vkCmdPipelineBarrier(

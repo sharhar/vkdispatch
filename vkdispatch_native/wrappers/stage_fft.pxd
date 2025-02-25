@@ -21,10 +21,11 @@ cdef extern from "../include/stage_fft.hh":
         unsigned int do_r2c,
         int omit_rows,
         int omit_cols,
-        int omit_depth)
+        int omit_depth,
+        int normalize)
     void stage_fft_record_extern(CommandList* command_list, FFTPlan* plan, Buffer* buffer, int inverse)
 
-cpdef inline stage_fft_plan_create(unsigned long long context, list[int] dims, list[int] axes, unsigned long long buffer_size, unsigned int do_r2c):
+cpdef inline stage_fft_plan_create(unsigned long long context, list[int] dims, list[int] axes, unsigned long long buffer_size, unsigned int do_r2c, bool normalize):
     assert len(dims) > 0 and len(dims) < 4, "dims must be a list of length 1, 2, or 3"
 
     cdef Context* ctx = <Context*>context
@@ -43,7 +44,7 @@ cpdef inline stage_fft_plan_create(unsigned long long context, list[int] dims, l
     for i in range(len(axes)):
         omits__[axes[i]] = 0
     
-    cdef FFTPlan* plan = stage_fft_plan_create_extern(ctx, dims_, dims__[0], dims__[1], dims__[2], buffer_size, do_r2c, omits__[0], omits__[1], omits__[2])
+    cdef FFTPlan* plan = stage_fft_plan_create_extern(ctx, dims_, dims__[0], dims__[1], dims__[2], buffer_size, do_r2c, omits__[0], omits__[1], omits__[2], 1 if normalize else 0)
 
     free(dims__)
 
