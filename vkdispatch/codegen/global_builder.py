@@ -5,6 +5,9 @@ from .builder import ShaderBuilder
 
 from typing import List, Union, Optional
 
+inf_f32 = "uintBitsToFloat(0x7F800000)"
+ninf_f32 = "uintBitsToFloat(0xFF800000)"
+
 class GlobalBuilder:
     obj = ShaderBuilder()
 

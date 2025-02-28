@@ -69,6 +69,16 @@ struct FFTPlan* stage_fft_plan_create_extern(
                 config.omitDimension[1] = omit_cols;
                 config.omitDimension[2] = omit_depth;
 
+                glslang_resource_t* resource = reinterpret_cast<glslang_resource_t*>(ctx->glslang_resource_limits);
+
+                config.maxComputeWorkGroupCount[0] = resource->max_compute_work_group_count_x;
+                config.maxComputeWorkGroupCount[1] = resource->max_compute_work_group_count_y;
+                config.maxComputeWorkGroupCount[2] = resource->max_compute_work_group_count_z;
+
+                config.maxComputeWorkGroupSize[0] = resource->max_compute_work_group_size_x;
+                config.maxComputeWorkGroupSize[1] = resource->max_compute_work_group_size_y;
+                config.maxComputeWorkGroupSize[2] = resource->max_compute_work_group_size_z;
+
                 config.normalize = normalize;
 
                 LOG_VERBOSE("FFT Configuration: %d, %d, %d, %d, %d, %d, %d", config.FFTdim, config.size[0], config.size[1], config.size[2], config.omitDimension[0], config.omitDimension[1], config.omitDimension[2]);
