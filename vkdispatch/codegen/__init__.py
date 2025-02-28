@@ -11,7 +11,7 @@ from .builder import ShaderBinding
 from .builder import ShaderDescription
 from .builder import ShaderBuilder
 
-from .global_builder import set_global_builder
+from .global_builder import inf_f32, ninf_f32, set_global_builder
 from .global_builder import global_invocation, local_invocation, workgroup
 from .global_builder import workgroup_size, num_workgroups, num_subgroups
 from .global_builder import subgroup_id, subgroup_size, subgroup_invocation, shared_buffer

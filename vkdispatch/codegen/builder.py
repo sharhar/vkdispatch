@@ -144,6 +144,15 @@ class ShaderBuilder:
         self.return_statement()
         self.end()
 
+        self.if_statement(self.exec_count.y <= self.global_invocation.y)
+        self.return_statement()
+        self.end()
+
+        self.if_statement(self.exec_count.z <= self.global_invocation.z)
+        self.return_statement()
+        self.end()
+
+
     def append_contents(self, contents: str) -> None:
         self.contents += ("\t" * self.scope_num) + contents
     

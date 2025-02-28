@@ -12,13 +12,13 @@ signal = np.exp(-X**2 - Y**2)  # Gaussian function
 
 print(signal.shape, signal.dtype)
 
-Fr_signal = np.fft.rfft(signal)
+Fr_signal = np.fft.fft(signal)
 
-signal_buffer = vd.asrfftbuffer(signal)
+signal_buffer = vd.asbuffer(signal.astype(np.complex64))
 
-vd.rfft(signal_buffer, axes=[1])
+vd.fft(signal_buffer, axes=[1])
 
-plt.imshow(np.abs(Fr_signal - signal_buffer.read_fourier(0)))
+plt.imshow(np.abs(Fr_signal - signal_buffer.read(0)))
 plt.show()
 
 #vd.irfft(signal_buffer)
