@@ -38,6 +38,32 @@ def shader(exec_size=None, local_size=None, workgroups=None):
 
         wrapper.__signature__ = inspect.signature(func)
         return typing.cast(F, wrapper)
-        #return functools.update_wrapper(wrapper, func)
+    
+    return decorator
+
+def reduce(identity, axes=None, group_size=None):
+    def decorator(func: F) -> F:
+        func_signature = inspect.signature(func)
+
+        if func_signature.return_annotation == inspect.Parameter.empty:
+            raise ValueError("Return type must be annotated")
+        
+        shader_obj = vd.ReductionObject(
+            reduction=vd.ReductionOperation(
+                name=func.__name__,
+                reduction=func,
+                identity=identity
+            ),
+            out_type=func_signature.return_annotation,
+            group_size=group_size,
+            axes=axes
+        )
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            return shader_obj.__call__(*args, **kwargs)
+
+        wrapper.__signature__ = inspect.signature(func)
+        return typing.cast(F, wrapper)
     
     return decorator

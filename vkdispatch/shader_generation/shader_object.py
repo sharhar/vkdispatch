@@ -228,7 +228,7 @@ class ShaderObject:
                 bound_samplers.append((arg, shader_arg.binding))
             
             elif shader_arg.arg_type == vd.ShaderArgumentType.CONSTANT:
-                if callable(arg): # isinstance(arg, LaunchBindObject):
+                if callable(arg):
                     raise ValueError("Cannot use LaunchVariables for Constants")
 
                 uniform_values[shader_arg.shader_name] = arg
@@ -244,7 +244,7 @@ class ShaderObject:
                 if len(self.shader_description.pc_structure) == 0:
                     raise ValueError("Something went wrong with push constants!!")
 
-                if callable(arg): # isinstance(arg, LaunchBindObject):
+                if callable(arg):
                     if my_cmd_stream.submit_on_record:
                         raise ValueError("Cannot bind Variables for default cmd list!")
                     
