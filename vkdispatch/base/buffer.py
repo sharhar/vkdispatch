@@ -12,7 +12,11 @@ from .dtype import to_numpy_dtype, from_numpy_dtype
 
 import vkdispatch_native
 
-class Buffer:
+import typing
+
+_ArgType = typing.TypeVar('_ArgType', bound=dtype)
+
+class Buffer(typing.Generic[_ArgType]):
     """TODO: Docstring"""
 
     _handle: int
@@ -119,10 +123,6 @@ class Buffer:
                 result[i] = self.read(i)
 
         return result
-
-    @classmethod
-    def __class_getitem__(cls, params):
-       raise RuntimeError("Cannot index into vd.Buffer! Perhaps you meant to use vc.Buffer?")
 
 
 def asbuffer(array: np.ndarray) -> Buffer:

@@ -7,6 +7,7 @@ import typing
 from typing import Callable, TypeVar
 
 F = TypeVar("F", bound=Callable)
+RetType = TypeVar('RetType')
 
 def shader(exec_size=None, local_size=None, workgroups=None):
     if workgroups is not None and exec_size is not None:
@@ -42,13 +43,13 @@ def shader(exec_size=None, local_size=None, workgroups=None):
     return decorator
 
 def reduce(identity, axes=None, group_size=None):
-    def decorator(func: F) -> F:
+    def decorator(func: Callable[..., RetType]) -> Callable[[vd.Buffer[RetType]], vd.Buffer[RetType]]:
         func_signature = inspect.signature(func)
 
         if func_signature.return_annotation == inspect.Parameter.empty:
             raise ValueError("Return type must be annotated")
-        
-        shader_obj = vd.ReductionObject(
+
+        return vd.ReductionObject(
             reduction=vd.ReductionOperation(
                 name=func.__name__,
                 reduction=func,
@@ -58,12 +59,5 @@ def reduce(identity, axes=None, group_size=None):
             group_size=group_size,
             axes=axes
         )
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            return shader_obj.__call__(*args, **kwargs)
-
-        wrapper.__signature__ = inspect.signature(func)
-        return typing.cast(F, wrapper)
     
     return decorator
