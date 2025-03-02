@@ -149,7 +149,6 @@ def select_devices(use_cpu: bool, all_devices) -> List[int]:
     return [result[0]]
 
 __context = None
-__postinit_funcs = []
 
 def make_context(
     devices: Union[int, List[int], None] = None,
@@ -160,7 +159,6 @@ def make_context(
     all_queues: bool = False
 ) -> Context:
     global __context
-    global __postinit_funcs
 
     device_list = [devices]
     
@@ -196,18 +194,11 @@ def make_context(
 
         __context = Context(device_list[0], queue_families)
 
-        for func in __postinit_funcs:
-            func()
-
     return __context
 
 def is_context_initialized() -> bool:
     global __context
     return not __context is None
-
-def stage_for_postinit(func: Callable):
-    global __postinit_funcs
-    __postinit_funcs.append(func)
 
 def get_context() -> Context:
     return make_context()

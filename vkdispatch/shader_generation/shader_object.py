@@ -130,7 +130,7 @@ class ShaderObject:
     ready: bool
     source: str
 
-    def __init__(self, name: str, description: vc.ShaderDescription, signature: vd.ShaderSignature, local_size, workgroups, exec_count) -> None:
+    def __init__(self, name: str, description: vc.ShaderDescription, signature: vd.ShaderSignature, local_size=None, workgroups=None, exec_count=None) -> None:
         self.name = name 
         self.plan = None
         self.shader_description = description
