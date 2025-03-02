@@ -1,6 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+a = eval("""lambda a, b: a + b""")
+
+print(a)
+
+exit()
+
 # Create a sample non-square signal (e.g., 300x500)
 H, W = 301, 501  # Odd dimensions
 x = np.linspace(-5, 5, W)
