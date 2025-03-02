@@ -147,8 +147,13 @@ class DeviceInfo:
         shader_buffer_float32_atomics: int,
         shader_buffer_float32_atomic_add: int,
         float_64_support: int,
+        float_16_support: int,
         int_64_support: int,
         int_16_support: int,
+        storage_buffer_16_bit_access: int, 
+        uniform_and_storage_buffer_16_bit_access: int,
+        storage_push_constant_16: int,
+        storage_input_output_16: int,
         max_workgroup_size: typing.Tuple[int, int, int],
         max_workgroup_invocations: int,
         max_workgroup_count: typing.Tuple[int, int, int],
@@ -183,8 +188,14 @@ class DeviceInfo:
         self.shader_buffer_float32_atomic_add = shader_buffer_float32_atomic_add
 
         self.float_64_support = float_64_support
+        self.float_16_support = float_16_support
         self.int_64_support = int_64_support
         self.int_16_support = int_16_support
+
+        self.storage_buffer_16_bit_access = storage_buffer_16_bit_access
+        self.uniform_and_storage_buffer_16_bit_access = uniform_and_storage_buffer_16_bit_access
+        self.storage_push_constant_16 = storage_push_constant_16
+        self.storage_input_output_16 = storage_input_output_16
 
         self.max_workgroup_size = max_workgroup_size
         self.max_workgroup_invocations = max_workgroup_invocations
@@ -239,10 +250,16 @@ class DeviceInfo:
         result += "\n\tProperties:\n"
 
         result += f"\t\t64-bit Float Support: {self.float_64_support == 1}\n"
+        result += f"\t\t16-bit Float Support: {self.float_16_support == 1}\n"
         result += f"\t\t64-bit Int Support: {self.int_64_support == 1}\n"
-        result += f"\t\t16-bit Int Suppor: {self.int_16_support == 1}\n"
+        result += f"\t\t16-bit Int Support: {self.int_16_support == 1}\n"
         
         if verbose:
+            result += f"\t\tStorage Buffer 16-bit Access: {self.storage_buffer_16_bit_access == 1}\n"
+            result += f"\t\tUniform and Storage Buffer 16-bit Access: {self.uniform_and_storage_buffer_16_bit_access == 1}\n"
+            result += f"\t\tStorage Push Constant 16: {self.storage_push_constant_16 == 1}\n"
+            result += f"\t\tStorage Input Output 16: {self.storage_input_output_16 == 1}\n"
+
             result += f"\t\tMax Workgroup Sizes: {self.max_workgroup_size}\n"
             result += f"\t\tMax Workgroup Invocations: {self.max_workgroup_invocations}\n"
             result += f"\t\tMax Workgroup Counts: {self.max_workgroup_count}\n"

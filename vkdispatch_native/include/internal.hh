@@ -91,6 +91,8 @@ typedef struct {
     std::vector<VkPhysicalDevice> physicalDevices;
     std::vector<VkPhysicalDeviceFeatures2> features;
     std::vector<VkPhysicalDeviceShaderAtomicFloatFeaturesEXT> atomicFloatFeatures;
+    std::vector<VkPhysicalDeviceShaderFloat16Int8Features> float16int8Features;
+    std::vector<VkPhysicalDevice16BitStorageFeatures> storage16bit;
     std::vector<VkPhysicalDeviceProperties2> properties;
     std::vector<VkPhysicalDeviceSubgroupProperties> subgroup_properties;
     std::vector<struct PhysicalDeviceDetails> device_details;
