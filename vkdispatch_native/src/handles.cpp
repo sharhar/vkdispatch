@@ -10,26 +10,41 @@ HandleManager::HandleManager(Context* ctx) {
     }
 }
 
-uint64_t HandleManager::register_handle(bool per_device) {
+uint64_t HandleManager::register_device_handle(const char* name) {
+    return register_handle(name, stream_count, true);
+}
+
+uint64_t HandleManager::register_stream_handle(const char* name) {
+    return register_handle(name, stream_count, false);
+}
+
+uint64_t HandleManager::register_handle(const char* name, size_t count, bool per_device) {
     std::unique_lock lock(handle_mutex);
+
+    if(per_device && count != stream_count) {
+        LOG_ERROR("Per device handle count does not match stream count");
+        return 0;
+    }
     
     uint64_t handle = next_handle++;
-    uint64_t* handle_data = new uint64_t[stream_count];
-    for (int i = 0; i < stream_count; i++) {
+    uint64_t* handle_data = new uint64_t[count];
+    for (int i = 0; i < count; i++) {
         handle_data[i] = 0;
     }
 
     struct HandleHeader header;
     header.handle = handle;
+    header.count = count;
     header.per_device = per_device;
     header.data = handle_data;
+    header.name = name;
 
     handles[handle] = header;
 
     return handle;
 }
 
-void HandleManager::set_handle(int stream_index, uint64_t handle, uint64_t value) {
+void HandleManager::set_handle(int64_t index, uint64_t handle, uint64_t value) {
     std::unique_lock lock(handle_mutex);
 
     if(handles[handle].per_device) {
@@ -37,7 +52,12 @@ void HandleManager::set_handle(int stream_index, uint64_t handle, uint64_t value
         return;
     }
 
-    handles[handle].data[stream_index] = value;
+    if(index >= handles[handle].count || index < 0) {
+        LOG_ERROR("Index %d out of bounds for handle %s (%d)", index, handles[handle].name, handle);
+        return;
+    }
+
+    handles[handle].data[index] = value;
 }
 
 void HandleManager::set_handle_per_device(int device_index, uint64_t handle, std::function<uint64_t(int)> value_func) {
@@ -81,13 +101,19 @@ void HandleManager::set_handle_per_device(int device_index, uint64_t handle, std
     }
 }
 
-uint64_t HandleManager::get_handle(int stream_index, uint64_t handle) {
+uint64_t HandleManager::get_handle(int64_t index, uint64_t handle) {
     std::shared_lock lock(handle_mutex);
 
-    return handles[handle].data[stream_index];
+    return handles[handle].data[index];
 }
 
-void HandleManager::destroy_handle(int stream_index, uint64_t handle, std::function<void(uint64_t)> destroy_func) {
+uint64_t* HandleManager::get_handle_pointer(int64_t index, uint64_t handle) {
+    std::shared_lock lock(handle_mutex);
+
+    return &handles[handle].data[index];
+}
+
+void HandleManager::destroy_handle(int64_t index, uint64_t handle, std::function<void(uint64_t)> destroy_func) {
     std::unique_lock lock(handle_mutex);
 
     //destroy_func((T)handles[handle].data[stream_index]);

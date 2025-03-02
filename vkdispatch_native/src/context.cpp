@@ -132,7 +132,7 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
         VkDeviceCreateInfo deviceCreateInfo = {};
         deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        deviceCreateInfo.pNext = NULL;
+        deviceCreateInfo.pNext = &_instance.features[device_indicies[i]];
         deviceCreateInfo.flags = 0;
         deviceCreateInfo.queueCreateInfoCount = queueCreateInfos.size();
         deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
