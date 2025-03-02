@@ -49,7 +49,7 @@ inline void log_message(LogLevel log_level, const char* postfix, const char* fil
     __log_mutex.unlock();
 }
 
-//#define LOG_VERBOSE_ENABLED
+#define LOG_VERBOSE_ENABLED
 
 #ifdef LOG_VERBOSE_ENABLED
 #define LOG_VERBOSE(format, ...) log_message(LOG_LEVEL_VERBOSE, "\n", __FILE__, __LINE__, format, ##__VA_ARGS__)

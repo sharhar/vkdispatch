@@ -113,6 +113,14 @@ uint64_t* HandleManager::get_handle_pointer(int64_t index, uint64_t handle) {
     return &handles[handle].data[index];
 }
 
+uint64_t HandleManager::get_handle_no_lock(int64_t index, uint64_t handle) {
+    return handles[handle].data[index];
+}
+
+uint64_t* HandleManager::get_handle_pointer_no_lock(int64_t index, uint64_t handle) {
+    return &handles[handle].data[index];
+}
+
 void HandleManager::destroy_handle(int64_t index, uint64_t handle, std::function<void(uint64_t)> destroy_func) {
     std::unique_lock lock(handle_mutex);
 

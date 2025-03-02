@@ -11,7 +11,7 @@ from typing import Tuple
 
 import numpy as np
 
-vd.initialize(log_level=vd.LogLevel.WARNING)
+vd.initialize(log_level=vd.LogLevel.VERBOSE)
 vd.make_context(use_cpu=True)
 
 class CommandType(enum.Enum):
