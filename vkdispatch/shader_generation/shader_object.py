@@ -16,6 +16,7 @@ import numpy as np
 class LaunchParametersHolder:
     def __init__(self, names_and_defaults, args, kwargs) -> None:
         self.ref_dict = {}
+        self.index_to_name_list = []
 
         for ii, arg_var in enumerate(names_and_defaults):
             arg = None
@@ -32,6 +33,13 @@ class LaunchParametersHolder:
                     arg = kwargs[arg_var[0]]
             
             self.ref_dict[arg_var[0]] = arg
+            self.index_to_name_list.append(arg_var[0])
+
+    def get_names(self) -> List[str]:
+        return [name for name in self.index_to_name_list]
+    
+    def get_values(self) -> List[Any]:
+        return [self.ref_dict[name] for name in self.index_to_name_list]
 
     def __getattr__(self, name: str):
         return self.ref_dict[name]
@@ -49,6 +57,13 @@ class ExectionBounds:
         self.exec_size = exec_size
 
     def process_input(self, in_val, args, kwargs) -> Tuple[int, int, int]:
+        if isinstance(in_val, str):
+            params_holder = LaunchParametersHolder(self.names_and_defaults, args, kwargs)
+            input_variables = ", ".join(params_holder.get_names())
+            params_lambda_code = f"lambda {input_variables}: {in_val}"
+            value_func = eval(params_lambda_code)
+            in_val = value_func(*params_holder.get_values())
+
         if callable(in_val):
             in_val = in_val(LaunchParametersHolder(self.names_and_defaults, args, kwargs))
 
@@ -115,7 +130,7 @@ class ShaderObject:
     ready: bool
     source: str
 
-    def __init__(self, name: str, description: vc.ShaderDescription, signature: vd.ShaderSignature) -> None:
+    def __init__(self, name: str, description: vc.ShaderDescription, signature: vd.ShaderSignature, local_size, workgroups, exec_count) -> None:
         self.name = name 
         self.plan = None
         self.shader_description = description
@@ -123,17 +138,21 @@ class ShaderObject:
         self.bounds = None
         self.ready = False
         self.source = None
+        self.local_size = local_size
+        self.workgroups = workgroups
+        self.exec_size = exec_count
 
-    def build(self, local_size: Tuple[int, int, int] = None, workgroups=None, exec_size=None):
-        assert not self.ready, "Cannot build a shader that is already built!"
+    def build(self):
+        if self.ready:
+            return
 
         my_local_size = (
-            local_size
-            if local_size is not None
+            self.local_size
+            if self.local_size is not None
             else [vd.get_context().max_workgroup_size[0], 1, 1]
         )
 
-        self.bounds = ExectionBounds(self.shader_signature.get_names_and_defaults(), my_local_size, workgroups, exec_size)
+        self.bounds = ExectionBounds(self.shader_signature.get_names_and_defaults(), my_local_size, self.workgroups, self.exec_size)
 
         self.source = self.shader_description.make_source(
             my_local_size[0], my_local_size[1], my_local_size[2]
@@ -157,7 +176,7 @@ class ShaderObject:
         return result
 
     def __call__(self, *args, **kwargs):
-        vd.make_context()
+        self.build()
 
         if not self.ready:
             raise ValueError("Cannot call a shader that is not built!")
