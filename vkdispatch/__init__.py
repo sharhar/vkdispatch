@@ -63,14 +63,16 @@ from .shader_generation.shader_object import ShaderObject
 from .shader_generation.shader_object import ExectionBounds
 from .shader_generation.shader_object import LaunchParametersHolder
 
-from .shader_generation.decorator import shader
-
 from .shader_generation.reduction_operations import ReductionOperation, SubgroupAdd, SubgroupMul, SubgroupMin
 from .shader_generation.reduction_operations import SubgroupMax, SubgroupAnd, SubgroupOr, SubgroupXor
 
 from .shader_generation.reduction_stage import make_reduction_stage, ReductionParams
 
+from .shader_generation.reduction_object import ReductionObject
+
 from .shader_generation.reductions import map_reduce
+
+from .shader_generation.decorators import shader, reduce
 
 
 __version__ = "0.0.21"

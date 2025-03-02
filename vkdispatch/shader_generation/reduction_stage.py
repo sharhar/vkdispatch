@@ -114,7 +114,7 @@ def make_reduction_stage(
         input_types: List = None) -> vd.ShaderObject:
 
     if name is None:
-        name = f"reduction_stage_{reduction.name}_{out_type.name}_{group_size}"
+        name = f"reduction_stage_{reduction.name}_{out_type.name}_{input_types}_{group_size}"
 
     builder = vc.ShaderBuilder()
     old_builder = vc.set_global_builder(builder)
