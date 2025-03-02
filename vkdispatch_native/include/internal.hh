@@ -63,8 +63,10 @@ void set_error(const char* format, ...);
 
 struct HandleHeader {
     uint64_t handle;
-    bool per_device;
+    size_t count;
     uint64_t* data;
+    bool per_device;
+    const char* name;
 };
 
 class HandleManager {
@@ -77,12 +79,16 @@ public:
     std::unordered_map<uint64_t, struct HandleHeader> handles;
 
     HandleManager(Context* ctx);
-    uint64_t register_handle(bool per_device);
 
-    void set_handle(int stream_index, uint64_t handle, uint64_t value);
+    uint64_t register_device_handle(const char* name);
+    uint64_t register_stream_handle(const char* name);
+    uint64_t register_handle(const char* name, size_t count, bool per_device);
+
+    void set_handle(int64_t index, uint64_t handle, uint64_t value);
     void set_handle_per_device(int device_index, uint64_t handle, std::function<uint64_t(int)> value_func);
-    uint64_t get_handle(int stream_index, uint64_t handle);
-    void destroy_handle(int stream_index, uint64_t handle, std::function<void(uint64_t)> destroy_func);
+    uint64_t get_handle(int64_t index, uint64_t handle);
+    uint64_t* get_handle_pointer(int64_t index, uint64_t handle);
+    void destroy_handle(int64_t index, uint64_t handle, std::function<void(uint64_t)> destroy_func);
 };
 
 typedef struct {

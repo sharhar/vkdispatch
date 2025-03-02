@@ -3,8 +3,8 @@
 struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
     struct DescriptorSet* descriptor_set = new struct DescriptorSet();
     descriptor_set->plan = plan;
-    descriptor_set->sets_handle = plan->ctx->handle_manager->register_handle(false);
-    descriptor_set->pools_handle = plan->ctx->handle_manager->register_handle(false);
+    descriptor_set->sets_handle = plan->ctx->handle_manager->register_stream_handle("DescriptorSet");
+    descriptor_set->pools_handle = plan->ctx->handle_manager->register_stream_handle("DescriptorPool");
 
     struct Context* ctx = plan->ctx;
 
