@@ -1,19 +1,24 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
-import functools
 import inspect
-import typing
 from typing import Callable, TypeVar
 
-F = TypeVar("F", bound=Callable)
+import sys
+
 RetType = TypeVar('RetType')
+
+if sys.version_info >= (3, 10):
+    from typing import ParamSpec
+    P = ParamSpec('P')
+else:
+    P = ...  # Placeholder for older Python versions
 
 def shader(exec_size=None, local_size=None, workgroups=None):
     if workgroups is not None and exec_size is not None:
         raise ValueError("Cannot specify both 'workgroups' and 'exec_size'")
 
-    def decorator(func: F) -> F:
+    def decorator(func: Callable[P, None]) -> Callable[P, None]:
         shader_name = f"{func.__module__}.{func.__name__}"
 
         builder = vc.ShaderBuilder()
@@ -24,7 +29,7 @@ def shader(exec_size=None, local_size=None, workgroups=None):
         func(*signature.get_variables())
         vc.set_global_builder(old_builder)
 
-        shader_obj = vd.ShaderObject(
+        return vd.ShaderObject(
             shader_name, 
             builder.build(shader_name), 
             signature,
@@ -32,13 +37,6 @@ def shader(exec_size=None, local_size=None, workgroups=None):
             workgroups=workgroups,
             exec_count=exec_size
         )
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            return shader_obj.__call__(*args, **kwargs)
-
-        wrapper.__signature__ = inspect.signature(func)
-        return typing.cast(F, wrapper)
     
     return decorator
 
