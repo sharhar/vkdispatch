@@ -87,6 +87,10 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
     uint64_t pipeline_layouts_handle = ctx->handle_manager->register_device_handle("PipelineLayouts");
     uint64_t pipelines_handle = ctx->handle_manager->register_device_handle("Pipelines");
 
+    plan->descriptorSetLayouts_handle = descriptor_set_layouts_handle;
+    plan->pipelineLayouts_handle = pipeline_layouts_handle;
+    plan->pipelines_handle = pipelines_handle;
+
     for (int j = 0; j < plan->binding_count; j++) {
         if(create_info->descriptorTypes[j] != DESCRIPTOR_TYPE_STORAGE_BUFFER &&
         create_info->descriptorTypes[j] != DESCRIPTOR_TYPE_UNIFORM_BUFFER &&
@@ -187,7 +191,7 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
                     pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
                 }
 
-                LOG_VERBOSE("Creating Pipeline Layout for device %d on stream %d", device_index);
+                LOG_VERBOSE("Creating Pipeline Layout for device %d on stream %d", device_index, stream_index);
 
                 VkPipelineLayout pipelineLayout;
                 VK_CALL_RETURN(vkCreatePipelineLayout(ctx->devices[device_index], &pipelineLayoutCreateInfo, NULL, &pipelineLayout), (uint64_t)0);
