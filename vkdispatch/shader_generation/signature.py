@@ -38,17 +38,20 @@ class ShaderArgument:
 
 class ShaderSignature:
     arguments: List[ShaderArgument]
+    variables: List[vc.BaseVariable]
 
-    def __init__(self, arguments: Optional[List[ShaderArgument]] = None) -> None:
-        self.arguments = arguments if arguments is not None else []
+    def __init__(self):
+        raise NotImplementedError("This class is not meant to be instantiated")
 
-    def make_for_decorator(self, builder: vc.ShaderBuilder, func: Callable, annotations: List) -> List[vc.BaseVariable]:
-        if annotations is None:
-            return self.make_from_inspectable_function(builder, func)        
+    @classmethod
+    def from_argument_list(cls, arguments: Optional[List[ShaderArgument]] = None) -> 'ShaderSignature':
+        instance = cls.__new__(cls)  # Bypasses __init__
+        instance.arguments = arguments if arguments is not None else []
+        instance.variables = None
+        return instance
 
-        return self.make_from_type_annotations(builder, annotations)
-
-    def make_from_inspectable_function(self, builder: vc.ShaderBuilder, func: Callable) -> List[vc.BaseVariable]:
+    @classmethod
+    def from_inspectable_function(cls, builder: vc.ShaderBuilder, func: Callable) -> 'ShaderSignature':
         func_signature = inspect.signature(func)
 
         annotations = []
@@ -71,15 +74,18 @@ class ShaderSignature:
             names.append(param.name)
             defaults.append(param.default if param.default != inspect.Parameter.empty else None)
         
-        return self.make_from_type_annotations(builder, annotations, names, defaults)
+        return ShaderSignature.from_type_annotations(builder, annotations, names, defaults)
 
-    def make_from_type_annotations(self, 
+    @classmethod
+    def from_type_annotations(cls, 
                        builder: vc.ShaderBuilder,
-                       annotations: List, # [GenericAlias], adding this type annotation causes an error in python 3.8, so for now it is left as List
+                       annotations: List,
                        names: Optional[List[str]] = None,
-                       defaults: Optional[List[Any]] = None) -> List[vc.BaseVariable]:
+                       defaults: Optional[List[Any]] = None) -> 'ShaderSignature':
 
-        shader_function_paramaters: List[vc.BaseVariable] = []
+        instance = cls.__new__(cls)  # Bypasses __init__
+        instance.arguments = []
+        instance.variables = []
 
         for i in range(len(annotations)):
             shader_param = None
@@ -140,9 +146,9 @@ class ShaderSignature:
             else:
                 raise ValueError(f"Unsupported type '{annotations[i].__args__[0]}'")
 
-            shader_function_paramaters.append(shader_param)
+            instance.variables.append(shader_param)
             
-            self.arguments.append(ShaderArgument(
+            instance.arguments.append(ShaderArgument(
                 names[i] if names is not None else f"param{i}",
                 arg_type,
                 defaults[i] if defaults is not None else None,
@@ -151,7 +157,10 @@ class ShaderSignature:
                 binding
             ))
     
-        return shader_function_paramaters
+        return instance
+    
+    def get_variables(self) -> List[vc.BaseVariable]:
+        return self.variables
 
     def get_names_and_defaults(self) -> List[Tuple[str, Any]]:
         return [(arg.name, arg.default_value) for arg in self.arguments]

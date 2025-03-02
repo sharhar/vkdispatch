@@ -50,7 +50,7 @@ class ReductionDispatcher:
         self.map_func = map
         self.out_type = out_type
 
-        self.stage1_input_buffers = var_types[1:]
+        self.stage1_input_types = var_types[1:]
 
         self.stage1 = None
         self.stage2 = None
@@ -77,7 +77,7 @@ class ReductionDispatcher:
             self.group_size, 
             False, 
             map_func=self.map_func, 
-            input_buffers=self.stage1_input_buffers
+            input_types=self.stage1_input_types
         )
 
         self.stage2 = vd.make_reduction_stage(

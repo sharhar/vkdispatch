@@ -111,7 +111,7 @@ def make_reduction_stage(
         output_is_input: bool,
         name: str = None,
         map_func: Callable = None,
-        input_buffers: List = None) -> vd.ShaderObject:
+        input_types: List = None) -> vd.ShaderObject:
 
     if name is None:
         name = f"reduction_stage_{reduction.name}_{out_type.name}_{group_size}"
@@ -123,13 +123,13 @@ def make_reduction_stage(
     
     signature_type_array.append(vc.Buffer[out_type])
 
-    if input_buffers is not None:
-        signature_type_array.extend(input_buffers)
+    if input_types is not None:
+        signature_type_array.extend(input_types)
 
     signature_type_array.append(ReductionParams)
 
-    signature = vd.ShaderSignature()
-    input_variables = signature.make_from_type_annotations(builder, signature_type_array)
+    signature = vd.ShaderSignature.from_type_annotations(builder, signature_type_array)
+    input_variables = signature.get_variables()
 
     params: ReductionParams = input_variables[-1]
 
