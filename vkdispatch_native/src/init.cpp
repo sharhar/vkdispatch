@@ -222,6 +222,8 @@ void init_extern(bool debug, LogLevel log_level) {
     _instance.physicalDevices.resize(device_count);
     _instance.features.resize(device_count);
     _instance.atomicFloatFeatures.resize(device_count);
+    _instance.float16int8Features.resize(device_count);
+    _instance.storage16bit.resize(device_count);
     _instance.properties.resize(device_count);
     _instance.subgroup_properties.resize(device_count);
     _instance.device_details.resize(device_count);
@@ -232,9 +234,17 @@ void init_extern(bool debug, LogLevel log_level) {
         _instance.atomicFloatFeatures[i] = {};
         _instance.atomicFloatFeatures[i].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT;
         
+        _instance.float16int8Features[i] = {};
+        _instance.float16int8Features[i].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES;
+        _instance.float16int8Features[i].pNext = &_instance.atomicFloatFeatures[i];
+
+        _instance.storage16bit[i] = {};
+        _instance.storage16bit[i].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES;
+        _instance.storage16bit[i].pNext = &_instance.float16int8Features[i];
+
         _instance.features[i] = {};
         _instance.features[i].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-        _instance.features[i].pNext = &_instance.atomicFloatFeatures[i];
+        _instance.features[i].pNext = &_instance.storage16bit[i];
         
         vkGetPhysicalDeviceFeatures2(_instance.physicalDevices[i], &_instance.features[i]);
 
@@ -275,8 +285,14 @@ void init_extern(bool debug, LogLevel log_level) {
         strcpy((char*)_instance.device_details[i].device_name, properties.deviceName);
 
         _instance.device_details[i].float_64_support = features.shaderFloat64;
+        _instance.device_details[i].float_16_support = _instance.float16int8Features[i].shaderFloat16;
         _instance.device_details[i].int_64_support = features.shaderInt64;
         _instance.device_details[i].int_16_support = features.shaderInt16;
+
+        _instance.device_details[i].storage_buffer_16_bit_access = _instance.storage16bit[i].storageBuffer16BitAccess;
+        _instance.device_details[i].uniform_and_storage_buffer_16_bit_access = _instance.storage16bit[i].uniformAndStorageBuffer16BitAccess;
+        _instance.device_details[i].storage_push_constant_16 = _instance.storage16bit[i].storagePushConstant16;
+        _instance.device_details[i].storage_input_output_16 = _instance.storage16bit[i].storageInputOutput16;
 
         _instance.device_details[i].max_workgroup_size_x = properties.limits.maxComputeWorkGroupSize[0];
         _instance.device_details[i].max_workgroup_size_y = properties.limits.maxComputeWorkGroupSize[1];

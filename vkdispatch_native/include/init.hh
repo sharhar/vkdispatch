@@ -26,8 +26,14 @@ struct PhysicalDeviceDetails {
     int shader_buffer_float32_atomic_add;
 
     int float_64_support;
+    int float_16_support;
     int int_64_support;
     int int_16_support;
+
+    int storage_buffer_16_bit_access;
+    int uniform_and_storage_buffer_16_bit_access;
+    int storage_push_constant_16;
+    int storage_input_output_16;
 
     unsigned int max_workgroup_size_x;
     unsigned int max_workgroup_size_y;

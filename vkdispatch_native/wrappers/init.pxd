@@ -31,8 +31,14 @@ cdef extern from "../include/init.hh":
         int shader_buffer_float32_atomic_add;
 
         int float_64_support
+        int float_16_support
         int int_64_support
         int int_16_support
+
+        int storage_buffer_16_bit_access
+        int uniform_and_storage_buffer_16_bit_access
+        int storage_push_constant_16
+        int storage_input_output_16
 
         unsigned int max_workgroup_size_x
         unsigned int max_workgroup_size_y
@@ -102,8 +108,13 @@ cpdef inline get_devices():
             device.shader_buffer_float32_atomics,
             device.shader_buffer_float32_atomic_add,
             device.float_64_support,
+            device.float_16_support,
             device.int_64_support,
             device.int_16_support,
+            device.storage_buffer_16_bit_access,
+            device.uniform_and_storage_buffer_16_bit_access,
+            device.storage_push_constant_16,
+            device.storage_input_output_16,
             (device.max_workgroup_size_x, device.max_workgroup_size_y, device.max_workgroup_size_z),
             device.max_workgroup_invocations,
             (device.max_workgroup_count_x, device.max_workgroup_count_y, device.max_workgroup_count_z),
