@@ -25,25 +25,28 @@ struct FFTPlan* stage_fft_plan_create_extern(
     
     struct FFTPlan* plan = new struct FFTPlan();
     plan->ctx = ctx;
-    plan->recorder_count = ctx->streams[0]->recording_thread_count;
+    int recorder_count = ctx->streams[0]->recording_thread_count;
 
-    int plan_count = ctx->streams.size() * plan->recorder_count;
+    int plan_count = ctx->streams.size() * recorder_count;
+    uint64_t fences_handle = ctx->handle_manager->register_handle("Fences", plan_count, false);
+    uint64_t vkfft_applications_handle = ctx->handle_manager->register_handle("VkFFTApplications", plan_count, false);
 
-    plan->fences_handle = ctx->handle_manager->register_handle("Fences", plan_count, false);
-    plan->vkfft_applications_handle = ctx->handle_manager->register_handle("VkFFTApplications", plan_count, false);
+    plan->recorder_count = recorder_count;
+    plan->fences_handle = fences_handle;
+    plan->vkfft_applications_handle = vkfft_applications_handle;
 
     command_list_record_command(ctx->command_list, 
         "fft-init",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        [ctx, plan, dims, rows, cols, depth, do_r2c, omit_rows, omit_cols, omit_depth, normalize]
+        [ctx, recorder_count, fences_handle, vkfft_applications_handle, dims, rows, cols, depth, do_r2c, omit_rows, omit_cols, omit_depth, normalize]
         (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
             LOG_VERBOSE("Initializing FFT on device %d, stream %d, recorder %d", device_index, stream_index, recorder_index);
 
-            for(int j = 0; j < plan->recorder_count; j++) {
+            for(int j = 0; j < recorder_count; j++) {
                 LOG_VERBOSE("Initializing FFT for recorder %d", j);
 
-                int app_index = stream_index * plan->recorder_count + j;
+                int app_index = stream_index * recorder_count + j;
 
                 VkFFTConfiguration config = {};
 
@@ -76,7 +79,7 @@ struct FFTPlan* stage_fft_plan_create_extern(
                     true_rows = (rows / 2) + 1;
                 }
 
-                VkFence* fence = (VkFence*)ctx->handle_manager->get_handle_pointer(stream_index, plan->fences_handle);
+                VkFence* fence = (VkFence*)ctx->handle_manager->get_handle_pointer(stream_index, fences_handle);
 
                 VkFenceCreateInfo fenceInfo = {};
                 fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -104,7 +107,7 @@ struct FFTPlan* stage_fft_plan_create_extern(
                     set_error("(VkFFTResult is %d) initializeVkFFT inside '%s' at %s:%d\n", resFFT, __FUNCTION__, __FILE__, __LINE__);
                 }
 
-                ctx->handle_manager->set_handle(app_index, plan->vkfft_applications_handle, (uint64_t)application);
+                ctx->handle_manager->set_handle(app_index, vkfft_applications_handle, (uint64_t)application);
             }
         }
     );
@@ -120,18 +123,23 @@ struct FFTPlan* stage_fft_plan_create_extern(
 void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* plan, struct Buffer* buffer, int inverse) {
     LOG_VERBOSE("Recording FFT");
 
+    struct Context* ctx = plan->ctx;
+
+    int recorder_count = plan->recorder_count;
+    uint64_t vkfft_applications_handle = plan->vkfft_applications_handle;
+
     command_list_record_command(command_list, 
         "fft-exec",
         0,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        [plan, buffer, inverse](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
-            int index = stream_index * plan->recorder_count + recorder_index;
+        [ctx, recorder_count, vkfft_applications_handle, buffer, inverse](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+            int index = stream_index * recorder_count + recorder_index;
 
             VkFFTLaunchParams launchParams = {};
             launchParams.buffer = &buffer->buffers[stream_index];
             launchParams.commandBuffer = &cmd_buffer;
 
-            VkFFTApplication* application = (VkFFTApplication*)plan->ctx->handle_manager->get_handle(stream_index, plan->vkfft_applications_handle);
+            VkFFTApplication* application = (VkFFTApplication*)ctx->handle_manager->get_handle(stream_index, vkfft_applications_handle);
 
             VkFFTResult fftRes = VkFFTAppend(application, inverse, &launchParams);
 

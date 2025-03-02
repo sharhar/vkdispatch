@@ -88,6 +88,8 @@ public:
     void set_handle_per_device(int device_index, uint64_t handle, std::function<uint64_t(int)> value_func);
     uint64_t get_handle(int64_t index, uint64_t handle);
     uint64_t* get_handle_pointer(int64_t index, uint64_t handle);
+    uint64_t get_handle_no_lock(int64_t index, uint64_t handle);
+    uint64_t* get_handle_pointer_no_lock(int64_t index, uint64_t handle);
     void destroy_handle(int64_t index, uint64_t handle, std::function<void(uint64_t)> destroy_func);
 };
 
@@ -220,11 +222,13 @@ void command_list_record_command(
 
 struct ComputePlan {
     struct Context* ctx;
-    std::vector<VkShaderModule> modules;
-    std::vector<std::vector<VkDescriptorPoolSize>> poolSizes;
-    std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
-    std::vector<VkPipelineLayout> pipelineLayouts;
-    std::vector<VkPipeline> pipelines;
+    uint64_t descriptorSetLayouts_handle;
+    uint64_t pipelineLayouts_handle;
+    uint64_t pipelines_handle;
+    
+    VkDescriptorPoolSize* poolSizes;
+    VkDescriptorSetLayoutBinding* bindings;
+
     unsigned int binding_count;
     unsigned int pc_size;
 

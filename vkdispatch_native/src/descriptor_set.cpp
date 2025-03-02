@@ -8,6 +8,8 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
 
     struct Context* ctx = plan->ctx;
 
+    uint64_t descriptor_set_layouts_handle = plan->descriptorSetLayouts_handle;
+
     uint64_t sets_handle = descriptor_set->sets_handle;
     uint64_t pools_handle = descriptor_set->pools_handle;
 
@@ -15,13 +17,18 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
         "descriptor-set-init",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        [plan, ctx, sets_handle, pools_handle](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+        [plan, ctx, descriptor_set_layouts_handle, sets_handle, pools_handle]
+        (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+            LOG_VERBOSE("Creating Descriptor Set for device %d on stream %d recorder %d", device_index, stream_index, recorder_index);
+
             VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
             memset(&descriptorPoolCreateInfo, 0, sizeof(VkDescriptorPoolCreateInfo));
             descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
             descriptorPoolCreateInfo.maxSets = 1;
-            descriptorPoolCreateInfo.poolSizeCount = plan->poolSizes[device_index].size();
-            descriptorPoolCreateInfo.pPoolSizes = plan->poolSizes[device_index].data();
+            descriptorPoolCreateInfo.poolSizeCount = plan->binding_count;
+            descriptorPoolCreateInfo.pPoolSizes = plan->poolSizes;
+
+            LOG_VERBOSE("Creating Descriptor Pool for device %d on stream %d recorder %d", device_index, stream_index, recorder_index);
 
             VkDescriptorPool pool;
             VK_CALL(vkCreateDescriptorPool(ctx->devices[device_index], &descriptorPoolCreateInfo, NULL, &pool));
@@ -31,7 +38,10 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
             descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
             descriptorSetAllocateInfo.descriptorPool = pool;
             descriptorSetAllocateInfo.descriptorSetCount = 1;
-            descriptorSetAllocateInfo.pSetLayouts = &plan->descriptorSetLayouts[device_index];
+
+            LOG_VERBOSE("Descriptor Set Layout Handle: %d", (uint64_t)ctx->handle_manager->get_handle(stream_index, descriptor_set_layouts_handle));
+
+            descriptorSetAllocateInfo.pSetLayouts = (VkDescriptorSetLayout*)ctx->handle_manager->get_handle_pointer(stream_index, descriptor_set_layouts_handle);
 
             VkDescriptorSet set;
             VK_CALL(vkAllocateDescriptorSets(ctx->devices[device_index], &descriptorSetAllocateInfo, &set));
