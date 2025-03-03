@@ -1,5 +1,3 @@
-import typing
-
 import numpy as np
 
 import vkdispatch_native
@@ -12,8 +10,17 @@ from .command_list import CommandList
 
 from .dtype import complex64
 
+from typing import List
+from typing import Tuple
+
 class FFTPlan:
-    def __init__(self, shape: typing.Tuple[int, ...], do_r2c: bool = False, axes: typing.List[int] = None, normalize: bool = False):
+    def __init__(self, 
+                 shape: Tuple[int, ...], 
+                 do_r2c: bool = False, 
+                 axes: List[int] = None, 
+                 normalize: bool = False, 
+                 padding: List[Tuple[int, int]] = None, 
+                 pad_frequency_domain: bool = False):
         assert len(shape) > 0 and len(shape) < 4, "shape must be 1D, 2D, or 3D"
 
         self.shape = shape
@@ -28,15 +35,31 @@ class FFTPlan:
 
         flipped_axes = [(len(self.shape) - 1)-a for a in axes]
 
+        if padding is None:
+            pad_left = [0, 0, 0]
+            pad_right = [0, 0, 0]
+        else:
+            pad_left = [0, 0, 0]
+            pad_right = [0, 0, 0]
+
+            for i, padd in enumerate(padding):
+                pad_left[(len(self.shape) - 1)-i] = padd[0]
+                pad_right[(len(self.shape) - 1)-i] = padd[1]
+
         self._handle = vkdispatch_native.stage_fft_plan_create(
-            get_context_handle(), list(reversed(self.shape)), [axis for axis in flipped_axes if axis >= 0 and axis < 3], self.mem_size, 1 if do_r2c else 0, normalize
+            get_context_handle(), 
+            list(reversed(self.shape)), 
+            [axis for axis in flipped_axes if axis >= 0 and axis < 3], 
+            self.mem_size, 
+            1 if do_r2c else 0, 
+            normalize,
+            pad_left,
+            pad_right,
+            pad_frequency_domain
         )
         check_for_errors()
 
     def record(self, command_list: CommandList, buffer: Buffer, inverse: bool = False):
-        #assert buffer.var_type == complex64, "buffer must be of dtype complex64"
-        #assert buffer.mem_size == self.mem_size, "buffer size must match plan size"
-
         vkdispatch_native.stage_fft_record(
             command_list._handle, self._handle, buffer._handle, 1 if inverse else -1
         )

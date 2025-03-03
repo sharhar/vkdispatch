@@ -10,7 +10,6 @@ cdef extern from "../include/stage_fft.hh":
     struct CommandList
     struct FFTPlan
 
-
     FFTPlan* stage_fft_plan_create_extern(
         Context* ctx, 
         unsigned long long dims, 
@@ -22,10 +21,23 @@ cdef extern from "../include/stage_fft.hh":
         int omit_rows,
         int omit_cols,
         int omit_depth,
-        int normalize)
+        int normalize,
+        unsigned long long pad_left_rows, unsigned long long pad_right_rows,
+        unsigned long long pad_left_cols, unsigned long long pad_right_cols,
+        unsigned long long pad_left_depth, unsigned long long pad_right_depth,
+        int frequency_zeropadding)
     void stage_fft_record_extern(CommandList* command_list, FFTPlan* plan, Buffer* buffer, int inverse)
 
-cpdef inline stage_fft_plan_create(unsigned long long context, list[int] dims, list[int] axes, unsigned long long buffer_size, unsigned int do_r2c, bool normalize):
+cpdef inline stage_fft_plan_create(
+    unsigned long long context, 
+    list[int] dims, 
+    list[int] axes, 
+    unsigned long long buffer_size,
+    unsigned int do_r2c, 
+    bool normalize,
+    tuple[int, int, int] pad_left,
+    tuple[int, int, int] pad_right,
+    bool frequency_zeropadding):
     assert len(dims) > 0 and len(dims) < 4, "dims must be a list of length 1, 2, or 3"
     assert len(axes) <= 3, "axes must be a list of length less than or equal to 3"
 
@@ -52,7 +64,16 @@ cpdef inline stage_fft_plan_create(unsigned long long context, list[int] dims, l
             print("Invalid axis index: ", axes[i])
             sys.exit(1)
     
-    cdef FFTPlan* plan = stage_fft_plan_create_extern(ctx, dims_, dims__[0], dims__[1], dims__[2], buffer_size, do_r2c, omits__[0], omits__[1], omits__[2], 1 if normalize else 0)
+    cdef FFTPlan* plan = stage_fft_plan_create_extern(
+        ctx, 
+        dims_, dims__[0], dims__[1], dims__[2], 
+        buffer_size, do_r2c, 
+        omits__[0], omits__[1], omits__[2], 
+        1 if normalize else 0,
+        pad_left[0], pad_right[0],
+        pad_left[1], pad_right[1],
+        pad_left[2], pad_right[2],
+        1 if frequency_zeropadding else 0)
 
     free(dims__)
 
