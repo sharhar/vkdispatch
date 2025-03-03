@@ -49,6 +49,8 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
             VkDescriptorSet set;
             VK_CALL(vkAllocateDescriptorSets(ctx->devices[device_index], &descriptorSetAllocateInfo, &set));
 
+            printf("Descriptor Set: %p stream %d\n", set, stream_index);
+
             ctx->handle_manager->set_handle(stream_index, sets_handle, (uint64_t)set);
             ctx->handle_manager->set_handle(stream_index, pools_handle, (uint64_t)pool);
         }

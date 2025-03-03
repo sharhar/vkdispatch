@@ -5,18 +5,21 @@ import vkdispatch.codegen as vc
 
 import tqdm
 
-signal = np.ones((16, 4096, 4096), dtype=np.float32)
+vd.initialize(debug_mode=True)
+
+signal = np.ones((4096, 4096), dtype=np.float32)
 #signal[:, 64:128] = 0
 
 signal_buffer = vd.asrfftbuffer(signal)
 
 cmd_stream = vd.CommandStream()
 
-vd.rfft(signal_buffer, axes=[1, 2], cmd_stream=cmd_stream, padding=[(0, 0), (0, 0), (256, 4096 - 256)])
-vd.irfft(signal_buffer, axes=[1, 2], cmd_stream=cmd_stream)
+#vd.rfft(signal_buffer, cmd_stream=cmd_stream, padding=[(0, 0), (0, 0), (0, 0)])
+vd.rfft(signal_buffer, cmd_stream=cmd_stream, padding=[(0, 0), (0, 0), (256, 4096)])
+vd.irfft(signal_buffer, cmd_stream=cmd_stream)
 
 for _ in tqdm.tqdm(range(100)):
-    cmd_stream.submit(instance_count=10)
+    cmd_stream.submit(instance_count=160)
 
 #fft_singnal = signal_buffer.read_fourier(0)
 

@@ -41,7 +41,7 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         
-        if(elapsed.count() > 5) {
+        if(elapsed.count() > 500) {
             set_error("Timed out waiting for room in queue");
             return true;
         }
