@@ -196,8 +196,6 @@ void image_memory_barrier_internal(struct Image* image, int stream_index, VkComm
 	image->barriers[stream_index].oldLayout = image->barriers[stream_index].newLayout;
 }
 
-
-
 void image_write_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageWriteInfo& info, int device_index, int stream_index) {
     VkBufferImageCopy bufferImageCopy;
     memset(&bufferImageCopy, 0, sizeof(VkBufferImageCopy));
