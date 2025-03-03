@@ -174,7 +174,7 @@ void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* p
             launchParams.buffer = &buffer->buffers[stream_index];
             launchParams.commandBuffer = &cmd_buffer;
 
-            VkFFTApplication* application = (VkFFTApplication*)ctx->handle_manager->get_handle(stream_index, vkfft_applications_handle);
+            VkFFTApplication* application = (VkFFTApplication*)ctx->handle_manager->get_handle(index, vkfft_applications_handle);
 
             VkFFTResult fftRes = VkFFTAppend(application, inverse, &launchParams);
 
