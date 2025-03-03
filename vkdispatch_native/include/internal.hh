@@ -157,47 +157,6 @@ struct Sampler {
     std::vector<VkSampler> samplers;
 };
 
-typedef void (*PFN_stage_record)(VkCommandBuffer cmd_buffer, struct Stage* stage, void* instance_data, int device_index, int stream_index);
-
-struct Stage {
-    PFN_stage_record record;
-    void* user_data;
-    size_t instance_data_size;
-    VkPipelineStageFlags stage;
-};
-
-enum CommandType {
-    COMMAND_TYPE_NOOP = 0,
-    COMMAND_TYPE_BUFFER_COPY = 1,
-    COMMAND_TYPE_BUFFER_READ = 2,
-    COMMAND_TYPE_BUFFER_WRITE = 3,
-    COMMAND_TYPE_IMAGE_READ = 4,
-    COMMAND_TYPE_IMAGE_MIP_MAP = 5,
-    COMMAND_TYPE_IMAGE_WRITE = 6,
-    COMMAND_TYPE_FFT_INIT = 7,
-    COMMAND_TYPE_FFT_EXEC = 8,
-    COMMAND_TYPE_COMPUTE = 9,
-    COMMAND_TYPE_CONDITIONAL = 10,
-    COMMAND_TYPE_CONDITIONAL_END = 11
-};
-
-struct CommandInfoOld {
-    enum CommandType type;
-    VkPipelineStageFlags pipeline_stage;
-    union {
-        struct BufferCopyInfo buffer_copy_info;
-        struct BufferReadInfo buffer_read_info;
-        struct BufferWriteInfo buffer_write_info;
-        struct ImageReadInfo image_read_info;
-        struct ImageMipMapInfo image_mip_map_info;
-        struct ImageWriteInfo image_write_info;
-        struct FFTInitRecordInfo fft_init_info;
-        struct FFTExecRecordInfo fft_exec_info;
-        struct ComputeRecordInfo compute_info;
-        struct ConditionalRecordInfo conditional_info;
-    } info;
-};
-
 struct CommandInfo {
     std::shared_ptr<std::function<void(VkCommandBuffer, int, int, int, void*)>> func;
     VkPipelineStageFlags pipeline_stage;

@@ -9,8 +9,6 @@ import numpy as np
 vd.make_context(use_cpu=True)
 
 def test_reductions_sum():
-    print(vd.get_context().devices)
-
     # Create a buffer
     buf = vd.Buffer((1536,) , vd.float32)
 
@@ -19,8 +17,6 @@ def test_reductions_sum():
 
     # Write the data to the buffer
     buf.write(data)
-
-    print(vd.get_context().max_workgroup_size)
 
     @vd.map_reduce(
             exec_size=lambda args: args.buffer.size,
@@ -88,8 +84,6 @@ def test_listed_reductions():
         return vc.sin(buffer[ind])
     
     cmd_stream = vd.CommandStream()
-
-    print(cmd_stream)
 
     old_list = vd.set_global_cmd_stream(cmd_stream)
 
