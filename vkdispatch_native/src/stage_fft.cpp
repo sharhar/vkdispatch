@@ -20,7 +20,11 @@ struct FFTPlan* stage_fft_plan_create_extern(
     int omit_rows,
     int omit_cols,
     int omit_depth,
-    int normalize) {
+    int normalize,
+    unsigned long long pad_left_rows, unsigned long long pad_right_rows,
+    unsigned long long pad_left_cols, unsigned long long pad_right_cols,
+    unsigned long long pad_left_depth, unsigned long long pad_right_depth,
+    int frequency_zeropadding) {
     LOG_INFO("Creating FFT plan with handle %p", ctx);
     
     struct FFTPlan* plan = new struct FFTPlan();
@@ -39,7 +43,14 @@ struct FFTPlan* stage_fft_plan_create_extern(
         "fft-init",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        [ctx, recorder_count, fences_handle, vkfft_applications_handle, dims, rows, cols, depth, do_r2c, omit_rows, omit_cols, omit_depth, normalize]
+        [ctx, recorder_count, 
+        fences_handle, vkfft_applications_handle, 
+        dims, rows, cols, depth, do_r2c, 
+        omit_rows, omit_cols, omit_depth, normalize,
+        pad_left_rows, pad_right_rows,
+        pad_left_cols, pad_right_cols,
+        pad_left_depth, pad_right_depth,
+        frequency_zeropadding]
         (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
             LOG_VERBOSE("Initializing FFT on device %d, stream %d, recorder %d", device_index, stream_index, recorder_index);
 
@@ -55,9 +66,35 @@ struct FFTPlan* stage_fft_plan_create_extern(
                 config.size[1] = cols;
                 config.size[2] = depth;
 
+                LOG_INFO("FFT dimensions: %d, %d, %d", config.size[0], config.size[1], config.size[2]);
+                
+                config.disableSetLocale = 1;
+
                 config.omitDimension[0] = omit_rows;
                 config.omitDimension[1] = omit_cols;
                 config.omitDimension[2] = omit_depth;
+
+                LOG_INFO("FFT axis ommisions: %d, %d, %d", config.omitDimension[0], config.omitDimension[1], config.omitDimension[2]);
+
+                config.performZeropadding[0] = pad_right_rows != 0;
+                config.performZeropadding[1] = pad_right_cols != 0;
+                config.performZeropadding[2] = pad_right_depth != 0;
+
+                config.fft_zeropad_left[0] = pad_left_rows;
+                config.fft_zeropad_left[1] = pad_left_cols;
+                config.fft_zeropad_left[2] = pad_left_depth;
+
+                config.fft_zeropad_right[0] = pad_right_rows;
+                config.fft_zeropad_right[1] = pad_right_cols;
+                config.fft_zeropad_right[2] = pad_right_depth;
+
+                LOG_INFO("Making FFT with padding axis0: %d, %d, %d", config.performZeropadding[0], config.fft_zeropad_left[0], config.fft_zeropad_right[0]);
+                LOG_INFO("Making FFT with padding axis1: %d, %d, %d", config.performZeropadding[1], config.fft_zeropad_left[1], config.fft_zeropad_right[1]);
+                LOG_INFO("Making FFT with padding axis2: %d, %d, %d", config.performZeropadding[2], config.fft_zeropad_left[2], config.fft_zeropad_right[2]);
+
+                LOG_INFO("Frequency zeropadding: %d", frequency_zeropadding);
+
+                config.frequencyZeroPadding = frequency_zeropadding;
 
                 glslang_resource_t* resource = reinterpret_cast<glslang_resource_t*>(ctx->glslang_resource_limits);
 
@@ -70,8 +107,6 @@ struct FFTPlan* stage_fft_plan_create_extern(
                 config.maxComputeWorkGroupSize[2] = resource->max_compute_work_group_size_z;
 
                 config.normalize = normalize;
-
-                LOG_VERBOSE("FFT Configuration: %d, %d, %d, %d, %d, %d, %d", config.FFTdim, config.size[0], config.size[1], config.size[2], config.omitDimension[0], config.omitDimension[1], config.omitDimension[2]);
 
                 unsigned long long true_rows = rows;
 
@@ -98,7 +133,7 @@ struct FFTPlan* stage_fft_plan_create_extern(
                 config.performR2C = do_r2c;
                 config.glslang_mutex = &ctx->glslang_mutex;
 
-                LOG_VERBOSE("FFT Configuration: %p, %p, %p, %p, %p, %p, %p", config.physicalDevice, config.device, config.queue, config.commandPool, config.fence, config.bufferSize, config.performR2C);
+                LOG_VERBOSE("Doing FFT Init");
 
                 VkFFTApplication* application = new VkFFTApplication();
 

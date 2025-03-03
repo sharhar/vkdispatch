@@ -271,15 +271,13 @@ void stage_compute_record_extern(struct CommandList* command_list, struct Comput
             VkPipelineLayout pipelineLayout = (VkPipelineLayout)ctx->handle_manager->get_handle(stream_index, pipelineLayouts_handle);
 
             if(sets_handle != 0) {
-                VkDescriptorSet desc_set = (VkDescriptorSet)ctx->handle_manager->get_handle(stream_index, sets_handle);
-
                 vkCmdBindDescriptorSets(
                     cmd_buffer,
                     VK_PIPELINE_BIND_POINT_COMPUTE,
                     pipelineLayout,
                     0,
                     1,
-                    &desc_set,
+                    (VkDescriptorSet*)ctx->handle_manager->get_handle_pointer(stream_index, sets_handle),
                     0,
                     NULL
                 );

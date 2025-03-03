@@ -13,11 +13,14 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
     uint64_t sets_handle = descriptor_set->sets_handle;
     uint64_t pools_handle = descriptor_set->pools_handle;
 
+    unsigned int binding_count = plan->binding_count;
+    VkDescriptorPoolSize* poolSizes = plan->poolSizes;
+
     command_list_record_command(ctx->command_list, 
         "descriptor-set-init",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        [plan, ctx, descriptor_set_layouts_handle, sets_handle, pools_handle]
+        [ctx, descriptor_set_layouts_handle, sets_handle, pools_handle, binding_count, poolSizes]
         (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
             LOG_VERBOSE("Creating Descriptor Set for device %d on stream %d recorder %d", device_index, stream_index, recorder_index);
 
@@ -25,8 +28,8 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
             memset(&descriptorPoolCreateInfo, 0, sizeof(VkDescriptorPoolCreateInfo));
             descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
             descriptorPoolCreateInfo.maxSets = 1;
-            descriptorPoolCreateInfo.poolSizeCount = plan->binding_count;
-            descriptorPoolCreateInfo.pPoolSizes = plan->poolSizes;
+            descriptorPoolCreateInfo.poolSizeCount = binding_count;
+            descriptorPoolCreateInfo.pPoolSizes = poolSizes;
 
             LOG_VERBOSE("Creating Descriptor Pool for device %d on stream %d recorder %d", device_index, stream_index, recorder_index);
 
