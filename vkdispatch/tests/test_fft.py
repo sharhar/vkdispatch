@@ -201,7 +201,7 @@ def test_convolution_2d():
     kernel_2d = np.fft.fftshift(np.abs(make_random_complex_signal((1, 384, 384)))).astype(np.float32)
 
     test_img = vd.asrfftbuffer(signal_2d)
-    kernel_img = vd.asbuffer(np.fft.rfft2(kernel_2d))
+    kernel_img = vd.asbuffer(np.fft.rfft2(kernel_2d).astype(np.complex64))
 
     # Perform an FFT on the buffer
     vd.convolve_2d(test_img, kernel_img)
