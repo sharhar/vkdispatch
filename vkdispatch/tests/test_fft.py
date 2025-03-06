@@ -195,3 +195,20 @@ def test_fft_2d_384x384():
 
     assert np.allclose(test_img.read(0), np.fft.fft2(signal_2d), atol=0.01)
 
+def test_convolution_2d():
+    # Create a 2D buffer
+    signal_2d = np.fft.fftshift(np.abs(make_random_complex_signal((384, 384)))).astype(np.float32)
+    kernel_2d = np.fft.fftshift(np.abs(make_random_complex_signal((1, 384, 384)))).astype(np.float32)
+
+    test_img = vd.asrfftbuffer(signal_2d)
+    kernel_img = vd.asbuffer(np.fft.rfft2(kernel_2d))
+
+    # Perform an FFT on the buffer
+    vd.convolve_2d(test_img, kernel_img)
+
+    convolved = np.fft.irfft2(
+        (np.fft.rfft2(signal_2d).astype(np.complex64) 
+        * np.fft.rfft2(kernel_2d).astype(np.complex64))
+        .astype(np.complex64))
+
+    assert np.allclose(test_img.read_real(0) / 384, convolved, atol=0.01)
