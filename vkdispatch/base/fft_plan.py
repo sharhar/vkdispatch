@@ -47,8 +47,6 @@ class FFTPlan:
                 pad_left[(len(self.shape) - 1)-i] = padd[0]
                 pad_right[(len(self.shape) - 1)-i] = padd[1]
 
-        print(kernel_count)
-
         self._handle = vkdispatch_native.stage_fft_plan_create(
             get_context_handle(), 
             list(reversed(self.shape)), 
