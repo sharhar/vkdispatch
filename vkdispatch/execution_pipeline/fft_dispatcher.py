@@ -110,8 +110,6 @@ def convolve_2d(
 
     computed_kernel_shape = (kernel.shape[0], buffer.shape[0], buffer.shape[1] // 2)
 
-    print(computed_kernel_shape, kernel.shape)
-
     assert computed_kernel_shape == kernel.shape, "Kernel shape must match buffer shape!"
 
     execute_fft_plan(

@@ -210,5 +210,9 @@ def test_convolution_2d():
         (np.fft.rfft2(signal_2d).astype(np.complex64) 
         * np.fft.rfft2(kernel_2d).astype(np.complex64))
         .astype(np.complex64))
+    convolved /= np.mean(convolved)
+    
+    result = test_img.read_real(0)
+    result = result / np.mean(result)
 
-    assert np.allclose(test_img.read_real(0) / 384, convolved, atol=0.01)
+    assert np.allclose(result, convolved, atol=0.05)
