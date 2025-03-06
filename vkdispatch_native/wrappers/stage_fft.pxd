@@ -25,8 +25,13 @@ cdef extern from "../include/stage_fft.hh":
         unsigned long long pad_left_rows, unsigned long long pad_right_rows,
         unsigned long long pad_left_cols, unsigned long long pad_right_cols,
         unsigned long long pad_left_depth, unsigned long long pad_right_depth,
-        int frequency_zeropadding)
-    void stage_fft_record_extern(CommandList* command_list, FFTPlan* plan, Buffer* buffer, int inverse)
+        int frequency_zeropadding,
+        int convolution_kernels)
+    void stage_fft_record_extern(
+        CommandList* command_list, 
+        FFTPlan* plan,
+        Buffer* buffer, int inverse,
+        Buffer* kernel)
 
 cpdef inline stage_fft_plan_create(
     unsigned long long context, 
@@ -37,7 +42,8 @@ cpdef inline stage_fft_plan_create(
     bool normalize,
     tuple[int, int, int] pad_left,
     tuple[int, int, int] pad_right,
-    bool frequency_zeropadding):
+    bool frequency_zeropadding,
+    int convolution_kernels):
     assert len(dims) > 0 and len(dims) < 4, "dims must be a list of length 1, 2, or 3"
     assert len(axes) <= 3, "axes must be a list of length less than or equal to 3"
 
@@ -73,15 +79,21 @@ cpdef inline stage_fft_plan_create(
         pad_left[0], pad_right[0],
         pad_left[1], pad_right[1],
         pad_left[2], pad_right[2],
-        1 if frequency_zeropadding else 0)
+        1 if frequency_zeropadding else 0,
+        convolution_kernels)
 
     free(dims__)
 
     return <unsigned long long>plan
 
-cpdef inline stage_fft_record(unsigned long long command_list, unsigned long long plan, unsigned long long buffer, int inverse):
+cpdef inline stage_fft_record(
+    unsigned long long command_list, 
+    unsigned long long plan, 
+    unsigned long long buffer, int inverse,
+    unsigned long long kernel):
     cdef CommandList* cl = <CommandList*>command_list
     cdef FFTPlan* p = <FFTPlan*>plan
     cdef Buffer* b = <Buffer*>buffer
+    cdef Buffer* k = <Buffer*>kernel
 
-    stage_fft_record_extern(cl, p, b, inverse)
+    stage_fft_record_extern(cl, p, b, inverse, k)

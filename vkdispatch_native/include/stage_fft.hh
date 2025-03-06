@@ -28,7 +28,14 @@ struct FFTPlan* stage_fft_plan_create_extern(
     unsigned long long pad_left_rows, unsigned long long pad_right_rows,
     unsigned long long pad_left_cols, unsigned long long pad_right_cols,
     unsigned long long pad_left_depth, unsigned long long pad_right_depth,
-    int frequency_zeropadding);
-void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* plan, struct Buffer* buffer, int inverse);
+    int frequency_zeropadding,
+    int convolution_kernels);
+
+void stage_fft_record_extern(
+    struct CommandList* command_list, 
+    struct FFTPlan* plan, 
+    struct Buffer* buffer, 
+    int inverse, 
+    struct Buffer* kernel);
 
 #endif // _STAGE_FFT_H_

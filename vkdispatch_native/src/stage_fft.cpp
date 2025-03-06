@@ -24,7 +24,8 @@ struct FFTPlan* stage_fft_plan_create_extern(
     unsigned long long pad_left_rows, unsigned long long pad_right_rows,
     unsigned long long pad_left_cols, unsigned long long pad_right_cols,
     unsigned long long pad_left_depth, unsigned long long pad_right_depth,
-    int frequency_zeropadding) {
+    int frequency_zeropadding,
+    int convolution_kernels) {
     LOG_INFO("Creating FFT plan with handle %p", ctx);
     
     struct FFTPlan* plan = new struct FFTPlan();
@@ -50,7 +51,8 @@ struct FFTPlan* stage_fft_plan_create_extern(
         pad_left_rows, pad_right_rows,
         pad_left_cols, pad_right_cols,
         pad_left_depth, pad_right_depth,
-        frequency_zeropadding]
+        frequency_zeropadding,
+        convolution_kernels]
         (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
             LOG_VERBOSE("Initializing FFT on device %d, stream %d, recorder %d", device_index, stream_index, recorder_index);
 
@@ -96,6 +98,18 @@ struct FFTPlan* stage_fft_plan_create_extern(
 
                 config.frequencyZeroPadding = frequency_zeropadding;
 
+                unsigned long long true_rows = rows;
+
+                if(do_r2c) {
+                    true_rows = (rows / 2) + 1;
+                }
+
+                config.performConvolution = convolution_kernels > 0;
+                //config.coordinateFeatures = convolution_features;
+                config.numberKernels = convolution_kernels;
+                config.kernelSize = (uint64_t*)malloc(sizeof(uint64_t));
+                *config.kernelSize = convolution_kernels * true_rows * config.size[1] * config.size[2];
+
                 glslang_resource_t* resource = reinterpret_cast<glslang_resource_t*>(ctx->glslang_resource_limits);
 
                 config.maxComputeWorkGroupCount[0] = resource->max_compute_work_group_count_x;
@@ -106,13 +120,7 @@ struct FFTPlan* stage_fft_plan_create_extern(
                 config.maxComputeWorkGroupSize[1] = resource->max_compute_work_group_size_y;
                 config.maxComputeWorkGroupSize[2] = resource->max_compute_work_group_size_z;
 
-                config.normalize = normalize;
-
-                unsigned long long true_rows = rows;
-
-                if(do_r2c) {
-                    true_rows = (rows / 2) + 1;
-                }
+                config.normalize = normalize;                
 
                 VkFence* fence = (VkFence*)ctx->handle_manager->get_handle_pointer(stream_index, fences_handle);
 
@@ -155,7 +163,11 @@ struct FFTPlan* stage_fft_plan_create_extern(
     return plan;
 }
 
-void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* plan, struct Buffer* buffer, int inverse) {
+void stage_fft_record_extern(
+    struct CommandList* command_list, 
+    struct FFTPlan* plan, 
+    struct Buffer* buffer, int inverse, 
+    struct Buffer* kernel) {
     LOG_VERBOSE("Recording FFT");
 
     struct Context* ctx = plan->ctx;
@@ -167,12 +179,16 @@ void stage_fft_record_extern(struct CommandList* command_list, struct FFTPlan* p
         "fft-exec",
         0,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        [ctx, recorder_count, vkfft_applications_handle, buffer, inverse](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+        [ctx, recorder_count, vkfft_applications_handle, buffer, inverse, kernel](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
             int index = stream_index * recorder_count + recorder_index;
 
             VkFFTLaunchParams launchParams = {};
             launchParams.buffer = &buffer->buffers[stream_index];
             launchParams.commandBuffer = &cmd_buffer;
+
+            if(kernel != NULL) {
+                launchParams.kernel = &kernel->buffers[stream_index];
+            }
 
             VkFFTApplication* application = (VkFFTApplication*)ctx->handle_manager->get_handle(index, vkfft_applications_handle);
 
