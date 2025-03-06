@@ -5,9 +5,11 @@ import vkdispatch.codegen as vc
 
 import tqdm
 
+import time
+
 vd.initialize(debug_mode=True)
 
-buff_size = (1024, 1024)
+buff_size = (512, 512)
 kernel_size = (1, buff_size[0], buff_size[1] // 2 + 1)
 
 buffer = vd.RFFTBuffer(buff_size)
@@ -27,12 +29,32 @@ def clasical_convolv():
 
     vd.irfft(buffer, cmd_stream=cmd_stream)
 
-#clasical_convolv()
+clasical_convolv()
+
+start_time = time.time()
+
+for _ in tqdm.tqdm(range(2500)):
+    cmd_stream.submit(100)
+
+buffer.read(0)
+
+classical_time = time.time() - start_time
+
+cmd_stream.reset()
+
+start_time = time.time()
 
 vd.convolve_2d(buffer, kernel, cmd_stream=cmd_stream)
 
-for _ in tqdm.tqdm(range(1000)):
+for _ in tqdm.tqdm(range(2500)):
     cmd_stream.submit(100)
+
+buffer.read(0)
+
+new_time = time.time() - start_time
+
+print(f"Classical time: {classical_time}")
+print(f"New time: {new_time}")
 
 buffer.read()
 
