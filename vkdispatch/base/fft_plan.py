@@ -8,7 +8,7 @@ from .buffer import Buffer
 from .context import get_context_handle
 from .command_list import CommandList
 
-from .dtype import complex64
+from .dtype import dtype, complex64, to_numpy_dtype, from_numpy_dtype
 
 from typing import List
 from typing import Tuple
@@ -21,7 +21,10 @@ class FFTPlan:
                  normalize: bool = False, 
                  padding: List[Tuple[int, int]] = None, 
                  pad_frequency_domain: bool = False,
-                 kernel_count: int = 0):
+                 kernel_count: int = 0,
+                 input_shape: Tuple[int, ...] = None,
+                 input_type: dtype = None,
+                 kernel_convolution: bool = False):
         assert len(shape) > 0 and len(shape) < 4, "shape must be 1D, 2D, or 3D"
 
         self.shape = shape
@@ -47,6 +50,16 @@ class FFTPlan:
                 pad_left[(len(self.shape) - 1)-i] = padd[0]
                 pad_right[(len(self.shape) - 1)-i] = padd[1]
 
+        input_size = 0
+
+        if input_shape is not None:
+            input_buffer_type = np.dtype(np.complex64)
+
+            if input_type is not None:
+                input_buffer_type = np.dtype(to_numpy_dtype(input_type))
+
+            input_size = np.prod(input_shape) * input_buffer_type.itemsize
+
         self._handle = vkdispatch_native.stage_fft_plan_create(
             get_context_handle(), 
             list(reversed(self.shape)), 
@@ -57,13 +70,20 @@ class FFTPlan:
             pad_left,
             pad_right,
             pad_frequency_domain,
-            kernel_count
+            kernel_count,
+            kernel_convolution,
+            input_size
         )
         check_for_errors()
 
-    def record(self, command_list: CommandList, buffer: Buffer, inverse: bool = False, kernel: Buffer = None):
+    def record(self, command_list: CommandList, buffer: Buffer, inverse: bool = False, kernel: Buffer = None, input: Buffer = None):
         vkdispatch_native.stage_fft_record(
-            command_list._handle, self._handle, buffer._handle, 1 if inverse else -1, kernel._handle if kernel is not None else 0
+            command_list._handle, 
+            self._handle, 
+            buffer._handle, 
+            1 if inverse else -1, 
+            kernel._handle if kernel is not None else 0,
+            input._handle if input is not None else 0
         )
         check_for_errors()
 

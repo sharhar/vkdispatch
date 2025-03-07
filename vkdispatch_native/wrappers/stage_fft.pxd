@@ -26,12 +26,15 @@ cdef extern from "../include/stage_fft.hh":
         unsigned long long pad_left_cols, unsigned long long pad_right_cols,
         unsigned long long pad_left_depth, unsigned long long pad_right_depth,
         int frequency_zeropadding,
-        int convolution_kernels)
+        int kernel_num,
+        int kernel_convolution,
+        unsigned long long input_buffer_size)
     void stage_fft_record_extern(
         CommandList* command_list, 
         FFTPlan* plan,
         Buffer* buffer, int inverse,
-        Buffer* kernel)
+        Buffer* kernel,
+        Buffer* input_buffer)
 
 cpdef inline stage_fft_plan_create(
     unsigned long long context, 
@@ -43,7 +46,9 @@ cpdef inline stage_fft_plan_create(
     tuple[int, int, int] pad_left,
     tuple[int, int, int] pad_right,
     bool frequency_zeropadding,
-    int convolution_kernels):
+    int kernel_num,
+    bool kernel_convolution,
+    unsigned long long input_buffer_size):
     assert len(dims) > 0 and len(dims) < 4, "dims must be a list of length 1, 2, or 3"
     assert len(axes) <= 3, "axes must be a list of length less than or equal to 3"
 
@@ -80,7 +85,9 @@ cpdef inline stage_fft_plan_create(
         pad_left[1], pad_right[1],
         pad_left[2], pad_right[2],
         1 if frequency_zeropadding else 0,
-        convolution_kernels)
+        kernel_num,
+        1 if kernel_convolution else 0,
+        input_buffer_size)
 
     free(dims__)
 
@@ -90,10 +97,12 @@ cpdef inline stage_fft_record(
     unsigned long long command_list, 
     unsigned long long plan, 
     unsigned long long buffer, int inverse,
-    unsigned long long kernel):
+    unsigned long long kernel,
+    unsigned long long input_buffer):
     cdef CommandList* cl = <CommandList*>command_list
     cdef FFTPlan* p = <FFTPlan*>plan
     cdef Buffer* b = <Buffer*>buffer
     cdef Buffer* k = <Buffer*>kernel
+    cdef Buffer* i = <Buffer*>input_buffer
 
-    stage_fft_record_extern(cl, p, b, inverse, k)
+    stage_fft_record_extern(cl, p, b, inverse, k, i)

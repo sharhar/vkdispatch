@@ -426,6 +426,14 @@ class ShaderBuilder:
 
     def uint_bits_to_float(self, arg: ShaderVariable):
         return self.make_var(abv.f32, f"uintBitsToFloat({arg})")
+    
+    def mult_c64(self, arg1: ShaderVariable, arg2: ShaderVariable):
+        new_var = self.make_var(arg1.var_type, f"vec2({arg1}.x * {arg2}.x - {arg1}.y * {arg2}.y, {arg1}.x * {arg2}.y + {arg1}.y * {arg2}.x)");
+        return new_var
+    
+    def mult_conj_c64(self, arg1: ShaderVariable, arg2: ShaderVariable):
+        new_var = self.make_var(arg1.var_type, f"vec2({arg1}.x * {arg2}.x + {arg1}.y * {arg2}.y, {arg1}.y * {arg2}.x - {arg1}.x * {arg2}.y)");
+        return new_var
 
     def if_statement(self, arg: ShaderVariable):
         self.append_contents(f"if({arg}) {'{'}\n")

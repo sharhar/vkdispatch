@@ -211,6 +211,12 @@ def trunc(arg: ShaderVariable):
 def uint_bits_to_float(arg: ShaderVariable):
     return GlobalBuilder.obj.uint_bits_to_float(arg)
 
+def mult_c64(arg1: ShaderVariable, arg2: ShaderVariable):
+    return GlobalBuilder.obj.mult_c64(arg1, arg2)
+
+def mult_conj_c64(arg1: ShaderVariable, arg2: ShaderVariable):
+    return GlobalBuilder.obj.mult_conj_c64(arg1, arg2)
+
 def if_statement(arg: ShaderVariable):
     GlobalBuilder.obj.if_statement(arg)
 

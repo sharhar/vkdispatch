@@ -70,8 +70,6 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
         poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
         VK_CALL(vkCreateCommandPool(device, &poolInfo, nullptr, &commandPools[i]));
 
-        printf("Created command pool %p in stream %d recorder %d\n", commandPools[i], stream_index, i);
-
         VkCommandBufferAllocateInfo allocInfo = {};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         allocInfo.commandPool = commandPools[i];

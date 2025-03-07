@@ -15,7 +15,7 @@ kernel_size = (1, buff_size[0], buff_size[1] // 2 + 1)
 buffer = vd.RFFTBuffer(buff_size)
 kernel = vd.Buffer(kernel_size, vd.complex64)
 
-cmd_stream = vd.CommandStream()
+cmd_stream = None # vd.CommandStream()
 
 def clasical_convolv():
     vd.rfft(buffer, cmd_stream=cmd_stream)
@@ -30,6 +30,11 @@ def clasical_convolv():
     vd.irfft(buffer, cmd_stream=cmd_stream)
 
 clasical_convolv()
+
+plt.imshow(np.abs(buffer.read()))
+plt.show()
+
+exit()
 
 start_time = time.time()
 
