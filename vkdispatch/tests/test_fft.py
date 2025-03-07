@@ -76,10 +76,12 @@ def test_ifft_2d():
     test_img = vd.Buffer(signal_2d.shape, vd.complex64)
     test_img.write(signal_2d)
 
-    # Perform an IFFT on the buffer
-    vd.ifft(test_img)
+    output = vd.Buffer(signal_2d.shape, vd.complex64)
 
-    assert np.allclose(test_img.read(0), np.fft.ifft2(signal_2d) * np.prod(signal_2d.shape), atol=0.001)
+    # Perform an IFFT on the buffer
+    vd.ifft(output, test_img)
+
+    assert np.allclose(output.read(0), np.fft.ifft2(signal_2d) * np.prod(signal_2d.shape), atol=0.001)
 
 def test_ifft_3d():
     # Create a 3D buffer
@@ -108,12 +110,13 @@ def test_rfft_2d():
     # Create a 2D buffer
     signal_2d = np.random.random((50, 50))
 
-    test_img = vd.asrfftbuffer(signal_2d)
+    test_img = vd.asbuffer(signal_2d.astype(np.float32))
+    output = vd.RFFTBuffer(signal_2d.shape)
 
     # Perform an RFFT on the buffer
-    vd.rfft(test_img)
+    vd.rfft(output, test_img)
 
-    assert np.allclose(test_img.read_fourier(0), np.fft.rfft2(signal_2d), atol=0.01)
+    assert np.allclose(output.read_fourier(0), np.fft.rfft2(signal_2d), atol=0.01)
 
 def test_rfft_3d():
     # Create a 3D buffer
@@ -195,24 +198,25 @@ def test_fft_2d_384x384():
 
     assert np.allclose(test_img.read(0), np.fft.fft2(signal_2d), atol=0.01)
 
+def cpu_convolve_2d(signal_2d, kernel_2d):
+    return np.fft.ifft2(
+        (np.fft.fft2(signal_2d).astype(np.complex64) 
+        * np.fft.fft2(kernel_2d).astype(np.complex64))
+    .astype(np.complex64))
+
 def test_convolution_2d():
     # Create a 2D buffer
     signal_2d = np.fft.fftshift(np.abs(make_random_complex_signal((384, 384)))).astype(np.float32)
     kernel_2d = np.fft.fftshift(np.abs(make_random_complex_signal((1, 384, 384)))).astype(np.float32)
 
     test_img = vd.asrfftbuffer(signal_2d)
-    kernel_img = vd.asbuffer(np.fft.rfft2(kernel_2d).astype(np.complex64))
+    kernel_img = vd.asrfftbuffer(kernel_2d)
+
+    vd.prepare_convolution_kernel(kernel_img)
 
     # Perform an FFT on the buffer
     vd.convolve_2d(test_img, kernel_img)
-
-    convolved = np.fft.irfft2(
-        (np.fft.rfft2(signal_2d).astype(np.complex64) 
-        * np.fft.rfft2(kernel_2d).astype(np.complex64))
-        .astype(np.complex64))
-    convolved /= np.mean(convolved)
     
     result = test_img.read_real(0)
-    result = result / np.mean(result)
 
-    assert np.allclose(result, convolved, atol=0.05)
+    assert np.allclose(result / 384, cpu_convolve_2d(signal_2d, kernel_2d[0]), atol=0.05)

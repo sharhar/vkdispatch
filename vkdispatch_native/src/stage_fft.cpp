@@ -7,6 +7,7 @@ struct FFTPlan {
     uint64_t fences_handle;
     uint64_t vkfft_applications_handle;
     int recorder_count;
+    uint64_t input_size;
 };
 
 struct FFTPlan* stage_fft_plan_create_extern(
@@ -25,7 +26,9 @@ struct FFTPlan* stage_fft_plan_create_extern(
     unsigned long long pad_left_cols, unsigned long long pad_right_cols,
     unsigned long long pad_left_depth, unsigned long long pad_right_depth,
     int frequency_zeropadding,
-    int convolution_kernels) {
+    int kernel_num,
+    int kernel_convolution,
+    unsigned long long input_buffer_size) {
     LOG_INFO("Creating FFT plan with handle %p", ctx);
     
     struct FFTPlan* plan = new struct FFTPlan();
@@ -35,6 +38,8 @@ struct FFTPlan* stage_fft_plan_create_extern(
     int plan_count = ctx->streams.size() * recorder_count;
     uint64_t fences_handle = ctx->handle_manager->register_handle("Fences", plan_count, false);
     uint64_t vkfft_applications_handle = ctx->handle_manager->register_handle("VkFFTApplications", plan_count, false);
+
+    plan->input_size = input_buffer_size;
 
     plan->recorder_count = recorder_count;
     plan->fences_handle = fences_handle;
@@ -52,7 +57,9 @@ struct FFTPlan* stage_fft_plan_create_extern(
         pad_left_cols, pad_right_cols,
         pad_left_depth, pad_right_depth,
         frequency_zeropadding,
-        convolution_kernels]
+        kernel_num,
+        kernel_convolution,
+        input_buffer_size]
         (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
             LOG_VERBOSE("Initializing FFT on device %d, stream %d, recorder %d", device_index, stream_index, recorder_index);
 
@@ -90,6 +97,10 @@ struct FFTPlan* stage_fft_plan_create_extern(
                 config.fft_zeropad_right[1] = pad_right_cols;
                 config.fft_zeropad_right[2] = pad_right_depth;
 
+                config.inputBufferSize = (uint64_t*)malloc(sizeof(uint64_t));
+                *config.inputBufferSize = input_buffer_size;
+                config.isInputFormatted = input_buffer_size > 0;
+
                 LOG_INFO("Making FFT with padding axis0: %d, %d, %d", config.performZeropadding[0], config.fft_zeropad_left[0], config.fft_zeropad_right[0]);
                 LOG_INFO("Making FFT with padding axis1: %d, %d, %d", config.performZeropadding[1], config.fft_zeropad_left[1], config.fft_zeropad_right[1]);
                 LOG_INFO("Making FFT with padding axis2: %d, %d, %d", config.performZeropadding[2], config.fft_zeropad_left[2], config.fft_zeropad_right[2]);
@@ -104,11 +115,13 @@ struct FFTPlan* stage_fft_plan_create_extern(
                     true_rows = (rows / 2) + 1;
                 }
 
-                config.performConvolution = convolution_kernels > 0;
+                config.kernelConvolution = kernel_convolution;
+
+                config.performConvolution = kernel_num > 0;
                 //config.coordinateFeatures = convolution_features;
-                config.numberKernels = convolution_kernels;
+                config.numberKernels = kernel_num;
                 config.kernelSize = (uint64_t*)malloc(sizeof(uint64_t));
-                *config.kernelSize = convolution_kernels * true_rows * config.size[1] * config.size[2];
+                *config.kernelSize = kernel_num * true_rows * config.size[1] * config.size[2];
 
                 glslang_resource_t* resource = reinterpret_cast<glslang_resource_t*>(ctx->glslang_resource_limits);
 
@@ -167,7 +180,8 @@ void stage_fft_record_extern(
     struct CommandList* command_list, 
     struct FFTPlan* plan, 
     struct Buffer* buffer, int inverse, 
-    struct Buffer* kernel) {
+    struct Buffer* kernel,
+    struct Buffer* input_buffer) {
     LOG_VERBOSE("Recording FFT");
 
     struct Context* ctx = plan->ctx;
@@ -179,7 +193,8 @@ void stage_fft_record_extern(
         "fft-exec",
         0,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        [ctx, recorder_count, vkfft_applications_handle, buffer, inverse, kernel](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+        [ctx, plan, recorder_count, vkfft_applications_handle, buffer, inverse, kernel, input_buffer]
+        (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
             int index = stream_index * recorder_count + recorder_index;
 
             VkFFTLaunchParams launchParams = {};
@@ -188,6 +203,10 @@ void stage_fft_record_extern(
 
             if(kernel != NULL) {
                 launchParams.kernel = &kernel->buffers[stream_index];
+            }
+
+            if(input_buffer != NULL) {
+                launchParams.inputBuffer = &input_buffer->buffers[stream_index];
             }
 
             VkFFTApplication* application = (VkFFTApplication*)ctx->handle_manager->get_handle(index, vkfft_applications_handle);

@@ -1,29 +1,49 @@
 import vkdispatch as vd
+import vkdispatch.codegen as vc
 
 import numpy as np
 
 from matplotlib import pyplot as plt
 
-H, W = 18, 24  # Odd dimensions
-x = np.linspace(-5, 5, W)
-y = np.linspace(-5, 5, H)
-X, Y = np.meshgrid(x, y)
-signal = np.exp(-X**2 - Y**2)  # Gaussian function
+vd.initialize(debug_mode=True)
 
-print(signal.shape, signal.dtype)
+side_length = 600
 
-Fr_signal = np.fft.fft(signal)
+signal_shape = (side_length, side_length)
 
-signal_buffer = vd.asbuffer(signal.astype(np.complex64))
+x = np.linspace(-1, 1, signal_shape[0])
+y = np.linspace(-1, 1, signal_shape[1])
+x, y = np.meshgrid(x, y)
+d = np.sqrt(x*x + y*y)
+sigma, mu = 0.02, 0.0
+gaussian_signal = np.exp(-((d - mu)**2 / (2.0 * sigma**2)))
 
-vd.fft(signal_buffer, axes=[1])
+mid_idx = side_length // 2
 
-plt.imshow(np.abs(Fr_signal - signal_buffer.read(0)))
+square_signal = np.zeros(signal_shape)
+square_signal[mid_idx - 64:mid_idx + 64, mid_idx - 64:mid_idx + 64] = 1
+
+dot_signal = np.zeros(signal_shape, dtype=np.float32)
+dot_signal[mid_idx, mid_idx] = 1
+
+input_signal = np.fft.fftshift(dot_signal).astype(np.float32)
+kernel_signal = np.fft.fftshift(square_signal).astype(np.float32)
+
+convolved_signal = np.fft.ifftshift(np.fft.ifft2(
+    (np.fft.fft2(input_signal).astype(np.complex64) 
+    * np.fft.fft2(kernel_signal).astype(np.complex64))
+    .astype(np.complex64)))
+
+input_buffer = vd.asrfftbuffer(input_signal)
+kernel_buffer = vd.asrfftbuffer(kernel_signal.reshape(1, side_length, -1))
+output_buffer = vd.asrfftbuffer(np.ones(signal_shape).astype(np.float32))
+
+vd.prepare_convolution_kernel(kernel_buffer)
+vd.convolve_2d(input_buffer, kernel_buffer) #, input_buffer)
+
+result = np.fft.ifftshift(input_buffer.read_real(0))
+
+plt.imshow(result / side_length - np.abs(convolved_signal))
 plt.show()
 
-#vd.irfft(signal_buffer)
-
-#plt.imshow(signal_buffer.read_real(0) / np.prod(signal_buffer.real_shape) - signal)
-#plt.show()
-
-
+exit()

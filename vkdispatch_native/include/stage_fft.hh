@@ -29,13 +29,16 @@ struct FFTPlan* stage_fft_plan_create_extern(
     unsigned long long pad_left_cols, unsigned long long pad_right_cols,
     unsigned long long pad_left_depth, unsigned long long pad_right_depth,
     int frequency_zeropadding,
-    int convolution_kernels);
+    int kernel_num,
+    int kernel_convolution,
+    unsigned long long input_buffer_size);
 
 void stage_fft_record_extern(
     struct CommandList* command_list, 
     struct FFTPlan* plan, 
     struct Buffer* buffer, 
     int inverse, 
-    struct Buffer* kernel);
+    struct Buffer* kernel,
+    struct Buffer* input_buffer);
 
 #endif // _STAGE_FFT_H_
