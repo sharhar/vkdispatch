@@ -13,8 +13,8 @@ def make_square_signal(shape):
     return signal
 
 def make_gaussian_signal(shape):
-    x = np.linspace(-1, 1, shape[0])
-    y = np.linspace(-1, 1, shape[1])
+    x = np.linspace(-5, 5, shape[0])
+    y = np.linspace(-5, 5, shape[1])
     xx, yy = np.meshgrid(x, y)
     signal = np.exp(-xx**2 - yy**2)
     return signal
@@ -25,40 +25,50 @@ def cpu_convolve_2d(signal_2d, kernel_2d):
         * np.fft.rfft2(kernel_2d).astype(np.complex64))
     .astype(np.complex64))
 
-side_len = 64
+side_len = 50
 
-signal_2d = np.fft.fftshift(np.abs(make_gaussian_signal((side_len, side_len)))).astype(np.float32)
-kernel_2d = np.fft.fftshift(np.abs(make_square_signal((side_len, side_len)))).astype(np.float32).reshape((1, side_len, side_len))
+signal_2d = (np.abs(make_gaussian_signal((side_len, side_len)))).astype(np.float32)
+kernel_2d = (np.abs(make_square_signal((side_len, side_len)))).astype(np.float32).reshape((1, side_len, side_len))
 
-padded_kernel = np.zeros((1, 2*side_len, side_len))
+plt.imshow(signal_2d)
+plt.show()
+
+plt.imshow(kernel_2d[0])
+plt.show()
+
+padded_kernel = np.ones(shape=(1, 2*side_len, side_len)) * -800
 padded_kernel[0, :side_len, :] = kernel_2d[0]
 
 test_img = vd.asrfftbuffer(signal_2d)
 kernel_img = vd.asrfftbuffer(padded_kernel)
 
-#plt.imshow(np.abs(kernel_img.read_real(0)[0]))
+plt.imshow(np.abs(kernel_img.read_real(0)[0]))
+plt.colorbar()
+plt.savefig("kernel.png")
+
+vd.prepare_convolution_kernel(kernel_img, shape=(1, side_len, side_len + 2))
+
+fourier_image = kernel_img.read_real(0)[0]
+#plt.imshow(fourier_image)
 #plt.colorbar()
 #plt.show()
 
-vd.prepare_convolution_kernel(kernel_img, shape=(1, side_len, side_len))
-
-fourier_image = kernel_img.read_fourier(0)[0]
-
-plt.imshow(np.log(np.abs(fourier_image)))
-plt.colorbar()
-plt.show()
-
 # Perform an FFT on the buffer
-vd.convolve_2d(test_img, kernel_img)
+#vd.convolve_2d(test_img, kernel_img)
+
+reference = np.zeros((side_len, side_len))
 
 result = test_img.read_real(0) / side_len
 reference = cpu_convolve_2d(signal_2d, kernel_2d[0])
+
+result = np.fft.ifftshift(result)
+reference = np.fft.ifftshift(reference)
 
 print(result.mean())
 print(reference.mean())
 
 print((result - reference).mean())
 
-#plt.imshow(result - reference)
-#plt.colorbar()
-#plt.show()
+plt.imshow(np.abs(result - reference))
+plt.colorbar()
+plt.show()
