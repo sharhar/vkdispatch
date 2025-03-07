@@ -210,16 +210,20 @@ def convolve_2d(
 
 def prepare_convolution_kernel(
         kernel: "RFFTBuffer",
+        shape: Tuple[int, ...] = None,
         cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None) -> "RFFTBuffer":
     assert len(kernel.shape) == 3, "Kernel must be 3D!"
     
+    if shape is None:
+        shape = kernel.shape
+
     execute_fft_plan(
         kernel,
         False,
         cmd_stream = cmd_stream,
         config = FFTConfig(
             buffer_handle=kernel._handle,
-            shape=sanitize_input_tuple(kernel.shape[:-1] + (kernel.shape[-1] - 2,)),
+            shape=sanitize_input_tuple(shape[:-1] + (shape[-1] - 2,)),
             do_r2c=True,
             kernel_convolution=True
         )
