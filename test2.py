@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 
 vd.initialize(debug_mode=True)
 
-side_length = 600
+side_length = 624
 
 signal_shape = (side_length, side_length)
 

@@ -218,8 +218,6 @@ def cpu_convolve_2d(signal_2d, kernel_2d):
 
 def test_convolution_2d():
     # Create a 2D buffer
-
-    from matplotlib import pyplot as plt
    
     side_len = 50
 
@@ -231,10 +229,6 @@ def test_convolution_2d():
 
     vd.prepare_convolution_kernel(kernel_img)
 
-    plt.imshow(np.abs(kernel_img.read_fourier(0)[0]))
-    plt.colorbar()
-    plt.savefig("kernel.png")
-
     # Perform an FFT on the buffer
     vd.convolve_2d(test_img, kernel_img)
     
@@ -243,11 +237,6 @@ def test_convolution_2d():
 
     print(result.mean())
     print(reference.mean())
-
-
-    plt.imshow(result - reference)
-    plt.colorbar()
-    plt.savefig("result.png")
 
     print((result - reference).mean())
 
