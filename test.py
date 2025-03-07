@@ -1,85 +1,64 @@
-import numpy as np
-import matplotlib.pyplot as plt
 import vkdispatch as vd
-import vkdispatch.codegen as vc
+from matplotlib import pyplot as plt
+import numpy as np
 
-import tqdm
+def make_random_complex_signal(shape):
+    r = np.random.random(size=shape)
+    i = np.random.random(size=shape)
+    return (r + i * 1j).astype(np.complex64)
 
-import time
+def make_square_signal(shape):
+    signal = np.zeros(shape)
+    signal[shape[0]//4:3*shape[0]//4, shape[1]//4:3*shape[1]//4] = 1
+    return signal
 
-vd.initialize(debug_mode=True)
+def make_gaussian_signal(shape):
+    x = np.linspace(-1, 1, shape[0])
+    y = np.linspace(-1, 1, shape[1])
+    xx, yy = np.meshgrid(x, y)
+    signal = np.exp(-xx**2 - yy**2)
+    return signal
 
-buff_size = (512, 512)
-kernel_size = (1, buff_size[0], buff_size[1] // 2 + 1)
+def cpu_convolve_2d(signal_2d, kernel_2d):
+    return np.fft.irfft2(
+        (np.fft.rfft2(signal_2d).astype(np.complex64) 
+        * np.fft.rfft2(kernel_2d).astype(np.complex64))
+    .astype(np.complex64))
 
-buffer = vd.RFFTBuffer(buff_size)
-kernel = vd.Buffer(kernel_size, vd.complex64)
+side_len = 64
 
-cmd_stream = None # vd.CommandStream()
+signal_2d = np.fft.fftshift(np.abs(make_gaussian_signal((side_len, side_len)))).astype(np.float32)
+kernel_2d = np.fft.fftshift(np.abs(make_square_signal((side_len, side_len)))).astype(np.float32).reshape((1, side_len, side_len))
 
-def clasical_convolv():
-    vd.rfft(buffer, cmd_stream=cmd_stream)
+padded_kernel = np.zeros((1, 2*side_len, side_len))
+padded_kernel[0, :side_len, :] = kernel_2d[0]
 
-    @vd.shader("out.size // 2")
-    def convolve(out: vc.Buffer[vd.complex64], input: vc.Buffer[vd.complex64]):
-        tid = vc.global_invocation().x
-        out[tid] *= input[tid]
+test_img = vd.asrfftbuffer(signal_2d)
+kernel_img = vd.asrfftbuffer(padded_kernel)
 
-    convolve(buffer, kernel, cmd_stream=cmd_stream)
+#plt.imshow(np.abs(kernel_img.read_real(0)[0]))
+#plt.colorbar()
+#plt.show()
 
-    vd.irfft(buffer, cmd_stream=cmd_stream)
+vd.prepare_convolution_kernel(kernel_img, shape=(1, side_len, side_len))
 
-clasical_convolv()
+fourier_image = kernel_img.read_fourier(0)[0]
 
-plt.imshow(np.abs(buffer.read()))
+plt.imshow(np.log(np.abs(fourier_image)))
+plt.colorbar()
 plt.show()
 
-exit()
+# Perform an FFT on the buffer
+vd.convolve_2d(test_img, kernel_img)
 
-start_time = time.time()
+result = test_img.read_real(0) / side_len
+reference = cpu_convolve_2d(signal_2d, kernel_2d[0])
 
-for _ in tqdm.tqdm(range(2500)):
-    cmd_stream.submit(100)
+print(result.mean())
+print(reference.mean())
 
-buffer.read(0)
+print((result - reference).mean())
 
-classical_time = time.time() - start_time
-
-cmd_stream.reset()
-
-start_time = time.time()
-
-vd.convolve_2d(buffer, kernel, cmd_stream=cmd_stream)
-
-for _ in tqdm.tqdm(range(2500)):
-    cmd_stream.submit(100)
-
-buffer.read(0)
-
-new_time = time.time() - start_time
-
-print(f"Classical time: {classical_time}")
-print(f"New time: {new_time}")
-
-buffer.read()
-
-exit()
-
-fig, axs = plt.subplots(2, 2, figsize=(10, 10))
-
-axs[0, 0].imshow(np.abs(fft_singnal))
-axs[0, 0].set_title('Abs FFT')
-
-axs[0, 1].imshow(np.abs(np.fft.fft(zeroed_signal, axis=0)))
-axs[0, 1].set_title('Angle FFT')
-
-axs[1, 0].imshow(np.abs(real_signal))
-axs[1, 0].set_title('Abs real')
-
-axs[1, 1].imshow(np.abs(np.fft.ifft(real_signal, axis=1)))
-axs[1, 1].set_title('angle real')
-
-for ax in axs.flat:
-    ax.label_outer()
-
-plt.show()
+#plt.imshow(result - reference)
+#plt.colorbar()
+#plt.show()

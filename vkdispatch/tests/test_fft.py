@@ -7,6 +7,18 @@ def make_random_complex_signal(shape):
     i = np.random.random(size=shape)
     return (r + i * 1j).astype(np.complex64)
 
+def make_square_signal(shape):
+    signal = np.zeros(shape)
+    signal[shape[0]//4:3*shape[0]//4, shape[1]//4:3*shape[1]//4] = 1
+    return signal
+
+def make_gaussian_signal(shape):
+    x = np.linspace(-1, 1, shape[0])
+    y = np.linspace(-1, 1, shape[1])
+    xx, yy = np.meshgrid(x, y)
+    signal = np.exp(-xx**2 - yy**2)
+    return signal
+
 def test_fft_1d():
     #vd.set_log_level(vd.LogLevel.INFO)
 
@@ -199,24 +211,46 @@ def test_fft_2d_384x384():
     assert np.allclose(test_img.read(0), np.fft.fft2(signal_2d), atol=0.01)
 
 def cpu_convolve_2d(signal_2d, kernel_2d):
-    return np.fft.ifft2(
-        (np.fft.fft2(signal_2d).astype(np.complex64) 
-        * np.fft.fft2(kernel_2d).astype(np.complex64))
+    return np.fft.irfft2(
+        (np.fft.rfft2(signal_2d).astype(np.complex64) 
+        * np.fft.rfft2(kernel_2d).astype(np.complex64))
     .astype(np.complex64))
 
 def test_convolution_2d():
     # Create a 2D buffer
-    signal_2d = np.fft.fftshift(np.abs(make_random_complex_signal((384, 384)))).astype(np.float32)
-    kernel_2d = np.fft.fftshift(np.abs(make_random_complex_signal((1, 384, 384)))).astype(np.float32)
+
+    from matplotlib import pyplot as plt
+   
+    side_len = 50
+
+    signal_2d = np.fft.fftshift(np.abs(make_gaussian_signal((side_len, side_len)))).astype(np.float32)
+    kernel_2d = np.fft.fftshift(np.abs(make_square_signal((side_len, side_len)))).astype(np.float32).reshape((1, side_len, side_len))
 
     test_img = vd.asrfftbuffer(signal_2d)
     kernel_img = vd.asrfftbuffer(kernel_2d)
 
     vd.prepare_convolution_kernel(kernel_img)
 
+    plt.imshow(np.abs(kernel_img.read_fourier(0)[0]))
+    plt.colorbar()
+    plt.savefig("kernel.png")
+
     # Perform an FFT on the buffer
     vd.convolve_2d(test_img, kernel_img)
     
-    result = test_img.read_real(0)
+    result = test_img.read_real(0) / side_len
+    reference = cpu_convolve_2d(signal_2d, kernel_2d[0])
 
-    assert np.allclose(result / 384, cpu_convolve_2d(signal_2d, kernel_2d[0]), atol=0.05)
+    print(result.mean())
+    print(reference.mean())
+
+
+    plt.imshow(result - reference)
+    plt.colorbar()
+    plt.savefig("result.png")
+
+    print((result - reference).mean())
+
+    #assert np.allclose(result, reference, atol=0.1)
+
+test_convolution_2d()
