@@ -234,12 +234,10 @@ def test_convolution_2d():
     
     result = test_img.read_real(0) / side_len
     reference = cpu_convolve_2d(signal_2d, kernel_2d[0])
-
-    print(result.mean())
-    print(reference.mean())
-
-    print((result - reference).mean())
-
-    #assert np.allclose(result, reference, atol=0.1)
-
-test_convolution_2d()
+    
+    #print(result.mean())
+    #print(reference.mean())
+    
+    #print((result - reference).mean())
+    
+    assert np.allclose(result, reference, atol=0.1)
