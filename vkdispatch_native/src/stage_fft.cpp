@@ -77,7 +77,7 @@ struct FFTPlan* stage_fft_plan_create_extern(
 
                 LOG_INFO("FFT dimensions: %d, %d, %d", config.size[0], config.size[1], config.size[2]);
                 
-                config.disableSetLocale = 1;
+                //config.disableSetLocale = 1;
 
                 config.omitDimension[0] = omit_rows;
                 config.omitDimension[1] = omit_cols;

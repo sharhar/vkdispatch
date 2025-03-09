@@ -101,17 +101,21 @@ def test_listed_reductions():
 
 def test_pure_reductions():
     # Create a buffer
-    buf = vd.Buffer((1024,) , vd.float32)
+
+    data_size = 345000
+
+    #buf = vd.Buffer((data_size,) , vd.float32)
 
     # Create a numpy array
-    data = np.random.rand(1024).astype(np.float32)
+    data = np.random.rand(data_size).astype(np.float32)
 
     # Write the data to the buffer
-    buf.write(data)
+    buf = vd.asbuffer(data)
 
     @vd.reduce(0)
     def sum_reduce(a: f32, b: f32) -> f32:
-        return a + b
+        result = (a + b).copy()
+        return result
 
     res_buf = sum_reduce(buf)
 
