@@ -25,28 +25,23 @@ def cpu_convolve_2d(signal_2d, kernel_2d):
         * np.fft.rfft2(kernel_2d).astype(np.complex64))
     .astype(np.complex64))
 
-side_len = 50
+side_len = 32
 
-signal_2d = (np.abs(make_gaussian_signal((side_len, side_len)))).astype(np.float32)
-kernel_2d = (np.abs(make_square_signal((side_len, side_len)))).astype(np.float32).reshape((1, side_len, side_len))
-
-plt.imshow(signal_2d)
-plt.show()
-
-plt.imshow(kernel_2d[0])
-plt.show()
-
-padded_kernel = np.ones(shape=(1, 2*side_len, side_len)) * -800
-padded_kernel[0, :side_len, :] = kernel_2d[0]
+signal_2d = np.fft.fftshift(np.abs(make_gaussian_signal((side_len, side_len)))).astype(np.float32)
+kernel_2d = np.fft.fftshift(np.abs(make_square_signal((side_len, side_len)))).astype(np.float32).reshape((1, side_len, side_len))
 
 test_img = vd.asrfftbuffer(signal_2d)
-kernel_img = vd.asrfftbuffer(padded_kernel)
+kernel_img = vd.asrfftbuffer(kernel_2d)
 
-plt.imshow(np.abs(kernel_img.read_real(0)[0]))
-plt.colorbar()
-plt.savefig("kernel.png")
+#plt.imshow(kernel_img.read_real(0)[0])
+#plt.colorbar()
+#plt.savefig("kernel.png")
 
-vd.prepare_convolution_kernel(kernel_img, shape=(1, side_len, side_len + 2))
+vd.prepare_convolution_kernel(kernel_img)
+
+#plt.imshow(kernel_img.read_real(0)[0])
+#plt.colorbar()
+#plt.savefig("kernel_2.png")
 
 fourier_image = kernel_img.read_real(0)[0]
 #plt.imshow(fourier_image)
@@ -54,7 +49,7 @@ fourier_image = kernel_img.read_real(0)[0]
 #plt.show()
 
 # Perform an FFT on the buffer
-#vd.convolve_2d(test_img, kernel_img)
+vd.convolve_2d(test_img, kernel_img)
 
 reference = np.zeros((side_len, side_len))
 
@@ -69,6 +64,6 @@ print(reference.mean())
 
 print((result - reference).mean())
 
-plt.imshow(np.abs(result - reference))
+plt.imshow(result) # - reference))
 plt.colorbar()
-plt.show()
+plt.savefig("diff.png")
