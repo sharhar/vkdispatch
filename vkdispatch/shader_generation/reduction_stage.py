@@ -31,7 +31,7 @@ def global_reduce(
 
     current_index = vc.new_uint(params.input_offset + ind + params.input_batch_stride * batch_num, var_name="current_index")
     end_index = vc.new_uint(current_index + params.input_size, var_name="end_index")
-    
+
     vc.while_statement(current_index < end_index)
 
     mapped_value = buffers[0][current_index]
@@ -64,13 +64,18 @@ def workgroup_reduce(
     while current_size > vd.get_context().subgroup_size:
         vc.if_statement(tid < current_size)
         sdata[tid] = reduction.reduction(sdata[tid], sdata[tid + current_size])            
-        vc.end()
+        if current_size // 2 > vd.get_context().subgroup_size:
+            vc.end()
+        else:
+            vc.else_if_statement(tid < 2*vc.subgroup_size())
+            sdata[tid] = vc.new(out_type, 0)
+            vc.end()
         
         vc.memory_barrier_shared()
         vc.barrier()
         
         current_size //= 2
-
+    
     return sdata
 
 def subgroup_reduce(
@@ -81,10 +86,11 @@ def subgroup_reduce(
     subgroup_size = vd.get_context().subgroup_size
 
     if group_size > subgroup_size:
-        vc.if_statement(tid < subgroup_size)
+        vc.if_all(tid < subgroup_size)
         sdata[tid] = reduction.reduction(sdata[tid], sdata[tid + subgroup_size])
         vc.end()
         vc.subgroup_barrier()
+    
     
     if reduction.subgroup_reduction is not None:
         local_var = sdata[tid].copy("local_var")
@@ -97,12 +103,13 @@ def subgroup_reduce(
             vc.if_statement(tid < current_size)
             sdata[tid] = reduction.reduction(sdata[tid], sdata[tid + current_size])
             vc.end()
-            
             vc.subgroup_barrier()
             
             current_size //= 2
         
-        return reduction.reduction(sdata[tid], sdata[tid + current_size])
+        result = reduction.reduction(sdata[tid], sdata[tid + current_size])
+
+        return result
 
 def make_reduction_stage(
         reduction: vd.ReductionOperation, 

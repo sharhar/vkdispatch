@@ -168,12 +168,17 @@ class ShaderObject:
         self.ready = True
 
     def __repr__(self) -> str:
+        self.build()
+        return self.make_repr()
+    
+    def make_repr(self) -> str:
         result = ""
 
         for ii, line in enumerate(self.source.split("\n")):
             result += f"{ii + 1:4d}: {line}\n"
 
         return result
+
 
     def __call__(self, *args, **kwargs):
         self.build()

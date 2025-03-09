@@ -452,6 +452,21 @@ class ShaderBuilder:
         self.append_contents("} else {\n")
         self.scope_num += 1
 
+    def else_if_statement(self, arg: ShaderVariable):
+        self.scope_num -= 1
+        self.append_contents(f"}} else if({arg}) {'{'}\n")
+        self.scope_num += 1
+
+    def else_if_any(self, *args: List[ShaderVariable]):
+        self.scope_num -= 1
+        self.append_contents(f"}} else if({' || '.join([str(elem) for elem in args])}) {'{'}\n")
+        self.scope_num += 1
+    
+    def else_if_all(self, *args: List[ShaderVariable]):
+        self.scope_num -= 1
+        self.append_contents(f"}} else if({' && '.join([str(elem) for elem in args])}) {'{'}\n")
+        self.scope_num += 1
+
     def return_statement(self, arg=None):
         arg = arg if arg is not None else ""
         self.append_contents(f"return {arg};\n")

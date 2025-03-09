@@ -31,6 +31,7 @@ from .global_builder import tan, tanh, transpose, trunc, uint_bits_to_float
 from .global_builder import mult_c64, mult_conj_c64
 
 from .global_builder import if_statement, if_any, if_all, else_statement
+from .global_builder import else_if_statement, else_if_any, else_if_all
 from .global_builder import return_statement, while_statement, end
 from .global_builder import logical_and, logical_or
 from .global_builder import subgroup_add, subgroup_mul

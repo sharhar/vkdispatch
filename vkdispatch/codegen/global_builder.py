@@ -229,6 +229,15 @@ def if_all(*args: List[ShaderVariable]):
 def else_statement():
     GlobalBuilder.obj.else_statement()
 
+def else_if_statement(arg: ShaderVariable):
+    GlobalBuilder.obj.else_if_statement(arg)
+
+def else_if_any(*args: List[ShaderVariable]):
+    GlobalBuilder.obj.else_if_any(*args)
+
+def else_if_all(*args: List[ShaderVariable]):
+    GlobalBuilder.obj.else_if_all(*args)
+
 def return_statement(arg=None):
     GlobalBuilder.obj.return_statement(arg)
 
