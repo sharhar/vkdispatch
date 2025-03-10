@@ -41,16 +41,9 @@ vd.prepare_convolution_kernel(kernel_img)
 output = vd.RFFTBuffer((side_len, side_len))
 
 # Perform an FFT on the buffer
-#vd.convolve_2d(output, input=test_img, kernel=kernel_img)
-vd.convolve_2d(test_img, kernel_img)
+vd.convolve_2d(test_img, kernel_img, normalize=True)
 
-#vd.convolve_2d(test_img, kernel_img, normalize=True)
-
-result = np.abs(test_img.read(0))
-#reference = cpu_convolve_2d(signal_2d, kernel_2d[0])/ side_len
-
-#reference = np.fft.rfft(signal_2d, axis=0)
-#reference = np.ascontiguousarray(reference).view(np.float32)
+result = test_img.read(0)
 
 reference = vd.asrfftbuffer(signal_2d)
 vd.rfft(reference)
@@ -62,24 +55,27 @@ reference = reference.read(0)
 print(result.mean())
 print(reference.mean())
 
+np.save('result.npy', result)
+np.save('reference.npy', reference)
+
 #print((np.abs(result - reference)).mean())
 
 fig, axs = plt.subplots(2, 2)
 
 # Plot the difference between result and reference
-axs[0, 0].imshow(result - np.abs(reference))
+axs[0, 0].imshow(result - reference)
 axs[0, 0].set_title('Difference')
 axs[0, 0].set_xlabel('X')
 axs[0, 0].set_ylabel('Y')
  
 # Plot the absolute difference between result and reference
-axs[0, 1].imshow(np.abs(result - np.abs(reference)))
+axs[0, 1].imshow(np.abs(result - reference))
 axs[0, 1].set_title('Absolute Difference')
 axs[0, 1].set_xlabel('X')
 axs[0, 1].set_ylabel('Y')
 
 # Plot the reference
-axs[1, 0].imshow(np.abs(reference))
+axs[1, 0].imshow(reference)
 axs[1, 0].set_title('Reference')
 axs[1, 0].set_xlabel('X')
 axs[1, 0].set_ylabel('Y')
