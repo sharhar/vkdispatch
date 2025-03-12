@@ -79,6 +79,8 @@ struct FFTPlan* stage_fft_plan_create_extern(
                 
                 //config.disableSetLocale = 1;
 
+                config.keepShaderCode = true;
+
                 config.omitDimension[0] = omit_rows;
                 config.omitDimension[1] = omit_cols;
                 config.omitDimension[2] = omit_depth;

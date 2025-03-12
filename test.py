@@ -36,7 +36,9 @@ kernel_2d = (np.abs(make_square_signal((side_len, side_len)))).astype(np.float32
 test_img = vd.asrfftbuffer(signal_2d)
 kernel_img = vd.asrfftbuffer(kernel_2d)
 
-vd.prepare_convolution_kernel(kernel_img)
+kernel_img.write(np.ones((1, side_len, side_len + 2), dtype=np.float32))
+
+#vd.prepare_convolution_kernel(kernel_img)
 
 output = vd.RFFTBuffer((side_len, side_len))
 
