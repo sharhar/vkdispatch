@@ -29,8 +29,11 @@ def global_reduce(
 
     batch_num = vc.workgroup().y
 
-    current_index = vc.new_uint(params.input_offset + ind + params.input_batch_stride * batch_num, var_name="current_index")
-    end_index = vc.new_uint(current_index + params.input_size, var_name="end_index")
+    start_index = vc.new_uint(params.input_offset + params.input_batch_stride * batch_num, var_name="start_index")
+
+    current_index = vc.new_uint(start_index + ind, var_name="current_index")
+
+    end_index = vc.new_uint(start_index + params.input_size, var_name="end_index")
 
     vc.while_statement(current_index < end_index)
 
@@ -42,6 +45,7 @@ def global_reduce(
     reduction_aggregate[:] = reduction.reduction(reduction_aggregate, mapped_value)
 
     current_index += vc.workgroup_size().x * vc.num_workgroups().x
+
     vc.end()
 
     return reduction_aggregate
@@ -75,7 +79,7 @@ def workgroup_reduce(
         vc.barrier()
         
         current_size //= 2
-    
+
     return sdata
 
 def subgroup_reduce(
@@ -144,6 +148,7 @@ def make_reduction_stage(
 
     reduction_aggregate = global_reduce(reduction, out_type, input_buffers, params, map_func)
     sdata = workgroup_reduce(reduction_aggregate, reduction, out_type, group_size)
+
     local_var = subgroup_reduce(sdata, reduction, group_size)
 
     batch_offset = vc.workgroup().y * params.output_batch_stride
