@@ -10,6 +10,36 @@ struct FFTPlan {
     uint64_t input_size;
 };
 
+void print_vkfft_config(VkFFTConfiguration* config) {
+     LOG_INFO(R"(
+ VkConfig:
+     Size: (%d, %d, %d)
+     Omit Dimention: (%d, %d, %d)
+     Input Buffer Size: %d
+     Is Input Formatted: %d
+     Frequency Zero Padding: %d
+     Kernel Convolution: %d
+     Perform Convolution: %d
+     Number Kernels: %d
+     Kernel Size: %d
+     Normalize: %d
+     Buffer Size: %d
+     Perform R2C: %d
+     )", 
+     config->size[0], config->size[1], config->size[2],
+     config->omitDimension[0], config->omitDimension[1], config->omitDimension[2],
+     *config->inputBufferSize,
+     config->isInputFormatted,
+     config->frequencyZeroPadding,
+     config->kernelConvolution,
+     config->performConvolution,
+     config->numberKernels,
+     *config->kernelSize,
+     config->normalize,
+     *config->bufferSize,
+     config->performR2C);
+ }
+
 struct FFTPlan* stage_fft_plan_create_extern(
     struct Context* ctx, 
     unsigned long long dims, 
@@ -75,15 +105,11 @@ struct FFTPlan* stage_fft_plan_create_extern(
                 config.size[1] = cols;
                 config.size[2] = depth;
 
-                LOG_INFO("FFT dimensions: %d, %d, %d", config.size[0], config.size[1], config.size[2]);
-                
                 //config.disableSetLocale = 1;
 
                 config.omitDimension[0] = omit_rows;
                 config.omitDimension[1] = omit_cols;
                 config.omitDimension[2] = omit_depth;
-
-                LOG_INFO("FFT axis ommisions: %d, %d, %d", config.omitDimension[0], config.omitDimension[1], config.omitDimension[2]);
 
                 config.performZeropadding[0] = pad_right_rows != 0;
                 config.performZeropadding[1] = pad_right_cols != 0;
@@ -101,12 +127,6 @@ struct FFTPlan* stage_fft_plan_create_extern(
                 *config.inputBufferSize = input_buffer_size;
                 config.isInputFormatted = input_buffer_size > 0;
 
-                LOG_INFO("Making FFT with padding axis0: %d, %d, %d", config.performZeropadding[0], config.fft_zeropad_left[0], config.fft_zeropad_right[0]);
-                LOG_INFO("Making FFT with padding axis1: %d, %d, %d", config.performZeropadding[1], config.fft_zeropad_left[1], config.fft_zeropad_right[1]);
-                LOG_INFO("Making FFT with padding axis2: %d, %d, %d", config.performZeropadding[2], config.fft_zeropad_left[2], config.fft_zeropad_right[2]);
-
-                LOG_INFO("Frequency zeropadding: %d", frequency_zeropadding);
-
                 config.frequencyZeroPadding = frequency_zeropadding;
 
                 unsigned long long true_rows = rows;
@@ -121,7 +141,7 @@ struct FFTPlan* stage_fft_plan_create_extern(
                 //config.coordinateFeatures = convolution_features;
                 config.numberKernels = kernel_num;
                 config.kernelSize = (uint64_t*)malloc(sizeof(uint64_t));
-                *config.kernelSize = kernel_num * true_rows * config.size[1] * config.size[2];
+                *config.kernelSize = 2 * sizeof(float) * kernel_num * true_rows * config.size[1] * config.size[2];
 
                 glslang_resource_t* resource = reinterpret_cast<glslang_resource_t*>(ctx->glslang_resource_limits);
 
@@ -155,6 +175,8 @@ struct FFTPlan* stage_fft_plan_create_extern(
                 config.glslang_mutex = &ctx->glslang_mutex;
 
                 LOG_VERBOSE("Doing FFT Init");
+
+                print_vkfft_config(&config);
 
                 VkFFTApplication* application = new VkFFTApplication();
 
