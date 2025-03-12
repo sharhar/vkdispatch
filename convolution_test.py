@@ -3,7 +3,7 @@ import vkdispatch.codegen as vc
 from matplotlib import pyplot as plt
 import numpy as np
 
-vd.initialize(debug_mode=True)
+vd.initialize(debug_mode=True, log_level=vd.LogLevel.INFO)
 
 def make_random_complex_signal(shape):
     r = np.random.random(size=shape)
@@ -30,6 +30,8 @@ def cpu_convolve_2d(signal_2d, kernel_2d):
 
 side_len = 50
 
+save_figure = True
+
 signal_2d = (np.abs(make_gaussian_signal((side_len, side_len)))).astype(np.float32)
 kernel_2d = (np.abs(make_square_signal((side_len, side_len)))).astype(np.float32).reshape((1, side_len, side_len))
 
@@ -43,22 +45,12 @@ output = vd.RFFTBuffer((side_len, side_len))
 # Perform an FFT on the buffer
 vd.convolve_2d(test_img, kernel_img, normalize=True)
 
-result = test_img.read(0)
+result = test_img.read_real(0)
 
-reference = vd.asrfftbuffer(signal_2d)
-vd.rfft(reference)
-reference = reference.read(0)
+reference = cpu_convolve_2d(signal_2d, kernel_2d[0])
 
-#result = np.fft.ifftshift(result)
-#reference = np.fft.ifftshift(reference)
-
-print(result.mean())
-print(reference.mean())
-
-np.save('result.npy', result)
-np.save('reference.npy', reference)
-
-#print((np.abs(result - reference)).mean())
+result = np.fft.ifftshift(result)
+reference = np.fft.ifftshift(reference)
 
 fig, axs = plt.subplots(2, 2)
 
@@ -67,23 +59,45 @@ axs[0, 0].imshow(result - reference)
 axs[0, 0].set_title('Difference')
 axs[0, 0].set_xlabel('X')
 axs[0, 0].set_ylabel('Y')
+# Add colorbar to the difference plot
+cbar = fig.colorbar(axs[0, 0].images[0], ax=axs[0, 0])
+cbar.set_label('Difference')
  
 # Plot the absolute difference between result and reference
 axs[0, 1].imshow(np.abs(result - reference))
 axs[0, 1].set_title('Absolute Difference')
 axs[0, 1].set_xlabel('X')
 axs[0, 1].set_ylabel('Y')
+# Add colorbar to the absolute difference plot
+cbar = fig.colorbar(axs[0, 1].images[0], ax=axs[0, 1])
+cbar.set_label('Absolute Difference')
 
 # Plot the reference
 axs[1, 0].imshow(reference)
 axs[1, 0].set_title('Reference')
 axs[1, 0].set_xlabel('X')
 axs[1, 0].set_ylabel('Y')
+# Add colorbar to the reference plot
+cbar = fig.colorbar(axs[1, 0].images[0], ax=axs[1, 0])
+cbar.set_label('Reference')
 
 # Plot the result
 axs[1, 1].imshow(result)
 axs[1, 1].set_title('Result')
 axs[1, 1].set_xlabel('X')
 axs[1, 1].set_ylabel('Y')
+# Add colorbar to the result plot
+cbar = fig.colorbar(axs[1, 1].images[0], ax=axs[1, 1])
+cbar.set_label('Result')
 
-plt.show()
+if save_figure:
+    device_name = vd.get_context().device_infos[0].device_name.replace(' ', '_')
+
+    import datetime
+    current_date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+    result_filename = f'convolution_test_{device_name}_{current_date}.png'
+
+    plt.savefig(result_filename)
+else:
+    plt.show()
