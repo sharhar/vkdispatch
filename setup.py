@@ -24,6 +24,8 @@ proj_root = os.path.abspath(os.path.dirname(__file__))
 molten_vk_path = "./deps/MoltenVK/MoltenVK/MoltenVK/static/MoltenVK.xcframework/macos-arm64_x86_64/"
 vulkan_sdk_root = os.environ.get('VULKAN_SDK')
 
+#vulkan_sdk_root = "C:\\VulkanSDK\\1.3.280.0"
+
 platform_name_dict = {
     "Darwin": "MACOS",
     "Windows": "WINDOWS",

@@ -60,7 +60,15 @@ print(reference.mean())
 np.save('result.npy', result)
 np.save('reference.npy', reference)
 
+reference = np.load("result_zero.npy")
+
 #print((np.abs(result - reference)).mean())
+
+result = np.fft.fft2(result)
+reference = np.fft.fft2(reference)
+
+result = np.abs(np.fft.ifftshift(result))
+reference = np.abs(np.fft.ifftshift(reference))
 
 fig, axs = plt.subplots(2, 2)
 
