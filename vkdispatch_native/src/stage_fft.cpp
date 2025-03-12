@@ -58,6 +58,8 @@ struct FFTPlan* stage_fft_plan_create_extern(
     int frequency_zeropadding,
     int kernel_num,
     int kernel_convolution,
+    int conjugate_convolution,
+    int convolution_features,
     unsigned long long input_buffer_size) {
     LOG_INFO("Creating FFT plan with handle %p", ctx);
     
@@ -89,6 +91,8 @@ struct FFTPlan* stage_fft_plan_create_extern(
         frequency_zeropadding,
         kernel_num,
         kernel_convolution,
+        conjugate_convolution,
+        convolution_features,
         input_buffer_size]
         (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
             LOG_VERBOSE("Initializing FFT on device %d, stream %d, recorder %d", device_index, stream_index, recorder_index);
@@ -138,7 +142,8 @@ struct FFTPlan* stage_fft_plan_create_extern(
                 config.kernelConvolution = kernel_convolution;
 
                 config.performConvolution = kernel_num > 0;
-                //config.coordinateFeatures = convolution_features;
+                config.conjugateConvolution = conjugate_convolution;
+                config.coordinateFeatures = convolution_features;
                 config.numberKernels = kernel_num;
                 config.kernelSize = (uint64_t*)malloc(sizeof(uint64_t));
                 *config.kernelSize = 2 * sizeof(float) * kernel_num * true_rows * config.size[1] * config.size[2];

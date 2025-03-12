@@ -10,6 +10,7 @@ import vkdispatch as vd
 import dataclasses
 
 from typing import Dict
+from typing import Union
 
 @dataclasses.dataclass(frozen=True)
 class FFTConfig:
@@ -24,6 +25,8 @@ class FFTConfig:
     input_shape: Tuple[int, ...] = None
     input_type: vd.dtype = None
     kernel_convolution: bool = False
+    conjugate_convolution: bool = False
+    convolution_features: int = 1
 
 def sanitize_input_tuple(input: Tuple) -> Tuple:
     if input is None:
@@ -48,6 +51,8 @@ def execute_fft_plan(
         cmd_stream = vd.global_cmd_stream()
     
     if config not in __fft_plans:
+        print(f"Creating new plan for {config}")
+
         __fft_plans[config] = vd.FFTPlan(
             shape=config.shape, 
             do_r2c=config.do_r2c, 
@@ -58,7 +63,10 @@ def execute_fft_plan(
             kernel_count=config.kernel_count,
             input_shape=config.input_shape,
             input_type=config.input_type,
-            kernel_convolution=config.kernel_convolution)
+            kernel_convolution=config.kernel_convolution,
+            conjugate_convolution=config.conjugate_convolution,
+            convolution_features=config.convolution_features
+        )
     
     plan = __fft_plans[config]
     plan.record(cmd_stream, buffer, inverse, kernel, input)
@@ -177,20 +185,30 @@ def irfft(
     )
 
 def convolve_2d(
-        buffer: vd.Buffer[vd.float32],
-        kernel: vd.Buffer[vd.complex64],
-        input: vd.Buffer[vd.float32] = None,
+        buffer: Union[vd.Buffer[vd.float32], "RFFTBuffer"],
+        kernel: Union[vd.Buffer[vd.complex64], "RFFTBuffer"],
+        input: Union[vd.Buffer[vd.float32], "RFFTBuffer"] = None,
         normalize: bool = False,
+        conjugate_kernel: bool = False,
         cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None):
 
-    assert len(buffer.shape) == 2, "Buffer must be 2D!"
-    assert len(kernel.shape) == 3, "Kernel must be 3D!"
+    assert len(buffer.shape) == 2 or len(buffer.shape) == 3, "Buffer must be 2D or 3D!"
+    assert len(kernel.shape) == 2 or len(kernel.shape) == 3, "Kernel must be 2D or 3D!"
 
-    #computed_kernel_shape = (kernel.shape[0], buffer.shape[0], buffer.shape[1] // 2)
+    kernel_count = 1
+    feature_count = 1
 
-    #print(computed_kernel_shape, kernel.shape)
+    if len(buffer.shape) == 3:
+        assert len(kernel.shape) == 3, "Kernel must be 3D if buffer is 3D!"
 
-    #assert computed_kernel_shape == kernel.shape, "Kernel shape must match buffer shape!"
+        feature_count = buffer.shape[0]
+
+        assert kernel.shape[0] % feature_count == 0, f"Kernel count ({kernel.shape[0]}) must be a multiple of feature count ({feature_count})!"
+
+        kernel_count = kernel.shape[0] // feature_count
+    elif len(kernel.shape) == 3:
+        kernel_count = kernel.shape[0]
+
     execute_fft_plan(
         buffer,
         False,
@@ -200,9 +218,11 @@ def convolve_2d(
             shape=sanitize_input_tuple(buffer.shape[:-1] + (buffer.shape[-1] - 2,)),
             do_r2c=True,
             normalize=normalize,
-            kernel_count=kernel.shape[0],
+            kernel_count=kernel_count,
+            conjugate_convolution=conjugate_kernel,
             input_shape=sanitize_input_tuple(input.shape if input is not None else None),
-            input_type=input.var_type if input is not None else None
+            input_type=input.var_type if input is not None else None,
+            convolution_features=feature_count
         ),
         kernel=kernel,
         input=input

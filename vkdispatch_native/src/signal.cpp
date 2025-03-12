@@ -25,7 +25,7 @@ void Signal::wait() {
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         
-        if(elapsed.count() > 500) {
+        if(elapsed.count() > 5) {
             set_error("Timed out waiting for signal");
             return true;
         }
