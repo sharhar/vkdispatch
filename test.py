@@ -3,7 +3,7 @@ import vkdispatch.codegen as vc
 from matplotlib import pyplot as plt
 import numpy as np
 
-vd.initialize(debug_mode=True)
+vd.initialize(debug_mode=True, log_level=vd.LogLevel.INFO)
 
 def make_random_complex_signal(shape):
     r = np.random.random(size=shape)
@@ -38,6 +38,8 @@ kernel_img = vd.asrfftbuffer(kernel_2d)
 
 kernel_img.write(np.ones((1, side_len, side_len + 2), dtype=np.float32))
 
+print(kernel_img.read(0).shape)
+
 #vd.prepare_convolution_kernel(kernel_img)
 
 output = vd.RFFTBuffer((side_len, side_len))
@@ -57,18 +59,21 @@ reference = reference.read(0)
 print(result.mean())
 print(reference.mean())
 
-np.save('result.npy', result)
-np.save('reference.npy', reference)
+#np.save('result.npy', result)
+#np.save('reference.npy', reference)
 
 reference = np.load("result_zero.npy")
 
 #print((np.abs(result - reference)).mean())
 
-result = np.fft.fft2(result)
-reference = np.fft.fft2(reference)
+#result = np.fft.fft2(result)
+#reference = np.fft.fft2(reference)
 
-result = np.abs(np.fft.ifftshift(result))
-reference = np.abs(np.fft.ifftshift(reference))
+#result = np.fft.ifftshift(result)
+#reference = np.fft.ifftshift(reference)
+
+#result = np.abs(result)
+#reference = np.abs(reference)
 
 fig, axs = plt.subplots(2, 2)
 
@@ -96,4 +101,4 @@ axs[1, 1].set_title('Result')
 axs[1, 1].set_xlabel('X')
 axs[1, 1].set_ylabel('Y')
 
-plt.show()
+plt.savefig('result.png')
