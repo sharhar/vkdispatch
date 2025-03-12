@@ -24,10 +24,14 @@ void Fence::waitAndReset() {
     this->submitted = false;
 }
 
-void Fence::doSubmit(VkQueue queue, VkSubmitInfo* submitInfo, Signal* signal) {
+void Fence::doSubmit(VkQueue queue, VkSubmitInfo* submitInfo, Signal* signal, std::mutex* queue_usage_mutex) {
     std::unique_lock<std::mutex> lock(mutex);
 
+    queue_usage_mutex->lock();
+
     VK_CALL(vkQueueSubmit(queue, 1, submitInfo, fence));
+
+    queue_usage_mutex->unlock();
 
     if(signal != NULL) {
         VK_CALL(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX));
@@ -395,7 +399,7 @@ void Stream::submit_worker() {
 
         LOG_VERBOSE("Submitting command buffer for work item %p", work_item.work_header);
         
-        fences[work_item.current_index]->doSubmit(queue, &submitInfo, work_item.signal);
+        fences[work_item.current_index]->doSubmit(queue, &submitInfo, work_item.signal, &this->queue_usage_mutex);
 
         // VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[work_item.current_index]->fence));
     

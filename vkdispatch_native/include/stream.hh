@@ -25,7 +25,7 @@ public:
     Fence(VkDevice device);
 
     void waitAndReset();
-    void doSubmit(VkQueue queue, VkSubmitInfo* submitInfo, Signal* signal);
+    void doSubmit(VkQueue queue, VkSubmitInfo* submitInfo, Signal* signal, std::mutex* queue_usage_mutex);
 
     void destroy();
 
@@ -81,6 +81,8 @@ public:
     std::mutex record_queue_mutex;
     std::condition_variable record_queue_cv;
     std::queue<struct WorkQueueItem> record_queue;
+
+    std::mutex queue_usage_mutex;
 
     int stream_index;
 };

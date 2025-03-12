@@ -173,6 +173,7 @@ struct FFTPlan* stage_fft_plan_create_extern(
                 *config.bufferSize = true_rows * cols * depth * sizeof(float) * 2;
                 config.performR2C = do_r2c;
                 config.glslang_mutex = &ctx->glslang_mutex;
+                config.queue_mutex = &ctx->streams[stream_index]->queue_usage_mutex;
 
                 LOG_VERBOSE("Doing FFT Init");
 
