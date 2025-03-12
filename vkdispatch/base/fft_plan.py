@@ -24,7 +24,9 @@ class FFTPlan:
                  kernel_count: int = 0,
                  input_shape: Tuple[int, ...] = None,
                  input_type: dtype = None,
-                 kernel_convolution: bool = False):
+                 kernel_convolution: bool = False,
+                 conjugate_convolution: bool = False,
+                 convolution_features: int = 0):
         assert len(shape) > 0 and len(shape) < 4, "shape must be 1D, 2D, or 3D"
 
         self.shape = shape
@@ -65,13 +67,15 @@ class FFTPlan:
             list(reversed(self.shape)), 
             [axis for axis in flipped_axes if axis >= 0 and axis < 3], 
             self.mem_size, 
-            1 if do_r2c else 0, 
+            do_r2c, 
             normalize,
             pad_left,
             pad_right,
             pad_frequency_domain,
             kernel_count,
             kernel_convolution,
+            conjugate_convolution,
+            convolution_features,
             input_size
         )
         check_for_errors()

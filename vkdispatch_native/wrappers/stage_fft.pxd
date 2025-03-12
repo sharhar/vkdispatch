@@ -28,6 +28,8 @@ cdef extern from "../include/stage_fft.hh":
         int frequency_zeropadding,
         int kernel_num,
         int kernel_convolution,
+        int conjugate_convolution,
+        int convolution_features,
         unsigned long long input_buffer_size)
     void stage_fft_record_extern(
         CommandList* command_list, 
@@ -41,13 +43,15 @@ cpdef inline stage_fft_plan_create(
     list[int] dims, 
     list[int] axes, 
     unsigned long long buffer_size,
-    unsigned int do_r2c, 
+    bool do_r2c, 
     bool normalize,
     tuple[int, int, int] pad_left,
     tuple[int, int, int] pad_right,
     bool frequency_zeropadding,
     int kernel_num,
     bool kernel_convolution,
+    bool conjugate_convolution,
+    int convolution_features,
     unsigned long long input_buffer_size):
     assert len(dims) > 0 and len(dims) < 4, "dims must be a list of length 1, 2, or 3"
     assert len(axes) <= 3, "axes must be a list of length less than or equal to 3"
@@ -78,7 +82,8 @@ cpdef inline stage_fft_plan_create(
     cdef FFTPlan* plan = stage_fft_plan_create_extern(
         ctx, 
         dims_, dims__[0], dims__[1], dims__[2], 
-        buffer_size, do_r2c, 
+        buffer_size,
+        1 if do_r2c else 0,
         omits__[0], omits__[1], omits__[2], 
         1 if normalize else 0,
         pad_left[0], pad_right[0],
@@ -87,6 +92,8 @@ cpdef inline stage_fft_plan_create(
         1 if frequency_zeropadding else 0,
         kernel_num,
         1 if kernel_convolution else 0,
+        1 if conjugate_convolution else 0,
+        convolution_features,
         input_buffer_size)
 
     free(dims__)

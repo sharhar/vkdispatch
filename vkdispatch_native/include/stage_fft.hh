@@ -31,6 +31,8 @@ struct FFTPlan* stage_fft_plan_create_extern(
     int frequency_zeropadding,
     int kernel_num,
     int kernel_convolution,
+    int conjugate_convolution,
+    int convolution_features,
     unsigned long long input_buffer_size);
 
 void stage_fft_record_extern(

@@ -30,17 +30,17 @@ def cpu_convolve_2d(signal_2d, kernel_2d):
 
 side_len = 50
 
-save_figure = True
+save_figure = False
 
-signal_2d = (np.abs(make_gaussian_signal((side_len, side_len)))).astype(np.float32)
-kernel_2d = (np.abs(make_square_signal((side_len, side_len)))).astype(np.float32).reshape((1, side_len, side_len))
+signal_2d = (np.abs(make_gaussian_signal((2*side_len, side_len)))).astype(np.float32)
+kernel_2d = (np.abs(make_square_signal((side_len, 2*side_len)))).astype(np.float32).reshape((1, side_len, 2*side_len))
 
 test_img = vd.asrfftbuffer(signal_2d)
 kernel_img = vd.asrfftbuffer(kernel_2d)
 
 vd.prepare_convolution_kernel(kernel_img)
 
-output = vd.RFFTBuffer((side_len, side_len))
+output = vd.RFFTBuffer((side_len, 2*side_len))
 
 # Perform an FFT on the buffer
 vd.convolve_2d(test_img, kernel_img, normalize=True)
