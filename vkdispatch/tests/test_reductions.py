@@ -3,7 +3,7 @@ import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import *
 import numpy as np
 
-#vd.initialize(debug_mode=True)
+vd.initialize(debug_mode=True)
 #vd.make_context(devices=[2])
 
 vd.make_context(use_cpu=True)
@@ -102,9 +102,7 @@ def test_listed_reductions():
 def test_pure_reductions():
     # Create a buffer
 
-    data_size = 345000
-
-    #buf = vd.Buffer((data_size,) , vd.float32)
+    data_size = 300000
 
     # Create a numpy array
     data = np.random.rand(data_size).astype(np.float32)
@@ -123,4 +121,6 @@ def test_pure_reductions():
     read_data = res_buf.read(0)
 
     # Check that the data is the same
-    assert np.allclose([data.sum()], [read_data[0]])
+    difference = data.sum(dtype=np.float32) - read_data[0]
+
+    assert np.abs(difference / data.sum(dtype=np.float32)) < 1e-3

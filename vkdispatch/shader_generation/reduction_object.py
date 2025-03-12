@@ -111,7 +111,7 @@ class ReductionObject:
             output_batch_stride=0,
         )
 
-        self.stage1(reduction_buffer, *args, stage1_params, exec_size=stage1_blocks * self.group_size, cmd_stream=my_cmd_stream)
+        self.stage1(reduction_buffer, *args, stage1_params, exec_size=my_exec_size, cmd_stream=my_cmd_stream)
 
         stage2_params = vd.ReductionParams(
             input_offset=1,
@@ -123,6 +123,6 @@ class ReductionObject:
             output_batch_stride=0,
         )
 
-        self.stage2(reduction_buffer, stage2_params, exec_size=self.group_size, cmd_stream=my_cmd_stream)
+        self.stage2(reduction_buffer, stage2_params, exec_size=stage1_blocks, cmd_stream=my_cmd_stream)
 
         return reduction_buffer
