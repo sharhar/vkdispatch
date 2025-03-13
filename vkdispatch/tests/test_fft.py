@@ -224,15 +224,16 @@ def test_convolution_2d():
     signal_2d = np.fft.fftshift(np.abs(make_gaussian_signal((side_len, side_len)))).astype(np.float32)
     kernel_2d = np.fft.fftshift(np.abs(make_square_signal((side_len, side_len)))).astype(np.float32).reshape((1, side_len, side_len))
 
+    input_buffer = vd.asbuffer(signal_2d)
     test_img = vd.asrfftbuffer(signal_2d)
     kernel_img = vd.asrfftbuffer(kernel_2d)
 
-    vd.prepare_convolution_kernel(kernel_img)
+    vd.create_kernel_2Dreal(kernel_img)
 
     # Perform an FFT on the buffer
-    vd.convolve_2d(test_img, kernel_img)
+    vd.convolve_2Dreal(test_img, kernel_img, input=input_buffer, normalize=True)
     
-    result = test_img.read_real(0) / side_len
+    result = test_img.read_real(0)
     reference = cpu_convolve_2d(signal_2d, kernel_2d[0])
     
     #print(result.mean())
