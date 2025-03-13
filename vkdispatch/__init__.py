@@ -70,9 +70,7 @@ from .shader_generation.reduction_stage import make_reduction_stage, ReductionPa
 
 from .shader_generation.reduction_object import ReductionObject
 
-from .shader_generation.reductions import map_reduce
-
-from .shader_generation.decorators import shader, reduce
+from .shader_generation.decorators import shader, reduce, map_reduce
 
 
 __version__ = "0.0.21"

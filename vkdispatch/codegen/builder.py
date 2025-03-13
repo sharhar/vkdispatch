@@ -137,6 +137,7 @@ class ShaderBuilder:
         self.shared_buffers = []
         self.scope_num = 1
         self.contents = ""
+        self.mapping_index = None
         
         self.exec_count = self.declare_constant(abv.uv4, var_name="exec_count")
 
@@ -152,6 +153,8 @@ class ShaderBuilder:
         self.return_statement()
         self.end()
 
+    def set_mapping_index(self, index: ShaderVariable):
+        self.mapping_index = index
 
     def append_contents(self, contents: str) -> None:
         self.contents += ("\t" * self.scope_num) + contents
