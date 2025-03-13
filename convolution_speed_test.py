@@ -11,8 +11,8 @@ side_len = 512
 batch_count = 200
 batch_num = 20
 
-feature_count = 4
-kernel_count = 10
+feature_count = 10
+kernel_count = 4
 
 input_buffer = vd.Buffer((feature_count, side_len, side_len), vd.float32)
 kernel_buffer = vd.RFFTBuffer((feature_count * kernel_count, side_len, side_len))

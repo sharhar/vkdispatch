@@ -185,10 +185,12 @@ def irfft(
         input=input
     )
 
-def sanitize_2d_convolution_shape(in_shape: Tuple[int, ...]):
+def sanitize_2d_convolution_buffer_shape(in_shape: vd.Buffer):
     if in_shape is None:
         return None
     
+    in_shape = in_shape.shape
+
     assert len(in_shape) == 2 or len(in_shape) == 3, "Input shape must be 2D or 3D!"
 
     if len(in_shape) == 2:
@@ -204,12 +206,12 @@ def convolve_2Dreal(
         conjugate_kernel: bool = False,
         cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None):
 
-    buffer_shape = sanitize_2d_convolution_shape(buffer.shape)
-    kernel_shape = sanitize_2d_convolution_shape(kernel.shape)
+    buffer_shape = sanitize_2d_convolution_buffer_shape(buffer)
+    kernel_shape = sanitize_2d_convolution_buffer_shape(kernel)
     
     assert buffer_shape == kernel_shape, f"Buffer ({buffer_shape}) and Kernel ({kernel_shape}) shapes must match!"
 
-    input_shape = sanitize_2d_convolution_shape(input.shape)
+    input_shape = sanitize_2d_convolution_buffer_shape(input)
 
     kernel_count = 1
     feature_count = 1
