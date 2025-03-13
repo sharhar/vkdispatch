@@ -53,8 +53,6 @@ def execute_fft_plan(
         cmd_stream = vd.global_cmd_stream()
     
     if config not in __fft_plans:
-        print(f"Creating new plan for {config}")
-
         __fft_plans[config] = vd.FFTPlan(
             shape=config.shape, 
             do_r2c=config.do_r2c, 
@@ -222,8 +220,6 @@ def convolve_2Dreal(
         feature_count = input_shape[0]
     else:
         feature_count = buffer.shape[0]
-
-    print(kernel_count, feature_count)
 
     execute_fft_plan(
         buffer,
