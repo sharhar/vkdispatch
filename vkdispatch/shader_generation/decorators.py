@@ -59,3 +59,6 @@ def reduce(identity, axes=None, group_size=None):
         )
     
     return decorator
+
+#def map_reduce():
+#    pass
