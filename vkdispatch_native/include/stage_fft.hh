@@ -33,7 +33,9 @@ struct FFTPlan* stage_fft_plan_create_extern(
     int kernel_convolution,
     int conjugate_convolution,
     int convolution_features,
-    unsigned long long input_buffer_size);
+    unsigned long long input_buffer_size,
+    int num_batches,
+    int single_kernel_multiple_batches);
 
 void stage_fft_record_extern(
     struct CommandList* command_list, 

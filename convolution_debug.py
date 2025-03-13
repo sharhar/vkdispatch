@@ -15,9 +15,9 @@ def make_square_signal(shape):
     signal[shape[0]//4:3*shape[0]//4, shape[1]//4:3*shape[1]//4] = 1
     return signal
 
-def make_gaussian_signal(shape):
-    x = np.linspace(-5, 5, shape[0])
-    y = np.linspace(-5, 5, shape[1])
+def make_gaussian_signal(shape, dist):
+    x = np.linspace(-dist, dist, shape[0])
+    y = np.linspace(-dist, dist, shape[1])
     xx, yy = np.meshgrid(x, y)
     signal = np.exp(-xx**2 - yy**2)
     return signal
@@ -32,72 +32,81 @@ side_len = 50
 
 save_figure = False
 
-signal_2d = (np.abs(make_gaussian_signal((2*side_len, side_len)))).astype(np.float32)
-kernel_2d = (np.abs(make_square_signal((side_len, 2*side_len)))).astype(np.float32).reshape((1, side_len, 2*side_len))
 
-test_img = vd.asrfftbuffer(signal_2d)
-kernel_img = vd.asrfftbuffer(kernel_2d)
+signal = np.zeros(shape=(side_len, 2*side_len), dtype=np.float32)
 
-vd.prepare_convolution_kernel(kernel_img)
+signal[:] = (np.abs(make_gaussian_signal((2*side_len, side_len), 5))).astype(np.float32)
 
-output = vd.RFFTBuffer((side_len, 2*side_len))
+kernel_count = 3
+
+kernels = np.zeros(shape=(kernel_count, side_len, 2*side_len), dtype=np.float32)
+
+for i in range(kernel_count):
+    kernels[i] = (np.abs(make_square_signal((side_len, 2*side_len)))).astype(np.float32) * (i + 1)
+
+input_buffer = vd.asbuffer(signal)
+kernel_buffer = vd.asrfftbuffer(kernels)
+
+vd.create_kernel_2Dreal(kernel_buffer)
+
+output_buffer = vd.RFFTBuffer((kernel_count, side_len, 2*side_len))
 
 # Perform an FFT on the buffer
-vd.convolve_2d(test_img, kernel_img, normalize=True)
+vd.convolve_2Dreal(output_buffer, kernel_buffer, input=input_buffer, normalize=True)
 
-result = test_img.read_real(0)
+for result_index in range(0, kernel_count):
+    result = output_buffer.read_real(0)[result_index]
+    reference = cpu_convolve_2d(signal, kernels[result_index])
 
-reference = cpu_convolve_2d(signal_2d, kernel_2d[0])
+    result = np.fft.ifftshift(result)
+    reference = np.fft.ifftshift(reference)
 
-result = np.fft.ifftshift(result)
-reference = np.fft.ifftshift(reference)
+    fig, axs = plt.subplots(2, 2)
 
-fig, axs = plt.subplots(2, 2)
+    # Plot the difference between result and reference
+    axs[0, 0].imshow(result - reference)
+    axs[0, 0].set_title(f'Difference')
+    axs[0, 0].set_xlabel('X')
+    axs[0, 0].set_ylabel('Y')
+    # Add colorbar to the difference plot
+    cbar = fig.colorbar(axs[0, 0].images[0], ax=axs[0, 0])
+    cbar.set_label('Difference')
+    
+    # Plot the absolute difference between result and reference
+    axs[0, 1].imshow(np.abs(result - reference))
+    axs[0, 1].set_title('Absolute Difference')
+    axs[0, 1].set_xlabel('X')
+    axs[0, 1].set_ylabel('Y')
+    # Add colorbar to the absolute difference plot
+    cbar = fig.colorbar(axs[0, 1].images[0], ax=axs[0, 1])
+    cbar.set_label('Absolute Difference')
 
-# Plot the difference between result and reference
-axs[0, 0].imshow(result - reference)
-axs[0, 0].set_title('Difference')
-axs[0, 0].set_xlabel('X')
-axs[0, 0].set_ylabel('Y')
-# Add colorbar to the difference plot
-cbar = fig.colorbar(axs[0, 0].images[0], ax=axs[0, 0])
-cbar.set_label('Difference')
- 
-# Plot the absolute difference between result and reference
-axs[0, 1].imshow(np.abs(result - reference))
-axs[0, 1].set_title('Absolute Difference')
-axs[0, 1].set_xlabel('X')
-axs[0, 1].set_ylabel('Y')
-# Add colorbar to the absolute difference plot
-cbar = fig.colorbar(axs[0, 1].images[0], ax=axs[0, 1])
-cbar.set_label('Absolute Difference')
+    # Plot the reference
+    axs[1, 0].imshow(reference)
+    axs[1, 0].set_title('Reference (Kernel {})'.format(result_index))
+    axs[1, 0].set_xlabel('X')
+    axs[1, 0].set_ylabel('Y')
+    # Add colorbar to the reference plot
+    cbar = fig.colorbar(axs[1, 0].images[0], ax=axs[1, 0])
+    cbar.set_label('Reference')
 
-# Plot the reference
-axs[1, 0].imshow(reference)
-axs[1, 0].set_title('Reference')
-axs[1, 0].set_xlabel('X')
-axs[1, 0].set_ylabel('Y')
-# Add colorbar to the reference plot
-cbar = fig.colorbar(axs[1, 0].images[0], ax=axs[1, 0])
-cbar.set_label('Reference')
+    # Plot the result
+    axs[1, 1].imshow(result)
+    axs[1, 1].set_title(f'Result {result_index}')
+    axs[1, 1].set_xlabel('X')
+    axs[1, 1].set_ylabel('Y')
+    # Add colorbar to the result plot
+    cbar = fig.colorbar(axs[1, 1].images[0], ax=axs[1, 1])
+    cbar.set_label('Result')
 
-# Plot the result
-axs[1, 1].imshow(result)
-axs[1, 1].set_title('Result')
-axs[1, 1].set_xlabel('X')
-axs[1, 1].set_ylabel('Y')
-# Add colorbar to the result plot
-cbar = fig.colorbar(axs[1, 1].images[0], ax=axs[1, 1])
-cbar.set_label('Result')
+    if save_figure:
+        device_name = vd.get_context().device_infos[0].device_name.replace(' ', '_')
 
-if save_figure:
-    device_name = vd.get_context().device_infos[0].device_name.replace(' ', '_')
+        import datetime
+        current_date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-    import datetime
-    current_date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        result_filename = f'convolution_test_{device_name}_{current_date}.png'
 
-    result_filename = f'convolution_test_{device_name}_{current_date}.png'
-
-    plt.savefig(result_filename)
-else:
-    plt.show()
+        plt.savefig(result_filename)
+    else:
+        plt.show()

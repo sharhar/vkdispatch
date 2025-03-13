@@ -26,7 +26,9 @@ class FFTPlan:
                  input_type: dtype = None,
                  kernel_convolution: bool = False,
                  conjugate_convolution: bool = False,
-                 convolution_features: int = 0):
+                 convolution_features: int = 0,
+                 num_batches: int = 1,
+                 single_kernel_multiple_batches: bool = False):
         assert len(shape) > 0 and len(shape) < 4, "shape must be 1D, 2D, or 3D"
 
         self.shape = shape
@@ -76,7 +78,9 @@ class FFTPlan:
             kernel_convolution,
             conjugate_convolution,
             convolution_features,
-            input_size
+            input_size,
+            num_batches,
+            single_kernel_multiple_batches
         )
         check_for_errors()
 
