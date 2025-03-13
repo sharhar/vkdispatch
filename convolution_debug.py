@@ -30,8 +30,7 @@ def cpu_convolve_2d(signal_2d, kernel_2d):
 
 side_len = 50
 
-save_figure = False
-
+save_figure = True
 
 signal = np.zeros(shape=(side_len, 2*side_len), dtype=np.float32)
 
@@ -105,7 +104,7 @@ for result_index in range(0, kernel_count):
         import datetime
         current_date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-        result_filename = f'convolution_test_{device_name}_{current_date}.png'
+        result_filename = f'convolution_test_{device_name}_{current_date}_{result_index}.png'
 
         plt.savefig(result_filename)
     else:
