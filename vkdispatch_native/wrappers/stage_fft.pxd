@@ -30,7 +30,9 @@ cdef extern from "../include/stage_fft.hh":
         int kernel_convolution,
         int conjugate_convolution,
         int convolution_features,
-        unsigned long long input_buffer_size)
+        unsigned long long input_buffer_size,
+        int num_batches,
+        int single_kernel_multiple_batches)
     void stage_fft_record_extern(
         CommandList* command_list, 
         FFTPlan* plan,
@@ -52,7 +54,9 @@ cpdef inline stage_fft_plan_create(
     bool kernel_convolution,
     bool conjugate_convolution,
     int convolution_features,
-    unsigned long long input_buffer_size):
+    unsigned long long input_buffer_size,
+    int num_batches,
+    bool single_kernel_multiple_batches):
     assert len(dims) > 0 and len(dims) < 4, "dims must be a list of length 1, 2, or 3"
     assert len(axes) <= 3, "axes must be a list of length less than or equal to 3"
 
@@ -94,7 +98,9 @@ cpdef inline stage_fft_plan_create(
         1 if kernel_convolution else 0,
         1 if conjugate_convolution else 0,
         convolution_features,
-        input_buffer_size)
+        input_buffer_size,
+        num_batches,
+        1 if single_kernel_multiple_batches else 0)
 
     free(dims__)
 

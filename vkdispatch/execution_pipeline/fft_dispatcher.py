@@ -27,6 +27,8 @@ class FFTConfig:
     kernel_convolution: bool = False
     conjugate_convolution: bool = False
     convolution_features: int = 1
+    num_batches: int = 1
+    single_kernel_multiple_batches: bool = False
 
 def sanitize_input_tuple(input: Tuple) -> Tuple:
     if input is None:
@@ -65,7 +67,8 @@ def execute_fft_plan(
             input_type=config.input_type,
             kernel_convolution=config.kernel_convolution,
             conjugate_convolution=config.conjugate_convolution,
-            convolution_features=config.convolution_features
+            convolution_features=config.convolution_features,
+            num_batches=config.num_batches
         )
     
     plan = __fft_plans[config]
@@ -184,30 +187,43 @@ def irfft(
         input=input
     )
 
-def convolve_2d(
+def sanitize_2d_convolution_shape(in_shape: Tuple[int, ...]):
+    if in_shape is None:
+        return None
+    
+    assert len(in_shape) == 2 or len(in_shape) == 3, "Input shape must be 2D or 3D!"
+
+    if len(in_shape) == 2:
+        return (1, in_shape[0], in_shape[1])
+    
+    return in_shape
+
+def convolve_2Dreal(
         buffer: Union[vd.Buffer[vd.float32], "RFFTBuffer"],
-        kernel: Union[vd.Buffer[vd.complex64], "RFFTBuffer"],
+        kernel: Union[vd.Buffer[vd.float32], "RFFTBuffer"],
         input: Union[vd.Buffer[vd.float32], "RFFTBuffer"] = None,
         normalize: bool = False,
         conjugate_kernel: bool = False,
         cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None):
 
-    assert len(buffer.shape) == 2 or len(buffer.shape) == 3, "Buffer must be 2D or 3D!"
-    assert len(kernel.shape) == 2 or len(kernel.shape) == 3, "Kernel must be 2D or 3D!"
+    buffer_shape = sanitize_2d_convolution_shape(buffer.shape)
+    kernel_shape = sanitize_2d_convolution_shape(kernel.shape)
+    
+    assert buffer_shape == kernel_shape, f"Buffer ({buffer_shape}) and Kernel ({kernel_shape}) shapes must match!"
+
+    input_shape = sanitize_2d_convolution_shape(input.shape)
 
     kernel_count = 1
     feature_count = 1
 
-    if len(buffer.shape) == 3:
-        assert len(kernel.shape) == 3, "Kernel must be 3D if buffer is 3D!"
-
+    if input_shape is not None:
+        assert buffer_shape[0] % input_shape[0] == 0, f"Output count ({buffer_shape[0]}) must be divisible by input count ({input_shape[0]})!"
+        kernel_count = buffer_shape[0] // input_shape[0]
+        feature_count = input_shape[0]
+    else:
         feature_count = buffer.shape[0]
 
-        assert kernel.shape[0] % feature_count == 0, f"Kernel count ({kernel.shape[0]}) must be a multiple of feature count ({feature_count})!"
-
-        kernel_count = kernel.shape[0] // feature_count
-    elif len(kernel.shape) == 3:
-        kernel_count = kernel.shape[0]
+    print(kernel_count, feature_count)
 
     execute_fft_plan(
         buffer,
@@ -215,7 +231,7 @@ def convolve_2d(
         cmd_stream = cmd_stream,
         config = FFTConfig(
             buffer_handle=buffer._handle,
-            shape=sanitize_input_tuple(buffer.shape[:-1] + (buffer.shape[-1] - 2,)),
+            shape=sanitize_input_tuple((buffer_shape[1], buffer_shape[2] - 2)),
             do_r2c=True,
             normalize=normalize,
             kernel_count=kernel_count,
@@ -228,14 +244,18 @@ def convolve_2d(
         input=input
     )
 
-def prepare_convolution_kernel(
+def create_kernel_2Dreal(
         kernel: "RFFTBuffer",
         shape: Tuple[int, ...] = None,
+        feature_count: int = 1,
         cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None) -> "RFFTBuffer":
-    assert len(kernel.shape) == 3, "Kernel must be 3D!"
     
     if shape is None:
         shape = kernel.shape
+
+    if len(shape) == 2:
+        assert feature_count == 1, "Feature count must be 1 for 2D kernels!"
+        shape = (1,) + shape
 
     execute_fft_plan(
         kernel,
@@ -243,9 +263,11 @@ def prepare_convolution_kernel(
         cmd_stream = cmd_stream,
         config = FFTConfig(
             buffer_handle=kernel._handle,
-            shape=sanitize_input_tuple(shape[:-1] + (shape[-1] - 2,)),
+            shape=sanitize_input_tuple((shape[1], shape[2] - 2,)),
             do_r2c=True,
-            kernel_convolution=True
+            kernel_convolution=True,
+            convolution_features=feature_count,
+            num_batches=shape[0] // feature_count,
         )
     )
 
