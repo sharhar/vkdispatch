@@ -137,10 +137,12 @@ class ReductionDispatcher:
             input_offset=0,
             input_size=my_exec_size,
             input_stride=1,
-            input_batch_stride=0,
+            input_y_batch_stride=0,
+            input_z_batch_stride= 0,
             output_offset=1,
             output_stride=1,
-            output_batch_stride=0,
+            output_y_batch_stride=0,
+            output_z_batch_stride=0
         )
 
         self.stage1(reduction_buffer, *args, stage1_params, exec_size=stage1_blocks * self.group_size, cmd_stream=my_cmd_stream)
@@ -149,10 +151,12 @@ class ReductionDispatcher:
             input_offset=1,
             input_size=stage1_blocks+1,
             input_stride=1,
-            input_batch_stride=0,
+            input_y_batch_stride=0,
+            input_z_batch_stride=0,
             output_offset=0,
             output_stride=1,
-            output_batch_stride=0,
+            output_y_batch_stride=0,
+            output_z_batch_stride=0
         )
 
         self.stage2(reduction_buffer, stage2_params, exec_size=self.group_size, cmd_stream=my_cmd_stream)
