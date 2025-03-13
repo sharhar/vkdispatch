@@ -7,12 +7,15 @@ from typing import Callable, TypeVar
 import sys
 
 RetType = TypeVar('RetType')
+RetType2 = TypeVar('RetType2')
 
 if sys.version_info >= (3, 10):
     from typing import ParamSpec
     P = ParamSpec('P')
+    P2 = ParamSpec('P2')
 else:
     P = ...  # Placeholder for older Python versions
+    P2 = ...  # Placeholder for older Python versions
 
 def shader(exec_size=None, local_size=None, workgroups=None):
     if workgroups is not None and exec_size is not None:
@@ -60,5 +63,33 @@ def reduce(identity, axes=None, group_size=None):
     
     return decorator
 
-#def map_reduce():
-#    pass
+def map_reduce(reduction: vd.ReductionOperation, axes=None, group_size=None):
+    def decorator(func: Callable[P2, RetType2]) -> Callable[P2, vd.Buffer[RetType2]]:
+        func_signature = inspect.signature(func)
+
+        if func_signature.return_annotation == inspect.Parameter.empty:
+            raise ValueError("Return type must be annotated")
+        
+        input_types = []
+
+        for param in func_signature.parameters.values():
+            my_annotation = param.annotation
+
+            if my_annotation == inspect.Parameter.empty:
+                raise ValueError("All parameters must be annotated")
+
+            if not hasattr(my_annotation, '__args__'):
+                raise TypeError(f"Argument '{param.name}: vd.{my_annotation}' must have a type annotation")
+
+            input_types.append(my_annotation)
+
+        return vd.ReductionObject(
+            reduction=reduction,
+            out_type=func_signature.return_annotation,
+            group_size=group_size,
+            axes=axes,
+            input_types=input_types,
+            map_func=func
+        )
+    
+    return decorator

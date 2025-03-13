@@ -42,8 +42,10 @@ def global_reduce(
 
     mapped_value = buffers[0][current_index]
 
+
     if map_func is not None:
-        mapped_value = map_func(current_index, *buffers)
+        vc.set_mapping_index(current_index)
+        mapped_value = map_func(*buffers)
 
     reduction_aggregate[:] = reduction.reduction(reduction_aggregate, mapped_value)
 
