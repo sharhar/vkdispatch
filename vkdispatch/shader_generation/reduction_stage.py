@@ -11,11 +11,13 @@ class ReductionParams:
     input_offset: vd.int32
     input_size: vd.int32
     input_stride: vd.int32
-    input_batch_stride: vd.int32
+    input_y_batch_stride: vd.int32
+    input_z_batch_stride: vd.int32
 
     output_offset: vd.int32
     output_stride: vd.int32
-    output_batch_stride: vd.int32
+    output_y_batch_stride: vd.int32
+    output_z_batch_stride: vd.int32
 
 def global_reduce(
         reduction: vd.ReductionOperation, 
@@ -27,9 +29,10 @@ def global_reduce(
     ind = (vc.global_invocation().x * params.input_stride).copy("ind")
     reduction_aggregate = vc.new(out_type, reduction.identity, var_name="reduction_aggregate")
 
-    batch_num = vc.workgroup().y
+    batch_offset = vc.workgroup().y * params.input_y_batch_stride
+    inside_batch_offset = vc.workgroup().z * params.input_z_batch_stride
 
-    start_index = vc.new_uint(params.input_offset + params.input_batch_stride * batch_num, var_name="start_index")
+    start_index = vc.new_uint(params.input_offset + inside_batch_offset + batch_offset, var_name="start_index")
 
     current_index = vc.new_uint(start_index + ind, var_name="current_index")
 
@@ -148,10 +151,9 @@ def make_reduction_stage(
 
     reduction_aggregate = global_reduce(reduction, out_type, input_buffers, params, map_func)
     sdata = workgroup_reduce(reduction_aggregate, reduction, out_type, group_size)
-
     local_var = subgroup_reduce(sdata, reduction, group_size)
 
-    batch_offset = vc.workgroup().y * params.output_batch_stride
+    batch_offset = vc.workgroup().y * params.output_y_batch_stride
     output_offset = vc.workgroup().x * params.output_stride
 
     vc.if_statement(vc.local_invocation().x == 0)

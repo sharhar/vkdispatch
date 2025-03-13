@@ -13,14 +13,13 @@ class ReductionObject:
                  group_size: int = None, 
                  map_func: Callable = None,
                  input_types: List = None,
-                 axes = None):
+                 axes: List[int] = None):
         self.reduction = reduction
         self.out_type = out_type
         self.group_size = group_size
         self.map_func = map_func
         self.input_types = input_types if input_types is not None else [vc.Buffer[out_type]]
-
-        assert axes is None, "Axes are not yet supported!"
+        self.axes = axes
 
         self.stage1 = None
         self.stage2 = None
@@ -59,70 +58,93 @@ class ReductionObject:
     def __call__(self, *args, **kwargs) -> vd.Buffer:
         self.make_stages()
 
-        my_cmd_stream = None
+        my_cmd_stream = kwargs.get("cmd_stream", vd.global_cmd_stream())
 
-        """
-        my_exec_size = self.exec_size
+        input_size = 1
+        input_stride = 1
 
-        if "exec_size" in kwargs:
-            my_exec_size = kwargs["exec_size"]
+        batch_count = 1
 
-        if my_exec_size is None:
-            raise ValueError("Execution size must be provided!")
+        if self.axes is None:
+            input_size = args[0].size
+        else:
+            batched_axes = []
 
-        if callable(my_exec_size):
+            for i in range(len(args[0].shape)):
+                if i in self.axes:
+                    break
+                batched_axes.append(i)
 
-            actual_arg_list = [
-                (arg[1], arg[2]) for arg in self.input_types
-            ]
+            skipped_axes = []
 
-            my_exec_size = my_exec_size(vd.LaunchParametersHolder(actual_arg_list, args, kwargs))
+            for i in range(len(args[0].shape) - 1, -1, -1):
+                if i in self.axes:
+                    break
+                
+                skipped_axes.append(i)
+
+
+            for i in range(len(args[0].shape)):
+                if i in batched_axes:
+                    continue
+
+                input_size *= args[0].shape[i]
+
+            for i in batched_axes:
+                batch_count *= args[0].shape[i]
+
+            for i in skipped_axes:
+                input_stride *= args[0].shape[i]
+
+            assert input_stride == 1, "Reduction axes must be contiguous!"
+
+        workgroups_x = int(np.ceil(input_size / (self.group_size * input_stride)))
+
+        if workgroups_x > self.group_size:
+            workgroups_x = self.group_size
+
+        output_buffer_shape = [workgroups_x + 1]
+
+        if batch_count > 1:
+            output_buffer_shape.append(batch_count)
         
-        if not isinstance(my_exec_size, int) and not np.issubdtype(type(my_exec_size), np.integer):
-            raise ValueError("Execution size must be an integer!")
-        
-        my_exec_size = my_exec_size
-        """
+        if input_stride > 1:
+            output_buffer_shape.append(input_stride)
 
-        my_exec_size = args[0].size
-        
-        if "cmd_stream" in kwargs:
-            my_cmd_stream = kwargs["cmd_stream"]
-        
-        if my_cmd_stream is None:
-            my_cmd_stream = vd.global_cmd_stream()
+        reduction_buffer = vd.Buffer(tuple(output_buffer_shape), self.out_type)
 
-        stage1_blocks = int(np.ceil(my_exec_size / self.group_size))
-        
-        if stage1_blocks > self.group_size:
-            reduction_scale = int(np.ceil(stage1_blocks / self.group_size))
-            stage_scale = np.ceil(np.sqrt(reduction_scale))
-            stage1_blocks = int(np.ceil(stage1_blocks / stage_scale))
-
-        reduction_buffer = vd.Buffer((stage1_blocks + 1,), self.out_type)
+        print(reduction_buffer.shape)
 
         stage1_params = vd.ReductionParams(
             input_offset=0,
-            input_size=my_exec_size,
-            input_stride=1,
-            input_batch_stride=0,
-            output_offset=1,
+            input_size=input_size,
+            input_stride=input_stride,
+            input_y_batch_stride=input_size,
+            input_z_batch_stride=0,
+            output_offset=batch_count,
             output_stride=1,
-            output_batch_stride=0,
+            output_y_batch_stride=workgroups_x,
+            output_z_batch_stride=0,
         )
 
-        self.stage1(reduction_buffer, *args, stage1_params, exec_size=stage1_blocks * self.group_size, cmd_stream=my_cmd_stream)
+        stage1_exec_size = (workgroups_x * self.group_size, batch_count)
+
+        self.stage1(reduction_buffer, *args, stage1_params, exec_size=stage1_exec_size, cmd_stream=my_cmd_stream)
 
         stage2_params = vd.ReductionParams(
-            input_offset=1,
-            input_size=stage1_blocks+1,
+            input_offset=batch_count,
+            input_size=workgroups_x,
             input_stride=1,
-            input_batch_stride=0,
+            input_y_batch_stride=workgroups_x,
+            input_z_batch_stride=0,
             output_offset=0,
             output_stride=1,
-            output_batch_stride=0,
+            output_y_batch_stride=1,
+            output_z_batch_stride=0,
         )
 
-        self.stage2(reduction_buffer, stage2_params, exec_size=self.group_size, cmd_stream=my_cmd_stream)
+        stage2_exec_size = (self.group_size, batch_count)
+
+        self.stage2(reduction_buffer, stage2_params, exec_size=stage2_exec_size, cmd_stream=my_cmd_stream)
 
         return reduction_buffer
