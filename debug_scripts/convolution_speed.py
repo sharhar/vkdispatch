@@ -6,13 +6,16 @@ import numpy as np
 import time
 import tqdm
 
-side_len = 512
+side_len = 4096
+kernel_count = 2
+
+#side_len = 1024
+#kernel_count = 16
 
 batch_count = 200
-batch_num = 20
+batch_num = 2
 
-feature_count = 10
-kernel_count = 4
+feature_count = 5
 
 input_buffer = vd.Buffer((feature_count, side_len, side_len), vd.float32)
 kernel_buffer = vd.RFFTBuffer((feature_count * kernel_count, side_len, side_len))
@@ -35,6 +38,12 @@ vd.rfft(output_buffer, axes=[1, 2], cmd_stream=cmd_stream_fft)
 do_multiply(output_buffer, kernel_buffer, cmd_stream=cmd_stream_fft)
 
 vd.irfft(output_buffer, axes=[1, 2], cmd_stream=cmd_stream_fft, normalize=True)
+
+import time
+
+time.sleep(2)
+
+output_buffer.read(0)
 
 start_time = time.time()
 
