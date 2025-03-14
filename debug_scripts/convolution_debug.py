@@ -28,30 +28,36 @@ def cpu_convolve_2d(signal_2d, kernel_2d):
         * np.fft.rfft2(kernel_2d).astype(np.complex64))
     .astype(np.complex64))
 
-side_len = 50
+side_len = int(2 ** 10 * 1.5)
+
+offset = 0
 
 save_figure = True
 
-signal = np.zeros(shape=(side_len, 2*side_len), dtype=np.float32)
+signal = np.zeros(shape=(side_len, side_len - offset), dtype=np.float32)
 
-signal[:] = (np.abs(make_gaussian_signal((2*side_len, side_len), 5))).astype(np.float32)
+signal[:] = (np.abs(make_gaussian_signal((side_len - offset, side_len), 5))).astype(np.float32)
 
-kernel_count = 3
+kernel_count = 2
 
-kernels = np.zeros(shape=(kernel_count, side_len, 2*side_len), dtype=np.float32)
+kernels = np.zeros(shape=(kernel_count, side_len, side_len - offset), dtype=np.float32)
 
 for i in range(kernel_count):
-    kernels[i] = (np.abs(make_square_signal((side_len, 2*side_len)))).astype(np.float32) * (i + 1)
+    kernels[i] = (np.abs(make_square_signal((side_len, side_len - offset)))).astype(np.float32) * (i + 1)
 
 input_buffer = vd.asbuffer(signal)
 kernel_buffer = vd.asrfftbuffer(kernels)
 
-vd.create_kernel_2Dreal(kernel_buffer)
+output_buffer = vd.RFFTBuffer((kernel_count, side_len, side_len - offset))
 
-output_buffer = vd.RFFTBuffer((kernel_count, side_len, 2*side_len))
+vd.create_kernel_2Dreal(kernel_buffer)
 
 # Perform an FFT on the buffer
 vd.convolve_2Dreal(output_buffer, kernel_buffer, input=input_buffer, normalize=True)
+
+import time
+
+time.sleep(2)
 
 for result_index in range(0, kernel_count):
     result = output_buffer.read_real(0)[result_index]
@@ -109,3 +115,5 @@ for result_index in range(0, kernel_count):
         plt.savefig(result_filename)
     else:
         plt.show()
+
+print("Side length:", side_len)
