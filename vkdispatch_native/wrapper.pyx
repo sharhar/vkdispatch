@@ -6,10 +6,11 @@ from context.init cimport *
 from context.context cimport *
 from context.errors cimport *
 
-from wrappers.buffer cimport *
-from wrappers.image cimport *
-from wrappers.command_list cimport *
-from wrappers.stage_transfer cimport *
-from wrappers.stage_fft cimport *
-from wrappers.stage_compute cimport *
-from wrappers.descriptor_set cimport *
+from objects.buffer cimport *
+from objects.image cimport *
+from objects.command_list cimport *
+from objects.descriptor_set cimport *
+
+from stages.stage_transfer cimport *
+from stages.stage_fft cimport *
+from stages.stage_compute cimport *
