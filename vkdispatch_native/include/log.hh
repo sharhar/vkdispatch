@@ -1,7 +1,7 @@
 #ifndef LOG_HH_SRC_LOG_HH
 #define LOG_HH_SRC_LOG_HH
 
-#include "base.hh"
+#include "../base.hh"
 
 #include <mutex>
 

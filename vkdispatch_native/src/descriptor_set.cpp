@@ -1,4 +1,4 @@
-#include "../include/internal.hh"
+#include "../internal.hh"
 
 struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
     struct DescriptorSet* descriptor_set = new struct DescriptorSet();

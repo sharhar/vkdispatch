@@ -1,4 +1,4 @@
-#include "../include/internal.hh"
+#include "../internal.hh"
 
 Fence::Fence(VkDevice device) {
     VkFenceCreateInfo fenceInfo = {};

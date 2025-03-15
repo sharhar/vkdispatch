@@ -1,4 +1,4 @@
-#include "../include/internal.hh"
+#include "../internal.hh"
 
 struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size, int per_device) {
     if(size == 0) {

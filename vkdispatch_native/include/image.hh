@@ -1,7 +1,7 @@
 #ifndef SRC_IMAGE_H_
 #define SRC_IMAGE_H_
 
-#include "base.hh"
+#include "../base.hh"
 
 struct ImageWriteInfo {
     struct Image* image;

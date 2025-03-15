@@ -1,7 +1,7 @@
 #ifndef _STREAM_SRC_STREAM_H
 #define _STREAM_SRC_STREAM_H
 
-#include "base.hh"
+#include "../base.hh"
 
 #include <atomic>
 #include <queue>

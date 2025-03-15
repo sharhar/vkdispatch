@@ -1,4 +1,4 @@
-#include "../include/internal.hh"
+#include "../internal.hh"
 
 #include <vulkan/utility/vk_format_utils.h>
 #include <vulkan/vk_enum_string_helper.h>

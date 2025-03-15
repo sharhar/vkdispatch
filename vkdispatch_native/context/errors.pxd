@@ -4,7 +4,7 @@ import sys
 
 from libc.stdlib cimport malloc, free
 
-cdef extern from "../include/errors.hh":
+cdef extern from "context/errors.hh":
     const char* get_error_string_extern()
 
 cpdef inline get_error_string():

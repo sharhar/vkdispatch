@@ -1,4 +1,4 @@
-#include "../include/internal.hh"
+#include "../internal.hh"
 #include <vector>
 #include <algorithm>
 #include <unordered_map>

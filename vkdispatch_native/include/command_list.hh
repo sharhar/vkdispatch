@@ -1,7 +1,7 @@
 #ifndef SRC_COMMAND_LIST_H
 #define SRC_COMMAND_LIST_H
 
-#include "base.hh"
+#include "../base.hh"
 
 struct CommandList* command_list_create_extern(struct Context* context);
 void command_list_destroy_extern(struct CommandList* command_list);
