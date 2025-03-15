@@ -4,7 +4,7 @@ import sys
 
 from libc.stdlib cimport malloc, free
 
-cdef extern from "include/buffer.hh":
+cdef extern from "objects/buffer.hh":
     struct Context
     struct Buffer
 

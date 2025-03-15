@@ -116,17 +116,21 @@ append_to_sources("vkdispatch_native/", [
     "context/init.cpp",
     "context/context.cpp",
     "context/errors.cpp",
-    "src/buffer.cpp",
-    "src/image.cpp",
-    "src/command_list.cpp",
-    "src/stage_transfer.cpp",
-    "src/stage_fft.cpp",
-    "src/stage_compute.cpp",
-    "src/descriptor_set.cpp",
-    "src/stream.cpp",
-    "src/signal.cpp",
-    "src/work_queue.cpp",
-    "src/handles.cpp",
+
+    "objects/buffer.cpp",
+    "objects/image.cpp",
+    "objects/command_list.cpp",
+    "objects/descriptor_set.cpp",
+    "objects/handles.cpp",
+
+    "stages/stage_transfer.cpp",
+    "stages/stage_fft.cpp",
+    "stages/stage_compute.cpp",
+
+    "stream/stream.cpp",
+    "stream/signal.cpp",
+    "stream/work_queue.cpp",
+    
     "lib_impls/VMAImpl.cpp",
     "lib_impls/VolkImpl.cpp"
 ])

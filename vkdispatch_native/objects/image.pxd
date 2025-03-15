@@ -4,7 +4,7 @@ import sys
 
 from libc.stdlib cimport malloc, free
 
-cdef extern from "include/image.hh":
+cdef extern from "objects/image.hh":
     struct Context
     struct Image
     struct Sampler

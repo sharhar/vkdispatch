@@ -4,7 +4,7 @@ import sys
 
 from libc.stdlib cimport malloc, free
 
-cdef extern from "include/stage_fft.hh":
+cdef extern from "stages/stage_fft.hh":
     struct Context
     struct Buffer
     struct CommandList

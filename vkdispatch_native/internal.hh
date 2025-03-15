@@ -48,17 +48,20 @@ void set_error(const char* format, ...);
 #include "./context/init.hh"
 #include "./context/errors.hh"
 #include "./context/context.hh"
-#include "./include/buffer.hh"
-#include "./include/image.hh"
-#include "./include/stage_transfer.hh"
-#include "./include/stage_fft.hh"
-#include "./include/stage_compute.hh"
-#include "./include/command_list.hh"
-#include "./include/descriptor_set.hh"
-#include "./include/work_queue.hh"
-#include "./include/signal.hh"
-#include "./include/stream.hh"
-#include "./include/log.hh"
+#include "./context/log.hh"
+
+#include "./objects/buffer.hh"
+#include "./objects/image.hh"
+#include "./objects/command_list.hh"
+#include "./objects/descriptor_set.hh"
+
+#include "./stages/stage_transfer.hh"
+#include "./stages/stage_fft.hh"
+#include "./stages/stage_compute.hh"
+
+#include "./stream/work_queue.hh"
+#include "./stream/signal.hh"
+#include "./stream/stream.hh"
 
 struct HandleHeader {
     uint64_t handle;
