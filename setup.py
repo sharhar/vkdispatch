@@ -110,26 +110,25 @@ def append_to_sources(prefix, source_list):
         sources.append(prefix + source)
 
 
-sources.append("vkdispatch_native/wrappers/wrapper.pyx")
+sources.append("vkdispatch_native/wrapper.pyx")
 
-append_to_sources("vkdispatch_native/src/", [
-    "init.cpp",
-    "context.cpp",
-    "conditional.cpp",
-    "buffer.cpp",
-    "image.cpp",
-    "command_list.cpp",
-    "stage_transfer.cpp",
-    "stage_fft.cpp",
-    "stage_compute.cpp",
-    "descriptor_set.cpp",
-    "stream.cpp",
-    "errors.cpp",
-    "signal.cpp",
-    "work_queue.cpp",
-    "handles.cpp",
-    "VMAImpl.cpp",
-    "VolkImpl.cpp"
+append_to_sources("vkdispatch_native/", [
+    "context/init.cpp",
+    "context/context.cpp",
+    "context/errors.cpp",
+    "src/buffer.cpp",
+    "src/image.cpp",
+    "src/command_list.cpp",
+    "src/stage_transfer.cpp",
+    "src/stage_fft.cpp",
+    "src/stage_compute.cpp",
+    "src/descriptor_set.cpp",
+    "src/stream.cpp",
+    "src/signal.cpp",
+    "src/work_queue.cpp",
+    "src/handles.cpp",
+    "lib_impls/VMAImpl.cpp",
+    "lib_impls/VolkImpl.cpp"
 ])
 
 if vulkan_sdk_root is None:

@@ -28,11 +28,11 @@ def cpu_convolve_2d(signal_2d, kernel_2d):
         * np.fft.rfft2(kernel_2d).astype(np.complex64))
     .astype(np.complex64))
 
-side_len = int(2 ** 10 * 1.5)
+side_len = int(2 ** 9)
 
 offset = 0
 
-save_figure = True
+save_figure = False
 
 signal = np.zeros(shape=(side_len, side_len - offset), dtype=np.float32)
 
@@ -56,8 +56,6 @@ vd.create_kernel_2Dreal(kernel_buffer)
 vd.convolve_2Dreal(output_buffer, kernel_buffer, input=input_buffer, normalize=True)
 
 import time
-
-time.sleep(2)
 
 for result_index in range(0, kernel_count):
     result = output_buffer.read_real(0)[result_index]

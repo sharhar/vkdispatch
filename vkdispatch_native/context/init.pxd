@@ -2,7 +2,7 @@
 from libcpp cimport bool
 import sys
 
-cdef extern from "../include/init.hh":
+cdef extern from "context/init.hh":
     enum LogLevel:
         LOG_LEVEL_VERBOSE = 0
         LOG_LEVEL_INFO = 1

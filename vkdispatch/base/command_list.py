@@ -39,18 +39,6 @@ class CommandList:
         check_for_errors()
         return result
 
-    # def record_conditional(self) -> int:
-    #     """Record a conditional block in the command list."""
-    #     result = vkdispatch_native.record_conditional(self._handle)
-    #     check_for_errors()
-
-    #     return result
-    
-    # def record_conditional_end(self) -> int:
-    #     """Record the end of a conditional block in the command list."""
-    #     vkdispatch_native.record_conditional_end(self._handle)
-    #     check_for_errors()
-
     def record_compute_plan(self, 
                             plan: ComputePlan,
                             descriptor_set: DescriptorSet,

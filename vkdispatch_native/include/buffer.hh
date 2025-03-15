@@ -1,7 +1,7 @@
 #ifndef SRC_BUFFER_H_
 #define SRC_BUFFER_H_
 
-#include "base.hh"
+#include "../base.hh"
 
 struct BufferWriteInfo {
     struct Buffer* buffer;

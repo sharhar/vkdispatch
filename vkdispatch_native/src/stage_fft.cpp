@@ -1,4 +1,4 @@
-#include "../include/internal.hh"
+#include "../internal.hh"
 
 #include <vkFFT.h>
 
@@ -27,7 +27,6 @@ void print_vkfft_config(VkFFTConfiguration* config) {
      Buffer Size: %d
      Perform R2C: %d
      Number Batches: %d
-     Single Kernel Multiple Batches: %d
      )", 
      config->size[0], config->size[1], config->size[2],
      config->omitDimension[0], config->omitDimension[1], config->omitDimension[2],
@@ -42,8 +41,8 @@ void print_vkfft_config(VkFFTConfiguration* config) {
      config->normalize,
      *config->bufferSize,
      config->performR2C,
-     config->numberBatches,
-     config->singleKernelMultipleBatches);
+     config->numberBatches);
+     //config->singleKernelMultipleBatches);
  }
 
 struct FFTPlan* stage_fft_plan_create_extern(
@@ -153,7 +152,7 @@ struct FFTPlan* stage_fft_plan_create_extern(
             config.kernelSize = (uint64_t*)malloc(sizeof(uint64_t));
             *config.kernelSize = 2 * sizeof(float) * kernel_num * convolution_features * true_rows * config.size[1] * config.size[2];
 
-            config.singleKernelMultipleBatches = single_kernel_multiple_batches;
+            //config.singleKernelMultipleBatches = single_kernel_multiple_batches;
 
             glslang_resource_t* resource = reinterpret_cast<glslang_resource_t*>(ctx->glslang_resource_limits);
 
