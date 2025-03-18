@@ -2,18 +2,12 @@ import numpy as np
 
 import vkdispatch_native
 
-from .errors import check_for_errors
-
-from .buffer import Buffer
-from .context import get_context_handle
-from .command_list import CommandList
-
-from .dtype import dtype, complex64, to_numpy_dtype, from_numpy_dtype
+import vkdispatch as vd
 
 from typing import List
 from typing import Tuple
 
-class FFTPlan:
+class VkFFTPlan:
     def __init__(self, 
                  shape: Tuple[int, ...], 
                  do_r2c: bool = False, 
@@ -23,7 +17,7 @@ class FFTPlan:
                  pad_frequency_domain: bool = False,
                  kernel_count: int = 0,
                  input_shape: Tuple[int, ...] = None,
-                 input_type: dtype = None,
+                 input_type: vd.dtype = None,
                  kernel_convolution: bool = False,
                  conjugate_convolution: bool = False,
                  convolution_features: int = 0,
@@ -60,12 +54,12 @@ class FFTPlan:
             input_buffer_type = np.dtype(np.complex64)
 
             if input_type is not None:
-                input_buffer_type = np.dtype(to_numpy_dtype(input_type))
+                input_buffer_type = np.dtype(vd.to_numpy_dtype(input_type))
 
             input_size = np.prod(input_shape) * input_buffer_type.itemsize
 
         self._handle = vkdispatch_native.stage_fft_plan_create(
-            get_context_handle(), 
+            vd.get_context_handle(), 
             list(reversed(self.shape)), 
             [axis for axis in flipped_axes if axis >= 0 and axis < 3], 
             self.mem_size, 
@@ -82,9 +76,9 @@ class FFTPlan:
             num_batches,
             single_kernel_multiple_batches
         )
-        check_for_errors()
+        vd.check_for_errors()
 
-    def record(self, command_list: CommandList, buffer: Buffer, inverse: bool = False, kernel: Buffer = None, input: Buffer = None):
+    def record(self, command_list: vd.CommandList, buffer: vd.Buffer, inverse: bool = False, kernel: vd.Buffer = None, input: vd.Buffer = None):
         vkdispatch_native.stage_fft_record(
             command_list._handle, 
             self._handle, 
@@ -93,11 +87,11 @@ class FFTPlan:
             kernel._handle if kernel is not None else 0,
             input._handle if input is not None else 0
         )
-        check_for_errors()
+        vd.check_for_errors()
 
-    def record_forward(self, command_list: CommandList, buffer: Buffer):
+    def record_forward(self, command_list: vd.CommandList, buffer: vd.Buffer):
         self.record(command_list, buffer, False)
 
-    def record_inverse(self, command_list: CommandList, buffer: Buffer):
+    def record_inverse(self, command_list: vd.CommandList, buffer: vd.Buffer):
         self.record(command_list, buffer, True)
 

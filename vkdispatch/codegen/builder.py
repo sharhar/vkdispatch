@@ -97,10 +97,11 @@ class ShaderBuilder:
     contents: str
     pre_header: str
 
-    def __init__(self, enable_subgroup_ops: bool = True, enable_atomic_float_ops: bool = True, enable_printf: bool = True) -> None:
+    def __init__(self, enable_subgroup_ops: bool = True, enable_atomic_float_ops: bool = True, enable_printf: bool = True, enable_exec_bounds: bool = True) -> None:
         self.enable_subgroup_ops = enable_subgroup_ops
         self.enable_atomic_float_ops = enable_atomic_float_ops
         self.enable_printf = enable_printf
+        self.enable_exec_bounds = enable_exec_bounds
 
         self.pre_header = "#version 450\n"
         self.pre_header += "#extension GL_ARB_separate_shader_objects : enable\n"
@@ -140,18 +141,19 @@ class ShaderBuilder:
         self.mapping_index = None
         
         self.exec_count = self.declare_constant(abv.uv4, var_name="exec_count")
+        
+        if self.enable_exec_bounds:
+            self.if_statement(self.exec_count.x <= self.global_invocation.x)
+            self.return_statement()
+            self.end()
 
-        self.if_statement(self.exec_count.x <= self.global_invocation.x)
-        self.return_statement()
-        self.end()
+            self.if_statement(self.exec_count.y <= self.global_invocation.y)
+            self.return_statement()
+            self.end()
 
-        self.if_statement(self.exec_count.y <= self.global_invocation.y)
-        self.return_statement()
-        self.end()
-
-        self.if_statement(self.exec_count.z <= self.global_invocation.z)
-        self.return_statement()
-        self.end()
+            self.if_statement(self.exec_count.z <= self.global_invocation.z)
+            self.return_statement()
+            self.end()
 
     def set_mapping_index(self, index: ShaderVariable):
         self.mapping_index = index
@@ -598,6 +600,12 @@ class ShaderBuilder:
         new_var.y = (index / shape.x) % shape.y
         new_var.z = index / (shape.x * shape.y)
 
+        return new_var
+    
+    def complex_from_euler_angle(self, angle: ShaderVariable):
+        new_var = self.new_vec2()
+        new_var.x = self.cos(angle)
+        new_var.y = self.sin(angle)
         return new_var
 
     def compose_struct_decleration(self, elements: List[StructElement]) -> str:

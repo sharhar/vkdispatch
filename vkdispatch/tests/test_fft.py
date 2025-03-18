@@ -29,7 +29,7 @@ def test_fft_1d():
     test_line.write(signal)
 
     # Perform an FFT on the buffer
-    vd.fft(test_line)
+    vd.vkfft.fft(test_line)
 
     assert np.allclose(test_line.read(0), np.fft.fft(signal), atol=0.0001)
 
@@ -41,7 +41,7 @@ def test_fft_2d():
     test_img.write(signal_2d)
 
     # Perform an FFT on the buffer
-    vd.fft(test_img)
+    vd.vkfft.fft(test_img)
 
     assert np.allclose(test_img.read(0), np.fft.fft2(signal_2d), atol=0.001)
 
@@ -53,7 +53,7 @@ def test_fft_3d():
     test_img.write(signal_3d)
 
     # Perform an FFT on the buffer
-    vd.fft(test_img)
+    vd.vkfft.fft(test_img)
 
     assert np.allclose(test_img.read(0), np.fft.fftn(signal_3d), atol=0.01)
 
@@ -65,7 +65,7 @@ def test_fft_2d_batch():
     test_img.write(signal_3d)
 
     # Perform an FFT on the buffer
-    vd.fft(test_img, axes=[1, 2])
+    vd.vkfft.fft(test_img, axes=[1, 2])
 
     assert np.allclose(test_img.read(0), np.fft.fftn(signal_3d, axes=[1, 2]), atol=0.01)
 
@@ -77,7 +77,7 @@ def test_ifft_1d():
     test_line.write(signal)
 
     # Perform an IFFT on the buffer
-    vd.ifft(test_line)
+    vd.vkfft.ifft(test_line)
     
     assert np.allclose(test_line.read(0), np.fft.ifft(signal) * np.prod(signal.shape), atol=0.0001)
 
@@ -91,7 +91,7 @@ def test_ifft_2d():
     output = vd.Buffer(signal_2d.shape, vd.complex64)
 
     # Perform an IFFT on the buffer
-    vd.ifft(output, test_img)
+    vd.vkfft.ifft(output, test_img)
 
     assert np.allclose(output.read(0), np.fft.ifft2(signal_2d) * np.prod(signal_2d.shape), atol=0.001)
 
@@ -103,7 +103,7 @@ def test_ifft_3d():
     test_img.write(signal_3d)
 
     # Perform an IFFT on the buffer
-    vd.ifft(test_img)
+    vd.vkfft.ifft(test_img)
 
     assert np.allclose(test_img.read(0), np.fft.ifftn(signal_3d) * np.prod(signal_3d.shape), atol=0.01)
 
@@ -111,10 +111,10 @@ def test_rfft_1d():
     # Create a 1D buffer
     signal = np.random.random((50,))
 
-    test_line = vd.asrfftbuffer(signal)
+    test_line = vd.vkfft.asrfftbuffer(signal)
 
     # Perform an RFFT on the buffer
-    vd.rfft(test_line)
+    vd.vkfft.rfft(test_line)
 
     assert np.allclose(test_line.read_fourier(0), np.fft.rfft(signal), atol=0.01)
 

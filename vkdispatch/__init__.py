@@ -38,8 +38,6 @@ from .base.image import BorderColor
 
 from .base.compute_plan import ComputePlan
 
-from .base.fft_plan import FFTPlan
-
 from .base.transfer_operations import stage_transfer_copy_buffers
 from .base.descriptor_set import DescriptorSet
 
@@ -49,11 +47,6 @@ from .execution_pipeline.buffer_builder import BufferUsage, BufferedStructEntry,
 
 from .execution_pipeline.command_stream import CommandStream
 from .execution_pipeline.command_stream import global_cmd_stream, set_global_cmd_stream, default_cmd_stream
-
-from .execution_pipeline.fft_dispatcher import fft, rfft
-from .execution_pipeline.fft_dispatcher import ifft, irfft, create_kernel_2Dreal, convolve_2Dreal
-from .execution_pipeline.fft_dispatcher import reset_fft_plans
-from .execution_pipeline.fft_dispatcher import RFFTBuffer, asrfftbuffer
 
 from .shader_generation.signature import ShaderArgumentType
 from .shader_generation.signature import ShaderArgument
@@ -72,5 +65,9 @@ from .shader_generation.reduction_object import ReductionObject
 
 from .shader_generation.decorators import shader, reduce, map_reduce
 
+import vkdispatch.vkfft as vkfft
+import vkdispatch.fft as fft
+
+import vkdispatch.fft as fft
 
 __version__ = "0.0.21"

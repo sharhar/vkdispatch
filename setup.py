@@ -247,7 +247,15 @@ class CustomBuildExt(build_ext):
 
 setup(
     name="vkdispatch",
-    packages=["vkdispatch", "vkdispatch.base", "vkdispatch.codegen", "vkdispatch.execution_pipeline", "vkdispatch.shader_generation"],
+    packages=[
+        "vkdispatch", 
+        "vkdispatch.base", 
+        "vkdispatch.codegen", 
+        "vkdispatch.execution_pipeline", 
+        "vkdispatch.shader_generation", 
+        "vkdispatch.vkfft",
+        "vkdispatch.fft"
+    ],
     ext_modules=[
         Extension(
             "vkdispatch_native",
