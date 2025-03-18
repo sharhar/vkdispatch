@@ -7,6 +7,8 @@ import numpy as np
 
 import vkdispatch as vd
 
+from .fft_plan import VkFFTPlan
+
 import dataclasses
 
 from typing import Dict
@@ -36,7 +38,7 @@ def sanitize_input_tuple(input: Tuple) -> Tuple:
 
     return tuple(input)
 
-__fft_plans: Dict[FFTConfig, vd.FFTPlan] = {}
+__fft_plans: Dict[FFTConfig, VkFFTPlan] = {}
 
 def reset_fft_plans():
     global __fft_plans
@@ -53,7 +55,7 @@ def execute_fft_plan(
         cmd_stream = vd.global_cmd_stream()
     
     if config not in __fft_plans:
-        __fft_plans[config] = vd.FFTPlan(
+        __fft_plans[config] = VkFFTPlan(
             shape=config.shape, 
             do_r2c=config.do_r2c, 
             axes=config.axes, 

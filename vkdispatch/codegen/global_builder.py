@@ -333,3 +333,6 @@ def print_vars(*args: Union[ShaderVariable, str], seperator=" "):
 
 def unravel_index(index: ShaderVariable, shape: ShaderVariable):
     return GlobalBuilder.obj.unravel_index(index, shape)
+
+def complex_from_euler_angle(angle: ShaderVariable):
+    return GlobalBuilder.obj.complex_from_euler_angle(angle)
