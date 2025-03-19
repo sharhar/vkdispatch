@@ -31,6 +31,7 @@ class Context:
     subgroup_size: int
     max_workgroup_size: Tuple[int]
     uniform_buffer_alignment: int
+    max_shared_memory: int
 
     def __init__(
         self,
@@ -49,6 +50,7 @@ class Context:
         max_workgroup_sizes_y = []
         max_workgroup_sizes_z = []
         uniform_buffer_alignments = []
+        max_shared_memory = []
 
         for device in self.device_infos:
             subgroup_sizes.append(device.sub_group_size)
@@ -59,9 +61,12 @@ class Context:
 
             uniform_buffer_alignments.append(device.uniform_buffer_alignment)
 
+            max_shared_memory.append(device.max_compute_shared_memory_size)
+
         self.subgroup_size = min(subgroup_sizes)
         self.max_workgroup_size = (min(max_workgroup_sizes_x), min(max_workgroup_sizes_y), min(max_workgroup_sizes_z))
         self.uniform_buffer_alignment = max(uniform_buffer_alignments)
+        self.max_shared_memory = min(max_shared_memory)
 
     def __del__(self) -> None:
         pass # vkdispatch_native.context_destroy(self._handle)

@@ -1,35 +1,41 @@
+import vkdispatch as vd
 import numpy as np
-from matplotlib import pyplot as plt
+import tqdm
+import time
 
-# make rotated (30 degrees) square signal
-signal_2d = np.zeros((100, 100))
-for i in range(100):
-    for j in range(100):
-        x = i - 50
-        y = j - 50
-        x_new = x * np.cos(np.pi/6) - y * np.sin(np.pi/6)
-        y_new = x * np.sin(np.pi/6) + y * np.cos(np.pi/6)
-        if -10 < x_new < 10 and -10 < y_new < 10:
-            signal_2d[i, j] = 1
+batch_count = 10000
+batch_size = 200
 
-plt.imshow(signal_2d)
-plt.colorbar()
-plt.show()
+N = 128
 
-signal_fft = np.fft.fft2(signal_2d)
-signal_rfft = np.fft.rfft2(signal_2d)
+buffer = vd.Buffer((N,), vd.complex64)
 
-plt.imshow(np.abs(signal_fft))
-plt.colorbar()
-plt.show()
+cmd_stream_fft = vd.CommandStream()
 
-plt.imshow(np.abs(signal_rfft))
-plt.colorbar()
-plt.show()
+fft_stage = vd.fft.make_fft_stage(N)
 
-signal_fft_half0 = signal_fft[:, :51]
+fft_stage(buffer, cmd_stream=cmd_stream_fft, exec_size=N // 2)
 
-plt.imshow(np.abs(signal_fft_half0 - signal_rfft))
-plt.colorbar()
-plt.show()
+cmd_stream_vkfft = vd.CommandStream()
 
+vd.vkfft.fft(buffer, cmd_stream=cmd_stream_vkfft)
+
+buffer.read()
+
+start_time = time.time()
+
+for _ in tqdm.tqdm(range(batch_count)):
+    cmd_stream_fft.submit(batch_size)
+
+buffer.read()
+
+print(f"FFT: {batch_count * batch_size / (time.time() - start_time):.2f} FFT/s")
+
+start_time = time.time()
+
+for _ in tqdm.tqdm(range(batch_count)):
+    cmd_stream_vkfft.submit(batch_size)
+
+buffer.read()
+
+print(f"VkFFT: {batch_count * batch_size / (time.time() - start_time):.2f} FFT/s")

@@ -66,7 +66,7 @@ def workgroup_reduce(
 
     sdata[tid] = reduction_aggregate
 
-    vc.memory_barrier_shared()
+    vc.memory_barrier()
     vc.barrier()
     
     current_size = group_size // 2
@@ -80,7 +80,7 @@ def workgroup_reduce(
             sdata[tid] = vc.new(out_type, 0)
             vc.end()
         
-        vc.memory_barrier_shared()
+        vc.memory_barrier()
         vc.barrier()
         
         current_size //= 2
