@@ -131,6 +131,8 @@ struct FFTPlan* stage_fft_plan_create_extern(
             config.fft_zeropad_right[1] = pad_right_cols;
             config.fft_zeropad_right[2] = pad_right_depth;
 
+            //config.keepShaderCode = 1;
+
             config.inputBufferSize = (uint64_t*)malloc(sizeof(uint64_t));
             *config.inputBufferSize = input_buffer_size;
             config.isInputFormatted = input_buffer_size > 0;

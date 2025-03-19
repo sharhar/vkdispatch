@@ -8,7 +8,7 @@ from .dtype import dtype
 from .context import get_context, get_context_handle
 from .errors import check_for_errors
 
-from .dtype import to_numpy_dtype, from_numpy_dtype
+from .dtype import to_numpy_dtype, from_numpy_dtype, float32
 
 import vkdispatch_native
 
@@ -130,5 +130,43 @@ def asbuffer(array: np.ndarray) -> Buffer:
 
     buffer = Buffer(array.shape, from_numpy_dtype(array.dtype))
     buffer.write(array)
+
+    return buffer
+
+
+class RFFTBuffer(Buffer):
+    def __init__(self, shape: Tuple[int, ...]):
+        assert shape[-1] % 2 == 0, "Last dimension of RFFTBuffer must be even!"
+        super().__init__(shape[:-1] + (shape[-1] + 2,), float32)
+
+        self.real_shape = shape
+        self.fourier_shape = self.shape[:-1] + (self.shape[-1] / 2,)
+    
+    def read_real(self, index: Union[int, None] = None) -> np.ndarray:
+        return self.read(index)[..., :self.real_shape[-1]]
+
+    def read_fourier(self, index: Union[int, None] = None) -> np.ndarray:
+        return self.read(index).view(np.complex64)
+    
+    def write_real(self, data: np.ndarray, index: int = -1):
+        assert data.shape == self.real_shape, "Data shape must match real shape!"
+        assert not np.issubdtype(data.dtype, np.complexfloating) , "Data dtype must be scalar!"
+
+        true_data = np.zeros(self.shape, dtype=np.float32)
+        true_data[..., :self.real_shape[-1]] = data
+
+        self.write(true_data, index)
+
+    def write_fourier(self, data: np.ndarray, index: int = -1):
+        assert data.shape == self.fourier_shape, "Data shape must match fourier shape!"
+        assert np.issubdtype(data.dtype, np.complexfloating) , "Data dtype must be complex!"
+
+        self.write(np.ascontiguousarray(data.astype(np.complex64)).view(np.float32), index)
+
+def asrfftbuffer(data: np.ndarray) -> RFFTBuffer:
+    assert not np.issubdtype(data.dtype, np.complexfloating), "Data dtype must be scalar!"
+
+    buffer = RFFTBuffer(data.shape)
+    buffer.write_real(data)
 
     return buffer

@@ -1,26 +1,33 @@
 import vkdispatch as vd
 import numpy as np
 
+from matplotlib import pyplot as plt
+
 vd.initialize(debug_mode=True)
 
 N = 64
 
-out = vd.fft.make_fft_stage(N)
+# make square signal
+signal = np.zeros((N, N), dtype=np.complex64)
+signal[N//4:3*N//4, N//4:3*N//4] = 1
 
-print(out)
+# add random dots to signal
+signal += (np.random.rand(N, N) + 1j * np.random.rand(N, N)) / 10
 
-#signal = np.ones(shape=(N,)) #np.random.rand(N) # + 1j * np.random.rand(N)
-#signal[1] = 0
+plt.imshow(np.abs(signal))
+plt.show()
 
-signal = np.random.rand(N) + 1j * np.random.rand(N)
-signal_fft = np.fft.fft(signal)
+signal_fft = np.fft.fft(signal.astype(np.complex64), axis=1)
+
+plt.imshow(np.abs(signal_fft))
+plt.show()
 
 signal_gpu = vd.asbuffer(signal.astype(np.complex64))
-out(signal_gpu, exec_size=N // 2)
+vd.fft.fft(signal_gpu)
 
-print(signal_fft)
-print(signal_gpu.read(0))
+data = np.fft.ifft(signal_gpu.read(0), axis=1)
 
-print(np.allclose(signal_fft, signal_gpu.read(0)))
+plt.imshow(np.abs(data))
+plt.show()
 
-#print(out)
+print(np.allclose(signal_fft, signal_gpu.read(0), atol=1e-3))

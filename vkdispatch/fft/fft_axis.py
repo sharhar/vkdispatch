@@ -1,12 +1,14 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
+from functools import lru_cache
+
 import numpy as np
 
 def stockham_sdata(sdata: vc.Buffer[vc.c64], output_offset: int, input_offset: int, index: int, N: int, N_total: int):
     factor = vc.complex_from_euler_angle(-2 * np.pi * index / N)
 
-    vc.memory_barrier_shared()
+    vc.memory_barrier()
     vc.barrier()
 
     even_value = sdata[input_offset + index].copy()
@@ -14,15 +16,18 @@ def stockham_sdata(sdata: vc.Buffer[vc.c64], output_offset: int, input_offset: i
 
     odd_factor = vc.mult_c64(factor, odd_value).copy()
     
-    vc.memory_barrier_shared()
+    vc.memory_barrier()
     vc.barrier()
 
     sdata[output_offset + index] = even_value + odd_factor
     sdata[output_offset + index + N//2] = even_value - odd_factor
 
+@lru_cache(maxsize=None)
 def make_fft_stage(
         N: int, 
         stride: int = 1,
+        batch_input_stride: int = 1,
+        batch_output_stride: int = 1,
         name: str = None):
     
     assert N & (N-1) == 0, "Input length must be a power of 2"
@@ -43,8 +48,10 @@ def make_fft_stage(
 
     tid = vc.local_invocation().x.copy("tid")
 
-    sdata[tid] = buffer[tid]
-    sdata[tid + N//2] = buffer[tid + N//2]
+    batch_number = vc.workgroup().y
+
+    sdata[tid] = buffer[batch_number * batch_input_stride + tid]
+    sdata[tid + N//2] = buffer[batch_number * batch_input_stride + tid + N//2]
 
     max_radix_power = int(np.round(np.log2(N)))
 
@@ -63,8 +70,8 @@ def make_fft_stage(
             N
         )
 
-    buffer[tid] = sdata[tid]
-    buffer[tid + N//2] = sdata[tid + N//2]
+    buffer[batch_number * batch_output_stride + tid] = sdata[tid]
+    buffer[batch_number * batch_output_stride + tid + N//2] = sdata[tid + N//2]
 
     vc.set_global_builder(old_builder)
 

@@ -22,6 +22,8 @@ from .base.context import is_context_initialized
 
 from .base.buffer import asbuffer
 from .base.buffer import Buffer
+from .base.buffer import asrfftbuffer
+from .base.buffer import RFFTBuffer
 
 from .base.image import image_format
 from .base.image import image_type
