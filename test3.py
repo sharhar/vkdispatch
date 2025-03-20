@@ -4,11 +4,11 @@ import tqdm
 import time
 
 batch_count = 1000
-batch_size = 100
+batch_size = 1000
 
-N = 256
+N = 8 * 8
 
-buffer = vd.Buffer((N, N), vd.complex64)
+buffer = vd.Buffer((N, ), vd.complex64)
 
 cmd_stream_fft = vd.CommandStream()
 
@@ -19,7 +19,7 @@ vd.fft.fft(buffer, cmd_stream=cmd_stream_fft)
 
 cmd_stream_vkfft = vd.CommandStream()
 
-vd.vkfft.fft(buffer, axes=[1], cmd_stream=cmd_stream_vkfft)
+vd.vkfft.fft(buffer, axes=[len(buffer.shape) - 1], cmd_stream=cmd_stream_vkfft)
 
 buffer.read()
 

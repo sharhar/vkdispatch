@@ -5,7 +5,34 @@ from matplotlib import pyplot as plt
 
 vd.initialize(debug_mode=True)
 
-N = 1024
+
+N = 32
+
+signal = np.ones((N,), dtype=np.complex64)
+signal[N//16] = 0
+
+#signal = (np.random.rand(N) + 1j * np.random.rand(N)).astype(np.complex64)
+
+signal_gpu = vd.asbuffer(signal)
+
+vd.fft.fft(signal_gpu, print_shader=True)
+
+data = signal_gpu.read(0).reshape(-1, 8)
+reference_data = np.fft.fft(signal).reshape(-1, 8)
+
+#data = np.round(data, 0)
+#reference_data = np.round(reference_data, 0)
+
+print(data)
+print(reference_data)
+
+#print(data - reference_data)
+print(np.allclose(data, reference_data, atol=1e-3))
+
+
+exit()
+
+N = 64
 
 # make square signal
 signal = np.zeros((N, N), dtype=np.complex64)
