@@ -150,8 +150,8 @@ class FFTAxisPlanner:
         self.registers[register_even][:] = self.radix_2_even + self.radix_2_odd
         self.registers[register_odd][:] = self.radix_2_even - self.radix_2_odd
         
-        self.registers[register_even][:] = vc.new_vec2(index, N)
-        self.registers[register_odd][:] = vc.new_vec2(index, N)
+        #self.registers[register_even][:] = vc.new_vec2(index, N)
+        #self.registers[register_odd][:] = vc.new_vec2(index, N)
 
     def radix_N_on_registers(self, phase_shift: float = 0, count: int = None, start_stage: int = None):
         if count is None:
@@ -176,6 +176,8 @@ class FFTAxisPlanner:
     
     def plan(self):
         sdata = vc.shared_buffer(vc.c64, self.N, "sdata")
+        io_offset = vc.new_uint(var_name="io_offset")
+        phase_shift = vc.new_float(var_name="phase_shift")
         
         register_bits = power_of_2_to_bit_cout(self.register_count)
 
@@ -194,7 +196,9 @@ class FFTAxisPlanner:
             inner_offset = self.tid % fft_spread
             outer_offset = (self.tid / fft_spread) * fft_spread * self.register_count
 
-            phase_shift = inner_offset.cast_to(f32) / (fft_spread * 2)
+            io_offset[:] = inner_offset + outer_offset
+
+            phase_shift[:] = inner_offset.cast_to(f32) / (fft_spread * 2)
 
             start_stage = register_bits - power_of_2_to_bit_cout(radix_count) + 1
 
@@ -202,7 +206,7 @@ class FFTAxisPlanner:
 
             #start_stage = 3
 
-            self.load_buffer_to_registers(sdata, outer_offset + inner_offset, read_stride, do_bit_reversal=False)
+            self.load_buffer_to_registers(sdata, io_offset, read_stride, do_bit_reversal=False)
 
             vc.memory_barrier()
             vc.barrier()
@@ -210,7 +214,7 @@ class FFTAxisPlanner:
             self.radix_N_on_registers(phase_shift=phase_shift, start_stage=start_stage)
 
             if fft_spread * self.register_count < self.N:
-                self.store_registers_in_buffer(sdata, outer_offset + inner_offset, fft_spread)
+                self.store_registers_in_buffer(sdata, io_offset, fft_spread)
 
                 vc.memory_barrier()
                 vc.barrier()
