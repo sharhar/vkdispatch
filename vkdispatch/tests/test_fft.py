@@ -9,6 +9,8 @@ def test_fft_1d():
     current_fft_size = 2
 
     while current_fft_size <= max_fft_size:
+        print(current_fft_size)
+
         for _ in range(20):
             batch_size = np.random.randint(1, 2000)
 
