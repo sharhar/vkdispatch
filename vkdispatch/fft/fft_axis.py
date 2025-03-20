@@ -140,10 +140,10 @@ class FFTAxisPlanner:
             register_index = i
             buffer[i * stride + offset] = self.registers[register_index]
 
-    def radix_2_on_registers(self, register_even: int, register_odd: int, index: int, N: int, phase_shift):
+    def radix_2_on_registers(self, register_even: int, register_odd: int, index: int, N: int):
         self.radix_2_even[:] = self.registers[register_even]
 
-        self.radix_2_odd.x = -2 * np.pi * (phase_shift + (index / N))
+        self.radix_2_odd.x = -2 * np.pi * (index / N)
         self.radix_2_odd[:] = vc.complex_from_euler_angle(self.radix_2_odd.x)
         self.radix_2_odd[:] = vc.mult_c64(self.radix_2_odd, self.registers[register_odd])
 
@@ -153,27 +153,25 @@ class FFTAxisPlanner:
         #self.registers[register_even][:] = vc.new_vec2(index, N)
         #self.registers[register_odd][:] = vc.new_vec2(index, N)
 
-    def radix_N_on_registers(self, phase_shift: float = 0, count: int = None, start_stage: int = None):
+    def radix_N_on_registers(self, base_length: float = 1, base_offset: int = 0, index_stride: int = 1, count: int = None, start_stage: int = None):
         if count is None:
             count = self.register_count
 
         if start_stage is None:
             start_stage = 1
 
-        phase_shift_factor = 1
-
         for radix_power in range(start_stage, count + 1):
             series_length = 2 ** radix_power
+
+            series_length_factor = 2 ** (radix_power - start_stage + 1)
     
             for i in range(count // series_length):
                 for j in range(series_length // 2):
                     even_index = i * series_length + j
                     odd_index = i * series_length + j + series_length // 2
 
-                    self.radix_2_on_registers(even_index, odd_index, j, series_length, phase_shift * phase_shift_factor)
+                    self.radix_2_on_registers(even_index, odd_index, j * index_stride + base_offset, series_length_factor * float(base_length))
             
-            phase_shift_factor /= 2
-    
     def plan(self):
         sdata = vc.shared_buffer(vc.c64, self.N, "sdata")
         io_offset = vc.new_uint(var_name="io_offset")
@@ -211,7 +209,7 @@ class FFTAxisPlanner:
             vc.memory_barrier()
             vc.barrier()
 
-            self.radix_N_on_registers(phase_shift=phase_shift, start_stage=start_stage)
+            self.radix_N_on_registers(base_length=fft_spread, base_offset=inner_offset, index_stride=read_stride, start_stage=start_stage)
 
             if fft_spread * self.register_count < self.N:
                 self.store_registers_in_buffer(sdata, io_offset, fft_spread)
