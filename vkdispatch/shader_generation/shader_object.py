@@ -158,12 +158,17 @@ class ShaderObject:
             my_local_size[0], my_local_size[1], my_local_size[2]
         )
 
-        self.plan = vd.ComputePlan(
-            self.source, 
-            self.shader_description.binding_type_list, 
-            self.shader_description.pc_size, 
-            self.shader_description.name
-        )
+        try:
+            self.plan = vd.ComputePlan(
+                self.source, 
+                self.shader_description.binding_type_list, 
+                self.shader_description.pc_size, 
+                self.shader_description.name
+            )
+        except Exception as e:
+            print(f"Error building shader: {e}")
+            print(self.make_repr())
+            raise e
 
         self.ready = True
 

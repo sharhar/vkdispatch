@@ -201,9 +201,9 @@ def sanitize_2d_convolution_buffer_shape(in_shape: vd.Buffer):
     return in_shape
 
 def convolve_2Dreal(
-        buffer: Union[vd.Buffer[vd.float32], "RFFTBuffer"],
-        kernel: Union[vd.Buffer[vd.float32], "RFFTBuffer"],
-        input: Union[vd.Buffer[vd.float32], "RFFTBuffer"] = None,
+        buffer: Union[vd.Buffer[vd.float32], vd.RFFTBuffer],
+        kernel: Union[vd.Buffer[vd.float32], vd.RFFTBuffer],
+        input: Union[vd.Buffer[vd.float32], vd.RFFTBuffer] = None,
         normalize: bool = False,
         conjugate_kernel: bool = False,
         cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None):

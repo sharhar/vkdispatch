@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 
 vd.initialize(debug_mode=True)
 
-N = 64
+N = 1024
 
 # make square signal
 signal = np.zeros((N, N), dtype=np.complex64)

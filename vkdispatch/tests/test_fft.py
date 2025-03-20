@@ -4,7 +4,7 @@ import numpy as np
 def test_fft_1d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
-    max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0] * 2)
+    max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0] * 8)
 
     current_fft_size = 2
 

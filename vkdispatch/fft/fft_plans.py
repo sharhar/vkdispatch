@@ -15,4 +15,4 @@ def fft(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None):
 
     batch_count = np.round(np.prod(buffer.shape[:len(buffer.shape) - 1])).astype(np.int32)
 
-    fft_stage(buffer, cmd_stream=cmd_stream, exec_size=(fft_length // 2, batch_count, 1))
+    fft_stage(buffer, cmd_stream=cmd_stream, exec_size=(max(1, fft_length // 8), batch_count, 1))

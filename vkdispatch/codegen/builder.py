@@ -603,10 +603,7 @@ class ShaderBuilder:
         return new_var
     
     def complex_from_euler_angle(self, angle: ShaderVariable):
-        new_var = self.new_vec2()
-        new_var.x = self.cos(angle)
-        new_var.y = self.sin(angle)
-        return new_var
+        return self.make_var(abv.v2, f"vec2({self.cos(angle)}, {self.sin(angle)})")
 
     def compose_struct_decleration(self, elements: List[StructElement]) -> str:
         declerations = []
