@@ -235,7 +235,7 @@ class FFTAxisPlanner:
     def plan(self):
         sdata = vc.shared_buffer(vc.c64, self.N, "sdata")
 
-        self.load_buffer_to_registers(self.buffer, self.batch_offset + self.tid, self.N // self.register_count, do_bit_reversal=False)
+        self.load_buffer_to_registers(self.buffer, self.batch_offset + self.tid, self.N // self.register_count, do_bit_reversal=False, count=self.N)
 
         self.registers[:self.N] = self.radix_composite(self.registers[:self.N], prime_factors(self.N))
         
@@ -269,7 +269,7 @@ class FFTAxisPlanner:
 
         #self.store_registers_in_buffer(self.buffer, self.batch_offset + self.tid, self.register_count)
 
-        self.store_registers_in_buffer(self.buffer, self.batch_offset + self.tid * self.register_count, 1)
+        self.store_registers_in_buffer(self.buffer, self.batch_offset + self.tid * self.register_count, 1, count=self.N)
         
         #
 
