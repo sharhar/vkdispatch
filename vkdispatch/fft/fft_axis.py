@@ -8,6 +8,28 @@ from functools import lru_cache
 
 import numpy as np
 
+def prime_factors(n):
+    factors = []
+    
+    # Handle the factor 2 separately
+    while n % 2 == 0:
+        factors.append(2)
+        n //= 2
+        
+    # Now handle odd factors
+    factor = 3
+    while factor * factor <= n:
+        while n % factor == 0:
+            factors.append(factor)
+            n //= factor
+        factor += 2
+        
+    # If at the end, n is greater than 1, it is a prime number itself
+    if n > 1:
+        factors.append(n)
+        
+    return factors
+
 def int_to_bool_list(x, n):
     """
     Extract the first n bits of integer x (starting from the least significant bit)
@@ -83,12 +105,13 @@ def stockham_shared_buffer(sdata: vc.Buffer[vc.c64], local_vars, output_offset: 
         sdata[output_offset + index*4 + i + N//2] = local_vars[i] - local_vars[i + 4]
 
 class FFTAxisPlanner:
-    def __init__(self, N: int, batch_input_stride: int = None, register_count: int = 8, name: str = None):
+    def __init__(self, N: int, batch_input_stride: int = None, register_count: int = 16, name: str = None):
         if name is None:
             name = f"fft_axis_{N}"
         
         self.N = N
-        self.local_size = (max(1, N // register_count), 1, 1)
+        #self.local_size = (max(1, N // register_count), 1, 1)
+        self.local_size = (1, 1, 1)
 
         if batch_input_stride is None:
             self.batch_input_stride = N
@@ -110,7 +133,7 @@ class FFTAxisPlanner:
 
         self.omega_register = vc.new(c64, var_name="omega_register")
 
-        self.radix_registers = [None] * 16
+        self.radix_registers = [None] * register_count
         for i in range(16):
             self.radix_registers[i] = vc.new(c64, var_name=f"radix_{i}")
 
@@ -145,41 +168,6 @@ class FFTAxisPlanner:
         for i in range(count):
             register_index = i
             buffer[i * stride + offset] = self.registers[register_index]
-
-    def radix_2_on_registers(self, register_even: int, register_odd: int, index: int, N: int):
-        self.radix_2_even[:] = self.registers[register_even]
-
-        self.radix_2_odd.x = -2 * np.pi * (index / N)
-        self.radix_2_odd[:] = vc.complex_from_euler_angle(self.radix_2_odd.x)
-        self.radix_2_odd[:] = vc.mult_c64(self.radix_2_odd, self.registers[register_odd])
-
-        self.registers[register_even][:] = self.radix_2_even + self.radix_2_odd
-        self.registers[register_odd][:] = self.radix_2_even - self.radix_2_odd
-        
-        #self.registers[register_even][:] = vc.new_vec2(self.tid, N)
-        #self.registers[register_odd][:] = vc.new_vec2(self.tid, N)
-
-    def radix_N_on_registers(self, count: int = None, start_stage: int = None):
-        if count is None:
-            count = self.register_count
-
-        if start_stage is None:
-            start_stage = 1
-
-        for radix_power in range(start_stage, count + 1):
-            series_length = 2 ** radix_power
-
-            series_length_factor = 2 ** (radix_power - start_stage + 1)
-    
-            for i in range(count // series_length):
-                for j in range(series_length // 2):
-                    even_index = i * series_length + j
-                    odd_index = i * series_length + j + series_length // 2
-
-                    self.radix_2_on_registers(even_index, odd_index, j, series_length_factor)
-
-            #if base_length != 1:
-            #    return
     
     def radix_P(self, register_list: List[vc.ShaderVariable]):
         assert len(register_list) <= len(self.radix_registers), "Too many registers for radix_P"
@@ -204,11 +192,9 @@ class FFTAxisPlanner:
         for i in range(0, len(register_list)):
             register_list[i][:] = self.radix_registers[i]
 
-    def apply_twiddle_facotrs(self, register_list: List[vc.ShaderVariable], twiddle_index: int = 0, twiddle_N: int = 1):
+    def apply_cooley_tukey_twiddle_facotrs(self, register_list: List[vc.ShaderVariable], twiddle_index: int = 0, twiddle_N: int = 1):
         for i in range(len(register_list)):
             self.omega_register.x = -2 * np.pi * i * twiddle_index / twiddle_N
-
-            print("TWIDDLE", i, twiddle_index, twiddle_N, -2 * np.pi * i * twiddle_index / twiddle_N)
 
             self.omega_register[:] = vc.complex_from_euler_angle(self.omega_register.x)
             self.omega_register[:] = vc.mult_c64(self.omega_register, register_list[i])
@@ -221,15 +207,12 @@ class FFTAxisPlanner:
         
         N = len(register_list)
 
-        #my_list = list(register_list)
-        my_list = register_list
-
         assert N == np.prod(primes), "Product of primes must be equal to the number of registers"
 
         output_stride = 1
 
         for prime in primes:
-            sub_squences = [my_list[i::N//prime] for i in range(N//prime)]
+            sub_squences = [register_list[i::N//prime] for i in range(N//prime)]
 
             block_width = output_stride * prime
 
@@ -237,44 +220,58 @@ class FFTAxisPlanner:
                 inner_block_offset = i % output_stride
                 block_index = i * prime // block_width
 
-                self.apply_twiddle_facotrs(sub_squences[i], twiddle_index=inner_block_offset, twiddle_N=block_width)
+                self.apply_cooley_tukey_twiddle_facotrs(sub_squences[i], twiddle_index=inner_block_offset, twiddle_N=block_width)
                 self.radix_P(sub_squences[i])
-
-                #print(sub_squences[i])
                 
                 sub_sequence_offset = block_index * block_width + inner_block_offset
 
                 for j in range(prime):
-                    print(sub_sequence_offset, j, output_stride, my_list[sub_sequence_offset + j * output_stride])
-                    my_list[sub_sequence_offset + j * output_stride] = sub_squences[i][j]
+                    register_list[sub_sequence_offset + j * output_stride] = sub_squences[i][j]
             
-            output_stride *= prime
+            output_stride *= prime   
 
-            #return
-            #if output_stride == 4: return
+        return register_list
 
     def plan(self):
         sdata = vc.shared_buffer(vc.c64, self.N, "sdata")
 
-        vc.print(self.tid)
-
         self.load_buffer_to_registers(self.buffer, self.batch_offset + self.tid, self.N // self.register_count, do_bit_reversal=False)
-        #self.radix_P(self.registers)
-        self.radix_composite(self.registers, [2, 2, 2])
-        self.store_registers_in_buffer(sdata, self.tid * self.register_count, 1)
 
-        vc.memory_barrier()
-        vc.barrier()
+        self.registers[:self.N] = self.radix_composite(self.registers[:self.N], prime_factors(self.N))
+        
+        #self.radix_P(self.registers[:self.N])
+        
+        #self.store_registers_in_buffer(sdata, self.tid * self.register_count, 1)
+
+        #vc.memory_barrier()
+        #vc.barrier()
 
         #self.store_registers_in_buffer(self.buffer, self.batch_offset + self.tid, self.N // self.register_count)
 
-        self.load_buffer_to_registers(sdata, self.tid, self.N // self.register_count, do_bit_reversal=False)
-        self.apply_twiddle_facotrs(self.registers, twiddle_index=self.tid, twiddle_N=64)
-        #self.radix_P(self.registers)
-        self.radix_composite(self.registers, [2, 2, 2])
-        self.store_registers_in_buffer(self.buffer, self.batch_offset + self.tid, self.register_count)
+        #self.load_buffer_to_registers(sdata, self.tid, self.N // self.register_count, do_bit_reversal=False)
+        #self.apply_cooley_tukey_twiddle_facotrs(self.registers, twiddle_index=self.tid, twiddle_N=64)
+        #self.radix_composite(self.registers, [2, 2, 2])
+
+        #self.apply_twiddle_facotrs(self.registers[:4], twiddle_index=self.tid, twiddle_N=32)
+        #self.registers[:4] = self.radix_composite(self.registers[:4], [2, 2])
+
+        #self.apply_twiddle_facotrs(self.registers[4:], twiddle_index=self.tid, twiddle_N=32)
+        #self.registers[4:] = self.radix_composite(self.registers[4:], [2, 2])
         
-        #self.store_registers_in_buffer(self.buffer, self.batch_offset + self.tid * self.register_count, 1)
+        #self.store_registers_in_buffer(sdata, self.tid, self.register_count)
+
+        #vc.memory_barrier()
+        #vc.barrier()
+
+        #self.load_buffer_to_registers(sdata, self.tid, self.N // self.register_count, do_bit_reversal=False)
+        #self.apply_twiddle_facotrs(self.registers, twiddle_index=self.tid, twiddle_N=64)
+        #self.radix_composite(self.registers, [2, 2, 2])
+
+        #self.store_registers_in_buffer(self.buffer, self.batch_offset + self.tid, self.register_count)
+
+        self.store_registers_in_buffer(self.buffer, self.batch_offset + self.tid * self.register_count, 1)
+        
+        #
 
 @lru_cache(maxsize=None)
 def make_fft_stage(
@@ -284,7 +281,7 @@ def make_fft_stage(
         #batch_output_stride: int = None,
         name: str = None):
     
-    assert N & (N-1) == 0, "Input length must be a power of 2"
+    #assert N & (N-1) == 0, "Input length must be a power of 2"
     assert stride == 1, "Only stride 1 is supported for now"
 
     axis_planner = FFTAxisPlanner(N, name=name)
