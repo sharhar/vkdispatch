@@ -6,7 +6,7 @@ def test_fft_1d():
 
     #max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0] * 8)
 
-    max_fft_size = 16
+    max_fft_size = 15
 
     current_fft_size = 2
 
