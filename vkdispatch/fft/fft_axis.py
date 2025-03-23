@@ -105,7 +105,7 @@ def stockham_shared_buffer(sdata: vc.Buffer[vc.c64], local_vars, output_offset: 
         sdata[output_offset + index*4 + i + N//2] = local_vars[i] - local_vars[i + 4]
 
 class FFTAxisPlanner:
-    def __init__(self, N: int, batch_input_stride: int = None, register_count: int = 16, name: str = None):
+    def __init__(self, N: int, batch_input_stride: int = None, register_count: int = 32, name: str = None):
         if name is None:
             name = f"fft_axis_{N}"
         
@@ -134,7 +134,7 @@ class FFTAxisPlanner:
         self.omega_register = vc.new(c64, var_name="omega_register")
 
         self.radix_registers = [None] * register_count
-        for i in range(16):
+        for i in range(register_count):
             self.radix_registers[i] = vc.new(c64, var_name=f"radix_{i}")
 
         # Local ID within the workgroup
@@ -192,7 +192,7 @@ class FFTAxisPlanner:
         for i in range(0, len(register_list)):
             register_list[i][:] = self.radix_registers[i]
 
-    def apply_cooley_tukey_twiddle_facotrs(self, register_list: List[vc.ShaderVariable], twiddle_index: int = 0, twiddle_N: int = 1):
+    def apply_cooley_tukey_twiddle_factors(self, register_list: List[vc.ShaderVariable], twiddle_index: int = 0, twiddle_N: int = 1):
         for i in range(len(register_list)):
             self.omega_register.x = -2 * np.pi * i * twiddle_index / twiddle_N
 
@@ -220,7 +220,7 @@ class FFTAxisPlanner:
                 inner_block_offset = i % output_stride
                 block_index = i * prime // block_width
 
-                self.apply_cooley_tukey_twiddle_facotrs(sub_squences[i], twiddle_index=inner_block_offset, twiddle_N=block_width)
+                self.apply_cooley_tukey_twiddle_factors(sub_squences[i], twiddle_index=inner_block_offset, twiddle_N=block_width)
                 self.radix_P(sub_squences[i])
                 
                 sub_sequence_offset = block_index * block_width + inner_block_offset

@@ -6,7 +6,7 @@ def test_fft_1d():
 
     #max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0] * 8)
 
-    max_fft_size = 15
+    max_fft_size = 32
 
     current_fft_size = 2
 
@@ -20,6 +20,8 @@ def test_fft_1d():
             test_data = vd.asbuffer(data)
 
             vd.fft.fft(test_data)
+
+            print(data.shape)
 
             assert np.allclose(np.fft.fft(data, axis=1), test_data.read(0), atol=1e-3)
 
