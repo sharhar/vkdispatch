@@ -160,6 +160,9 @@ class ShaderBuilder:
 
     def append_contents(self, contents: str) -> None:
         self.contents += ("\t" * self.scope_num) + contents
+
+    def comment(self, comment: str) -> None:
+        self.append_contents(f"/* {comment} */\n")
     
     def get_name_func(self, prefix: Optional[str] = None, suffix: Optional[str] = None):
         my_prefix = [prefix]

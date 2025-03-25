@@ -30,88 +30,40 @@ def prime_factors(n):
         
     return factors
 
-def int_to_bool_list(x, n):
-    """
-    Extract the first n bits of integer x (starting from the least significant bit)
-    and return them as a list of booleans.
-    
-    Args:
-        x (int): The integer from which to extract bits.
-        n (int): The number of bits to extract.
-    
-    Returns:
-        list[bool]: A list of n booleans, where each bool represents a bit of x.
-                    The 0th index corresponds to the least significant bit.
-    """
-    return [(x & (1 << i)) != 0 for i in range(n)]
+def group_primes(primes, register_count):
+    groups: List[List] = []
 
-def bool_list_to_int(bits):
-    """
-    Convert a list of booleans representing bits to an integer.
-    
-    Args:
-        bits (list[bool]): The list of booleans to convert, where each bool
-                           represents a bit. The 0th index is treated as the LSB.
-    
-    Returns:
-        int: The integer obtained from these bits.
-    """
-    x = 0
-    for i, bit in enumerate(bits):
-        if bit:
-            x |= (1 << i)
-    return x
+    for prime in primes:
+        if len(groups) == 0:
+            groups.append([prime])
+            continue
 
-def power_of_2_to_bit_cout(N):
-    return int(np.round(np.log2(N)))
+        if np.prod(groups[-1]) * prime <= register_count:
+            groups[-1].append(prime)
+            continue
 
-def reverse_bits(x, N):
-    """
-    Reverse the order of the bits in an integer.
-    
-    Args:
-        x (int): The integer to reverse.
-        N (int): The number of bits to the power ot 2.
-    
-    Returns:
-        int: The integer obtained by reversing the bits of x.
-    """
-    n = power_of_2_to_bit_cout(N)
+        groups.append([prime])
 
-    bits = int_to_bool_list(x, n)
-    bits.reverse()
-    return bool_list_to_int(bits)
-
-def stockham_shared_buffer(sdata: vc.Buffer[vc.c64], local_vars, output_offset: int, input_offset: int, index: int, N: int, N_total: int):
-    vc.memory_barrier()
-    vc.barrier()
-
-    for i in range(4):
-        # read odd value
-        local_vars[i + 4][:] = sdata[input_offset + index*4 + i + N_total // 2]
-        # calculate twiddle factor
-        local_vars[i][:] = vc.complex_from_euler_angle(-2 * np.pi * (index*4 + i) / N)
-        # do multiplication
-        local_vars[i + 4][:] = vc.mult_c64(local_vars[i], local_vars[i + 4])
-        
-        # read even value
-        local_vars[i][:] = sdata[input_offset + index*4 + i]
-    
-    vc.memory_barrier()
-    vc.barrier()
-
-    for i in range(4):
-        sdata[output_offset + index*4 + i] = local_vars[i] + local_vars[i + 4]
-        sdata[output_offset + index*4 + i + N//2] = local_vars[i] - local_vars[i + 4]
+    return groups
 
 class FFTAxisPlanner:
-    def __init__(self, N: int, batch_input_stride: int = None, register_count: int = 16, name: str = None):
+    def __init__(self, N: int, batch_input_stride: int = None, max_register_count: int = 16, name: str = None):
         if name is None:
             name = f"fft_axis_{N}"
         
         self.N = N
+        self.prime_groups = group_primes(prime_factors(N), max_register_count)
+        self.group_sizes = [int(np.prod(group)) for group in self.prime_groups]
+        self.register_count = max(self.group_sizes)
+
+        print(self.prime_groups)
+        print(self.group_sizes)
+        print(self.register_count)
+
         #self.local_size = (max(1, N // register_count), 1, 1)
-        self.local_size = (1, 1, 1)
+        self.local_size = (N // min(self.group_sizes), 1, 1)
+
+        print(self.local_size)
 
         if batch_input_stride is None:
             self.batch_input_stride = N
@@ -123,16 +75,9 @@ class FFTAxisPlanner:
         self.buffer = self.signature.get_variables()[0]
 
         # Register allocation
-        self.register_count = min(self.N, register_count)
-        self.registers = [None] * self.register_count
-        for i in range(self.register_count):
-            self.registers[i] = vc.new(c64, 0, var_name=f"register_{i}")
-
+        self.registers = [vc.new(c64, 0, var_name=f"register_{i}") for i in range(self.register_count)]
+        self.radix_registers = [vc.new(c64, 0, var_name=f"radix_{i}") for i in range(self.register_count)]
         self.omega_register = vc.new(c64, 0, var_name="omega_register")
-
-        self.radix_registers = [None] * self.register_count
-        for i in range(self.register_count):
-            self.radix_registers[i] = vc.new(c64, 0, var_name=f"radix_{i}")
 
         # Local ID within the workgroup
         self.tid = vc.local_invocation().x.copy("tid")
@@ -200,7 +145,7 @@ class FFTAxisPlanner:
 
             register_list[i][:] = self.omega_register
 
-    def radix_composite(self, register_list: List[vc.ShaderVariable], primes: List[int]):
+    def register_radix_composite(self, register_list: List[vc.ShaderVariable], primes: List[int]):
         if len(register_list) == 1:
             return
         
@@ -217,7 +162,7 @@ class FFTAxisPlanner:
 
             for i in range(0, N // prime):
                 inner_block_offset = i % output_stride
-                block_index = i * prime // block_width
+                block_index = (i * prime) // block_width
 
                 self.apply_cooley_tukey_twiddle_factors(sub_squences[i], twiddle_index=inner_block_offset, twiddle_N=block_width)
                 self.radix_P(sub_squences[i])
@@ -231,44 +176,61 @@ class FFTAxisPlanner:
 
         return register_list
 
+    def process_prime_group(self, primes: List[int], output_stride: int, input = None, output = None):
+        input_offset = 0
+        output_offset = 0
+
+        if input is None:
+            input = self.sdata
+        else:
+            input_offset = self.batch_offset
+
+        if output is None:
+            output = self.sdata
+        else:
+            output_offset = self.batch_offset
+
+        group_size = np.prod(primes)
+
+
+        vc.comment(f"Processing prime group {primes} by doing radix-{group_size} FFT on {self.N // group_size} groups")
+        vc.if_statement(self.tid < self.N // group_size)
+
+        block_width = output_stride * group_size
+
+        inner_block_offset = self.tid % output_stride
+        block_index = (self.tid * group_size) / block_width
+        sub_sequence_offset = block_index * block_width + inner_block_offset
+        
+        self.load_buffer_to_registers(input, input_offset + self.tid, self.N // group_size, count=group_size)
+        
+        self.apply_cooley_tukey_twiddle_factors(self.registers[:group_size], twiddle_index=inner_block_offset, twiddle_N=block_width)
+        self.registers[:group_size] = self.register_radix_composite(self.registers[:group_size], primes)
+
+        if input is None and output is None:
+            vc.memory_barrier()
+            vc.barrier()
+
+        self.store_registers_in_buffer(output, output_offset + sub_sequence_offset, output_stride, count=group_size)
+
+        vc.end()
+
     def plan(self):
-        self.load_buffer_to_registers(self.buffer, self.batch_offset + self.tid, self.N // self.register_count)
-        self.radix_composite(self.registers, prime_factors(self.N))
-        self.store_registers_in_buffer(self.buffer, self.batch_offset + self.tid * self.register_count, 1)
 
-        #self.radix_P(self.registers[:self.N])
-        
-        #self.store_registers_in_buffer(sdata, self.tid * self.register_count, 1)
+        output_stride = 1
 
-        #vc.memory_barrier()
-        #vc.barrier()
+        for i in range(len(self.prime_groups)):
+            self.process_prime_group(
+                self.prime_groups[i],
+                output_stride,
+                input=self.buffer if i == 0 else None,
+                output=self.buffer if i == len(self.prime_groups) - 1 else None)
+            
+            output_stride *= self.group_sizes[i]
 
-        #self.store_registers_in_buffer(self.buffer, self.batch_offset + self.tid, self.N // self.register_count)
-
-        #self.load_buffer_to_registers(sdata, self.tid, self.N // self.register_count, do_bit_reversal=False)
-        #self.apply_cooley_tukey_twiddle_facotrs(self.registers, twiddle_index=self.tid, twiddle_N=64)
-        #self.radix_composite(self.registers, [2, 2, 2])
-
-        #self.apply_twiddle_facotrs(self.registers[:4], twiddle_index=self.tid, twiddle_N=32)
-        #self.registers[:4] = self.radix_composite(self.registers[:4], [2, 2])
-
-        #self.apply_twiddle_facotrs(self.registers[4:], twiddle_index=self.tid, twiddle_N=32)
-        #self.registers[4:] = self.radix_composite(self.registers[4:], [2, 2])
-        
-        #self.store_registers_in_buffer(sdata, self.tid, self.register_count)
-
-        #vc.memory_barrier()
-        #vc.barrier()
-
-        #self.load_buffer_to_registers(sdata, self.tid, self.N // self.register_count, do_bit_reversal=False)
-        #self.apply_twiddle_facotrs(self.registers, twiddle_index=self.tid, twiddle_N=64)
-        #self.radix_composite(self.registers, [2, 2, 2])
-
-        #self.store_registers_in_buffer(self.buffer, self.batch_offset + self.tid, self.register_count)
-
-        #self.store_registers_in_buffer(self.buffer, self.batch_offset + self.tid * self.register_count, 1, count=self.N)
-        
-        #
+            if i < len(self.prime_groups) - 1:
+                vc.memory_barrier()
+                vc.barrier()
 
 @lru_cache(maxsize=None)
 def make_fft_stage(
