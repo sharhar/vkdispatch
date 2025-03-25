@@ -436,6 +436,10 @@ class ShaderBuilder:
         new_var = self.make_var(arg1.var_type, f"vec2({arg1}.x * {arg2}.x - {arg1}.y * {arg2}.y, {arg1}.x * {arg2}.y + {arg1}.y * {arg2}.x)");
         return new_var
     
+    def mult_c64_by_const(self, arg1: ShaderVariable, number: complex):
+        new_var = self.make_var(arg1.var_type, f"vec2({arg1}.x * {number.real} - {arg1}.y * {number.imag}, {arg1}.x * {number.imag} + {arg1}.y * {number.real})");
+        return new_var
+    
     def mult_conj_c64(self, arg1: ShaderVariable, arg2: ShaderVariable):
         new_var = self.make_var(arg1.var_type, f"vec2({arg1}.x * {arg2}.x + {arg1}.y * {arg2}.y, {arg1}.y * {arg2}.x - {arg1}.x * {arg2}.y)");
         return new_var

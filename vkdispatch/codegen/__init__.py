@@ -28,7 +28,7 @@ from .global_builder import memory_barrier_shared, min, mix, mod
 from .global_builder import normalize, pow, radians, round, round_even
 from .global_builder import sign, sin, sinh, smoothstep, sqrt, step
 from .global_builder import tan, tanh, transpose, trunc, uint_bits_to_float
-from .global_builder import mult_c64, mult_conj_c64, complex_from_euler_angle
+from .global_builder import mult_c64, mult_conj_c64, complex_from_euler_angle, mult_c64_by_const
 
 from .global_builder import if_statement, if_any, if_all, else_statement
 from .global_builder import else_if_statement, else_if_any, else_if_all
