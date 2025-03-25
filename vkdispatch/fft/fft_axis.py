@@ -56,13 +56,12 @@ class FFTAxisPlanner:
         self.group_sizes = [int(np.prod(group)) for group in self.prime_groups]
         self.register_count = max(self.group_sizes)
 
-        print(self.prime_groups)
-        print(self.group_sizes)
-        print(self.register_count)
-
         #self.local_size = (max(1, N // register_count), 1, 1)
         self.local_size = (N // min(self.group_sizes), 1, 1)
 
+        print(self.prime_groups)
+        print(self.group_sizes)
+        print(self.register_count)
         print(self.local_size)
 
         if batch_input_stride is None:
@@ -130,7 +129,7 @@ class FFTAxisPlanner:
             register_list[i][:] = self.radix_registers[i]
 
     def apply_cooley_tukey_twiddle_factors(self, register_list: List[vc.ShaderVariable], twiddle_index: int = 0, twiddle_N: int = 1):
-        if twiddle_index == 0:
+        if isinstance(twiddle_index, int) and twiddle_index == 0:
             return
 
         for i in range(len(register_list)):
@@ -177,6 +176,8 @@ class FFTAxisPlanner:
         return register_list
 
     def process_prime_group(self, primes: List[int], output_stride: int, input = None, output = None):
+        do_memory_barrier = input is None and output is None
+
         input_offset = 0
         output_offset = 0
 
@@ -192,7 +193,6 @@ class FFTAxisPlanner:
 
         group_size = np.prod(primes)
 
-
         vc.comment(f"Processing prime group {primes} by doing radix-{group_size} FFT on {self.N // group_size} groups")
         vc.if_statement(self.tid < self.N // group_size)
 
@@ -207,7 +207,7 @@ class FFTAxisPlanner:
         self.apply_cooley_tukey_twiddle_factors(self.registers[:group_size], twiddle_index=inner_block_offset, twiddle_N=block_width)
         self.registers[:group_size] = self.register_radix_composite(self.registers[:group_size], primes)
 
-        if input is None and output is None:
+        if do_memory_barrier:
             vc.memory_barrier()
             vc.barrier()
 
