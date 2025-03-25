@@ -105,7 +105,7 @@ def stockham_shared_buffer(sdata: vc.Buffer[vc.c64], local_vars, output_offset: 
         sdata[output_offset + index*4 + i + N//2] = local_vars[i] - local_vars[i + 4]
 
 class FFTAxisPlanner:
-    def __init__(self, N: int, batch_input_stride: int = None, register_count: int = 32, name: str = None):
+    def __init__(self, N: int, batch_input_stride: int = None, register_count: int = 16, name: str = None):
         if name is None:
             name = f"fft_axis_{N}"
         
@@ -124,24 +124,22 @@ class FFTAxisPlanner:
 
         # Register allocation
         self.register_count = min(self.N, register_count)
-        self.registers = [None] * register_count
-        for i in range(register_count):
-            self.registers[i] = vc.new(c64, var_name=f"register_{i}")
+        self.registers = [None] * self.register_count
+        for i in range(self.register_count):
+            self.registers[i] = vc.new(c64, 0, var_name=f"register_{i}")
 
-        self.radix_2_even = vc.new(c64, var_name="radix_2_even")
-        self.radix_2_odd = vc.new(c64, var_name="radix_2_odd")
+        self.omega_register = vc.new(c64, 0, var_name="omega_register")
 
-        self.omega_register = vc.new(c64, var_name="omega_register")
-
-        self.radix_registers = [None] * register_count
-        for i in range(register_count):
-            self.radix_registers[i] = vc.new(c64, var_name=f"radix_{i}")
+        self.radix_registers = [None] * self.register_count
+        for i in range(self.register_count):
+            self.radix_registers[i] = vc.new(c64, 0, var_name=f"radix_{i}")
 
         # Local ID within the workgroup
         self.tid = vc.local_invocation().x.copy("tid")
 
         # Index offset of the current batch
-        self.batch_offset = (vc.workgroup().y * self.batch_input_stride).copy("batch_offset")
+        self.batch_id = vc.workgroup().y.copy("batch_id")
+        self.batch_offset = (self.batch_id * self.batch_input_stride).copy("batch_offset")
 
         self.plan()
 
@@ -149,32 +147,26 @@ class FFTAxisPlanner:
 
         self.description = self.builder.build(name)
 
-    def load_buffer_to_registers(self, buffer: Buff[c64], offset: Const[u32], stride: Const[u32], count: int = None, do_bit_reversal: bool = True):
+    def load_buffer_to_registers(self, buffer: Buff[c64], offset: Const[u32], stride: Const[u32], count: int = None):
         if count is None:
             count = self.register_count
 
         for i in range(count):
-            register_index = i
-
-            if do_bit_reversal:
-                register_index = reverse_bits(i, count)
-
-            self.registers[register_index][:] = buffer[i * stride + offset]
+            self.registers[i][:] = buffer[i * stride + offset]
 
     def store_registers_in_buffer(self, buffer: Buff[c64], offset: Const[u32], stride: Const[u32], count: int = None):
         if count is None:
             count = self.register_count
 
         for i in range(count):
-            register_index = i
-            buffer[i * stride + offset] = self.registers[register_index]
+            buffer[i * stride + offset] = self.registers[i]
     
     def radix_P(self, register_list: List[vc.ShaderVariable]):
         assert len(register_list) <= len(self.radix_registers), "Too many registers for radix_P"
 
         if len(register_list) == 1:
             return
-        
+
         for i in range(0, len(register_list)):
             self.radix_registers[i].x = 0
             self.radix_registers[i].y = 0
@@ -187,7 +179,7 @@ class FFTAxisPlanner:
                     self.omega_register[:] = vc.complex_from_euler_angle(self.omega_register.x)
                     self.omega_register[:] = vc.mult_c64(self.omega_register, register_list[j])
 
-                self.radix_registers[i][:] = self.radix_registers[i] + self.omega_register
+                self.radix_registers[i][:] = self.radix_registers[i]  + self.omega_register
 
         for i in range(0, len(register_list)):
             register_list[i][:] = self.radix_registers[i]
@@ -233,14 +225,18 @@ class FFTAxisPlanner:
         return register_list
 
     def plan(self):
-        sdata = vc.shared_buffer(vc.c64, self.N, "sdata")
+        #sdata = vc.shared_buffer(vc.c64, self.N, "sdata")
 
-        print(self.N, self.register_count)
+        self.load_buffer_to_registers(self.buffer, self.batch_offset + self.tid, self.N // self.register_count)
+        self.radix_composite(self.registers, prime_factors(self.N))
+        self.store_registers_in_buffer(self.buffer, self.batch_offset + self.tid * self.register_count, 1)
 
-        self.load_buffer_to_registers(self.buffer, self.batch_offset + self.tid, self.N // self.register_count, do_bit_reversal=False, count=self.N)
-
-        self.registers[:self.N] = self.radix_composite(self.registers[:self.N], prime_factors(self.N))
+        #self.registers = self.radix_composite(self.registers, prime_factors(self.N))
         
+        #for reg in self.registers:
+        #    reg.x = 1
+        #    reg.y = 0
+
         #self.radix_P(self.registers[:self.N])
         
         #self.store_registers_in_buffer(sdata, self.tid * self.register_count, 1)
@@ -271,7 +267,7 @@ class FFTAxisPlanner:
 
         #self.store_registers_in_buffer(self.buffer, self.batch_offset + self.tid, self.register_count)
 
-        self.store_registers_in_buffer(self.buffer, self.batch_offset + self.tid * self.register_count, 1, count=self.N)
+        #self.store_registers_in_buffer(self.buffer, self.batch_offset + self.tid * self.register_count, 1, count=self.N)
         
         #
 

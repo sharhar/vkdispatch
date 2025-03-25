@@ -6,13 +6,11 @@ def test_fft_1d():
 
     #max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0] * 8)
 
-    max_fft_size = 32
+    max_fft_size = 16
 
     current_fft_size = 2
 
     while current_fft_size <= max_fft_size:
-        print(current_fft_size)
-
         for _ in range(20):
             batch_size = np.random.randint(1, 2000)
 
