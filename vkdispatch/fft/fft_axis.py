@@ -59,11 +59,6 @@ class FFTAxisPlanner:
         #self.local_size = (max(1, N // register_count), 1, 1)
         self.local_size = (N // min(self.group_sizes), 1, 1)
 
-        print(self.prime_groups)
-        print(self.group_sizes)
-        print(self.register_count)
-        print(self.local_size)
-
         if batch_input_stride is None:
             self.batch_input_stride = N
 
@@ -207,9 +202,13 @@ class FFTAxisPlanner:
         self.apply_cooley_tukey_twiddle_factors(self.registers[:group_size], twiddle_index=inner_block_offset, twiddle_N=block_width)
         self.registers[:group_size] = self.register_radix_composite(self.registers[:group_size], primes)
 
+        vc.end()
+
         if do_memory_barrier:
             vc.memory_barrier()
             vc.barrier()
+
+        vc.if_statement(self.tid < self.N // group_size)
 
         self.store_registers_in_buffer(output, output_offset + sub_sequence_offset, output_stride, count=group_size)
 
