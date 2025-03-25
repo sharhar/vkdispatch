@@ -1,16 +1,17 @@
 import vkdispatch as vd
 import numpy as np
+import random
 
 def test_fft_1d():
-    #max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
-    #max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0] * 8)
-
-    max_fft_size = 16
+    max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0] * 2)
 
     current_fft_size = 2
 
     while current_fft_size <= max_fft_size:
+        print(current_fft_size)
+        
         for _ in range(20):
             batch_size = np.random.randint(1, 2000)
 
@@ -19,8 +20,10 @@ def test_fft_1d():
 
             vd.fft.fft(test_data)
 
-            print(data.shape)
+            #print(data.shape)
 
             assert np.allclose(np.fft.fft(data, axis=1), test_data.read(0), atol=1e-3)
 
-        current_fft_size += 1
+        current_fft_size *= random.choice([2, 3, 5, 7, 11, 13])
+    
+    #assert False

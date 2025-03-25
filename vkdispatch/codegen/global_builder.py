@@ -16,6 +16,9 @@ def set_global_builder(builder: ShaderBuilder):
     GlobalBuilder.obj = builder  # Update the global reference.
     return old_value
 
+def comment(text: str):
+    GlobalBuilder.obj.comment(text)
+
 def global_invocation():
     return GlobalBuilder.obj.global_invocation
 
