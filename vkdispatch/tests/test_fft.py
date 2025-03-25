@@ -7,23 +7,20 @@ def test_fft_1d():
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0] * 2)
 
-    current_fft_size = 2
+    for _ in range(50):
+        current_fft_size = 2
 
-    while current_fft_size <= max_fft_size:
-        print(current_fft_size)
-        
-        for _ in range(20):
-            batch_size = np.random.randint(1, 2000)
+        while current_fft_size <= max_fft_size:
+            print(current_fft_size)
+            
+            for _ in range(5):
+                batch_size = np.random.randint(1, 2000)
 
-            data = np.random.rand(batch_size, current_fft_size).astype(np.complex64)
-            test_data = vd.asbuffer(data)
+                data = np.random.rand(batch_size, current_fft_size).astype(np.complex64)
+                test_data = vd.asbuffer(data)
 
-            vd.fft.fft(test_data)
+                vd.fft.fft(test_data)
 
-            #print(data.shape)
+                assert np.allclose(np.fft.fft(data, axis=1), test_data.read(0), atol=1e-3)
 
-            assert np.allclose(np.fft.fft(data, axis=1), test_data.read(0), atol=1e-3)
-
-        current_fft_size *= random.choice([2, 3, 5, 7, 11, 13])
-    
-    #assert False
+            current_fft_size *= random.choice([2, 3, 5, 7, 11, 13])

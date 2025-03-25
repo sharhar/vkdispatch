@@ -5,28 +5,27 @@ from matplotlib import pyplot as plt
 
 vd.initialize(debug_mode=True)
 
-N = 2 * 13
-B = 1000
+N = 360
+B = 500
 
-signal = np.ones((B, N,), dtype=np.complex64)
+signal = np.zeros((B, N,), dtype=np.complex64)
 
+for i in range(B):
+    signal[i, i % 10] = 1
+    signal[i, (i // 10) % 10] = 1
+    signal[i, (i // (10 * 10)) % 10] = 1
 
-#for i in range(B):
-#    signal[i, i % N] = 0
-#    signal[i, (i // N) % N] = 0
-#    signal[i, (i // (N * N)) % N] = 0
-
-signal = (np.random.rand(B, N) + 1j * np.random.rand(B, N)).astype(np.complex64)
+#signal = (np.random.rand(B, N) + 1j * np.random.rand(B, N)).astype(np.complex64)
 
 signal_gpu = vd.asbuffer(signal)
 
-vd.fft.fft(signal_gpu, print_shader=True)
+vd.fft.fft(signal_gpu) #, print_shader=True)
 
 data = signal_gpu.read(0)
 reference_data = np.fft.fft(signal, axis=1)
 
-data = data #.reshape((-1, 8))
-reference_data = reference_data #.reshape((-1, 8))
+#data = data.reshape((-1, 13))
+#reference_data = reference_data.reshape((-1, 13))
 
 data = np.round(data, 3)
 reference_data = np.round(reference_data, 3)
@@ -36,6 +35,10 @@ print(reference_data)
 #print(data - reference_data)
 print(np.max(np.abs(data - reference_data)))
 
+#plt.imshow(np.abs(data - reference_data))
+plt.imshow(np.abs(data - reference_data))
+plt.colorbar()
+plt.show()
 
 print(np.allclose(data, reference_data, atol=1e-3))
 
