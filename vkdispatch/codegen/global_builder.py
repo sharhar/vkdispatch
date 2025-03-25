@@ -220,6 +220,9 @@ def uint_bits_to_float(arg: ShaderVariable):
 def mult_c64(arg1: ShaderVariable, arg2: ShaderVariable):
     return GlobalBuilder.obj.mult_c64(arg1, arg2)
 
+def mult_c64_by_const(arg1: ShaderVariable, number: complex):
+    return GlobalBuilder.obj.mult_c64_by_const(arg1, number)
+
 def mult_conj_c64(arg1: ShaderVariable, arg2: ShaderVariable):
     return GlobalBuilder.obj.mult_conj_c64(arg1, arg2)
 

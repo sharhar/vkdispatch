@@ -141,6 +141,8 @@ class FFTAxisPlanner:
         self.batch_id = vc.workgroup().y.copy("batch_id")
         self.batch_offset = (self.batch_id * self.batch_input_stride).copy("batch_offset")
 
+        self.sdata = vc.shared_buffer(vc.c64, self.N, "sdata")
+
         self.plan()
 
         vc.set_global_builder(old_builder)
@@ -173,21 +175,26 @@ class FFTAxisPlanner:
 
             for j in range(0, len(register_list)):
                 if i == 0 or j == 0:
-                    self.omega_register[:] = register_list[j]
-                else:
-                    self.omega_register.x = -2 * np.pi * i * j / len(register_list)
-                    self.omega_register[:] = vc.complex_from_euler_angle(self.omega_register.x)
-                    self.omega_register[:] = vc.mult_c64(self.omega_register, register_list[j])
+                    self.radix_registers[i] += register_list[j]
+                    continue
 
-                self.radix_registers[i][:] = self.radix_registers[i]  + self.omega_register
+                omega = np.exp(-2j * np.pi * i * j / len(register_list))
+                self.radix_registers[i] += vc.mult_c64_by_const(register_list[j], omega)
 
         for i in range(0, len(register_list)):
             register_list[i][:] = self.radix_registers[i]
 
     def apply_cooley_tukey_twiddle_factors(self, register_list: List[vc.ShaderVariable], twiddle_index: int = 0, twiddle_N: int = 1):
-        for i in range(len(register_list)):
-            self.omega_register.x = -2 * np.pi * i * twiddle_index / twiddle_N
+        if twiddle_index == 0:
+            return
 
+        for i in range(len(register_list)):
+            if isinstance(twiddle_index, int):
+                omega = np.exp( -2j * np.pi * i * twiddle_index / twiddle_N)
+                register_list[i][:] = vc.mult_c64_by_const(register_list[i], omega)
+                continue
+            
+            self.omega_register.x = -2 * np.pi * i * twiddle_index / twiddle_N
             self.omega_register[:] = vc.complex_from_euler_angle(self.omega_register.x)
             self.omega_register[:] = vc.mult_c64(self.omega_register, register_list[i])
 
@@ -225,17 +232,9 @@ class FFTAxisPlanner:
         return register_list
 
     def plan(self):
-        #sdata = vc.shared_buffer(vc.c64, self.N, "sdata")
-
         self.load_buffer_to_registers(self.buffer, self.batch_offset + self.tid, self.N // self.register_count)
         self.radix_composite(self.registers, prime_factors(self.N))
         self.store_registers_in_buffer(self.buffer, self.batch_offset + self.tid * self.register_count, 1)
-
-        #self.registers = self.radix_composite(self.registers, prime_factors(self.N))
-        
-        #for reg in self.registers:
-        #    reg.x = 1
-        #    reg.y = 0
 
         #self.radix_P(self.registers[:self.N])
         

@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 
 vd.initialize(debug_mode=True)
 
-N = 16
+N = 15
 B = 32
 
 signal = np.ones((B, N,), dtype=np.complex64)
@@ -19,7 +19,7 @@ for i in range(B):
 
 signal_gpu = vd.asbuffer(signal)
 
-vd.fft.fft(signal_gpu) #, print_shader=True)
+vd.fft.fft(signal_gpu, print_shader=True)
 
 data = signal_gpu.read(0)
 reference_data = np.fft.fft(signal, axis=1)
