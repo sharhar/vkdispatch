@@ -17,14 +17,14 @@ def pick_dimention(dims: int):
     return random.choice(list(range(dims)))
 
 def check_fft_dims(fft_dims: List[int], max_fft_size: int):
-    return all([dim <= max_fft_size for dim in fft_dims])
+    return all([dim <= max_fft_size for dim in fft_dims]) and np.prod(fft_dims) * vd.complex64.item_size < 2 * 30
 
 def test_fft_1d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(25):
+    for _ in range(100):
         dims = pick_dim_count()
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
