@@ -47,7 +47,7 @@ def group_primes(primes, register_count):
     return groups
 
 class FFTAxisPlanner:
-    def __init__(self, N: int, batch_input_stride: int = None, max_register_count: int = 16, name: str = None):
+    def __init__(self, N: int, batch_y_stride: int = None, batch_z_stride: int = None, fft_stride: int = None, max_register_count: int = 16, name: str = None):
         if name is None:
             name = f"fft_axis_{N}"
         
@@ -56,11 +56,9 @@ class FFTAxisPlanner:
         self.group_sizes = [int(np.prod(group)) for group in self.prime_groups]
         self.register_count = max(self.group_sizes)
 
-        #self.local_size = (max(1, N // register_count), 1, 1)
         self.local_size = (N // min(self.group_sizes), 1, 1)
-
-        if batch_input_stride is None:
-            self.batch_input_stride = N
+        
+        self.fft_stride = fft_stride if fft_stride is not None else 1
 
         self.builder = vc.ShaderBuilder(enable_exec_bounds=False)
         old_builder = vc.set_global_builder(self.builder)
@@ -68,6 +66,9 @@ class FFTAxisPlanner:
         self.signature = vd.ShaderSignature.from_type_annotations(self.builder, [Buff[c64]])
         self.buffer = self.signature.get_variables()[0]
 
+        self.batch_y_stride = batch_y_stride if batch_y_stride is not None else N
+        self.batch_z_stride = batch_z_stride if batch_z_stride is not None else 1
+        
         # Register allocation
         self.registers = [vc.new(c64, 0, var_name=f"register_{i}") for i in range(self.register_count)]
         self.radix_registers = [vc.new(c64, 0, var_name=f"radix_{i}") for i in range(self.register_count)]
@@ -77,8 +78,7 @@ class FFTAxisPlanner:
         self.tid = vc.local_invocation().x.copy("tid")
 
         # Index offset of the current batch
-        self.batch_id = vc.workgroup().y.copy("batch_id")
-        self.batch_offset = (self.batch_id * self.batch_input_stride).copy("batch_offset")
+        self.batch_offset = (vc.workgroup().y * self.batch_y_stride + vc.workgroup().z * self.batch_z_stride).copy("batch_offset")
 
         self.sdata = vc.shared_buffer(vc.c64, self.N, "sdata")
 
@@ -92,21 +92,43 @@ class FFTAxisPlanner:
         if count is None:
             count = self.register_count
 
+        batch_offset = self.batch_offset
+        fft_stride = self.fft_stride
+
+        if buffer is None:
+            buffer = self.sdata
+            batch_offset = 0
+            fft_stride = 1
+
+        vc.comment(f"Loading {count} registers from buffer at offset {offset} and stride {stride}")
+
         for i in range(count):
-            self.registers[i][:] = buffer[i * stride + offset]
+            self.registers[i][:] = buffer[(i * stride + offset) * fft_stride  + batch_offset]
 
     def store_registers_in_buffer(self, buffer: Buff[c64], offset: Const[u32], stride: Const[u32], count: int = None):
         if count is None:
             count = self.register_count
 
+        batch_offset = self.batch_offset
+        fft_stride = self.fft_stride
+
+        if buffer is None:
+            buffer = self.sdata
+            batch_offset = 0
+            fft_stride = 1
+
+        vc.comment(f"Storing {count} registers to buffer at offset {offset} and stride {stride}")
+
         for i in range(count):
-            buffer[i * stride + offset] = self.registers[i]
+            buffer[(i * stride + offset) * fft_stride + batch_offset] = self.registers[i]
     
     def radix_P(self, register_list: List[vc.ShaderVariable]):
         assert len(register_list) <= len(self.radix_registers), "Too many registers for radix_P"
 
         if len(register_list) == 1:
             return
+
+        vc.comment(f"Performing a DFT for Radix-{len(register_list)} FFT")
 
         for i in range(0, len(register_list)):
             self.radix_registers[i].x = 0
@@ -127,6 +149,8 @@ class FFTAxisPlanner:
         if isinstance(twiddle_index, int) and twiddle_index == 0:
             return
 
+        vc.comment(f"Applying Cooley-Tukey twiddle factors for twiddle index {twiddle_index} and twiddle N {twiddle_N}")
+
         for i in range(len(register_list)):
             if isinstance(twiddle_index, int):
                 omega = np.exp( -2j * np.pi * i * twiddle_index / twiddle_N)
@@ -146,6 +170,8 @@ class FFTAxisPlanner:
         N = len(register_list)
 
         assert N == np.prod(primes), "Product of primes must be equal to the number of registers"
+
+        vc.comment(f"Performing a Radix-{primes} FFT on {N} registers")
 
         output_stride = 1
 
@@ -171,21 +197,6 @@ class FFTAxisPlanner:
         return register_list
 
     def process_prime_group(self, primes: List[int], output_stride: int, input = None, output = None):
-        do_memory_barrier = input is None and output is None
-
-        input_offset = 0
-        output_offset = 0
-
-        if input is None:
-            input = self.sdata
-        else:
-            input_offset = self.batch_offset
-
-        if output is None:
-            output = self.sdata
-        else:
-            output_offset = self.batch_offset
-
         group_size = np.prod(primes)
 
         vc.comment(f"Processing prime group {primes} by doing radix-{group_size} FFT on {self.N // group_size} groups")
@@ -197,25 +208,24 @@ class FFTAxisPlanner:
         block_index = (self.tid * group_size) / block_width
         sub_sequence_offset = block_index * block_width + inner_block_offset
         
-        self.load_buffer_to_registers(input, input_offset + self.tid, self.N // group_size, count=group_size)
+        self.load_buffer_to_registers(input, self.tid, self.N // group_size, count=group_size)
         
         self.apply_cooley_tukey_twiddle_factors(self.registers[:group_size], twiddle_index=inner_block_offset, twiddle_N=block_width)
         self.registers[:group_size] = self.register_radix_composite(self.registers[:group_size], primes)
 
         vc.end()
 
-        if do_memory_barrier:
+        if input is None and output is None:
             vc.memory_barrier()
             vc.barrier()
 
         vc.if_statement(self.tid < self.N // group_size)
 
-        self.store_registers_in_buffer(output, output_offset + sub_sequence_offset, output_stride, count=group_size)
+        self.store_registers_in_buffer(output, sub_sequence_offset, output_stride, count=group_size)
 
         vc.end()
 
     def plan(self):
-
         output_stride = 1
 
         for i in range(len(self.prime_groups)):
@@ -235,13 +245,24 @@ class FFTAxisPlanner:
 def make_fft_stage(
         N: int, 
         stride: int = 1,
-        #batch_input_stride: int = None,
-        #batch_output_stride: int = None,
+        batch_y_stride: int = None,
+        batch_z_stride: int = None,
         name: str = None):
-    
-    #assert N & (N-1) == 0, "Input length must be a power of 2"
-    assert stride == 1, "Only stride 1 is supported for now"
 
-    axis_planner = FFTAxisPlanner(N, name=name)
+    axis_planner = FFTAxisPlanner(
+        N, 
+        name=name, 
+        batch_y_stride=batch_y_stride,
+        batch_z_stride=batch_z_stride,
+        fft_stride=stride)
 
-    return vd.ShaderObject(name, axis_planner.description, axis_planner.signature, local_size=axis_planner.local_size)
+    return vd.ShaderObject(axis_planner.description, axis_planner.signature, local_size=axis_planner.local_size)
+
+def get_cache_info():
+    return make_fft_stage.cache_info()
+
+def print_cache_info():
+    print(get_cache_info())
+
+def cache_clear():
+    return make_fft_stage.cache_clear()

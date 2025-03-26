@@ -3,17 +3,30 @@ import numpy as np
 
 from .fft_axis import make_fft_stage
 
-def fft(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
-    fft_length = buffer.shape[len(buffer.shape) - 1]
+def fft(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False, axis: int = None, name: str = None):
+    if axis is None:
+        axis = len(buffer.shape) - 1
+
+    total_buffer_length = np.round(np.prod(buffer.shape)).astype(np.int32)
+
+    fft_length = buffer.shape[axis]
+
+    stride = np.round(np.prod(buffer.shape[axis + 1:])).astype(np.int32)
+    batch_y_stride = stride * fft_length
+    batch_y_count = total_buffer_length // batch_y_stride
+
+    batch_z_stride = 1
+    batch_z_count = stride
 
     fft_stage = make_fft_stage(
         N=fft_length,
-        stride=1
+        stride=stride,
+        batch_y_stride=batch_y_stride,
+        batch_z_stride=batch_z_stride,
+        name=name
     )
 
     if print_shader:
         print(fft_stage)
 
-    batch_count = np.round(np.prod(buffer.shape[:len(buffer.shape) - 1])).astype(np.int32)
-
-    fft_stage(buffer, cmd_stream=cmd_stream, exec_size=(fft_stage.local_size[0], batch_count, 1))
+    fft_stage(buffer, cmd_stream=cmd_stream, exec_size=(fft_stage.local_size[0], batch_y_count, batch_z_count))

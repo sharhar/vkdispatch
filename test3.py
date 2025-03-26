@@ -4,11 +4,11 @@ import tqdm
 import time
 
 batch_count = 1000
-batch_size = 20
+batch_size = 200
 
-N = 8 * 15 * 11 * 3
+N = 4096
 
-buffer = vd.Buffer((N, N), vd.complex64)
+buffer = vd.Buffer((200, N), vd.complex64)
 
 cmd_stream_fft = vd.CommandStream()
 

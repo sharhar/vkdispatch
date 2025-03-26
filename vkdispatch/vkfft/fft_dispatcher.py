@@ -245,10 +245,10 @@ def convolve_2Dreal(
     )
 
 def create_kernel_2Dreal(
-        kernel: "RFFTBuffer",
+        kernel: vd.RFFTBuffer,
         shape: Tuple[int, ...] = None,
         feature_count: int = 1,
-        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None) -> "RFFTBuffer":
+        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None) -> vd.RFFTBuffer:
     
     if shape is None:
         shape = kernel.shape

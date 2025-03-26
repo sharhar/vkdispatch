@@ -33,7 +33,6 @@ def shader(exec_size=None, local_size=None, workgroups=None):
         vc.set_global_builder(old_builder)
 
         return vd.ShaderObject(
-            shader_name, 
             builder.build(shader_name), 
             signature,
             local_size=local_size,

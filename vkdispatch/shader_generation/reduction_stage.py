@@ -164,4 +164,4 @@ def make_reduction_stage(
 
     vc.set_global_builder(old_builder)
 
-    return vd.ShaderObject(name, builder.build(name), signature, local_size=(group_size, 1, 1))
+    return vd.ShaderObject(builder.build(name), signature, local_size=(group_size, 1, 1))
