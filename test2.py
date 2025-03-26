@@ -5,33 +5,41 @@ from matplotlib import pyplot as plt
 
 vd.initialize(debug_mode=True)
 
-N = 360
-B = 500
+N = 10
+B = 50
+A = 168
 
-signal = np.zeros((B, N,), dtype=np.complex64)
+signal = np.zeros((A, B, N,), dtype=np.complex64)
 
-for i in range(B):
-    signal[i, i % 10] = 1
-    signal[i, (i // 10) % 10] = 1
-    signal[i, (i // (10 * 10)) % 10] = 1
+#for i in range(B):
+#    signal[i, i % 10] = 1
+#    signal[i, (i // 10) % 10] = 1
+#    signal[i, (i // (10 * 10)) % 10] = 1
 
-#signal = (np.random.rand(B, N) + 1j * np.random.rand(B, N)).astype(np.complex64)
+signal = (np.random.rand(A, B, N) + 1j * np.random.rand(A, B, N)).astype(np.complex64)
 
 signal_gpu = vd.asbuffer(signal)
+signal_gpu2 = vd.asbuffer(signal)
 
-vd.fft.fft(signal_gpu) #, print_shader=True)
+axis = 1
 
-data = signal_gpu.read(0)
-reference_data = np.fft.fft(signal, axis=1)
+vd.fft.fft(signal_gpu, axis=axis) #, print_shader=True)
+
+vd.vkfft.fft(signal_gpu2, axes=[axis]) #, print_shader=True)
+
+data = signal_gpu.read(0).reshape((-1, B * N))
+
+reference_data = signal_gpu2.read(0).reshape((-1, B * N))
+#reference_data = np.fft.fft(signal, axis=axis)
 
 #data = data.reshape((-1, 13))
 #reference_data = reference_data.reshape((-1, 13))
 
-data = np.round(data, 3)
-reference_data = np.round(reference_data, 3)
+#data = np.round(data, 3)
+#reference_data = np.round(reference_data, 3)
 
-print(data)
-print(reference_data)
+#print(data)
+#print(reference_data)
 #print(data - reference_data)
 print(np.max(np.abs(data - reference_data)))
 

@@ -2,25 +2,41 @@ import vkdispatch as vd
 import numpy as np
 import random
 
+from typing import List
+
+def pick_radix_prime():
+    return random.choice([2, 3, 5, 7, 11, 13])
+
+def pick_dim_count():
+    return random.choice([1, 2, 3])
+
+def pick_dimention(dims: int):
+    if dims == 1:
+        return 0
+
+    return random.choice(list(range(dims)))
+
+def check_fft_dims(fft_dims: List[int], max_fft_size: int):
+    return all([dim <= max_fft_size for dim in fft_dims])
+
 def test_fft_1d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
-    max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0] * 2)
+    max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(50):
-        current_fft_size = 2
+    for _ in range(25):
+        dims = pick_dim_count()
+        current_shape = [pick_radix_prime() for _ in range(dims)]
 
-        while current_fft_size <= max_fft_size:
-            print(current_fft_size)
-            
-            for _ in range(5):
-                batch_size = np.random.randint(1, 2000)
+        while check_fft_dims(current_shape, max_fft_size):
+            data = np.random.rand(*current_shape).astype(np.complex64)
+            test_data = vd.Buffer(data.shape, vd.complex64)
 
-                data = np.random.rand(batch_size, current_fft_size).astype(np.complex64)
-                test_data = vd.asbuffer(data)
+            for axis in range(dims):
+                test_data.write(data)
 
-                vd.fft.fft(test_data)
+                vd.fft.fft(test_data, axis=axis)
 
-                assert np.allclose(np.fft.fft(data, axis=1), test_data.read(0), atol=1e-3)
+                assert np.allclose(np.fft.fft(data, axis=axis), test_data.read(0), atol=1e-3)
 
-            current_fft_size *= random.choice([2, 3, 5, 7, 11, 13])
+            current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])

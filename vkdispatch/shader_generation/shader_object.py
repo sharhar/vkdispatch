@@ -122,7 +122,6 @@ class ExectionBounds:
         return (my_blocks, my_limits)
 
 class ShaderObject:
-    name: str
     plan: vd.ComputePlan
     shader_description: vc.ShaderDescription
     shader_signature: vd.ShaderSignature
@@ -130,8 +129,7 @@ class ShaderObject:
     ready: bool
     source: str
 
-    def __init__(self, name: str, description: vc.ShaderDescription, signature: vd.ShaderSignature, local_size=None, workgroups=None, exec_count=None) -> None:
-        self.name = name 
+    def __init__(self, description: vc.ShaderDescription, signature: vd.ShaderSignature, local_size=None, workgroups=None, exec_count=None) -> None:
         self.plan = None
         self.shader_description = description
         self.shader_signature = signature
