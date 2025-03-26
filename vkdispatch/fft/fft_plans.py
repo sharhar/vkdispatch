@@ -30,3 +30,16 @@ def fft(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bo
         print(fft_stage)
 
     fft_stage(buffer, cmd_stream=cmd_stream, exec_size=(fft_stage.local_size[0], batch_y_count, batch_z_count))
+
+def fft2(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+    assert len(buffer.shape) == 2 or len(buffer.shape) == 3, 'Buffer must have 2 or 3 dimensions'
+
+    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=len(buffer.shape) - 2)
+    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=len(buffer.shape) - 1)
+
+def fft3(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+    assert len(buffer.shape) == 3, 'Buffer must have 3 dimensions'
+
+    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=0)
+    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=1)
+    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=2)
