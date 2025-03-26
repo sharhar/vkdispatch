@@ -8,51 +8,15 @@ from functools import lru_cache
 
 import numpy as np
 
-def prime_factors(n):
-    factors = []
-    
-    # Handle the factor 2 separately
-    while n % 2 == 0:
-        factors.append(2)
-        n //= 2
-        
-    # Now handle odd factors
-    factor = 3
-    while factor * factor <= n:
-        while n % factor == 0:
-            factors.append(factor)
-            n //= factor
-        factor += 2
-        
-    # If at the end, n is greater than 1, it is a prime number itself
-    if n > 1:
-        factors.append(n)
-        
-    return factors
-
-def group_primes(primes, register_count):
-    groups: List[List] = []
-
-    for prime in primes:
-        if len(groups) == 0:
-            groups.append([prime])
-            continue
-
-        if np.prod(groups[-1]) * prime <= register_count:
-            groups[-1].append(prime)
-            continue
-
-        groups.append([prime])
-
-    return groups
+from .prime_utils import prime_factors, group_primes
 
 class FFTAxisPlanner:
-    def __init__(self, N: int, batch_y_stride: int = None, batch_z_stride: int = None, fft_stride: int = None, max_register_count: int = 16, name: str = None):
+    def __init__(self, N: int, batch_y_stride: int = None, batch_z_stride: int = None, fft_stride: int = None, max_register_count: int = None, name: str = None):
         if name is None:
             name = f"fft_axis_{N}"
         
         self.N = N
-        self.prime_groups = group_primes(prime_factors(N), max_register_count)
+        self.prime_groups = group_primes(prime_factors(N), max_register_count if max_register_count is not None else 16)
         self.group_sizes = [int(np.prod(group)) for group in self.prime_groups]
         self.register_count = max(self.group_sizes)
 
@@ -247,14 +211,16 @@ def make_fft_stage(
         stride: int = 1,
         batch_y_stride: int = None,
         batch_z_stride: int = None,
-        name: str = None):
+        name: str = None,
+        max_register_count: int = None) -> vd.ShaderObject:
 
     axis_planner = FFTAxisPlanner(
         N, 
         name=name, 
         batch_y_stride=batch_y_stride,
         batch_z_stride=batch_z_stride,
-        fft_stride=stride)
+        fft_stride=stride,
+        max_register_count=max_register_count)
 
     return vd.ShaderObject(axis_planner.description, axis_planner.signature, local_size=axis_planner.local_size)
 
