@@ -20,14 +20,17 @@ signal = (np.random.rand(B, N) + 1j * np.random.rand(B, N)).astype(np.complex64)
 signal_gpu = vd.asbuffer(signal)
 signal_gpu2 = vd.asbuffer(signal)
 
-vd.fft.fft2(signal_gpu)
+vd.fft.fft2(signal_gpu, print_shader=True)
 
 #vd.vkfft.fft(signal_gpu2) #, print_shader=True)
 
-data = signal_gpu.read(0)
+data = np.array(signal_gpu.read(0))
+
+data[0, 0] = 0
 
 #reference_data = signal_gpu2.read(0)
 reference_data = np.fft.fft2(signal)
+reference_data[0, 0] = 0
 
 #data = data.reshape((-1, 13))
 #reference_data = reference_data.reshape((-1, 13))
@@ -49,6 +52,7 @@ print(diff_arr[index_2d], np.abs(reference_data)[index_2d])
 
 #plt.imshow(np.abs(data - reference_data))
 plt.imshow(np.abs(data - reference_data))
+#plt.imshow(np.abs(data))
 plt.colorbar()
 plt.show()
 

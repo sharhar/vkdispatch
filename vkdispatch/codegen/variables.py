@@ -8,6 +8,11 @@ import numpy as np
 
 import vkdispatch as vd
 
+ENABLE_SCALED_AND_OFFSET_INT = True
+
+def do_scaled_int_check(other):
+    return ENABLE_SCALED_AND_OFFSET_INT and (isinstance(other, int) or np.issubdtype(type(other), np.integer))
+
 class BaseVariable:
     append_func: Callable[[str], None]
     name_func: Callable[[str], str]
@@ -131,6 +136,9 @@ class ShaderVariable(BaseVariable):
 
     def new(self, var_type: vd.dtype, name: str = None):
         return ShaderVariable(self.append_func, self.name_func, var_type, name)
+    
+    def new_scaled_and_offset_int(self, var_type: vd.dtype, name: str = None):
+        return ScaledAndOfftsetIntVariable(self.append_func, self.name_func, var_type, name)
 
     def copy(self, var_name: str = None):
         """Create a new variable with the same value as the current variable."""
@@ -219,12 +227,24 @@ class ShaderVariable(BaseVariable):
         return self.new(vd.int32, f"({self} >= {other})")
 
     def __add__(self, other):
+        if do_scaled_int_check(other):
+            result = self.new_scaled_and_offset_int(self.var_type, f"{self}")
+            return result.__add__(other)
+
         return self.new(self.var_type, f"({self} + {other})")
 
     def __sub__(self, other):
+        if do_scaled_int_check(other):
+            result = self.new_scaled_and_offset_int(self.var_type, f"{self}")
+            return result.__sub__(other)
+        
         return self.new(self.var_type, f"({self} - {other})")
 
     def __mul__(self, other):
+        if do_scaled_int_check(other):
+            result = self.new_scaled_and_offset_int(self.var_type, f"{self}")
+            return result.__mul__(other)
+
         return_var_type = self.var_type
 
         if (self.var_type.dimentions == 2
@@ -270,12 +290,24 @@ class ShaderVariable(BaseVariable):
         return self.new(self.var_type, f"({self} | {other})")
 
     def __radd__(self, other):
+        if do_scaled_int_check(other):
+            result = self.new_scaled_and_offset_int(self.var_type, f"{self}")
+            return result.__radd__(other)
+
         return self.new(self.var_type, f"({other} + {self})")
 
     def __rsub__(self, other):
+        if do_scaled_int_check(other):
+            result = self.new_scaled_and_offset_int(self.var_type, f"{self}")
+            return result.__rsub__(other)
+
         return self.new(self.var_type, f"({other} - {self})")
 
     def __rmul__(self, other):
+        if do_scaled_int_check(other):
+            result = self.new_scaled_and_offset_int(self.var_type, f"{self}")
+            return result.__rmul__(other)
+
         return self.new(self.var_type, f"({other} * {self})")
 
     def __rtruediv__(self, other):
@@ -346,6 +378,76 @@ class ShaderVariable(BaseVariable):
     def __ior__(self, other):
         self.append_func(f"{self} |= {other};\n")
         return self
+
+class ScaledAndOfftsetIntVariable(ShaderVariable):
+    def __init__(self, 
+                 append_func: Callable[[str], None], 
+                 name_func: Callable[[str], Tuple[str, str]], 
+                 var_type: vd.dtype, 
+                 name: Optional[str] = None,
+                 scale: int = 1,
+                 offset: int = 0
+        ) -> None:
+        super().__init__(append_func, name_func, var_type, name)
+
+        self.base_name = str(name)
+        self.scale = scale
+        self.offset = offset
+    
+    def new_from_self(self, scale: int = 1, offset: int = 0):
+        return ScaledAndOfftsetIntVariable(
+            self.append_func,
+            self.name_func,
+            self.var_type,
+            f"{self.name}",
+            scale=self.scale * scale,
+            offset=offset + self.offset * scale
+        )
+
+    def __repr__(self) -> str:
+        scale_str = f" * {self.scale}" if self.scale != 1 else ""
+        offset_str = f" + {self.offset}" if self.offset != 0 else ""
+
+        if scale_str == "" and offset_str == "":
+            return self.base_name
+
+        return f"({self.base_name}{scale_str}{offset_str})"
+
+    def __add__(self, other):
+        if isinstance(other, BaseVariable):
+            return super().__add__(other)
+
+        return self.new_from_self(offset=other)
+
+    def __sub__(self, other):
+        if isinstance(other, BaseVariable):
+            return super().__sub__(other)
+
+        return self.new_from_self(offset=-other)
+
+    def __mul__(self, other):
+        if isinstance(other, BaseVariable):
+            return super().__mul__(other)
+
+        return self.new_from_self(scale=other)
+    
+    def __radd__(self, other):
+        if isinstance(other, BaseVariable):
+            return super().__radd__(other)
+
+        return self.new_from_self(offset=other)
+
+    def __rsub__(self, other):
+        if isinstance(other, BaseVariable):
+            return super().__rsub__(other)
+
+        return self.new_from_self(offset=other, scale=-1)
+
+    def __rmul__(self, other):
+        if isinstance(other, BaseVariable):
+            return super().__rmul__(other)
+
+        return self.new_from_self(scale=other)
 
 class BoundVariable(ShaderVariable):
     binding: int = -1
