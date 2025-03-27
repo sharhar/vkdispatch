@@ -1,6 +1,8 @@
 import numpy as np
 from typing import List
 
+DEFAULT_REGISTER_LIMIT = 15
+
 def prime_factors(n):
     factors = []
     
@@ -39,7 +41,7 @@ def group_primes(primes, register_count):
 
     return groups
 
-def pad_dim(dim: int, max_register_count: int = 16):
+def pad_dim(dim: int, max_register_count: int = DEFAULT_REGISTER_LIMIT):
     assert dim > 0, 'Dimension must be greater than 0'
 
     current_dim = dim

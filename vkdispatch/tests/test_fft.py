@@ -29,6 +29,8 @@ def test_fft_1d():
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
         while check_fft_dims(current_shape, max_fft_size):
+            print(current_shape)
+
             data = np.random.rand(*current_shape).astype(np.complex64)
             test_data = vd.Buffer(data.shape, vd.complex64)
 

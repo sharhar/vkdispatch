@@ -31,6 +31,7 @@ class FFTConfig:
     convolution_features: int = 1
     num_batches: int = 1
     single_kernel_multiple_batches: bool = False
+    keep_shader_code: bool = False
 
 def sanitize_input_tuple(input: Tuple) -> Tuple:
     if input is None:
@@ -68,7 +69,8 @@ def execute_fft_plan(
             kernel_convolution=config.kernel_convolution,
             conjugate_convolution=config.conjugate_convolution,
             convolution_features=config.convolution_features,
-            num_batches=config.num_batches
+            num_batches=config.num_batches,
+            keep_shader_code=config.keep_shader_code
         )
     
     plan = __fft_plans[config]
@@ -84,7 +86,8 @@ def fft(
         axes: List[int] = None,
         padding: List[Tuple[int, int]] = None, 
         pad_frequency_domain: bool = False,
-        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None):
+        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None,
+        keep_shader_code: bool = False):
     
     execute_fft_plan(
         buffer,
@@ -97,7 +100,8 @@ def fft(
             padding=sanitize_input_tuple(padding),
             pad_freq_domain=pad_frequency_domain,
             input_shape=sanitize_input_tuple(input.shape if input is not None else None),
-            input_type=input.var_type if input is not None else None
+            input_type=input.var_type if input is not None else None,
+            keep_shader_code=keep_shader_code
         ),
         input=input
     )
@@ -111,7 +115,8 @@ def ifft(
         normalize: bool = False,
         padding: List[Tuple[int, int]] = None, 
         pad_frequency_domain: bool = False,
-        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None):
+        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None,\
+        keep_shader_code: bool = False):
     #execute_fft_plan(buffer, buffer.shape, axes, cmd_stream, False, True, padding, pad_frequency_domain, normalize)
 
     execute_fft_plan(
@@ -126,7 +131,8 @@ def ifft(
             padding=sanitize_input_tuple(padding),
             pad_freq_domain=pad_frequency_domain,
             input_shape=sanitize_input_tuple(input.shape if input is not None else None),
-            input_type=input.var_type if input is not None else None
+            input_type=input.var_type if input is not None else None,
+            keep_shader_code=keep_shader_code
         ),
         input=input
         )
@@ -137,7 +143,8 @@ def rfft(
         axes: List[int] = None,
         padding: List[Tuple[int, int]] = None, 
         pad_frequency_domain: bool = False,
-        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None):
+        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None,
+        keep_shader_code: bool = False):
     assert buffer.shape[-1] > 2, "Buffer shape must have at least 3 elements in the last dimension"
 
     #execute_fft_plan(buffer, buffer.shape[:-1] + (buffer.shape[-1] - 2,), axes, cmd_stream, True, False, padding, pad_frequency_domain)
@@ -153,7 +160,8 @@ def rfft(
             padding=sanitize_input_tuple(padding),
             pad_freq_domain=pad_frequency_domain,
             input_shape=sanitize_input_tuple(input.shape if input is not None else None),
-            input_type=input.var_type if input is not None else None
+            input_type=input.var_type if input is not None else None,
+            keep_shader_code=keep_shader_code
         ),
         input=input
     )
@@ -165,7 +173,8 @@ def irfft(
         normalize: bool = False,
         padding: List[Tuple[int, int]] = None, 
         pad_frequency_domain: bool = False,
-        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None):
+        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None,
+        keep_shader_code: bool = False):
     assert buffer.shape[-1] > 2, "Buffer shape must have at least 3 elements in the last dimension"
 
     #execute_fft_plan(buffer, buffer.shape[:-1] + (buffer.shape[-1] - 2,), axes, cmd_stream, True, True, padding, pad_frequency_domain, normalize)
@@ -182,7 +191,8 @@ def irfft(
             padding=sanitize_input_tuple(padding),
             pad_freq_domain=pad_frequency_domain,
             input_shape=sanitize_input_tuple(input.shape if input is not None else None),
-            input_type=input.var_type if input is not None else None
+            input_type=input.var_type if input is not None else None,
+            keep_shader_code=keep_shader_code
         ),
         input=input
     )
@@ -206,7 +216,8 @@ def convolve_2Dreal(
         input: Union[vd.Buffer[vd.float32], vd.RFFTBuffer] = None,
         normalize: bool = False,
         conjugate_kernel: bool = False,
-        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None):
+        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None,
+        keep_shader_code: bool = False):
 
     buffer_shape = sanitize_2d_convolution_buffer_shape(buffer)
     kernel_shape = sanitize_2d_convolution_buffer_shape(kernel)
@@ -238,7 +249,8 @@ def convolve_2Dreal(
             conjugate_convolution=conjugate_kernel,
             input_shape=sanitize_input_tuple(input.shape if input is not None else None),
             input_type=input.var_type if input is not None else None,
-            convolution_features=feature_count
+            convolution_features=feature_count,
+            keep_shader_code=keep_shader_code
         ),
         kernel=kernel,
         input=input
@@ -248,7 +260,8 @@ def create_kernel_2Dreal(
         kernel: vd.RFFTBuffer,
         shape: Tuple[int, ...] = None,
         feature_count: int = 1,
-        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None) -> vd.RFFTBuffer:
+        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None,
+        keep_shader_code: bool = False) -> vd.RFFTBuffer:
     
     if shape is None:
         shape = kernel.shape
@@ -268,6 +281,7 @@ def create_kernel_2Dreal(
             kernel_convolution=True,
             convolution_features=feature_count,
             num_batches=shape[0] // feature_count,
+            keep_shader_code=keep_shader_code
         )
     )
 

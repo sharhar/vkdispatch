@@ -35,7 +35,8 @@ struct FFTPlan* stage_fft_plan_create_extern(
     int convolution_features,
     unsigned long long input_buffer_size,
     int num_batches,
-    int single_kernel_multiple_batches);
+    int single_kernel_multiple_batches,
+    int keep_shader_code);
 
 void stage_fft_record_extern(
     struct CommandList* command_list, 
@@ -44,5 +45,7 @@ void stage_fft_record_extern(
     int inverse, 
     struct Buffer* kernel,
     struct Buffer* input_buffer);
+
+const char* stage_fft_axis_code(struct FFTPlan* plan, int axis);
 
 #endif // _STAGE_FFT_H_
