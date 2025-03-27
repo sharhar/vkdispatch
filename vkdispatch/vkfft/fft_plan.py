@@ -22,7 +22,8 @@ class VkFFTPlan:
                  conjugate_convolution: bool = False,
                  convolution_features: int = 0,
                  num_batches: int = 1,
-                 single_kernel_multiple_batches: bool = False):
+                 single_kernel_multiple_batches: bool = False,
+                 keep_shader_code: bool = False):
         assert len(shape) > 0 and len(shape) < 4, "shape must be 1D, 2D, or 3D"
 
         self.shape = shape
@@ -74,7 +75,8 @@ class VkFFTPlan:
             convolution_features,
             input_size,
             num_batches,
-            single_kernel_multiple_batches
+            single_kernel_multiple_batches,
+            keep_shader_code
         )
         vd.check_for_errors()
 

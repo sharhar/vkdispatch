@@ -67,7 +67,8 @@ struct FFTPlan* stage_fft_plan_create_extern(
     int convolution_features,
     unsigned long long input_buffer_size,
     int num_batches,
-    int single_kernel_multiple_batches) {
+    int single_kernel_multiple_batches,
+    int keep_shader_code) {
     LOG_INFO("Creating FFT plan with handle %p", ctx);
     
     struct FFTPlan* plan = new struct FFTPlan();
@@ -102,7 +103,8 @@ struct FFTPlan* stage_fft_plan_create_extern(
         convolution_features,
         input_buffer_size,
         num_batches,
-        single_kernel_multiple_batches]
+        single_kernel_multiple_batches,
+        keep_shader_code]
         (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
             LOG_VERBOSE("Initializing FFT on device %d, stream %d, recorder %d", device_index, stream_index, recorder_index);
 
@@ -131,7 +133,7 @@ struct FFTPlan* stage_fft_plan_create_extern(
             config.fft_zeropad_right[1] = pad_right_cols;
             config.fft_zeropad_right[2] = pad_right_depth;
 
-            //config.keepShaderCode = 1;
+            config.keepShaderCode = keep_shader_code;
 
             config.inputBufferSize = (uint64_t*)malloc(sizeof(uint64_t));
             *config.inputBufferSize = input_buffer_size;
@@ -269,4 +271,8 @@ void stage_fft_record_extern(
             }
         }
     );
+}
+
+const char* stage_fft_axis_code(struct FFTPlan* plan, int axis) {
+    return NULL;
 }

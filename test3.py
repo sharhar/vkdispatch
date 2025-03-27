@@ -8,17 +8,19 @@ batch_size = 400
 
 vd.initialize(debug_mode=True)
 
-buffer = vd.Buffer((2 ** 9, 2 ** 9), vd.complex64)
+#buffer = vd.Buffer((2 ** 9, 2 ** 9), vd.complex64)
+buffer = vd.Buffer((650, 169), vd.complex64)
+#buffer = vd.Buffer((30, 30), vd.complex64)
 
 cmd_stream_fft = vd.CommandStream()
 
-vd.fft.fft(buffer, axis=1, cmd_stream=cmd_stream_fft, print_shader=True)
-#vd.fft.fft2(buffer, cmd_stream=cmd_stream_fft, print_shader=True)
+#vd.fft.fft(buffer, axis=0, cmd_stream=cmd_stream_fft, print_shader=True)
+vd.fft.fft2(buffer, cmd_stream=cmd_stream_fft) #, print_shader=True)
 
 cmd_stream_vkfft = vd.CommandStream()
 
-vd.vkfft.fft(buffer, axes=[1], cmd_stream=cmd_stream_vkfft)
-#vd.vkfft.fft(buffer, cmd_stream=cmd_stream_vkfft)
+#vd.vkfft.fft(buffer, axes=[0], cmd_stream=cmd_stream_vkfft)
+vd.vkfft.fft(buffer, cmd_stream=cmd_stream_vkfft)
 
 buffer.read()
 

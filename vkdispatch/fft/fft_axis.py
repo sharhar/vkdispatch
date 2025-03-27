@@ -7,9 +7,7 @@ from typing import List, Tuple
 from functools import lru_cache
 import numpy as np
 
-from .prime_utils import prime_factors, group_primes
-
-DEFAULT_REGISTER_LIMIT = 16
+from .prime_utils import prime_factors, group_primes, DEFAULT_REGISTER_LIMIT
 
 @dataclasses.dataclass
 class FFTRegisterStageConfig:
@@ -17,12 +15,24 @@ class FFTRegisterStageConfig:
     fft_length: int
     instance_count: int
     registers_used: int
+    remainder: int
+    remainder_offset: int
+    extra_ffts: int
+    thread_count: int
 
-    def __init__(self, primes: List[int], max_register_count: int):
+    def __init__(self, primes: List[int], max_register_count: int, N: int):
         self.primes = tuple(primes)
         self.fft_length = int(np.round(np.prod(primes)))
         self.instance_count = max_register_count // self.fft_length
+
         self.registers_used = self.fft_length * self.instance_count
+
+        self.remainder = N % self.registers_used
+        assert self.remainder % self.fft_length == 0, "Remainder must be divisible by the FFT length"
+        self.remainder_offset = 1 if self.remainder != 0 else 0
+        self.extra_ffts = self.remainder // self.fft_length
+
+        self.thread_count = N // self.registers_used + self.remainder_offset
 
     def __str__(self):
         return f"FFT Stage Config:\n\tprimes: {self.primes}\n\t fft_length: {self.fft_length}\n\t instance_count: {self.instance_count}\n\tregisters_used: {self.registers_used}\n"
@@ -43,11 +53,16 @@ class FFTAxisConfig:
         if max_register_count is None:
             max_register_count = DEFAULT_REGISTER_LIMIT
 
+        max_register_count = min(max_register_count, N)
+
         prime_groups = group_primes(prime_factors(N), max_register_count)
-        self.stages = tuple([FFTRegisterStageConfig(group, max_register_count) for group in prime_groups])
+        self.stages = tuple([FFTRegisterStageConfig(group, max_register_count, N) for group in prime_groups])
         register_utilizations = [stage.registers_used for stage in self.stages]
         self.register_count = max(register_utilizations)
-        self.local_size = (N // min(register_utilizations), 1, 1)
+
+        thread_counts = [stage.thread_count for stage in self.stages]
+
+        self.local_size = (max(thread_counts), 1, 1)
 
     def __str__(self):
         return f"FFT Axis Config:\nN: {self.N}\nregister_count: {self.register_count}\nstages:\n{self.stages}\nlocal_size: {self.local_size}"
@@ -74,6 +89,10 @@ class FFTRegisterStageInvocation:
         self.instance_id = tid * stage.instance_count + instance_index
 
         self.inner_block_offset = self.instance_id % output_stride
+
+        if output_stride == 1:
+            self.inner_block_offset = 0
+
         self.block_index = (self.instance_id * stage.fft_length) / self.block_width
         self.sub_sequence_offset = self.block_index * self.block_width + self.inner_block_offset
 
@@ -86,7 +105,7 @@ class FFTAxisPlanner:
 
         self.config = FFTAxisConfig(N, max_register_count)
 
-        print(f"FFT Axis Config: {self.config}")
+        #print(self.config)
         
         self.fft_stride = fft_stride if fft_stride is not None else 1
 
@@ -161,12 +180,17 @@ class FFTAxisPlanner:
         vc.comment(f"Performing a DFT for Radix-{len(register_list)} FFT")
 
         for i in range(0, len(register_list)):
-            self.radix_registers[i].x = 0
-            self.radix_registers[i].y = 0
-
             for j in range(0, len(register_list)):
-                if i == 0 or j == 0:
+                if j == 0:
+                    self.radix_registers[i][:] = register_list[j]
+                    continue
+
+                if i == 0:
                     self.radix_registers[i] += register_list[j]
+                    continue
+
+                if i * j == len(register_list) // 2 and len(register_list) % 2 == 0:
+                    self.radix_registers[i] -= register_list[j]
                     continue
 
                 omega = np.exp(-2j * np.pi * i * j / len(register_list))
@@ -182,7 +206,14 @@ class FFTAxisPlanner:
         vc.comment(f"Applying Cooley-Tukey twiddle factors for twiddle index {twiddle_index} and twiddle N {twiddle_N}")
 
         for i in range(len(register_list)):
+            if i == 0:
+                continue
+            
             if isinstance(twiddle_index, int):
+                if twiddle_index == 0:
+                    #register_list[i][:] = vc.mult_c64_by_const(register_list[i], omega)
+                    continue
+
                 omega = np.exp( -2j * np.pi * i * twiddle_index / twiddle_N)
                 register_list[i][:] = vc.mult_c64_by_const(register_list[i], omega)
                 continue
@@ -227,20 +258,20 @@ class FFTAxisPlanner:
         return register_list
 
     def process_fft_register_stage(self, stage: FFTRegisterStageConfig, output_stride: int, input = None, output = None):
-        do_runtime_if = self.config.N // stage.registers_used < self.config.local_size[0]
-
+        do_runtime_if = stage.thread_count < self.config.local_size[0]
+        
         vc.comment(f"Processing prime group {stage.primes} by doing {stage.instance_count} radix-{stage.fft_length} FFTs on {self.config.N // stage.registers_used} groups")
-        if do_runtime_if: vc.if_statement(self.tid < self.config.N // stage.registers_used)
+        if do_runtime_if: vc.if_statement(self.tid < stage.thread_count)
 
         stage_invocations: List[FFTRegisterStageInvocation] = []
 
-
         for i in range(stage.instance_count):
             stage_invocations.append(FFTRegisterStageInvocation(stage, output_stride, i , self.tid))
-            print(stage_invocations[-1])
 
-        
-        for invocation in stage_invocations: 
+        for ii, invocation in enumerate(stage_invocations):
+            if stage.remainder_offset == 1 and ii == stage.extra_ffts:
+                vc.if_statement(self.tid < self.config.N // stage.registers_used)
+
             self.load_buffer_to_registers(
                 buffer=input, 
                 offset=invocation.instance_id, 
@@ -248,19 +279,21 @@ class FFTAxisPlanner:
                 register_list=self.registers[invocation.register_selection]
             )
 
+        if stage.remainder_offset == 1:
+            vc.end()
+
         if do_runtime_if: vc.end()
 
         if input is None and output is None:
-            vc.if_statement(vc.num_subgroups() > 1)
             vc.memory_barrier()
             vc.barrier()
-            vc.else_statement()
-            vc.subgroup_barrier()
-            vc.end()
 
-        if do_runtime_if: vc.if_statement(self.tid < self.config.N // stage.registers_used)
+        if do_runtime_if: vc.if_statement(self.tid < stage.thread_count)
 
-        for invocation in stage_invocations: 
+        for ii, invocation in enumerate(stage_invocations):
+            if stage.remainder_offset == 1 and ii == stage.extra_ffts:
+                vc.if_statement(self.tid < self.config.N // stage.registers_used)
+
             self.apply_cooley_tukey_twiddle_factors(
                 register_list=self.registers[invocation.register_selection], 
                 twiddle_index=invocation.inner_block_offset, 
@@ -278,6 +311,9 @@ class FFTAxisPlanner:
                 stride=output_stride,
                 register_list=self.registers[invocation.register_selection]
             )
+        
+        if stage.remainder_offset == 1:
+            vc.end()
 
         if do_runtime_if: vc.end()
 
