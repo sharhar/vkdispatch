@@ -120,7 +120,31 @@ def allocate_inline_batches(batch_num: int, batch_threads: int, N: int, max_work
 
     return inline_batches
 
-class FFTAxisPlanner:
+@dataclasses.dataclass
+class FFTResources:
+    registers: List[Const[c64]]
+    radix_registers: List[Const[c64]]
+    omega_register: Const[c64]
+    tid: Const[u32]
+    batch_offset: Const[u32]
+    sdata: Buff[c64]
+    sdata_offset: Const[u32]
+
+    inline_batch_y: int
+    inline_batch_z: int
+    shared_memory_size: int
+    local_size: Tuple[int, int, int]
+
+    def reset(self):
+        for register in self.registers:
+            register[:] = "vec2(0)"
+        
+        for register in self.radix_registers:
+            register[:] = "vec2(0)"
+        
+        self.omega_register[:] = "vec2(0)"
+
+class FFTPlanner:
     def __init__(self, N: int, batch_y_stride: int = None, batch_z_stride: int = None, fft_stride: int = None, max_register_count: int = None, name: str = None):
         self.name = f"fft_axis_{N}" if name is None else name
 
@@ -136,55 +160,35 @@ class FFTAxisPlanner:
 
     def reset(self):
         self.buffer = None
-        self.registers = None
-        self.radix_registers = None
-        self.omega_register = None
-        self.tid = None
-        self.batch_offset = None
-        self.sdata = None
         self.angle_factor = None
         self.normalize = None
-
-    @lru_cache(maxsize=None)
-    def shader(self, batch_num_y: int = 1, batch_num_z: int = 1, inverse: bool = False, normalize_inverse: bool = True) -> Tuple[vd.ShaderObject, Tuple[int, int, int]]:
+        self.resources = None
+    
+    def allocate_resources(self, batch_num_y: int = 1, batch_num_z: int = 1) -> FFTResources:
+        assert self.resources is None, "Resources already allocated"
 
         inline_batch_z = allocate_inline_batches(batch_num_z, self.batch_threads, self.config.N, vd.get_context().max_workgroup_size[2])
         inline_batch_y = allocate_inline_batches(batch_num_y, self.batch_threads * inline_batch_z, self.config.N, vd.get_context().max_workgroup_size[1])
-        
-        builder = vc.ShaderBuilder(enable_exec_bounds=False)
-        old_builder = vc.set_global_builder(builder)
 
-        signature = vd.ShaderSignature.from_type_annotations(builder, [Buff[c64]])
-        self.buffer = signature.get_variables()[0]
-        self.angle_factor = 2 * np.pi * (1 if inverse else -1)
-        self.normalize = normalize_inverse
-        
-        self.sdata = vc.shared_buffer(vc.c64, self.config.N * inline_batch_y * inline_batch_z, "sdata")
-        
-        # Register allocation
-        self.registers = [vc.new(c64, 0, var_name=f"register_{i}") for i in range(self.config.register_count)]
-        self.radix_registers = [vc.new(c64, 0, var_name=f"radix_{i}") for i in range(self.config.register_count)]
-        self.omega_register = vc.new(c64, 0, var_name="omega_register")
-
-        # Local ID within the workgroup
-        self.tid = vc.local_invocation().x.copy("tid")
-
-        # Index offset of the current batch
-        self.batch_offset = (vc.global_invocation().y * self.batch_y_stride + vc.global_invocation().z * self.batch_z_stride).copy("batch_offset")
-        self.sdata_offset = (vc.local_invocation().y * inline_batch_z * self.config.N + vc.local_invocation().z * self.config.N).copy("sdata_offset")
-
-        self.plan()
-
-        vc.set_global_builder(old_builder)
-
-        self.reset()
-
-        return vd.ShaderObject(
-            builder.build(f"{self.name}_{batch_num_y}_{batch_num_z}"),
-            signature,
+        self.resources = FFTResources(
+            registers=[vc.new(c64, 0, var_name=f"register_{i}") for i in range(self.config.register_count)],
+            radix_registers=[vc.new(c64, 0, var_name=f"radix_{i}") for i in range(self.config.register_count)],
+            omega_register=vc.new(c64, 0, var_name="omega_register"),
+            tid=vc.local_invocation().x.copy("tid"),
+            batch_offset=(vc.global_invocation().y * self.batch_y_stride + vc.global_invocation().z * self.batch_z_stride).copy("batch_offset"),
+            sdata=vc.shared_buffer(vc.c64, self.config.N * inline_batch_y * inline_batch_z, "sdata"),
+            sdata_offset=(vc.local_invocation().y * inline_batch_z * self.config.N + vc.local_invocation().z * self.config.N).copy("sdata_offset"),
+            inline_batch_y=inline_batch_y,
+            inline_batch_z=inline_batch_z,
+            shared_memory_size=self.config.N * inline_batch_y * inline_batch_z * vd.complex64.item_size,
             local_size=(self.batch_threads, inline_batch_y, inline_batch_z)
-        ), (self.batch_threads, batch_num_y, batch_num_z)
-    
+        )
+
+    def release_resources(self):
+        assert self.resources is not None, "Resources not allocated"
+
+        self.resources = None
+
     def cache_info(self):
         return self.shader.cache_info()
     
@@ -193,14 +197,14 @@ class FFTAxisPlanner:
 
     def load_buffer_to_registers(self, buffer: Buff[c64], offset: Const[u32], stride: Const[u32], register_list: List[vc.ShaderVariable] = None):
         if register_list is None:
-            register_list = self.registers
+            register_list = self.resources.registers
 
-        batch_offset = self.batch_offset
+        batch_offset = self.resources.batch_offset
         fft_stride = self.fft_stride
 
         if buffer is None:
-            buffer = self.sdata
-            batch_offset = self.sdata_offset
+            buffer = self.resources.sdata
+            batch_offset = self.resources.sdata_offset
             fft_stride = 1
 
         vc.comment(f"Loading to registers {register_list} from buffer {buffer} at offset {offset} and stride {stride}")
@@ -210,15 +214,15 @@ class FFTAxisPlanner:
 
     def store_registers_in_buffer(self, buffer: Buff[c64], offset: Const[u32], stride: Const[u32], register_list: List[vc.ShaderVariable] = None):
         if register_list is None:
-            register_list = self.registers
+            register_list = self.resources.registers
 
-        batch_offset = self.batch_offset
+        batch_offset = self.resources.batch_offset
         fft_stride = self.fft_stride
         normalization_factor = None
 
         if buffer is None:
-            buffer = self.sdata
-            batch_offset = self.sdata_offset
+            buffer = self.resources.sdata
+            batch_offset = self.resources.sdata_offset
             fft_stride = 1
 
         elif self.angle_factor > 0 and self.normalize:
@@ -235,7 +239,7 @@ class FFTAxisPlanner:
             buffer[(i * stride + offset) * fft_stride + batch_offset] = write_object
     
     def radix_P(self, register_list: List[vc.ShaderVariable]):
-        assert len(register_list) <= len(self.radix_registers), "Too many registers for radix_P"
+        assert len(register_list) <= len(self.resources.radix_registers), "Too many registers for radix_P"
 
         if len(register_list) == 1:
             return
@@ -245,22 +249,22 @@ class FFTAxisPlanner:
         for i in range(0, len(register_list)):
             for j in range(0, len(register_list)):
                 if j == 0:
-                    self.radix_registers[i][:] = register_list[j]
+                    self.resources.radix_registers[i][:] = register_list[j]
                     continue
 
                 if i == 0:
-                    self.radix_registers[i] += register_list[j]
+                    self.resources.radix_registers[i] += register_list[j]
                     continue
 
                 if i * j == len(register_list) // 2 and len(register_list) % 2 == 0:
-                    self.radix_registers[i] -= register_list[j]
+                    self.resources.radix_registers[i] -= register_list[j]
                     continue
 
                 omega = np.exp(1j * self.angle_factor * i * j / len(register_list))
-                self.radix_registers[i] += vc.mult_c64_by_const(register_list[j], omega)
+                self.resources.radix_registers[i] += vc.mult_c64_by_const(register_list[j], omega)
 
         for i in range(0, len(register_list)):
-            register_list[i][:] = self.radix_registers[i]
+            register_list[i][:] = self.resources.radix_registers[i]
 
     def apply_cooley_tukey_twiddle_factors(self, register_list: List[vc.ShaderVariable], twiddle_index: int = 0, twiddle_N: int = 1):
         if isinstance(twiddle_index, int) and twiddle_index == 0:
@@ -280,11 +284,11 @@ class FFTAxisPlanner:
                 register_list[i][:] = vc.mult_c64_by_const(register_list[i], omega)
                 continue
             
-            self.omega_register.x = self.angle_factor * i * twiddle_index / twiddle_N
-            self.omega_register[:] = vc.complex_from_euler_angle(self.omega_register.x)
-            self.omega_register[:] = vc.mult_c64(self.omega_register, register_list[i])
+            self.resources.omega_register.x = self.angle_factor * i * twiddle_index / twiddle_N
+            self.resources.omega_register[:] = vc.complex_from_euler_angle(self.resources.omega_register.x)
+            self.resources.omega_register[:] = vc.mult_c64(self.resources.omega_register, register_list[i])
 
-            register_list[i][:] = self.omega_register
+            register_list[i][:] = self.resources.omega_register
 
     def register_radix_composite(self, register_list: List[vc.ShaderVariable], primes: List[int]):
         if len(register_list) == 1:
@@ -323,22 +327,22 @@ class FFTAxisPlanner:
         do_runtime_if = stage.thread_count < self.batch_threads
         
         vc.comment(f"Processing prime group {stage.primes} by doing {stage.instance_count} radix-{stage.fft_length} FFTs on {self.config.N // stage.registers_used} groups")
-        if do_runtime_if: vc.if_statement(self.tid < stage.thread_count)
+        if do_runtime_if: vc.if_statement(self.resources.tid < stage.thread_count)
 
         stage_invocations: List[FFTRegisterStageInvocation] = []
 
         for i in range(stage.instance_count):
-            stage_invocations.append(FFTRegisterStageInvocation(stage, output_stride, i , self.tid))
+            stage_invocations.append(FFTRegisterStageInvocation(stage, output_stride, i , self.resources.tid))
 
         for ii, invocation in enumerate(stage_invocations):
             if stage.remainder_offset == 1 and ii == stage.extra_ffts:
-                vc.if_statement(self.tid < self.config.N // stage.registers_used)
+                vc.if_statement(self.resources.tid < self.config.N // stage.registers_used)
 
             self.load_buffer_to_registers(
                 buffer=input, 
                 offset=invocation.instance_id, 
                 stride=self.config.N // stage.fft_length, 
-                register_list=self.registers[invocation.register_selection]
+                register_list=self.resources.registers[invocation.register_selection]
             )
 
         if stage.remainder_offset == 1:
@@ -350,20 +354,20 @@ class FFTAxisPlanner:
             vc.memory_barrier()
             vc.barrier()
 
-        if do_runtime_if: vc.if_statement(self.tid < stage.thread_count)
+        if do_runtime_if: vc.if_statement(self.resources.tid < stage.thread_count)
 
         for ii, invocation in enumerate(stage_invocations):
             if stage.remainder_offset == 1 and ii == stage.extra_ffts:
-                vc.if_statement(self.tid < self.config.N // stage.registers_used)
+                vc.if_statement(self.resources.tid < self.config.N // stage.registers_used)
 
             self.apply_cooley_tukey_twiddle_factors(
-                register_list=self.registers[invocation.register_selection], 
+                register_list=self.resources.registers[invocation.register_selection], 
                 twiddle_index=invocation.inner_block_offset, 
                 twiddle_N=invocation.block_width
             )
 
-            self.registers[invocation.register_selection] = self.register_radix_composite(
-                register_list=self.registers[invocation.register_selection],
+            self.resources.registers[invocation.register_selection] = self.register_radix_composite(
+                register_list=self.resources.registers[invocation.register_selection],
                 primes=stage.primes
             )
 
@@ -371,7 +375,7 @@ class FFTAxisPlanner:
                 buffer=output,
                 offset=invocation.sub_sequence_offset,
                 stride=output_stride,
-                register_list=self.registers[invocation.register_selection]
+                register_list=self.resources.registers[invocation.register_selection]
             )
         
         if stage.remainder_offset == 1:
@@ -379,7 +383,10 @@ class FFTAxisPlanner:
 
         if do_runtime_if: vc.end()
 
-    def plan(self):
+    def plan(self, input: Buff[c64] = None, output: Buff[c64] = None, inverse: bool = False, normalize_inverse: bool = True):
+        self.angle_factor = 2 * np.pi * (1 if inverse else -1)
+        self.normalize = normalize_inverse
+
         output_stride = 1
 
         stage_count = len(self.config.stages)
@@ -388,8 +395,8 @@ class FFTAxisPlanner:
             self.process_fft_register_stage(
                 self.config.stages[i],
                 output_stride,
-                input=self.buffer if i == 0 else None,
-                output=self.buffer if i == stage_count - 1 else None)
+                input=input if i == 0 else None,
+                output=output if i == stage_count - 1 else None)
             
             output_stride *= self.config.stages[i].fft_length
 
@@ -398,15 +405,15 @@ class FFTAxisPlanner:
                 vc.barrier()
 
 @lru_cache(maxsize=None)
-def make_fft_stage(
+def make_fft_planner(
         N: int, 
         stride: int = 1,
         batch_y_stride: int = None,
         batch_z_stride: int = None,
         name: str = None,
-        max_register_count: int = None) -> FFTAxisPlanner:
+        max_register_count: int = None) -> FFTPlanner:
 
-    return FFTAxisPlanner(
+    return FFTPlanner(
         N, 
         name=name, 
         batch_y_stride=batch_y_stride,
@@ -414,11 +421,11 @@ def make_fft_stage(
         fft_stride=stride,
         max_register_count=max_register_count)
 
-def get_cache_info():
-    return make_fft_stage.cache_info()
+def get_planner_cache_info():
+    return make_fft_planner.cache_info()
 
-def print_cache_info():
+def print_planner_cache_info():
     print(get_cache_info())
 
-def cache_clear():
-    return make_fft_stage.cache_clear()
+def cache_planner_clear():
+    return make_fft_planner.cache_clear()
