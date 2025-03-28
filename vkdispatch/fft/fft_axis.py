@@ -142,13 +142,11 @@ class FFTAxisPlanner:
         self.tid = None
         self.batch_offset = None
         self.sdata = None
+        self.angle_factor = None
+        self.normalize = None
 
     @lru_cache(maxsize=None)
-    def shader(self, batch_num_y: int = 1, batch_num_z: int = 1):
-
-        #self.local_size = (max(thread_counts), 1, 1)
-
-        print(vd.get_context().max_workgroup_size)
+    def shader(self, batch_num_y: int = 1, batch_num_z: int = 1, inverse: bool = False, normalize_inverse: bool = True) -> Tuple[vd.ShaderObject, Tuple[int, int, int]]:
 
         inline_batch_z = allocate_inline_batches(batch_num_z, self.batch_threads, self.config.N, vd.get_context().max_workgroup_size[2])
         inline_batch_y = allocate_inline_batches(batch_num_y, self.batch_threads * inline_batch_z, self.config.N, vd.get_context().max_workgroup_size[1])
@@ -158,6 +156,8 @@ class FFTAxisPlanner:
 
         signature = vd.ShaderSignature.from_type_annotations(builder, [Buff[c64]])
         self.buffer = signature.get_variables()[0]
+        self.angle_factor = 2 * np.pi * (1 if inverse else -1)
+        self.normalize = normalize_inverse
         
         self.sdata = vc.shared_buffer(vc.c64, self.config.N * inline_batch_y * inline_batch_z, "sdata")
         
@@ -214,16 +214,25 @@ class FFTAxisPlanner:
 
         batch_offset = self.batch_offset
         fft_stride = self.fft_stride
+        normalization_factor = None
 
         if buffer is None:
             buffer = self.sdata
             batch_offset = self.sdata_offset
             fft_stride = 1
 
+        elif self.angle_factor > 0 and self.normalize:
+            normalization_factor = self.config.N
+
         vc.comment(f"Storing registers {register_list} to buffer {buffer} at offset {offset} and stride {stride}")
 
         for i in range(len(register_list)):
-            buffer[(i * stride + offset) * fft_stride + batch_offset] = register_list[i]
+            write_object = register_list[i]
+
+            if normalization_factor is not None:
+                write_object = register_list[i] / normalization_factor
+                
+            buffer[(i * stride + offset) * fft_stride + batch_offset] = write_object
     
     def radix_P(self, register_list: List[vc.ShaderVariable]):
         assert len(register_list) <= len(self.radix_registers), "Too many registers for radix_P"
@@ -247,7 +256,7 @@ class FFTAxisPlanner:
                     self.radix_registers[i] -= register_list[j]
                     continue
 
-                omega = np.exp(-2j * np.pi * i * j / len(register_list))
+                omega = np.exp(1j * self.angle_factor * i * j / len(register_list))
                 self.radix_registers[i] += vc.mult_c64_by_const(register_list[j], omega)
 
         for i in range(0, len(register_list)):
@@ -265,14 +274,13 @@ class FFTAxisPlanner:
             
             if isinstance(twiddle_index, int):
                 if twiddle_index == 0:
-                    #register_list[i][:] = vc.mult_c64_by_const(register_list[i], omega)
                     continue
 
-                omega = np.exp( -2j * np.pi * i * twiddle_index / twiddle_N)
+                omega = np.exp(1j * self.angle_factor * i * twiddle_index / twiddle_N)
                 register_list[i][:] = vc.mult_c64_by_const(register_list[i], omega)
                 continue
             
-            self.omega_register.x = -2 * np.pi * i * twiddle_index / twiddle_N
+            self.omega_register.x = self.angle_factor * i * twiddle_index / twiddle_N
             self.omega_register[:] = vc.complex_from_euler_angle(self.omega_register.x)
             self.omega_register[:] = vc.mult_c64(self.omega_register, register_list[i])
 
