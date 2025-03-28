@@ -1,32 +1,9 @@
 import vkdispatch as vd
-import numpy as np
 
-from .fft_axis import make_fft_stage
+from .fft_shader import make_fft_shader
 
 def fft(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False, axis: int = None, name: str = None, inverse: bool = False, normalize_inverse: bool = True):
-    if axis is None:
-        axis = len(buffer.shape) - 1
-
-    total_buffer_length = np.round(np.prod(buffer.shape)).astype(np.int32)
-
-    fft_length = buffer.shape[axis]
-
-    stride = np.round(np.prod(buffer.shape[axis + 1:])).astype(np.int32)
-    batch_y_stride = stride * fft_length
-    batch_y_count = total_buffer_length // batch_y_stride
-
-    batch_z_stride = 1
-    batch_z_count = stride
-
-    fft_stage = make_fft_stage(
-        N=fft_length,
-        stride=stride,
-        batch_y_stride=batch_y_stride,
-        batch_z_stride=batch_z_stride,
-        name=name
-    )
-
-    fft_shader, exec_size = fft_stage.shader(batch_y_count, batch_z_count, inverse=inverse, normalize_inverse=normalize_inverse)
+    fft_shader, exec_size = make_fft_shader(buffer.shape, axis, name=name, inverse=inverse, normalize_inverse=normalize_inverse)
 
     if print_shader:
         print(fft_shader)
