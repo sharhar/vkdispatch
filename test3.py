@@ -8,8 +8,8 @@ batch_size = 400
 
 vd.initialize(debug_mode=True)
 
-#buffer = vd.Buffer((2 ** 9, 2 ** 9), vd.complex64)
-buffer = vd.Buffer((650, 169), vd.complex64)
+buffer = vd.Buffer((2 ** 9, 2 ** 9), vd.complex64)
+#buffer = vd.Buffer((650, 169), vd.complex64)
 #buffer = vd.Buffer((30, 30), vd.complex64)
 
 cmd_stream_fft = vd.CommandStream()
