@@ -99,7 +99,7 @@ class FFTRegisterStageInvocation:
 def allocation_valid(workgroup_size: int, shared_memory: int):
     return workgroup_size <= vd.get_context().max_workgroup_invocations and shared_memory <= vd.get_context().max_shared_memory
 
-def allocate_inline_batches(batch_num: int, batch_threads: int, N: int):
+def allocate_inline_batches(batch_num: int, batch_threads: int, N: int, max_workgroup_size: int):
     batch_num_primes = prime_factors(batch_num)
 
     prime_index = len(batch_num_primes) - 1
@@ -108,10 +108,10 @@ def allocate_inline_batches(batch_num: int, batch_threads: int, N: int):
     shared_memory_allocation = batch_threads * N * vd.complex64.item_size
     inline_batches = 1
 
-    while allocation_valid(workgroup_size, shared_memory_allocation) and prime_index >= 0:
+    while allocation_valid(workgroup_size, shared_memory_allocation) and prime_index >= 0 and inline_batches <= max_workgroup_size:
         test_prime = batch_num_primes[prime_index]
 
-        if allocation_valid(workgroup_size * test_prime, shared_memory_allocation * test_prime):
+        if allocation_valid(workgroup_size * test_prime, shared_memory_allocation * test_prime) and inline_batches <= max_workgroup_size:
             workgroup_size *= test_prime
             shared_memory_allocation *= test_prime
             inline_batches *= test_prime
@@ -150,8 +150,8 @@ class FFTAxisPlanner:
 
         
 
-        inline_batch_z = allocate_inline_batches(batch_num_z, self.batch_threads, self.config.N)
-        inline_batch_y = allocate_inline_batches(batch_num_y, self.batch_threads * inline_batch_z, self.config.N)
+        inline_batch_z = allocate_inline_batches(batch_num_z, self.batch_threads, self.config.N, vd.get_context().max_workgroup_size[2])
+        inline_batch_y = allocate_inline_batches(batch_num_y, self.batch_threads * inline_batch_z, self.config.N, vd.get_context().max_workgroup_size[1])
         
         builder = vc.ShaderBuilder(enable_exec_bounds=False)
         old_builder = vc.set_global_builder(builder)
