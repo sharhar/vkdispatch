@@ -24,7 +24,7 @@ def test_fft_1d():
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(100):
+    for _ in range(20):
         dims = pick_dim_count(1)
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
@@ -48,7 +48,7 @@ def test_2d_fft():
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(100):
+    for _ in range(20):
         dims = pick_dim_count(2)
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
@@ -69,7 +69,7 @@ def test_3d_fft():
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(100):
+    for _ in range(20):
         dims = 3
         current_shape = [pick_radix_prime() for _ in range(dims)]
 

@@ -45,7 +45,7 @@ class FFTAxisConfig:
     N: int
     register_count: int
     stages: Tuple[FFTRegisterStageConfig]
-    local_size: Tuple[int, int, int]
+    thread_counts: Tuple[int, int, int]
 
     def __init__(self, N: int, max_register_count: int = None):
         self.N = N
@@ -60,12 +60,10 @@ class FFTAxisConfig:
         register_utilizations = [stage.registers_used for stage in self.stages]
         self.register_count = max(register_utilizations)
 
-        thread_counts = [stage.thread_count for stage in self.stages]
-
-        self.local_size = (max(thread_counts), 1, 1)
+        self.thread_counts = [stage.thread_count for stage in self.stages]
 
     def __str__(self):
-        return f"FFT Axis Config:\nN: {self.N}\nregister_count: {self.register_count}\nstages:\n{self.stages}\nlocal_size: {self.local_size}"
+        return f"FFT Axis Config:\nN: {self.N}\nregister_count: {self.register_count}\nstages:\n{self.stages}\nlocal_size: {self.thread_counts}"
     
     def __repr__(self):
         return str(self)
@@ -98,25 +96,70 @@ class FFTRegisterStageInvocation:
 
         self.register_selection = slice(instance_index * stage.fft_length, (instance_index + 1) * stage.fft_length)
 
+def allocation_valid(workgroup_size: int, shared_memory: int):
+    return workgroup_size <= vd.get_context().max_workgroup_invocations and shared_memory <= vd.get_context().max_shared_memory
+
+def allocate_inline_batches(batch_num: int, batch_threads: int, N: int):
+    batch_num_primes = prime_factors(batch_num)
+
+    prime_index = len(batch_num_primes) - 1
+
+    workgroup_size = batch_threads
+    shared_memory_allocation = batch_threads * N * vd.complex64.item_size
+    inline_batches = 1
+
+    while allocation_valid(workgroup_size, shared_memory_allocation) and prime_index >= 0:
+        test_prime = batch_num_primes[prime_index]
+
+        if allocation_valid(workgroup_size * test_prime, shared_memory_allocation * test_prime):
+            workgroup_size *= test_prime
+            shared_memory_allocation *= test_prime
+            inline_batches *= test_prime
+        
+        prime_index -= 1
+
+    return inline_batches
+
 class FFTAxisPlanner:
     def __init__(self, N: int, batch_y_stride: int = None, batch_z_stride: int = None, fft_stride: int = None, max_register_count: int = None, name: str = None):
-        if name is None:
-            name = f"fft_axis_{N}"
+        self.name = f"fft_axis_{N}" if name is None else name
 
         self.config = FFTAxisConfig(N, max_register_count)
-
-        #print(self.config)
         
         self.fft_stride = fft_stride if fft_stride is not None else 1
-
-        self.builder = vc.ShaderBuilder(enable_exec_bounds=False)
-        old_builder = vc.set_global_builder(self.builder)
-
-        self.signature = vd.ShaderSignature.from_type_annotations(self.builder, [Buff[c64]])
-        self.buffer = self.signature.get_variables()[0]
-
         self.batch_y_stride = batch_y_stride if batch_y_stride is not None else N
         self.batch_z_stride = batch_z_stride if batch_z_stride is not None else 1
+
+        self.batch_threads = max(self.config.thread_counts)
+
+        self.reset()
+
+    def reset(self):
+        self.buffer = None
+        self.registers = None
+        self.radix_registers = None
+        self.omega_register = None
+        self.tid = None
+        self.batch_offset = None
+        self.sdata = None
+
+    @lru_cache(maxsize=None)
+    def shader(self, batch_num_y: int = 1, batch_num_z: int = 1):
+
+        #self.local_size = (max(thread_counts), 1, 1)
+
+        
+
+        inline_batch_z = allocate_inline_batches(batch_num_z, self.batch_threads, self.config.N)
+        inline_batch_y = allocate_inline_batches(batch_num_y, self.batch_threads * inline_batch_z, self.config.N)
+        
+        builder = vc.ShaderBuilder(enable_exec_bounds=False)
+        old_builder = vc.set_global_builder(builder)
+
+        signature = vd.ShaderSignature.from_type_annotations(builder, [Buff[c64]])
+        self.buffer = signature.get_variables()[0]
+        
+        self.sdata = vc.shared_buffer(vc.c64, self.config.N * inline_batch_y * inline_batch_z, "sdata")
         
         # Register allocation
         self.registers = [vc.new(c64, 0, var_name=f"register_{i}") for i in range(self.config.register_count)]
@@ -127,15 +170,26 @@ class FFTAxisPlanner:
         self.tid = vc.local_invocation().x.copy("tid")
 
         # Index offset of the current batch
-        self.batch_offset = (vc.workgroup().y * self.batch_y_stride + vc.workgroup().z * self.batch_z_stride).copy("batch_offset")
-
-        self.sdata = vc.shared_buffer(vc.c64, self.config.N, "sdata")
+        self.batch_offset = (vc.global_invocation().y * self.batch_y_stride + vc.global_invocation().z * self.batch_z_stride).copy("batch_offset")
+        self.sdata_offset = (vc.local_invocation().y * inline_batch_z * self.config.N + vc.local_invocation().z * self.config.N).copy("sdata_offset")
 
         self.plan()
 
         vc.set_global_builder(old_builder)
 
-        self.description = self.builder.build(name)
+        self.reset()
+
+        return vd.ShaderObject(
+            builder.build(f"{self.name}_{batch_num_y}_{batch_num_z}"),
+            signature,
+            local_size=(self.batch_threads, inline_batch_y, inline_batch_z)
+        ), (self.batch_threads, batch_num_y, batch_num_z)
+    
+    def cache_info(self):
+        return self.shader.cache_info()
+    
+    def cache_clear(self):
+        return self.shader.cache_clear()
 
     def load_buffer_to_registers(self, buffer: Buff[c64], offset: Const[u32], stride: Const[u32], register_list: List[vc.ShaderVariable] = None):
         if register_list is None:
@@ -146,7 +200,7 @@ class FFTAxisPlanner:
 
         if buffer is None:
             buffer = self.sdata
-            batch_offset = 0
+            batch_offset = self.sdata_offset
             fft_stride = 1
 
         vc.comment(f"Loading to registers {register_list} from buffer {buffer} at offset {offset} and stride {stride}")
@@ -163,7 +217,7 @@ class FFTAxisPlanner:
 
         if buffer is None:
             buffer = self.sdata
-            batch_offset = 0
+            batch_offset = self.sdata_offset
             fft_stride = 1
 
         vc.comment(f"Storing registers {register_list} to buffer {buffer} at offset {offset} and stride {stride}")
@@ -258,7 +312,7 @@ class FFTAxisPlanner:
         return register_list
 
     def process_fft_register_stage(self, stage: FFTRegisterStageConfig, output_stride: int, input = None, output = None):
-        do_runtime_if = stage.thread_count < self.config.local_size[0]
+        do_runtime_if = stage.thread_count < self.batch_threads
         
         vc.comment(f"Processing prime group {stage.primes} by doing {stage.instance_count} radix-{stage.fft_length} FFTs on {self.config.N // stage.registers_used} groups")
         if do_runtime_if: vc.if_statement(self.tid < stage.thread_count)
@@ -342,17 +396,15 @@ def make_fft_stage(
         batch_y_stride: int = None,
         batch_z_stride: int = None,
         name: str = None,
-        max_register_count: int = None) -> vd.ShaderObject:
+        max_register_count: int = None) -> FFTAxisPlanner:
 
-    axis_planner = FFTAxisPlanner(
+    return FFTAxisPlanner(
         N, 
         name=name, 
         batch_y_stride=batch_y_stride,
         batch_z_stride=batch_z_stride,
         fft_stride=stride,
         max_register_count=max_register_count)
-
-    return vd.ShaderObject(axis_planner.description, axis_planner.signature, local_size=axis_planner.config.local_size)
 
 def get_cache_info():
     return make_fft_stage.cache_info()

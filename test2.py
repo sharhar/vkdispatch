@@ -26,8 +26,8 @@ axis = 1
 
 #vd.vkfft.fft(signal_gpu, keep_shader_code=True)
 
-#vd.fft.fft2(signal_gpu, print_shader=True)
-vd.fft.fft(signal_gpu, axis=axis, print_shader=True)
+vd.fft.fft2(signal_gpu, print_shader=True)
+#vd.fft.fft(signal_gpu, axis=axis, print_shader=True)
 
 #vd.vkfft.fft(signal_gpu2) #, print_shader=True)
 
@@ -36,7 +36,7 @@ data = np.array(signal_gpu.read(0))
 data[0, 0] = 0
 
 #reference_data = signal_gpu2.read(0)
-reference_data = np.fft.fft(signal, axis=axis)
+reference_data = np.fft.fft2(signal)
 reference_data[0, 0] = 0
 
 #data = data.reshape((-1, 13))
@@ -58,7 +58,7 @@ index_2d = np.unravel_index(arg_max, diff_arr.shape)
 print(diff_arr[index_2d], np.abs(reference_data)[index_2d])
 
 #plt.imshow(np.abs(data - reference_data))
-plt.imshow(np.abs(data))
+plt.imshow(np.abs(data - reference_data))
 #plt.imshow(np.abs(data))
 plt.colorbar()
 plt.show()
