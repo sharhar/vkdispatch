@@ -5,8 +5,8 @@ from matplotlib import pyplot as plt
 
 vd.initialize(debug_mode=True)
 
-N = 42
-B = 225
+N = 169
+B = 5
 
 #N = 512
 #B = 512
