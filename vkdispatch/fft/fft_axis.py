@@ -111,7 +111,7 @@ def allocate_inline_batches(batch_num: int, batch_threads: int, N: int, max_work
     while allocation_valid(workgroup_size, shared_memory_allocation) and prime_index >= 0 and inline_batches <= max_workgroup_size:
         test_prime = batch_num_primes[prime_index]
 
-        if allocation_valid(workgroup_size * test_prime, shared_memory_allocation * test_prime) and inline_batches <= max_workgroup_size:
+        if allocation_valid(workgroup_size * test_prime, shared_memory_allocation * test_prime) and inline_batches * test_prime <= max_workgroup_size:
             workgroup_size *= test_prime
             shared_memory_allocation *= test_prime
             inline_batches *= test_prime
@@ -148,7 +148,7 @@ class FFTAxisPlanner:
 
         #self.local_size = (max(thread_counts), 1, 1)
 
-        
+        print(vd.get_context().max_workgroup_size)
 
         inline_batch_z = allocate_inline_batches(batch_num_z, self.batch_threads, self.config.N, vd.get_context().max_workgroup_size[2])
         inline_batch_y = allocate_inline_batches(batch_num_y, self.batch_threads * inline_batch_z, self.config.N, vd.get_context().max_workgroup_size[1])
