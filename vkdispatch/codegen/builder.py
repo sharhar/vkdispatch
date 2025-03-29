@@ -447,9 +447,16 @@ class ShaderBuilder:
         new_var = self.make_var(arg1.var_type, f"vec2({arg1}.x * {arg2}.x + {arg1}.y * {arg2}.y, {arg1}.y * {arg2}.x - {arg1}.x * {arg2}.y)");
         return new_var
 
-    def if_statement(self, arg: ShaderVariable):
-        self.append_contents(f"if({arg}) {'{'}\n")
+    def if_statement(self, arg: ShaderVariable, command: Optional[str] = None):
+        if command is None:
+            self.append_contents(f"if({arg}) {'{'}\n")
+            self.scope_num += 1
+            return
+        
+        self.append_contents(f"if({arg})\n")
         self.scope_num += 1
+        self.append_contents(f"{command}\n")
+        self.scope_num -= 1
 
     def if_any(self, *args: List[ShaderVariable]):
         self.append_contents(f"if({' || '.join([str(elem) for elem in args])}) {'{'}\n")

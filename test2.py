@@ -5,49 +5,25 @@ from matplotlib import pyplot as plt
 
 vd.initialize(debug_mode=True)
 
-N = 169
-B = 650
+N = 30
+B = 20
 
 #N = 512
 #B = 512
-signal = np.zeros((B, N,), dtype=np.complex64)
+signal = np.zeros((B, N,), dtype=np.float32)
 
-for i in range(B):
-    signal[i, i % 10] = 1
-    signal[i, (i // 10) % 10] = 1
-    signal[i, (i // (10 * 10)) % 10] = 1
+signal[:, N//4:N//3] = 1
 
 #signal = (np.random.rand(B, N) + 1j * np.random.rand(B, N)).astype(np.complex64)
 
-signal_gpu = vd.asbuffer(signal)
-signal_gpu2 = vd.asbuffer(signal)
+signal_gpu = vd.asrfftbuffer(signal)
 
-axis = 1
+vd.fft.rfft(signal_gpu, print_shader=True)
+vd.fft.fft(signal_gpu, axis=0)
 
-#vd.vkfft.fft(signal_gpu, keep_shader_code=True)
+data = np.array(signal_gpu.read_fourier(0))
 
-vd.fft.ifft2(signal_gpu, print_shader=True) #, normalize=False)
-#vd.fft.fft(signal_gpu, axis=axis, print_shader=True)
-
-#vd.vkfft.fft(signal_gpu2) #, print_shader=True)
-
-data = np.array(signal_gpu.read(0)) # / (169 * 650)
-
-data[0, 0] = 0
-
-#reference_data = signal_gpu2.read(0)
-reference_data = np.fft.ifft2(signal)
-reference_data[0, 0] = 0
-
-#data = data.reshape((-1, 13))
-#reference_data = reference_data.reshape((-1, 13))
-
-#data = np.round(data, 3)
-#reference_data = np.round(reference_data, 3)
-
-#print(data)
-#print(reference_data)
-#print(data - reference_data)
+reference_data = np.fft.rfft2(signal)
 
 diff_arr = np.abs(data - reference_data)
 
@@ -57,9 +33,11 @@ index_2d = np.unravel_index(arg_max, diff_arr.shape)
 
 print(data[index_2d], reference_data[index_2d])
 
-#plt.imshow(np.abs(data - reference_data))
-plt.imshow(np.abs(reference_data - data))
-#plt.imshow(np.abs(data))
+plt.imshow(np.abs(reference_data))
+plt.colorbar()
+plt.show()
+
+plt.imshow(np.abs(data - reference_data))
 plt.colorbar()
 plt.show()
 

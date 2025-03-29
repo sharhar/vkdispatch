@@ -14,7 +14,8 @@ def make_fft_shader(
         axis: int = None, 
         name: str = None, 
         inverse: bool = False, 
-        normalize_inverse: bool = True) -> Tuple[vd.ShaderObject, Tuple[int, int, int]]:
+        normalize_inverse: bool = True,
+        r2c: bool = False) -> Tuple[vd.ShaderObject, Tuple[int, int, int]]:
 
     if axis is None:
         axis = len(buffer_shape) - 1
@@ -44,9 +45,9 @@ def make_fft_shader(
     signature = vd.ShaderSignature.from_type_annotations(builder, [Buff[c64]])
     buffer = signature.get_variables()[0]
 
-    fft_planner.allocate_resources(batch_y_count, batch_z_count)
+    fft_planner.allocate_resources(batch_y_count, batch_z_count, r2c=r2c)
 
-    fft_planner.plan(input=buffer, output=buffer, inverse=inverse, normalize_inverse=normalize_inverse)
+    fft_planner.plan(input=buffer, output=buffer, inverse=inverse, normalize_inverse=normalize_inverse, r2c=r2c)
 
     vc.set_global_builder(old_builder)
 
@@ -62,7 +63,6 @@ def make_fft_shader(
     fft_planner.reset()
 
     return shader_object, exec_size
-
 
 def get_cache_info():
     return make_fft_shader.cache_info()

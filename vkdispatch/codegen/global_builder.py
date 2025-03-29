@@ -229,8 +229,8 @@ def mult_c64_by_const(arg1: ShaderVariable, number: complex):
 def mult_conj_c64(arg1: ShaderVariable, arg2: ShaderVariable):
     return GlobalBuilder.obj.mult_conj_c64(arg1, arg2)
 
-def if_statement(arg: ShaderVariable):
-    GlobalBuilder.obj.if_statement(arg)
+def if_statement(arg: ShaderVariable, command: Optional[str] = None):
+    GlobalBuilder.obj.if_statement(arg, command=command)
 
 def if_any(*args: List[ShaderVariable]):
     GlobalBuilder.obj.if_any(*args)
