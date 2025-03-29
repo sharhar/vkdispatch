@@ -126,9 +126,12 @@ class FFTResources:
     radix_registers: List[Const[c64]]
     omega_register: Const[c64]
     tid: Const[u32]
-    batch_offset: Const[u32]
+    input_batch_offset: Const[u32]
+    output_batch_offset: Const[u32]
+    subsequence_offset: Const[u32]
     sdata: Buff[c64]
     sdata_offset: Const[u32]
+    io_index: Const[u32]
 
     inline_batch_y: int
     inline_batch_z: int
@@ -163,21 +166,32 @@ class FFTPlanner:
         self.angle_factor = None
         self.normalize = None
         self.resources = None
+        self.r2c = None
     
-    def allocate_resources(self, batch_num_y: int = 1, batch_num_z: int = 1) -> FFTResources:
+    def allocate_resources(self, batch_num_y: int = 1, batch_num_z: int = 1, r2c: bool = False) -> FFTResources:
         assert self.resources is None, "Resources already allocated"
 
         inline_batch_z = allocate_inline_batches(batch_num_z, self.batch_threads, self.config.N, vd.get_context().max_workgroup_size[2])
         inline_batch_y = allocate_inline_batches(batch_num_y, self.batch_threads * inline_batch_z, self.config.N, vd.get_context().max_workgroup_size[1])
+
+        input_batch_stride_y = self.batch_y_stride
+        output_batch_stride_y = self.batch_y_stride
+
+        if r2c:
+            output_batch_stride_y = (self.config.N // 2) + 1
+            input_batch_stride_y = output_batch_stride_y * 2
 
         self.resources = FFTResources(
             registers=[vc.new(c64, 0, var_name=f"register_{i}") for i in range(self.config.register_count)],
             radix_registers=[vc.new(c64, 0, var_name=f"radix_{i}") for i in range(self.config.register_count)],
             omega_register=vc.new(c64, 0, var_name="omega_register"),
             tid=vc.local_invocation().x.copy("tid"),
-            batch_offset=(vc.global_invocation().y * self.batch_y_stride + vc.global_invocation().z * self.batch_z_stride).copy("batch_offset"),
+            input_batch_offset=(vc.global_invocation().y * input_batch_stride_y + vc.global_invocation().z * self.batch_z_stride).copy("input_batch_offset"),
+            output_batch_offset=(vc.global_invocation().y * output_batch_stride_y + vc.global_invocation().z * self.batch_z_stride).copy("output_batch_offset"),
+            subsequence_offset=vc.new_uint(0, var_name="subsequence_offset"),
             sdata=vc.shared_buffer(vc.c64, self.config.N * inline_batch_y * inline_batch_z, "sdata"),
             sdata_offset=(vc.local_invocation().y * inline_batch_z * self.config.N + vc.local_invocation().z * self.config.N).copy("sdata_offset"),
+            io_index=vc.new_uint(0, var_name="io_index"),
             inline_batch_y=inline_batch_y,
             inline_batch_z=inline_batch_z,
             shared_memory_size=self.config.N * inline_batch_y * inline_batch_z * vd.complex64.item_size,
@@ -195,48 +209,55 @@ class FFTPlanner:
     def cache_clear(self):
         return self.shader.cache_clear()
 
-    def load_buffer_to_registers(self, buffer: Buff[c64], offset: Const[u32], stride: Const[u32], register_list: List[vc.ShaderVariable] = None):
+    def get_global_input(self, buffer: Buff, index: Const[u32]):
+        self.resources.io_index[:] = index * self.fft_stride + self.resources.input_batch_offset
+
+        if not self.r2c or self.angle_factor > 0:
+            return buffer[self.resources.io_index]
+        
+        real_value = buffer[self.resources.io_index / 2][self.resources.io_index % 2]
+
+        return f"vec2({real_value}, 0)"
+
+    def load_buffer_to_registers(self, buffer: Buff, offset: Const[u32], stride: Const[u32], register_list: List[vc.ShaderVariable] = None):
         if register_list is None:
             register_list = self.resources.registers
-
-        batch_offset = self.resources.batch_offset
-        fft_stride = self.fft_stride
-
-        if buffer is None:
-            buffer = self.resources.sdata
-            batch_offset = self.resources.sdata_offset
-            fft_stride = 1
 
         vc.comment(f"Loading to registers {register_list} from buffer {buffer} at offset {offset} and stride {stride}")
 
         for i in range(len(register_list)):
-            register_list[i][:] = buffer[(i * stride + offset) * fft_stride  + batch_offset]
+            register_list[i][:] = (
+                self.get_global_input(buffer, i * stride + offset)
+                if buffer is not None else
+                self.resources.sdata[i * stride + offset + self.resources.sdata_offset]
+            )
 
-    def store_registers_in_buffer(self, buffer: Buff[c64], offset: Const[u32], stride: Const[u32], register_list: List[vc.ShaderVariable] = None):
+    def set_global_output(self, buffer: Buff, index: Const[u32], value: Const[c64]):
+        if self.r2c and self.angle_factor < 0:
+            vc.if_statement(
+                index < (self.config.N // 2) + 1,
+                f"{buffer[index * self.fft_stride + self.resources.output_batch_offset]} = {value};")
+            
+            return
+
+        if self.angle_factor > 0 and self.normalize:
+            buffer[index * self.fft_stride + self.resources.output_batch_offset] = value / self.config.N
+        else:
+            buffer[index * self.fft_stride + self.resources.output_batch_offset] = value
+
+    def store_registers_in_buffer(self, buffer: Buff, offset: Const[u32], stride: Const[u32], register_list: List[vc.ShaderVariable] = None):
         if register_list is None:
             register_list = self.resources.registers
-
-        batch_offset = self.resources.batch_offset
-        fft_stride = self.fft_stride
-        normalization_factor = None
-
-        if buffer is None:
-            buffer = self.resources.sdata
-            batch_offset = self.resources.sdata_offset
-            fft_stride = 1
-
-        elif self.angle_factor > 0 and self.normalize:
-            normalization_factor = self.config.N
 
         vc.comment(f"Storing registers {register_list} to buffer {buffer} at offset {offset} and stride {stride}")
 
         for i in range(len(register_list)):
-            write_object = register_list[i]
+            if buffer is None:
+                self.resources.sdata[i * stride + offset + self.resources.sdata_offset] = register_list[i]
+            else:
+                self.set_global_output(buffer, i * stride + offset, register_list[i])
 
-            if normalization_factor is not None:
-                write_object = register_list[i] / normalization_factor
-                
-            buffer[(i * stride + offset) * fft_stride + batch_offset] = write_object
+            #buffer[(i * stride + offset) * self.fft_stride + self.resources.batch_offset] = write_object
     
     def radix_P(self, register_list: List[vc.ShaderVariable]):
         assert len(register_list) <= len(self.resources.radix_registers), "Too many registers for radix_P"
@@ -323,7 +344,11 @@ class FFTPlanner:
 
         return register_list
 
-    def process_fft_register_stage(self, stage: FFTRegisterStageConfig, output_stride: int, input = None, output = None):
+    def process_fft_register_stage(self, 
+                                   stage: FFTRegisterStageConfig, 
+                                   output_stride: int, 
+                                   input = None, 
+                                   output = None):
         do_runtime_if = stage.thread_count < self.batch_threads
         
         vc.comment(f"Processing prime group {stage.primes} by doing {stage.instance_count} radix-{stage.fft_length} FFTs on {self.config.N // stage.registers_used} groups")
@@ -357,6 +382,7 @@ class FFTPlanner:
         if do_runtime_if: vc.if_statement(self.resources.tid < stage.thread_count)
 
         for ii, invocation in enumerate(stage_invocations):
+
             if stage.remainder_offset == 1 and ii == stage.extra_ffts:
                 vc.if_statement(self.resources.tid < self.config.N // stage.registers_used)
 
@@ -370,10 +396,12 @@ class FFTPlanner:
                 register_list=self.resources.registers[invocation.register_selection],
                 primes=stage.primes
             )
+            
+            self.resources.subsequence_offset[:] = invocation.sub_sequence_offset
 
             self.store_registers_in_buffer(
                 buffer=output,
-                offset=invocation.sub_sequence_offset,
+                offset=self.resources.subsequence_offset,
                 stride=output_stride,
                 register_list=self.resources.registers[invocation.register_selection]
             )
@@ -383,9 +411,10 @@ class FFTPlanner:
 
         if do_runtime_if: vc.end()
 
-    def plan(self, input: Buff[c64] = None, output: Buff[c64] = None, inverse: bool = False, normalize_inverse: bool = True):
+    def plan(self, input: Buff = None, output: Buff = None, inverse: bool = False, normalize_inverse: bool = True, r2c: bool = False):
         self.angle_factor = 2 * np.pi * (1 if inverse else -1)
         self.normalize = normalize_inverse
+        self.r2c = r2c
 
         output_stride = 1
 
