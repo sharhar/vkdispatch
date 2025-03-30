@@ -45,7 +45,7 @@ def make_fft_shader(
     signature = vd.ShaderSignature.from_type_annotations(builder, [Buff[c64]])
     buffer = signature.get_variables()[0]
 
-    fft_planner.allocate_resources(batch_y_count, batch_z_count, r2c=r2c)
+    fft_planner.allocate_resources(batch_y_count, batch_z_count)
 
     fft_planner.plan(input=buffer, output=buffer, inverse=inverse, normalize_inverse=normalize_inverse, r2c=r2c)
 

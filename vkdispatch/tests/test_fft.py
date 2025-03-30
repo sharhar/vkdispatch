@@ -29,8 +29,6 @@ def test_fft_1d():
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
         while check_fft_dims(current_shape, max_fft_size):
-            print(current_shape)
-
             data = np.random.rand(*current_shape).astype(np.complex64)
             test_data = vd.Buffer(data.shape, vd.complex64)
 
@@ -43,7 +41,7 @@ def test_fft_1d():
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
 
-def test_2d_fft():
+def test_fft_2d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
@@ -64,7 +62,7 @@ def test_2d_fft():
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
 
-def test_3d_fft():
+def test_fft_3d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
@@ -95,8 +93,6 @@ def test_ifft_1d():
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
         while check_fft_dims(current_shape, max_fft_size):
-            print(current_shape)
-
             data = np.random.rand(*current_shape).astype(np.complex64)
             test_data = vd.Buffer(data.shape, vd.complex64)
 
@@ -109,7 +105,7 @@ def test_ifft_1d():
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
 
-def test_2d_ifft():
+def test_ifft_2d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
@@ -130,7 +126,7 @@ def test_2d_ifft():
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
 
-def test_3d_ifft():
+def test_ifft_3d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
@@ -161,8 +157,6 @@ def test_rfft_1d():
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
         while check_fft_dims(current_shape, max_fft_size):
-            print(current_shape)
-
             data = np.random.rand(*current_shape).astype(np.float32)
             test_data = vd.RFFTBuffer(data.shape)
 
@@ -174,7 +168,7 @@ def test_rfft_1d():
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
 
-def test_2d_rfft():
+def test_rfft_2d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
@@ -195,7 +189,7 @@ def test_2d_rfft():
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
 
-def test_3d_rfft():
+def test_rfft_3d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
@@ -213,5 +207,68 @@ def test_3d_rfft():
             vd.fft.rfft3(test_data)
 
             assert np.allclose(np.fft.rfftn(data), test_data.read_fourier(0), atol=5e-2)
+
+            current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
+
+def test_irfft_1d():
+    max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+
+    max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+
+    for _ in range(20):
+        dims = pick_dim_count(1)
+        current_shape = [pick_radix_prime() for _ in range(dims)]
+
+        while check_fft_dims(current_shape, max_fft_size):
+            data = np.random.rand(*current_shape).astype(np.float32)
+
+            test_data = vd.asrfftbuffer(data)
+
+            vd.fft.rfft(test_data)
+            vd.fft.irfft(test_data)
+
+            assert np.allclose(data, test_data.read_real(0), atol=1e-3)
+
+            current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
+
+def test_irfft_2d():
+    max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+
+    max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+
+    for _ in range(20):
+        dims = pick_dim_count(2)
+        current_shape = [pick_radix_prime() for _ in range(dims)]
+
+        while check_fft_dims(current_shape, max_fft_size):
+            data = np.random.rand(*current_shape).astype(np.float32)
+
+            test_data = vd.asrfftbuffer(data)
+
+            vd.fft.rfft2(test_data)
+            vd.fft.irfft2(test_data)
+
+            assert np.allclose(data, test_data.read_real(0), atol=1e-3)
+
+            current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
+
+def test_irfft_2d():
+    max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+
+    max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+
+    for _ in range(20):
+        dims = 3
+        current_shape = [pick_radix_prime() for _ in range(dims)]
+
+        while check_fft_dims(current_shape, max_fft_size):
+            data = np.random.rand(*current_shape).astype(np.float32)
+
+            test_data = vd.asrfftbuffer(data)
+
+            vd.fft.rfft3(test_data)
+            vd.fft.irfft3(test_data)
+
+            assert np.allclose(data, test_data.read_real(0), atol=1e-3)
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])

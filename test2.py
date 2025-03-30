@@ -5,43 +5,36 @@ from matplotlib import pyplot as plt
 
 vd.initialize(debug_mode=True)
 
-N = 30
-B = 20
-
-#N = 512
-#B = 512
+N = 64
+B = 32
 signal = np.zeros((B, N,), dtype=np.float32)
 
 signal[:, N//4:N//3] = 1
 
-#signal = (np.random.rand(B, N) + 1j * np.random.rand(B, N)).astype(np.complex64)
+test_data = vd.asrfftbuffer(signal)
 
-signal_gpu = vd.asrfftbuffer(signal)
+vd.fft.rfft(test_data)
+vd.fft.irfft(test_data)
 
-vd.fft.rfft(signal_gpu, print_shader=True)
-vd.fft.fft(signal_gpu, axis=0)
+data = test_data.read_real(0)
 
-data = np.array(signal_gpu.read_fourier(0))
-
-reference_data = np.fft.rfft2(signal)
-
-diff_arr = np.abs(data - reference_data)
+diff_arr = np.abs(data - signal)
 
 arg_max = np.argmax(diff_arr)
 
 index_2d = np.unravel_index(arg_max, diff_arr.shape)
 
-print(data[index_2d], reference_data[index_2d])
+print(data[index_2d], signal[index_2d])
 
-plt.imshow(np.abs(reference_data))
+plt.imshow(np.abs(signal))
 plt.colorbar()
 plt.show()
 
-plt.imshow(np.abs(data - reference_data))
+plt.imshow(np.abs(data))
 plt.colorbar()
 plt.show()
 
-print(np.allclose(data, reference_data, atol=1e-2))
+print(np.allclose(data, signal, atol=1e-2))
 
 
 exit()
