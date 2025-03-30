@@ -136,7 +136,7 @@ def asbuffer(array: np.ndarray) -> Buffer:
 
 class RFFTBuffer(Buffer):
     def __init__(self, shape: Tuple[int, ...]):
-        super().__init__(shape[:-1] + (shape[-1] // 2 + 1,), complex64)
+        super().__init__(tuple(shape[:-1]) + (shape[-1] // 2 + 1,), complex64)
 
         self.real_shape = shape
         self.fourier_shape = self.shape
@@ -157,7 +157,7 @@ class RFFTBuffer(Buffer):
         self.write(np.ascontiguousarray(true_data).view(np.complex64), index)
 
     def write_fourier(self, data: np.ndarray, index: int = -1):
-        assert data.shape == self.fourier_shape, "Data shape must match fourier shape!"
+        assert data.shape == self.fourier_shape, f"Data shape {data.shape} must match fourier shape {self.fourier_shape}!"
         assert np.issubdtype(data.dtype, np.complexfloating) , "Data dtype must be complex!"
 
         self.write(np.ascontiguousarray(data.astype(np.complex64)).view(np.float32), index)
