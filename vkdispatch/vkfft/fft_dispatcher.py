@@ -138,7 +138,7 @@ def ifft(
         )
 
 def rfft(
-        buffer: vd.Buffer,
+        buffer: vd.RFFTBuffer,
         input: vd.Buffer = None,
         axes: List[int] = None,
         padding: List[Tuple[int, int]] = None, 
@@ -154,7 +154,7 @@ def rfft(
         cmd_stream = cmd_stream,
         config = FFTConfig(
             buffer_handle=buffer._handle,
-            shape=sanitize_input_tuple(buffer.shape[:-1] + (buffer.shape[-1] - 2,)),
+            shape=sanitize_input_tuple(buffer.real_shape),
             do_r2c=True,
             axes=sanitize_input_tuple(axes),
             padding=sanitize_input_tuple(padding),
@@ -167,7 +167,7 @@ def rfft(
     )
 
 def irfft(
-        buffer: vd.Buffer,
+        buffer: vd.RFFTBuffer,
         input: vd.Buffer = None,
         axes: List[int] = None, 
         normalize: bool = False,
@@ -184,7 +184,7 @@ def irfft(
         cmd_stream = cmd_stream,
         config = FFTConfig(
             buffer_handle=buffer._handle,
-            shape=sanitize_input_tuple(buffer.shape[:-1] + (buffer.shape[-1] - 2,)),
+            shape=sanitize_input_tuple(buffer.real_shape),
             do_r2c=True,
             axes=sanitize_input_tuple(axes),
             normalize=normalize,
@@ -211,7 +211,7 @@ def sanitize_2d_convolution_buffer_shape(in_shape: vd.Buffer):
     return in_shape
 
 def convolve_2Dreal(
-        buffer: Union[vd.Buffer[vd.float32], vd.RFFTBuffer],
+        buffer: vd.RFFTBuffer,
         kernel: Union[vd.Buffer[vd.float32], vd.RFFTBuffer],
         input: Union[vd.Buffer[vd.float32], vd.RFFTBuffer] = None,
         normalize: bool = False,
@@ -242,7 +242,7 @@ def convolve_2Dreal(
         cmd_stream = cmd_stream,
         config = FFTConfig(
             buffer_handle=buffer._handle,
-            shape=sanitize_input_tuple((buffer_shape[1], buffer_shape[2] - 2)),
+            shape=sanitize_input_tuple(buffer.real_shape),
             do_r2c=True,
             normalize=normalize,
             kernel_count=kernel_count,
@@ -276,7 +276,7 @@ def create_kernel_2Dreal(
         cmd_stream = cmd_stream,
         config = FFTConfig(
             buffer_handle=kernel._handle,
-            shape=sanitize_input_tuple((shape[1], shape[2] - 2,)),
+            shape=sanitize_input_tuple(kernel.real_shape),
             do_r2c=True,
             kernel_convolution=True,
             convolution_features=feature_count,
