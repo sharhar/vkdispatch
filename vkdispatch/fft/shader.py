@@ -49,3 +49,45 @@ def print_cache_info():
 
 def cache_clear():
     return make_fft_shader.cache_clear()
+
+@lru_cache(maxsize=None)
+def make_convolution_shader(
+        buffer_shape: Tuple, 
+        axis: int = None, 
+        name: str = None, 
+        normalize: bool = True) -> Tuple[vd.ShaderObject, Tuple[int, int, int]]:
+    if name is None:
+        name = f"convolution_shader_{buffer_shape}_{axis}"
+
+    with vc.builder_context(enable_exec_bounds=False) as builder:
+        signature = vd.ShaderSignature.from_type_annotations(builder, [Buff[c64]])
+        buffer = signature.get_variables()[0]
+        #kernel = signature.get_variables()[1]
+
+        fft_config = FFTConfig(buffer_shape, axis)
+        
+        resources = allocate_fft_resources(fft_config)
+
+        plan(resources, fft_config.params(inverse=False), input=buffer)
+
+        vc.memory_barrier()
+        vc.barrier()
+        
+        plan(resources, fft_config.params(inverse=True, normalize=normalize), output=buffer)
+
+        shader_object = vd.ShaderObject(
+            builder.build(name),
+            signature,
+            local_size=resources.local_size
+        )
+
+        return shader_object, fft_config.exec_size
+
+def get_convoliution_cache_info():
+    return make_convolution_shader.cache_info()
+
+def print_convoliution_cache_info():
+    print(get_cache_info())
+
+def convolution_cache_clear():
+    return make_convolution_shader.cache_clear()

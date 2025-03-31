@@ -1,6 +1,6 @@
 import vkdispatch as vd
 
-from .shader import make_fft_shader
+from .shader import make_fft_shader, make_convolution_shader
 
 from typing import Tuple
 
@@ -87,3 +87,21 @@ def irfft3(buffer: vd.RFFTBuffer, cmd_stream: vd.CommandStream = None, print_sha
     ifft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=0, normalize=normalize)
     ifft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=1, normalize=normalize)
     irfft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, normalize=normalize)
+
+def convolve(
+        buffer: vd.Buffer,
+        buffer_shape: Tuple = None,
+        cmd_stream: vd.CommandStream = None,
+        print_shader: bool = False,
+        axis: int = None,
+        normalize: bool = True,
+        name: str = None):
+    if buffer_shape is None:
+        buffer_shape = buffer.shape
+
+    fft_shader, exec_size = make_convolution_shader(tuple(buffer_shape), axis, name=name, normalize=normalize)
+
+    if print_shader:
+        print(fft_shader)
+
+    fft_shader(buffer, cmd_stream=cmd_stream, exec_size=exec_size)
