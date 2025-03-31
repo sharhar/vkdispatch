@@ -252,7 +252,7 @@ def test_irfft_2d():
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
 
-def test_irfft_2d():
+def test_irfft_3d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])

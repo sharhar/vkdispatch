@@ -39,12 +39,21 @@ def shader(exec_size=None, local_size=None, workgroups=None):
     
     return decorator
 
-def reduce(identity, axes=None, group_size=None):
+def reduce(identity, axes=None, group_size=None, mapping_function: vd.MappingFunction = None):
     def decorator(func: Callable[..., RetType]) -> Callable[[vd.Buffer[RetType]], vd.Buffer[RetType]]:
         func_signature = inspect.signature(func)
 
         if func_signature.return_annotation == inspect.Parameter.empty:
             raise ValueError("Return type must be annotated")
+        
+        input_types = None
+        map_func = None
+        
+        if mapping_function is not None:
+            assert mapping_function.return_type == func_signature.return_annotation, "Mapping function return type must match the return type of the reduction function"
+
+            input_types = mapping_function.buffer_types
+            map_func = mapping_function.mapping_function
 
         return vd.ReductionObject(
             reduction=vd.ReductionOperation(
@@ -54,38 +63,24 @@ def reduce(identity, axes=None, group_size=None):
             ),
             out_type=func_signature.return_annotation,
             group_size=group_size,
-            axes=axes
+            axes=axes,
+            input_types=input_types,
+            map_func=map_func
         )
     
     return decorator
 
 def map_reduce(reduction: vd.ReductionOperation, axes=None, group_size=None):
     def decorator(func: Callable[P2, RetType2]) -> Callable[P2, vd.Buffer[RetType2]]:
-        func_signature = inspect.signature(func)
-
-        if func_signature.return_annotation == inspect.Parameter.empty:
-            raise ValueError("Return type must be annotated")
-        
-        input_types = []
-
-        for param in func_signature.parameters.values():
-            my_annotation = param.annotation
-
-            if my_annotation == inspect.Parameter.empty:
-                raise ValueError("All parameters must be annotated")
-
-            if not hasattr(my_annotation, '__args__'):
-                raise TypeError(f"Argument '{param.name}: vd.{my_annotation}' must have a type annotation")
-
-            input_types.append(my_annotation)
+        mapping_func = vd.map(func)
 
         return vd.ReductionObject(
             reduction=reduction,
-            out_type=func_signature.return_annotation,
+            out_type=mapping_func.return_type,
             group_size=group_size,
             axes=axes,
-            input_types=input_types,
-            map_func=func
+            input_types=mapping_func.buffer_types,
+            map_func=mapping_func.mapping_function
         )
     
     return decorator

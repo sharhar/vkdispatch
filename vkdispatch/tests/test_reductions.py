@@ -113,6 +113,36 @@ def test_pure_reductions():
 
     assert np.abs(difference / data.sum(dtype=np.float32)) < 1e-3
 
+def test_pure_reductions_with_mapping_function():
+    # Create a buffer
+
+    data_size = 300000
+
+    # Create a numpy array
+    data = np.random.rand(data_size).astype(np.float32)
+
+    # Write the data to the buffer
+    buf = vd.asbuffer(data)
+
+    @vd.map
+    def reduction_map(input: Buff[f32]) -> f32:
+        return vc.sin(input[vc.mapping_index()])
+
+    @vd.reduce(0, mapping_function=reduction_map)
+    def sum_reduce(a: f32, b: f32) -> f32:
+        result = (a + b).copy()
+        return result
+
+    res_buf = sum_reduce(buf)
+
+    # Read the data from the buffer
+    read_data = res_buf.read(0)
+
+    # Check that the data is the same
+    difference = np.sin(data).sum(dtype=np.float32) - read_data[0]
+
+    assert np.abs(difference / data.sum(dtype=np.float32)) < 1e-3
+
 def test_batched_mapped_reductions():
     batch_size = 10
     data_size = 300000
