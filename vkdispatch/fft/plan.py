@@ -29,11 +29,23 @@ def get_global_input(resources: FFTResources, params: FFTParams, buffer: Buff, i
     resources.io_index[:] = (index * params.fft_stride + resources.input_batch_offset).cast_to(i32)
 
     if not params.r2c:
+        if params.input_map is not None:
+            vc.set_mapping_index(resources.io_index)
+            assert params.input_map.return_type == c64, "Input map must return a complex number"
+            return params.input_map.mapping_function(*params.input_buffers)
+
         return buffer[resources.io_index]
     
     if not params.inverse:
+        if params.input_map is not None:
+            vc.set_mapping_index(resources.io_index)
+            assert params.input_map.return_type == f32, "Input map must return a complex number"
+            return params.input_map.mapping_function(*params.input_buffers)
+
         real_value = buffer[resources.io_index / 2][resources.io_index % 2]
         return f"vec2({real_value}, 0)"
+    
+    assert params.input_map is None, "Inverse R2C FFT does not support input mapping"
     
     vc.if_statement(index >= (params.config.N // 2) + 1)
     resources.io_index[:] = ((params.config.N - index) * params.fft_stride + resources.input_batch_offset).cast_to(i32)
@@ -64,7 +76,14 @@ def set_global_output(resources: FFTResources, params: FFTParams, buffer: Buff, 
     if params.inverse and params.normalize:
         true_value = value / params.config.N
 
+    resources.io_index[:] = (index * params.fft_stride + resources.output_batch_offset).cast_to(i32)
+
     if not params.r2c:
+        if params.output_map is not None:
+            vc.set_mapping_index(resources.io_index)
+            params.output_map.mapping_function(*params.output_buffers, value)
+            return
+
         buffer[index * params.fft_stride + resources.output_batch_offset] = true_value
         return
 
@@ -74,7 +93,6 @@ def set_global_output(resources: FFTResources, params: FFTParams, buffer: Buff, 
             f"{buffer[index * params.fft_stride + resources.output_batch_offset]} = {value};")
         return
     
-    resources.io_index[:] = (index * params.fft_stride + resources.output_batch_offset).cast_to(i32)
     buffer[resources.io_index / 2][resources.io_index % 2] = true_value.x
 
 def store_registers_in_buffer(resources: FFTResources, params: FFTParams, buffer: Buff, offset: Const[u32], stride: Const[u32], register_list: List[vc.ShaderVariable] = None):

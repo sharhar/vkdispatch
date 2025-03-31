@@ -1,4 +1,4 @@
-
+import vkdispatch as vd
 import numpy as np
 import dataclasses
 from typing import List, Tuple
@@ -38,7 +38,7 @@ class FFTRegisterStageConfig:
 
 @dataclasses.dataclass
 class FFTParams:
-    config: "FFTConfig"
+    config: "FFTConfig" = None
     inverse: bool = False
     normalize: bool = True
     r2c: bool = False
@@ -46,6 +46,10 @@ class FFTParams:
     batch_z_stride: int = None
     fft_stride: int = None
     angle_factor: float = None
+    input_map: vd.MappingFunction = None
+    input_buffers: List[vd.Buffer] = None
+    output_map: vd.MappingFunction = None
+    output_buffers: List[vd.Buffer] = None
 
 @dataclasses.dataclass
 class FFTConfig:
@@ -103,7 +107,11 @@ class FFTConfig:
     def params(self,
                inverse: bool = False,
                normalize: bool = True,
-               r2c: bool = False) -> FFTParams:
+               r2c: bool = False,
+               input_map: vd.MappingFunction = None,
+               input_buffers: List[vd.Buffer] = None,
+               output_map: vd.MappingFunction = None,
+               output_buffers: List[vd.Buffer] = None) -> FFTParams:
         return FFTParams(
             config=self,
             inverse=inverse,
@@ -112,6 +120,10 @@ class FFTConfig:
             batch_y_stride=self.batch_y_stride,
             batch_z_stride=self.batch_z_stride,
             fft_stride=self.fft_stride,
-            angle_factor=2 * np.pi * (1 if inverse else -1)
+            angle_factor=2 * np.pi * (1 if inverse else -1),
+            input_map=input_map,
+            input_buffers=input_buffers,
+            output_map=output_map,
+            output_buffers=output_buffers
         )
     

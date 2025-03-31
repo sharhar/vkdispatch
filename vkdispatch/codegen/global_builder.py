@@ -66,8 +66,14 @@ def subgroup_invocation():
 def set_mapping_index(index: ShaderVariable):
     GlobalBuilder.obj.set_mapping_index(index)
 
+def set_mapping_registers(registers: ShaderVariable):
+    GlobalBuilder.obj.set_mapping_registers(registers)
+
 def mapping_index():
     return GlobalBuilder.obj.mapping_index
+
+def mapping_registers():
+    return GlobalBuilder.obj.mapping_registers
 
 def shared_buffer(var_type: vd.dtype, size: int, var_name: Optional[str] = None):
     return GlobalBuilder.obj.shared_buffer(var_type, size, var_name)
