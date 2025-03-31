@@ -41,19 +41,20 @@ def shader(exec_size=None, local_size=None, workgroups=None):
 
 def reduce(identity, axes=None, group_size=None, mapping_function: vd.MappingFunction = None):
     def decorator(func: Callable[..., RetType]) -> Callable[[vd.Buffer[RetType]], vd.Buffer[RetType]]:
+        used_mapping_function = mapping_function
+        
         func_signature = inspect.signature(func)
 
         if func_signature.return_annotation == inspect.Parameter.empty:
             raise ValueError("Return type must be annotated")
         
-        input_types = None
-        map_func = None
-        
-        if mapping_function is not None:
-            assert mapping_function.return_type == func_signature.return_annotation, "Mapping function return type must match the return type of the reduction function"
-
-            input_types = mapping_function.buffer_types
-            map_func = mapping_function.mapping_function
+        if used_mapping_function is None:
+            used_mapping_function = vd.map(
+                func = lambda buffer: buffer[vc.mapping_index()],
+                return_type=func_signature.return_annotation,
+                input_types=[vc.Buffer[func_signature.return_annotation]])
+        else:
+            assert used_mapping_function.return_type == func_signature.return_annotation, "Mapping function return type must match the return type of the reduction function"
 
         return vd.ReductionObject(
             reduction=vd.ReductionOperation(
@@ -61,11 +62,13 @@ def reduce(identity, axes=None, group_size=None, mapping_function: vd.MappingFun
                 reduction=func,
                 identity=identity
             ),
-            out_type=func_signature.return_annotation,
+
+            #out_type=func_signature.return_annotation,
             group_size=group_size,
             axes=axes,
-            input_types=input_types,
-            map_func=map_func
+            mapping_function=used_mapping_function
+            #input_types=input_types,
+            #map_func=map_func
         )
     
     return decorator
@@ -75,12 +78,13 @@ def map_reduce(reduction: vd.ReductionOperation, axes=None, group_size=None):
         mapping_func = vd.map(func)
 
         return vd.ReductionObject(
-            reduction=reduction,
-            out_type=mapping_func.return_type,
+           reduction=reduction,
+            #out_type=mapping_func.return_type,
             group_size=group_size,
             axes=axes,
-            input_types=mapping_func.buffer_types,
-            map_func=mapping_func.mapping_function
+            mapping_function=mapping_func
+            #input_types=mapping_func.buffer_types,
+            #map_func=mapping_func.mapping_function
         )
     
     return decorator

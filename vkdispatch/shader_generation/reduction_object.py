@@ -9,17 +9,19 @@ import numpy as np
 class ReductionObject:
     def __init__(self,
                  reduction: vd.ReductionOperation,
-                 out_type: vd.dtype, 
+                 #out_type: vd.dtype, 
                  group_size: int = None, 
-                 map_func: Callable = None,
-                 input_types: List = None,
-                 axes: List[int] = None):
+                 #map_func: Callable = None,
+                 #input_types: List = None,
+                 axes: List[int] = None,
+                 mapping_function: vd.MappingFunction = None):
         self.reduction = reduction
-        self.out_type = out_type
+        self.out_type = mapping_function.return_type #out_type
         self.group_size = group_size
-        self.map_func = map_func
-        self.input_types = input_types if input_types is not None else [vc.Buffer[out_type]]
+        self.map_func = mapping_function.mapping_function # map_func
+        self.input_types = mapping_function.buffer_types # input_types if input_types is not None else [vc.Buffer[out_type]]
         self.axes = axes
+
 
         self.stage1 = None
         self.stage2 = None

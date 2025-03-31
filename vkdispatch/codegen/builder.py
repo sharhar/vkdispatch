@@ -139,6 +139,7 @@ class ShaderBuilder:
         self.scope_num = 1
         self.contents = ""
         self.mapping_index = None
+        self.mapping_registers = None
         
         self.exec_count = self.declare_constant(abv.uv4, var_name="exec_count")
         
@@ -157,6 +158,9 @@ class ShaderBuilder:
 
     def set_mapping_index(self, index: ShaderVariable):
         self.mapping_index = index
+
+    def set_mapping_registers(self, registers: ShaderVariable):
+        self.mapping_registers = list(registers)
 
     def append_contents(self, contents: str) -> None:
         self.contents += ("\t" * self.scope_num) + contents
