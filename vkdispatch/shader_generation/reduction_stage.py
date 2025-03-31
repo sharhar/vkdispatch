@@ -131,37 +131,33 @@ def make_reduction_stage(
 
     if name is None:
         name = f"reduction_stage_{reduction.name}_{out_type.name}_{input_types}_{group_size}"
-
-    builder = vc.ShaderBuilder()
-    old_builder = vc.set_global_builder(builder)
     
-    signature_type_array = []
-    
-    signature_type_array.append(vc.Buffer[out_type])
+    with vc.builder_context() as builder:
+        signature_type_array = []
+        
+        signature_type_array.append(vc.Buffer[out_type])
 
-    if input_types is not None:
-        signature_type_array.extend(input_types)
+        if input_types is not None:
+            signature_type_array.extend(input_types)
 
-    signature_type_array.append(ReductionParams)
+        signature_type_array.append(ReductionParams)
 
-    signature = vd.ShaderSignature.from_type_annotations(builder, signature_type_array)
-    input_variables = signature.get_variables()
+        signature = vd.ShaderSignature.from_type_annotations(builder, signature_type_array)
+        input_variables = signature.get_variables()
 
-    params: ReductionParams = input_variables[-1]
+        params: ReductionParams = input_variables[-1]
 
-    input_buffers = input_variables[:-1] if output_is_input else input_variables[1:-1]
+        input_buffers = input_variables[:-1] if output_is_input else input_variables[1:-1]
 
-    reduction_aggregate = global_reduce(reduction, out_type, input_buffers, params, map_func)
-    sdata = workgroup_reduce(reduction_aggregate, reduction, out_type, group_size)
-    local_var = subgroup_reduce(sdata, reduction, group_size)
+        reduction_aggregate = global_reduce(reduction, out_type, input_buffers, params, map_func)
+        sdata = workgroup_reduce(reduction_aggregate, reduction, out_type, group_size)
+        local_var = subgroup_reduce(sdata, reduction, group_size)
 
-    batch_offset = vc.workgroup().y * params.output_y_batch_stride
-    output_offset = vc.workgroup().x * params.output_stride
+        batch_offset = vc.workgroup().y * params.output_y_batch_stride
+        output_offset = vc.workgroup().x * params.output_stride
 
-    vc.if_statement(vc.local_invocation().x == 0)
-    input_variables[0][batch_offset + output_offset + params.output_offset] = local_var
-    vc.end()
+        vc.if_statement(vc.local_invocation().x == 0)
+        input_variables[0][batch_offset + output_offset + params.output_offset] = local_var
+        vc.end()
 
-    vc.set_global_builder(old_builder)
-
-    return vd.ShaderObject(builder.build(name), signature, local_size=(group_size, 1, 1))
+        return vd.ShaderObject(builder.build(name), signature, local_size=(group_size, 1, 1))
