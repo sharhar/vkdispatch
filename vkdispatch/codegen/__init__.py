@@ -39,7 +39,7 @@ from .global_builder import subgroup_min, subgroup_max, subgroup_and
 from .global_builder import subgroup_or, subgroup_xor, subgroup_elect
 from .global_builder import subgroup_barrier, mapping_index, set_mapping_index
 from .global_builder import printf, unravel_index
-from .global_builder import print_vars as print
+from .global_builder import print_vars as print, builder_context
 from .global_builder import new, new_float, new_int, new_uint
 from .global_builder import new_vec2, new_ivec2, new_uvec2
 from .global_builder import new_vec3, new_ivec3, new_uvec3

@@ -24,21 +24,18 @@ def shader(exec_size=None, local_size=None, workgroups=None):
     def decorator(func: Callable[P, None]) -> Callable[P, None]:
         shader_name = f"{func.__module__}.{func.__name__}"
 
-        builder = vc.ShaderBuilder()
-        old_builder = vc.set_global_builder(builder)
-        
-        signature = vd.ShaderSignature.from_inspectable_function(builder, func)
-        
-        func(*signature.get_variables())
-        vc.set_global_builder(old_builder)
+        with vc.builder_context() as builder:
+            signature = vd.ShaderSignature.from_inspectable_function(builder, func)
+            
+            func(*signature.get_variables())
 
-        return vd.ShaderObject(
-            builder.build(shader_name), 
-            signature,
-            local_size=local_size,
-            workgroups=workgroups,
-            exec_count=exec_size
-        )
+            return vd.ShaderObject(
+                builder.build(shader_name), 
+                signature,
+                local_size=local_size,
+                workgroups=workgroups,
+                exec_count=exec_size
+            )
     
     return decorator
 

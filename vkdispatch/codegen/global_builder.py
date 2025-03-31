@@ -3,6 +3,8 @@ import vkdispatch as vd
 from .variables import ShaderVariable
 from .builder import ShaderBuilder
 
+import contextlib
+
 from typing import List, Union, Optional
 
 inf_f32 = "uintBitsToFloat(0x7F800000)"
@@ -15,6 +17,21 @@ def set_global_builder(builder: ShaderBuilder):
     old_value = GlobalBuilder.obj
     GlobalBuilder.obj = builder  # Update the global reference.
     return old_value
+
+@contextlib.contextmanager
+def builder_context(enable_subgroup_ops: bool = True, enable_atomic_float_ops: bool = True, enable_printf: bool = True, enable_exec_bounds: bool = True):
+    builder = ShaderBuilder(
+        enable_atomic_float_ops=enable_atomic_float_ops,
+        enable_subgroup_ops=enable_subgroup_ops,
+        enable_printf=enable_printf,
+        enable_exec_bounds=enable_exec_bounds
+    )
+    old_builder = set_global_builder(builder)
+
+    try:
+        yield builder
+    finally:
+        set_global_builder(old_builder)
 
 def comment(text: str):
     GlobalBuilder.obj.comment(text)

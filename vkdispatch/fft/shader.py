@@ -23,51 +23,23 @@ def make_fft_shader(
     if name is None:
         name = f"fft_shader_{buffer_shape}_{axis}_{inverse}_{normalize_inverse}_{r2c}"
 
-    """
-    if axis is None:
-        axis = len(buffer_shape) - 1
+    with vc.builder_context(enable_exec_bounds=False) as builder:
+        signature = vd.ShaderSignature.from_type_annotations(builder, [Buff[c64]])
+        buffer = signature.get_variables()[0]
 
-    total_buffer_length = np.round(np.prod(buffer_shape)).astype(np.int32)
+        fft_config = FFTConfig(buffer_shape, axis)
+        
+        resources = allocate_fft_resources(fft_config)
 
-    fft_length = buffer_shape[axis]
+        plan(resources, fft_config.params(inverse, normalize_inverse, r2c), input=buffer, output=buffer)
 
-    stride = np.round(np.prod(buffer_shape[axis + 1:])).astype(np.int32)
-    batch_y_stride = stride * fft_length
-    batch_y_count = total_buffer_length // batch_y_stride
+        shader_object = vd.ShaderObject(
+            builder.build(name),
+            signature,
+            local_size=resources.local_size
+        )
 
-    batch_z_stride = 1
-    batch_z_count = stride"""
-
-    builder = vc.ShaderBuilder(enable_exec_bounds=False)
-    old_builder = vc.set_global_builder(builder)
-
-    signature = vd.ShaderSignature.from_type_annotations(builder, [Buff[c64]])
-    buffer = signature.get_variables()[0]
-
-    fft_config = FFTConfig(buffer_shape, axis)
-    
-    resources = allocate_fft_resources(fft_config)
-
-    #params = FFTParams(
-    #    inverse=inverse,
-    #    normalize=normalize_inverse,
-    #    r2c=r2c,
-    #    batch_y_stride=batch_y_stride,
-    #    batch_z_stride=batch_z_stride,
-    #    fft_stride=stride
-    #)
-
-    plan(resources, fft_config.params(inverse, normalize_inverse, r2c), input=buffer, output=buffer)
-
-    vc.set_global_builder(old_builder)
-
-    shader_object = vd.ShaderObject(
-        builder.build(name),
-        signature,
-        local_size=resources.local_size
-    )
-
-    return shader_object, fft_config.exec_size
+        return shader_object, fft_config.exec_size
 
 def get_cache_info():
     return make_fft_shader.cache_info()
