@@ -1,6 +1,6 @@
 import vkdispatch as vd
 
-from .fft_shader import make_fft_shader
+from .shader import make_fft_shader
 
 from typing import Tuple
 

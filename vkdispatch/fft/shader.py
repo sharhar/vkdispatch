@@ -6,7 +6,10 @@ from typing import List, Tuple
 from functools import lru_cache
 import numpy as np
 
-from .fft_planner import make_fft_planner
+from .config import FFTConfig, FFTParams
+from .resources import allocate_fft_resources
+
+from .plan import plan
 
 @lru_cache(maxsize=None)
 def make_fft_shader(
@@ -17,6 +20,10 @@ def make_fft_shader(
         normalize_inverse: bool = True,
         r2c: bool = False) -> Tuple[vd.ShaderObject, Tuple[int, int, int]]:
 
+    if name is None:
+        name = f"fft_shader_{buffer_shape}_{axis}_{inverse}_{normalize_inverse}_{r2c}"
+
+    """
     if axis is None:
         axis = len(buffer_shape) - 1
 
@@ -29,15 +36,7 @@ def make_fft_shader(
     batch_y_count = total_buffer_length // batch_y_stride
 
     batch_z_stride = 1
-    batch_z_count = stride
-
-    fft_planner = make_fft_planner(
-        N=fft_length,
-        stride=stride,
-        batch_y_stride=batch_y_stride,
-        batch_z_stride=batch_z_stride,
-        name=name
-    )
+    batch_z_count = stride"""
 
     builder = vc.ShaderBuilder(enable_exec_bounds=False)
     old_builder = vc.set_global_builder(builder)
@@ -45,24 +44,30 @@ def make_fft_shader(
     signature = vd.ShaderSignature.from_type_annotations(builder, [Buff[c64]])
     buffer = signature.get_variables()[0]
 
-    fft_planner.allocate_resources(batch_y_count, batch_z_count)
+    fft_config = FFTConfig(buffer_shape, axis)
+    
+    resources = allocate_fft_resources(fft_config)
 
-    fft_planner.plan(input=buffer, output=buffer, inverse=inverse, normalize_inverse=normalize_inverse, r2c=r2c)
+    #params = FFTParams(
+    #    inverse=inverse,
+    #    normalize=normalize_inverse,
+    #    r2c=r2c,
+    #    batch_y_stride=batch_y_stride,
+    #    batch_z_stride=batch_z_stride,
+    #    fft_stride=stride
+    #)
+
+    plan(resources, fft_config.params(inverse, normalize_inverse, r2c), input=buffer, output=buffer)
 
     vc.set_global_builder(old_builder)
 
     shader_object = vd.ShaderObject(
-        builder.build(f"{fft_planner.name}_{batch_y_count}_{batch_z_count}"),
+        builder.build(name),
         signature,
-        local_size=fft_planner.resources.local_size
+        local_size=resources.local_size
     )
 
-    exec_size = (fft_planner.batch_threads, batch_y_count, batch_z_count)
-
-    fft_planner.resources.reset()
-    fft_planner.reset()
-
-    return shader_object, exec_size
+    return shader_object, fft_config.exec_size
 
 def get_cache_info():
     return make_fft_shader.cache_info()
