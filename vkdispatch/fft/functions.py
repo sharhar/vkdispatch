@@ -5,7 +5,7 @@ from .shader import make_fft_shader, make_convolution_shader
 from typing import Tuple
 
 def fft(
-        buffer: vd.Buffer,
+        *buffers: vd.Buffer,
         buffer_shape: Tuple = None,
         cmd_stream: vd.CommandStream = None,
         print_shader: bool = False,
@@ -13,47 +13,67 @@ def fft(
         name: str = None,
         inverse: bool = False,
         normalize_inverse: bool = True,
-        r2c: bool = False):
+        r2c: bool = False,
+        input_map: vd.MappingFunction = None,
+        output_map: vd.MappingFunction = None):
+    
+    assert len(buffers) >= 1, "At least one buffer must be provided"
     
     if buffer_shape is None:
-        buffer_shape = buffer.shape
+        buffer_shape = buffers[0].shape
 
-    fft_shader, exec_size = make_fft_shader(tuple(buffer_shape), axis, name=name, inverse=inverse, normalize_inverse=normalize_inverse, r2c=r2c)
+    fft_shader, exec_size = make_fft_shader(
+        tuple(buffer_shape),
+        axis,
+        name=name,
+        inverse=inverse,
+        normalize_inverse=normalize_inverse,
+        r2c=r2c,
+        input_map=input_map,
+        output_map=output_map)
 
     if print_shader:
         print(fft_shader)
 
-    fft_shader(buffer, cmd_stream=cmd_stream, exec_size=exec_size)
+    fft_shader(*buffers, cmd_stream=cmd_stream, exec_size=exec_size)
 
-def fft2(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+def fft2(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False, input_map: vd.MappingFunction = None, output_map: vd.MappingFunction = None):
     assert len(buffer.shape) == 2 or len(buffer.shape) == 3, 'Buffer must have 2 or 3 dimensions'
 
-    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=len(buffer.shape) - 2)
-    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=len(buffer.shape) - 1)
+    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=len(buffer.shape) - 2, input_map=input_map)
+    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=len(buffer.shape) - 1, output_map=output_map)
 
-def fft3(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+def fft3(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False, input_map: vd.MappingFunction = None, output_map: vd.MappingFunction = None):
     assert len(buffer.shape) == 3, 'Buffer must have 3 dimensions'
 
-    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=0)
+    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=0, input_map=input_map)
     fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=1)
-    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=2)
+    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=2, output_map=output_map)
 
 
-def ifft(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False, axis: int = None, name: str = None, normalize: bool = True):
-    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=axis, name=name, inverse=True, normalize_inverse=normalize)
+def ifft(
+        buffer: vd.Buffer,
+        cmd_stream: vd.CommandStream = None,
+        print_shader: bool = False,
+        axis: int = None,
+        name: str = None,
+        normalize: bool = True,
+        input_map: vd.MappingFunction = None,
+        output_map: vd.MappingFunction = None):
+    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=axis, name=name, inverse=True, normalize_inverse=normalize, input_map=input_map, output_map=output_map)
 
-def ifft2(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False, normalize: bool = True):
+def ifft2(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False, normalize: bool = True, input_map: vd.MappingFunction = None, output_map: vd.MappingFunction = None):
     assert len(buffer.shape) == 2 or len(buffer.shape) == 3, 'Buffer must have 2 or 3 dimensions'
 
-    ifft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=len(buffer.shape) - 2, normalize=normalize)
-    ifft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=len(buffer.shape) - 1, normalize=normalize)
+    ifft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=len(buffer.shape) - 2, normalize=normalize, input_map=input_map)
+    ifft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=len(buffer.shape) - 1, normalize=normalize, output_map=output_map)
 
-def ifft3(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False, normalize: bool = True):
+def ifft3(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False, normalize: bool = True, input_map: vd.MappingFunction = None, output_map: vd.MappingFunction = None):
     assert len(buffer.shape) == 3, 'Buffer must have 3 dimensions'
 
-    ifft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=0, normalize=normalize)
+    ifft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=0, normalize=normalize, input_map=input_map)
     ifft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=1, normalize=normalize)
-    ifft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=2, normalize=normalize)
+    ifft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=2, normalize=normalize, output_map=output_map)
 
 
 def rfft(buffer: vd.RFFTBuffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False, name: str = None):

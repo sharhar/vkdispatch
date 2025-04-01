@@ -10,6 +10,8 @@ import numpy as np
 from .resources import FFTResources
 from .config import FFTRegisterStageConfig, FFTParams
 
+from .memory_io import load_buffer_to_registers, store_registers_in_buffer
+
 def set_batch_offsets(resources: FFTResources, params: FFTParams):
     input_batch_stride_y = params.batch_y_stride
     output_batch_stride_y = params.batch_y_stride
@@ -24,88 +26,6 @@ def set_batch_offsets(resources: FFTResources, params: FFTParams):
 
     resources.input_batch_offset[:] = vc.global_invocation().y * input_batch_stride_y + vc.global_invocation().z * params.batch_z_stride
     resources.output_batch_offset[:] = vc.global_invocation().y * output_batch_stride_y + vc.global_invocation().z * params.batch_z_stride
-
-def get_global_input(resources: FFTResources, params: FFTParams, buffer: Buff, index: Const[u32]):
-    resources.io_index[:] = (index * params.fft_stride + resources.input_batch_offset).cast_to(i32)
-
-    if not params.r2c:
-        if params.input_map is not None:
-            vc.set_mapping_index(resources.io_index)
-            assert params.input_map.return_type == c64, "Input map must return a complex number"
-            return params.input_map.mapping_function(*params.input_buffers)
-
-        return buffer[resources.io_index]
-    
-    if not params.inverse:
-        if params.input_map is not None:
-            vc.set_mapping_index(resources.io_index)
-            assert params.input_map.return_type == f32, "Input map must return a complex number"
-            return params.input_map.mapping_function(*params.input_buffers)
-
-        real_value = buffer[resources.io_index / 2][resources.io_index % 2]
-        return f"vec2({real_value}, 0)"
-    
-    assert params.input_map is None, "Inverse R2C FFT does not support input mapping"
-    
-    vc.if_statement(index >= (params.config.N // 2) + 1)
-    resources.io_index[:] = ((params.config.N - index) * params.fft_stride + resources.input_batch_offset).cast_to(i32)
-    resources.omega_register[:] = buffer[resources.io_index]
-    resources.omega_register.y = -resources.omega_register.y
-    vc.else_statement()
-    resources.omega_register[:] = buffer[resources.io_index]
-    vc.end()
-
-    return resources.omega_register
-    
-def load_buffer_to_registers(resources: FFTResources, params: FFTParams, buffer: Buff, offset: Const[u32], stride: Const[u32], register_list: List[vc.ShaderVariable] = None):
-    if register_list is None:
-        register_list = resources.registers
-
-    vc.comment(f"Loading to registers {register_list} from buffer {buffer} at offset {offset} and stride {stride}")
-
-    for i in range(len(register_list)):
-        register_list[i][:] = (
-            get_global_input(resources, params, buffer, i * stride + offset)
-            if buffer is not None else
-            resources.sdata[i * stride + offset + resources.sdata_offset]
-        )
-
-def set_global_output(resources: FFTResources, params: FFTParams, buffer: Buff, index: Const[u32], value: Const[c64]):
-    true_value = value
-
-    if params.inverse and params.normalize:
-        true_value = value / params.config.N
-
-    resources.io_index[:] = (index * params.fft_stride + resources.output_batch_offset).cast_to(i32)
-
-    if not params.r2c:
-        if params.output_map is not None:
-            vc.set_mapping_index(resources.io_index)
-            params.output_map.mapping_function(*params.output_buffers, value)
-            return
-
-        buffer[index * params.fft_stride + resources.output_batch_offset] = true_value
-        return
-
-    if not params.inverse:
-        vc.if_statement(
-            index < (params.config.N // 2) + 1,
-            f"{buffer[index * params.fft_stride + resources.output_batch_offset]} = {value};")
-        return
-    
-    buffer[resources.io_index / 2][resources.io_index % 2] = true_value.x
-
-def store_registers_in_buffer(resources: FFTResources, params: FFTParams, buffer: Buff, offset: Const[u32], stride: Const[u32], register_list: List[vc.ShaderVariable] = None):
-    if register_list is None:
-        register_list = resources.registers
-
-    vc.comment(f"Storing registers {register_list} to buffer {buffer} at offset {offset} and stride {stride}")
-
-    for i in range(len(register_list)):
-        if buffer is None:
-            resources.sdata[i * stride + offset + resources.sdata_offset] = register_list[i]
-        else:
-            set_global_output(resources, params, buffer, i * stride + offset, register_list[i])
 
 def radix_P(resources: FFTResources, params: FFTParams, register_list: List[vc.ShaderVariable]):
     assert len(register_list) <= len(resources.radix_registers), "Too many registers for radix_P"

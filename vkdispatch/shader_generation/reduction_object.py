@@ -9,10 +9,7 @@ import numpy as np
 class ReductionObject:
     def __init__(self,
                  reduction: vd.ReductionOperation,
-                 #out_type: vd.dtype, 
                  group_size: int = None, 
-                 #map_func: Callable = None,
-                 #input_types: List = None,
                  axes: List[int] = None,
                  mapping_function: vd.MappingFunction = None):
         self.reduction = reduction
@@ -22,6 +19,7 @@ class ReductionObject:
         self.input_types = mapping_function.buffer_types # input_types if input_types is not None else [vc.Buffer[out_type]]
         self.axes = axes
 
+        assert len(mapping_function.register_types) == 0, "ReductionObject needs a MappingFunction with no registers!"
 
         self.stage1 = None
         self.stage2 = None
