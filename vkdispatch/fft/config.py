@@ -46,9 +46,8 @@ class FFTParams:
     batch_z_stride: int = None
     fft_stride: int = None
     angle_factor: float = None
-    input_map: vd.MappingFunction = None
+    input_sdata: bool = False
     input_buffers: List[vd.Buffer] = None
-    output_map: vd.MappingFunction = None
     output_buffers: List[vd.Buffer] = None
 
 @dataclasses.dataclass
@@ -108,9 +107,8 @@ class FFTConfig:
                inverse: bool = False,
                normalize: bool = True,
                r2c: bool = False,
-               input_map: vd.MappingFunction = None,
+               input_sdata: bool = False,
                input_buffers: List[vd.Buffer] = None,
-               output_map: vd.MappingFunction = None,
                output_buffers: List[vd.Buffer] = None) -> FFTParams:
         return FFTParams(
             config=self,
@@ -121,9 +119,8 @@ class FFTConfig:
             batch_z_stride=self.batch_z_stride,
             fft_stride=self.fft_stride,
             angle_factor=2 * np.pi * (1 if inverse else -1),
-            input_map=input_map,
+            input_sdata=input_sdata,
             input_buffers=input_buffers,
-            output_map=output_map,
             output_buffers=output_buffers
         )
     

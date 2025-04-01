@@ -63,12 +63,9 @@ def reduce(identity, axes=None, group_size=None, mapping_function: vd.MappingFun
                 identity=identity
             ),
 
-            #out_type=func_signature.return_annotation,
             group_size=group_size,
             axes=axes,
             mapping_function=used_mapping_function
-            #input_types=input_types,
-            #map_func=map_func
         )
     
     return decorator
@@ -79,12 +76,9 @@ def map_reduce(reduction: vd.ReductionOperation, axes=None, group_size=None):
 
         return vd.ReductionObject(
            reduction=reduction,
-            #out_type=mapping_func.return_type,
             group_size=group_size,
             axes=axes,
             mapping_function=mapping_func
-            #input_types=mapping_func.buffer_types,
-            #map_func=mapping_func.mapping_function
         )
     
     return decorator

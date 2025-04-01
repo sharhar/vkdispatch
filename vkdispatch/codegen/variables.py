@@ -388,11 +388,11 @@ class ScaledAndOfftsetIntVariable(ShaderVariable):
                  scale: int = 1,
                  offset: int = 0
         ) -> None:
-        super().__init__(append_func, name_func, var_type, name)
-
         self.base_name = str(name)
         self.scale = scale
         self.offset = offset
+        
+        super().__init__(append_func, name_func, var_type, name)
     
     def new_from_self(self, scale: int = 1, offset: int = 0):
         return ScaledAndOfftsetIntVariable(
