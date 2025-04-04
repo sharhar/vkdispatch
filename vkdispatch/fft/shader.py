@@ -138,8 +138,10 @@ def make_convolution_shader(
     if kernel_map is None:
         def kernel_map_func(kernel_buffer: vc.Buffer[c64]):
             img_val = vc.mapping_registers()[0]
-            kernel_val = kernel_buffer[vc.mapping_index()].copy()
-            img_val[:] = vc.mult_conj_c64(img_val, kernel_val)
+            read_register = vc.mapping_registers()[1]
+
+            read_register[:] = kernel_buffer[vc.mapping_index()]
+            img_val[:] = vc.mult_conj_c64(img_val, read_register)
 
         kernel_map = vd.map(kernel_map_func, register_types=[c64], input_types=[vc.Buffer[c64]])
 
@@ -167,8 +169,7 @@ def make_convolution_shader(
                 inverse=True,
                 normalize=normalize,
                 input_buffers=kernel_buffers,
-                input_sdata=True,
-                passthrough=False),
+                input_sdata=True),
             input=kernel_map,
             output=buffer)
 
