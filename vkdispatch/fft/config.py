@@ -49,6 +49,7 @@ class FFTParams:
     input_sdata: bool = False
     input_buffers: List[vd.Buffer] = None
     output_buffers: List[vd.Buffer] = None
+    passthrough: bool = False
 
 @dataclasses.dataclass
 class FFTConfig:
@@ -72,6 +73,8 @@ class FFTConfig:
 
         N = buffer_shape[axis]
 
+        print(f"FFTConfig: buffer_shape: {buffer_shape}, axis: {axis}, N: {N}")
+
         self.fft_stride = np.round(np.prod(buffer_shape[axis + 1:])).astype(np.int32)
         self.batch_y_stride = self.fft_stride * N
         self.batch_y_count = total_buffer_length // self.batch_y_stride
@@ -86,7 +89,12 @@ class FFTConfig:
 
         max_register_count = min(max_register_count, N)
 
+        print(f"FFTConfig: N: {N}, max_register_count: {max_register_count}")
+
         prime_groups = group_primes(prime_factors(N), max_register_count)
+
+        print(f"FFTConfig: {prime_groups}")
+
         self.stages = tuple([FFTRegisterStageConfig(group, max_register_count, N) for group in prime_groups])
         register_utilizations = [stage.registers_used for stage in self.stages]
         self.register_count = max(register_utilizations)
@@ -109,7 +117,8 @@ class FFTConfig:
                r2c: bool = False,
                input_sdata: bool = False,
                input_buffers: List[vd.Buffer] = None,
-               output_buffers: List[vd.Buffer] = None) -> FFTParams:
+               output_buffers: List[vd.Buffer] = None,
+               passthrough: bool = False) -> FFTParams:
         return FFTParams(
             config=self,
             inverse=inverse,
@@ -121,6 +130,7 @@ class FFTConfig:
             angle_factor=2 * np.pi * (1 if inverse else -1),
             input_sdata=input_sdata,
             input_buffers=input_buffers,
-            output_buffers=output_buffers
+            output_buffers=output_buffers,
+            passthrough=passthrough
         )
     

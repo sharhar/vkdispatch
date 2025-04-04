@@ -74,7 +74,7 @@ def allocate_fft_resources(config: FFTConfig) -> FFTResources:
         subsequence_offset=vc.new_uint(0, var_name="subsequence_offset"),
         sdata=vc.shared_buffer(vc.c64, config.N * inline_batch_y * inline_batch_z, "sdata"),
         sdata_offset=(vc.local_invocation().y * inline_batch_z * config.N + vc.local_invocation().z * config.N).copy("sdata_offset"),
-        io_index=vc.new_int(0, var_name="io_index"),
+        io_index=vc.new_uint(0, var_name="io_index"),
         inline_batch_y=inline_batch_y,
         inline_batch_z=inline_batch_z,
         shared_memory_size=config.N * inline_batch_y * inline_batch_z * vd.complex64.item_size,

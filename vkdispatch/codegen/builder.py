@@ -163,7 +163,7 @@ class ShaderBuilder:
         self.mapping_registers = list(registers)
 
     def append_contents(self, contents: str) -> None:
-        self.contents += ("\t" * self.scope_num) + contents
+        self.contents += ("    " * self.scope_num) + contents
 
     def comment(self, comment: str) -> None:
         self.append_contents(f"/* {comment} */\n")

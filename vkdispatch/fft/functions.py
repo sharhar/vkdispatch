@@ -2,7 +2,7 @@ import vkdispatch as vd
 
 from .shader import make_fft_shader, make_convolution_shader
 
-from typing import Tuple
+from typing import Tuple, Union
 
 def fft(
         *buffers: vd.Buffer,
@@ -110,6 +110,8 @@ def irfft3(buffer: vd.RFFTBuffer, cmd_stream: vd.CommandStream = None, print_sha
 
 def convolve(
         buffer: vd.Buffer,
+        kernel: vd.Buffer,
+        kernel_map: vd.MappingFunction = None,
         buffer_shape: Tuple = None,
         cmd_stream: vd.CommandStream = None,
         print_shader: bool = False,
@@ -119,9 +121,39 @@ def convolve(
     if buffer_shape is None:
         buffer_shape = buffer.shape
 
-    fft_shader, exec_size = make_convolution_shader(tuple(buffer_shape), axis, name=name, normalize=normalize)
+    fft_shader, exec_size = make_convolution_shader(tuple(buffer_shape), kernel_map, axis, name=name, normalize=normalize)
 
     if print_shader:
         print(fft_shader)
 
-    fft_shader(buffer, cmd_stream=cmd_stream, exec_size=exec_size)
+    fft_shader(buffer, kernel, cmd_stream=cmd_stream, exec_size=exec_size)
+
+def convolve2D(
+        buffer: vd.Buffer,
+        kernel: vd.Buffer,
+        kernel_map: vd.MappingFunction = None,
+        buffer_shape: Tuple = None,
+        cmd_stream: vd.CommandStream = None,
+        print_shader: bool = False,
+        normalize: bool = True):
+
+    assert len(buffer.shape) == 2 or len(buffer.shape) == 3, 'Buffer must have 2 or 3 dimensions'
+
+    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader)
+    convolve(buffer, kernel, kernel_map, buffer_shape, cmd_stream=cmd_stream, print_shader=print_shader, axis=len(buffer.shape) - 2, normalize=normalize)
+    ifft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, normalize=normalize)
+
+def convolve2DR(
+        buffer: vd.RFFTBuffer,
+        kernel: vd.RFFTBuffer,
+        kernel_map: vd.MappingFunction = None,
+        buffer_shape: Tuple = None,
+        cmd_stream: vd.CommandStream = None,
+        print_shader: bool = False,
+        normalize: bool = True):
+    
+    assert len(buffer.shape) == 2 or len(buffer.shape) == 3, 'Buffer must have 2 or 3 dimensions'
+
+    rfft(buffer, cmd_stream=cmd_stream, print_shader=print_shader)
+    convolve(buffer, kernel, kernel_map, buffer_shape, cmd_stream=cmd_stream, print_shader=print_shader, axis=len(buffer.shape) - 2, normalize=normalize)
+    irfft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, normalize=normalize)

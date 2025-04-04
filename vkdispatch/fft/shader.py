@@ -56,7 +56,6 @@ class FFTInputOutput:
             self.out_buff = sig_vars[0]
 
         elif self.output_object is None:
-            #self.input_types = [Buff[c64]] + self.input_object.buffer_types
             self.input_buffers = sig_vars[1:]
             self.output_buffers = None
 
@@ -64,7 +63,6 @@ class FFTInputOutput:
             self.out_buff = sig_vars[0]
 
         elif self.input_object is None:
-            #self.input_types = self.output_object.buffer_types + [Buff[c64]]
             self.input_buffers = None
             self.output_buffers = sig_vars[:-1]
 
@@ -77,10 +75,6 @@ class FFTInputOutput:
 
             self.in_buff = input_object
             self.out_buff = output_object
-
-            #self.input_types = self.output_object.buffer_types + self.input_object.buffer_types
-        
-        #buffer = [0]
 
 @lru_cache(maxsize=None)
 def make_fft_shader(
@@ -96,12 +90,8 @@ def make_fft_shader(
     if name is None:
         name = f"fft_shader_{buffer_shape}_{axis}_{inverse}_{normalize_inverse}_{r2c}"
 
-
     with vc.builder_context(enable_exec_bounds=False) as builder:
         io_object = FFTInputOutput(builder, input_map, output_map)
-
-        #signature = vd.ShaderSignature.from_type_annotations(builder, [Buff[c64]])
-        #buffer = signature.get_variables()[0]
 
         fft_config = FFTConfig(buffer_shape, axis)
         
@@ -137,28 +127,50 @@ def cache_clear():
 
 @lru_cache(maxsize=None)
 def make_convolution_shader(
-        buffer_shape: Tuple, 
+        buffer_shape: Tuple,
+        kernel_map: vd.MappingFunction = None,
         axis: int = None, 
         name: str = None, 
         normalize: bool = True) -> Tuple[vd.ShaderObject, Tuple[int, int, int]]:
     if name is None:
         name = f"convolution_shader_{buffer_shape}_{axis}"
 
+    if kernel_map is None:
+        def kernel_map_func(kernel_buffer: vc.Buffer[c64]):
+            img_val = vc.mapping_registers()[0]
+            kernel_val = kernel_buffer[vc.mapping_index()].copy()
+            img_val[:] = vc.mult_conj_c64(img_val, kernel_val)
+
+        kernel_map = vd.map(kernel_map_func, register_types=[c64], input_types=[vc.Buffer[c64]])
+
     with vc.builder_context(enable_exec_bounds=False) as builder:
-        signature = vd.ShaderSignature.from_type_annotations(builder, [Buff[c64]])
+        signature = vd.ShaderSignature.from_type_annotations(builder, [Buff[c64]] + kernel_map.buffer_types)
         buffer = signature.get_variables()[0]
-        #kernel = signature.get_variables()[1]
+        kernel_buffers = signature.get_variables()[1:]
 
         fft_config = FFTConfig(buffer_shape, axis)
         
         resources = allocate_fft_resources(fft_config)
 
+        vc.comment("Performing forward FFT stage in convolution shader")
+
         plan(resources, fft_config.params(inverse=False), input=buffer)
 
         vc.memory_barrier()
         vc.barrier()
+
+        vc.comment("Performing convolution and IFFT stage in convolution shader")
         
-        plan(resources, fft_config.params(inverse=True, normalize=normalize), output=buffer)
+        plan(
+            resources,
+            fft_config.params(
+                inverse=True,
+                normalize=normalize,
+                input_buffers=kernel_buffers,
+                input_sdata=True,
+                passthrough=False),
+            input=kernel_map,
+            output=buffer)
 
         shader_object = vd.ShaderObject(
             builder.build(name),
