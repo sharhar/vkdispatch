@@ -8,19 +8,19 @@ from .resources import FFTResources
 from .config import FFTRegisterStageConfig, FFTParams
 
 def read_mapped_input(resources: FFTResources, params: FFTParams, mapping_index: Const[i32], mapping_function: vd.MappingFunction, output_register: vc.ShaderVariable, index: Const[u32]):
-    assert len(mapping_function.register_types) == 1, "Mapping function must have exactly one register type"
-    assert mapping_function.register_types[0] == c64, "Mapping function register type does not match expected return type"
+    #assert len(mapping_function.register_types) == 1, "Mapping function must have exactly one register type"
+    #assert mapping_function.register_types[0] == c64, "Mapping function register type does not match expected return type"
 
     if params.input_sdata:
         output_register[:] = resources.sdata[index + resources.sdata_offset]
 
     vc.set_mapping_index(mapping_index)
-    vc.set_mapping_registers([output_register])
+    vc.set_mapping_registers([output_register, resources.omega_register])
 
     mapping_function.mapping_function(*params.input_buffers)
 
 def get_global_input(resources: FFTResources, params: FFTParams, buffer: Buff, index: Const[u32], output_register: vc.ShaderVariable):
-    resources.io_index[:] = (index * params.fft_stride + resources.input_batch_offset).cast_to(i32)
+    resources.io_index[:] = (index * params.fft_stride + resources.input_batch_offset) #.cast_to(i32)
 
     if not params.r2c:
         if isinstance(buffer, vd.MappingFunction):
@@ -42,7 +42,7 @@ def get_global_input(resources: FFTResources, params: FFTParams, buffer: Buff, i
     assert not isinstance(buffer, vd.MappingFunction), "Inverse R2C FFT does not support input mapping"
     
     vc.if_statement(index >= (params.config.N // 2) + 1)
-    resources.io_index[:] = ((params.config.N - index) * params.fft_stride + resources.input_batch_offset).cast_to(i32)
+    resources.io_index[:] = ((params.config.N - index) * params.fft_stride + resources.input_batch_offset) #.cast_to(i32)
     output_register[:] = buffer[resources.io_index]
     output_register.y = -output_register.y
     vc.else_statement()
