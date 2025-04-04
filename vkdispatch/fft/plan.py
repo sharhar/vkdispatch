@@ -182,18 +182,6 @@ def process_fft_register_stage(resources: FFTResources,
 
     for ii, invocation in enumerate(stage_invocations):
 
-        if params.passthrough:
-            store_registers_in_buffer(
-                resources=resources,
-                params=params,
-                buffer=output, 
-                offset=invocation.instance_id, 
-                stride=params.config.N // stage.fft_length, 
-                register_list=resources.registers[invocation.register_selection]
-            )
-
-            continue
-
         if stage.remainder_offset == 1 and ii == stage.extra_ffts:
             vc.if_statement(resources.tid < params.config.N // stage.registers_used)
 
@@ -239,17 +227,6 @@ def plan(
     output_stride = 1
 
     stage_count = len(params.config.stages)
-
-    if params.passthrough:
-        process_fft_register_stage(
-            resources,
-            params,
-            params.config.stages[0],
-            output_stride,
-            input=input,
-            output=output)
-
-        return
 
     for i in range(stage_count):
         process_fft_register_stage(

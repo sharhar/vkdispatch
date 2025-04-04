@@ -8,6 +8,6 @@ from .shader import make_convolution_shader, get_convoliution_cache_info, print_
 from .functions import fft, fft2, fft3, ifft, ifft2, ifft3
 from .functions import rfft, rfft2, rfft3, irfft, irfft2, irfft3
 
-from .functions import convolve
+from .functions import convolve, convolve2D, convolve2DR
 
 from .prime_utils import pad_dim

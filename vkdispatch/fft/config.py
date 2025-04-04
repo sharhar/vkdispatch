@@ -73,8 +73,6 @@ class FFTConfig:
 
         N = buffer_shape[axis]
 
-        print(f"FFTConfig: buffer_shape: {buffer_shape}, axis: {axis}, N: {N}")
-
         self.fft_stride = np.round(np.prod(buffer_shape[axis + 1:])).astype(np.int32)
         self.batch_y_stride = self.fft_stride * N
         self.batch_y_count = total_buffer_length // self.batch_y_stride
@@ -89,11 +87,7 @@ class FFTConfig:
 
         max_register_count = min(max_register_count, N)
 
-        print(f"FFTConfig: N: {N}, max_register_count: {max_register_count}")
-
         prime_groups = group_primes(prime_factors(N), max_register_count)
-
-        print(f"FFTConfig: {prime_groups}")
 
         self.stages = tuple([FFTRegisterStageConfig(group, max_register_count, N) for group in prime_groups])
         register_utilizations = [stage.registers_used for stage in self.stages]

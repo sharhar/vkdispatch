@@ -23,12 +23,12 @@ def make_gaussian_signal(shape, dist):
     return signal
 
 def cpu_convolve_2d(signal_2d, kernel_2d):
-    return np.fft.irfft2(
+    return np.fft.ifft2(
     #return np.fft.ifft(
     #return (
-        np.fft.rfft2(signal_2d).astype(np.complex64)
+        np.fft.fft2(signal_2d).astype(np.complex64)
         *
-        np.fft.rfft2(kernel_2d).astype(np.complex64)
+        np.fft.fft2(kernel_2d).astype(np.complex64).conjugate()
     )
     #, axis=0)
 
@@ -44,57 +44,31 @@ def do_simple_1d_convolution(output_buffer, kernel_buffer):
 
     #vd.fft.ifft(output_buffer, axis=1) 
 
-side_len =  2 ** 12
+side_len = 11
 
 offset = 0
 
 save_figure = False
 
-signal = np.zeros(shape=(1, side_len, side_len - offset), dtype=np.float32)
+signal = np.zeros(shape=(side_len, side_len - offset), dtype=np.complex64)
+signal[:] = np.random.rand(side_len, side_len)
+kernels =  np.random.rand(side_len, side_len).astype(np.complex64)
 
-signal[:] = (np.abs(make_gaussian_signal((side_len - offset, side_len), 10))).astype(np.float32)
+output_buffer = vd.asbuffer(signal)
+kernel_buffer = vd.asbuffer(kernels)
 
-kernel_count = 1
+vd.fft.fft2(kernel_buffer)
 
-kernels = np.zeros(shape=(kernel_count, side_len, side_len - offset), dtype=np.float32)
-
-for i in range(kernel_count):
-    kernels[i] = (np.abs(make_square_signal((side_len, side_len - offset)))).astype(np.float32) * (i + 1)
-
-output_buffer = vd.asrfftbuffer(signal)
-kernel_buffer = vd.asrfftbuffer(kernels)
-
-#output_buffer = vd.RFFTBuffer((kernel_count, side_len, side_len - offset))
-
-vd.fft.rfft2(kernel_buffer)
-
-@vd.map_registers([vd.complex64])
-def test_map(kern_buff: vc.Buffer[vc.c64]):
-    pass
-    
-    #vc.mapping_registers()[0][:] = kern_buff[vc.mapping_index()]
-    
-    vc.mapping_registers()[1][:] = kern_buff[vc.mapping_index()]
-    vc.mapping_registers()[0][:] = vc.mult_conj_c64(vc.mapping_registers()[0], vc.mapping_registers()[1])
-
-vd.fft.rfft(output_buffer)
-
-vd.fft.convolve(output_buffer, kernel_buffer, kernel_map=test_map, axis=1, normalize=True)
-
-#do_simple_1d_convolution(output_buffer, kernel_buffer)
-
-vd.fft.irfft(output_buffer)
-
-#vd.vkfft.create_kernel_2Dreal(kernel_buffer)
-
-# Perform an FFT on the buffer
-#vd.vkfft.convolve_2Dreal(output_buffer, kernel_buffer, input=input_buffer, normalize=True)
+vd.fft.convolve2D(output_buffer, kernel_buffer)
 
 import time
 
-for result_index in range(0, kernel_count):
-    result = output_buffer.read_real(0)[result_index][1:, 1:]
-    reference = cpu_convolve_2d(signal[0], kernels[result_index])[:-1, :-1]
+for result_index in range(0, 1):
+    result = output_buffer.read(0)
+    reference = cpu_convolve_2d(signal, kernels)
+
+    result = np.abs(result)
+    reference = np.abs(reference)
     
     result = np.fft.fftshift(result)
     reference = np.fft.fftshift(reference)
