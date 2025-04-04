@@ -1,22 +1,45 @@
-import numpy as np
 import vkdispatch as vd
+import numpy as np
+import tqdm
+import time
 
-from matplotlib import pyplot as plt
+batch_count = 1000
+batch_size = 100
 
-offset_count = []
+vd.initialize(debug_mode=True)
 
-for i in range(1, 10001):
-    offset_count.append(vd.fft.pad_dim(i) - i)
+buffer = vd.RFFTBuffer((2 ** 9, 2 ** 9))
+kernel = vd.RFFTBuffer((2 ** 9, 2 ** 9))
+#buffer = vd.RFFTBuffer((650, 169))
 
-offsets_arr = np.array(offset_count).reshape((100, 100))
+cmd_stream_fft = vd.CommandStream()
 
-offsets_bins = offsets_arr.mean(axis=1)
+#vd.fft.rfft2(buffer, cmd_stream=cmd_stream_fft)
 
-#plt.imshow(offsets_arr)
+vd.fft.convolve2DR(buffer, kernel, cmd_stream=cmd_stream_fft)
 
-#plt.plot(offsets_bins)
-plt.bar(range(100), offsets_bins)
-plt.title('Average padding added to FFT dimension (from 1 to 10001, window size = 100)')
-plt.xlabel('FFT dimension')
-plt.ylabel('Padding added')
-plt.show()
+cmd_stream_vkfft = vd.CommandStream()
+
+#vd.vkfft.rfft(buffer, cmd_stream=cmd_stream_vkfft)
+
+vd.vkfft.convolve_2Dreal(buffer, kernel, cmd_stream=cmd_stream_vkfft)
+
+buffer.read()
+
+start_time = time.time()
+
+for _ in tqdm.tqdm(range(batch_count)):
+    cmd_stream_fft.submit(batch_size)
+
+buffer.read()
+
+print(f"FFT: {batch_count * batch_size / (time.time() - start_time):.2f} FFT/s")
+
+start_time = time.time()
+
+for _ in tqdm.tqdm(range(batch_count)):
+    cmd_stream_vkfft.submit(batch_size)
+
+buffer.read()
+
+print(f"VkFFT: {batch_count * batch_size / (time.time() - start_time):.2f} FFT/s")
