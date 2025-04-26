@@ -49,7 +49,13 @@ def get_global_input(resources: FFTResources, params: FFTParams, buffer: Buff, i
     output_register[:] = buffer[resources.io_index]
     vc.end()
     
-def load_buffer_to_registers(resources: FFTResources, params: FFTParams, buffer: Optional[Buff], offset: Const[u32], stride: Const[u32], register_list: List[vc.ShaderVariable] = None):
+def load_buffer_to_registers(
+        resources: FFTResources,
+        params: FFTParams,
+        buffer: Optional[Buff],
+        offset: Const[u32],
+        stride: Const[u32],
+        register_list: List[vc.ShaderVariable] = None):
     if register_list is None:
         register_list = resources.registers
 
@@ -57,7 +63,16 @@ def load_buffer_to_registers(resources: FFTResources, params: FFTParams, buffer:
 
     for i in range(len(register_list)):
         if buffer is None:
-            register_list[i][:] = resources.sdata[i * stride + offset + resources.sdata_offset]
+            sdata_index = i * stride + offset
+
+            if params.sdata_row_size != params.sdata_row_size_padded:
+                resources.io_index[:] = sdata_index
+                sdata_index = (resources.io_index / params.sdata_row_size) * params.sdata_row_size_padded + (resources.io_index % params.sdata_row_size)
+
+            if resources.sdata_offset is not None:
+                sdata_index = sdata_index + resources.sdata_offset
+            
+            register_list[i][:] = resources.sdata[sdata_index]
         else:
             get_global_input(resources, params, buffer, i * stride + offset, register_list[i])
 
@@ -103,7 +118,13 @@ def set_global_output(resources: FFTResources, params: FFTParams, buffer: Buff, 
     else:
         buffer[resources.io_index / 2][resources.io_index % 2] = true_value.x
 
-def store_registers_in_buffer(resources: FFTResources, params: FFTParams, buffer: Optional[Buff], offset: Const[u32], stride: Const[u32], register_list: List[vc.ShaderVariable] = None):
+def store_registers_in_buffer(
+        resources: FFTResources,
+        params: FFTParams,
+        buffer: Optional[Buff],
+        offset: Const[u32],
+        stride: Const[u32],
+        register_list: List[vc.ShaderVariable] = None):
     if register_list is None:
         register_list = resources.registers
 
@@ -111,6 +132,15 @@ def store_registers_in_buffer(resources: FFTResources, params: FFTParams, buffer
 
     for i in range(len(register_list)):
         if buffer is None:
-            resources.sdata[i * stride + offset + resources.sdata_offset] = register_list[i]
+            sdata_index = i * stride + offset
+
+            if params.sdata_row_size != params.sdata_row_size_padded:
+                resources.io_index[:] = sdata_index
+                sdata_index = (resources.io_index / params.sdata_row_size) * params.sdata_row_size_padded + (resources.io_index % params.sdata_row_size)
+
+            if resources.sdata_offset is not None:
+                sdata_index = sdata_index + resources.sdata_offset
+            
+            resources.sdata[sdata_index] = register_list[i]
         else:
             set_global_output(resources, params, buffer, i * stride + offset, register_list[i])

@@ -31,7 +31,7 @@ plt.imshow(np.abs(reference_data))
 plt.colorbar()
 plt.show()
 
-plt.imshow(np.abs(data - reference_data))
+plt.imshow(np.abs(data))
 plt.colorbar()
 plt.show()
 

@@ -3,7 +3,7 @@ from typing import List
 
 DEFAULT_REGISTER_LIMIT = 15
 
-def prime_factors(n):
+def prime_factors(n) -> List[int]:
     factors = []
     
     # Handle the factor 2 separately

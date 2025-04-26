@@ -61,19 +61,27 @@ class FFTResources:
         self.omega_register[:] = "vec2(0)"
 
 def allocate_fft_resources(config: FFTConfig) -> FFTResources:
-    inline_batch_z = allocate_inline_batches(config.batch_z_count, config.batch_threads, config.N, vd.get_context().max_workgroup_size[2])
-    inline_batch_y = allocate_inline_batches(config.batch_y_count, config.batch_threads * inline_batch_z, config.N, vd.get_context().max_workgroup_size[1])
+    inline_batch_z = allocate_inline_batches(config.batch_z_count, config.batch_threads, config.sdata_allocation, vd.get_context().max_workgroup_size[2])
+    inline_batch_y = allocate_inline_batches(config.batch_y_count, config.batch_threads * inline_batch_z, config.sdata_allocation, vd.get_context().max_workgroup_size[1])
+
+    sdata_buffer = vc.shared_buffer(vc.c64, config.sdata_allocation * inline_batch_y * inline_batch_z, "sdata")
+    sdata_offset = None
+
+    if inline_batch_y > 1 or inline_batch_z > 1:
+        sdata_offset = vc.local_invocation().y * inline_batch_z * config.sdata_allocation
+        sdata_offset = sdata_offset + vc.local_invocation().z * config.sdata_allocation
+        sdata_offset.copy("sdata_offset")
 
     resources = FFTResources(
         registers=[vc.new(c64, 0, var_name=f"register_{i}") for i in range(config.register_count)],
-        radix_registers=[vc.new(c64, 0, var_name=f"radix_{i}") for i in range(config.register_count)],
+        radix_registers=[vc.new(c64, 0, var_name=f"radix_{i}") for i in range(config.max_prime_radix)],
         omega_register=vc.new(c64, 0, var_name="omega_register"),
         tid=vc.local_invocation().x.copy("tid"),
         input_batch_offset=vc.new_uint(var_name="input_batch_offset"),
         output_batch_offset=vc.new_uint(var_name="output_batch_offset"),
         subsequence_offset=vc.new_uint(0, var_name="subsequence_offset"),
-        sdata=vc.shared_buffer(vc.c64, config.N * inline_batch_y * inline_batch_z, "sdata"),
-        sdata_offset=(vc.local_invocation().y * inline_batch_z * config.N + vc.local_invocation().z * config.N).copy("sdata_offset"),
+        sdata=sdata_buffer,
+        sdata_offset=sdata_offset,
         io_index=vc.new_uint(0, var_name="io_index"),
         inline_batch_y=inline_batch_y,
         inline_batch_z=inline_batch_z,
@@ -81,7 +89,7 @@ def allocate_fft_resources(config: FFTConfig) -> FFTResources:
         local_size=(config.batch_threads, inline_batch_y, inline_batch_z)
     )
 
-    resources.reset()
+    #resources.reset()
 
     return resources
 

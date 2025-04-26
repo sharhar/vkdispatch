@@ -12,6 +12,8 @@ deps/
 # C extensions
 *.so
 
+vkdispatch_native/wrapper.cpp
+
 vkvia.html
 
 # Distribution / packaging
