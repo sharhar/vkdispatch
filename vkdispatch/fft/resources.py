@@ -45,6 +45,7 @@ class FFTResources:
     sdata: Buff[c64]
     sdata_offset: Const[u32]
     io_index: Const[u32]
+    io_index_2: Const[u32]
 
     inline_batch_y: int
     inline_batch_z: int
@@ -61,15 +62,15 @@ class FFTResources:
         self.omega_register[:] = "vec2(0)"
 
 def allocate_fft_resources(config: FFTConfig) -> FFTResources:
-    inline_batch_z = allocate_inline_batches(config.batch_z_count, config.batch_threads, config.sdata_allocation, vd.get_context().max_workgroup_size[2])
-    inline_batch_y = allocate_inline_batches(config.batch_y_count, config.batch_threads * inline_batch_z, config.sdata_allocation, vd.get_context().max_workgroup_size[1])
+    inline_batch_z = allocate_inline_batches(config.batch_z_count, config.batch_threads, config.N, vd.get_context().max_workgroup_size[2])
+    inline_batch_y = allocate_inline_batches(config.batch_y_count, config.batch_threads * inline_batch_z, config.N, vd.get_context().max_workgroup_size[1])
 
     sdata_buffer = vc.shared_buffer(vc.c64, config.sdata_allocation * inline_batch_y * inline_batch_z, "sdata")
     sdata_offset = None
 
     if inline_batch_y > 1 or inline_batch_z > 1:
-        sdata_offset = vc.local_invocation().y * inline_batch_z * config.sdata_allocation
-        sdata_offset = sdata_offset + vc.local_invocation().z * config.sdata_allocation
+        sdata_offset = vc.local_invocation().y * inline_batch_z * config.N
+        sdata_offset = sdata_offset + vc.local_invocation().z * config.N
         sdata_offset.copy("sdata_offset")
 
     resources = FFTResources(
@@ -83,6 +84,7 @@ def allocate_fft_resources(config: FFTConfig) -> FFTResources:
         sdata=sdata_buffer,
         sdata_offset=sdata_offset,
         io_index=vc.new_uint(0, var_name="io_index"),
+        io_index_2=vc.new_uint(0, var_name="io_index_2"),
         inline_batch_y=inline_batch_y,
         inline_batch_z=inline_batch_z,
         shared_memory_size=config.N * inline_batch_y * inline_batch_z * vd.complex64.item_size,
