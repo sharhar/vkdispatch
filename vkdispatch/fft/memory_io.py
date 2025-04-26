@@ -12,7 +12,15 @@ def read_mapped_input(resources: FFTResources, params: FFTParams, mapping_index:
     #assert mapping_function.register_types[0] == c64, "Mapping function register type does not match expected return type"
 
     if params.input_sdata:
-        output_register[:] = resources.sdata[index + resources.sdata_offset]
+        resources.io_index_2[:] = index
+
+        if resources.sdata_offset is not None:
+            resources.io_index_2[:] = resources.io_index_2 + resources.sdata_offset
+        
+        if params.sdata_row_size != params.sdata_row_size_padded:
+            resources.io_index_2[:] = (resources.io_index_2 / params.sdata_row_size) * params.sdata_row_size_padded + (resources.io_index_2 % params.sdata_row_size)
+
+        output_register[:] = resources.sdata[resources.io_index_2]
 
     vc.set_mapping_index(mapping_index)
     vc.set_mapping_registers([output_register, resources.omega_register])
@@ -65,12 +73,12 @@ def load_buffer_to_registers(
         if buffer is None:
             sdata_index = i * stride + offset
 
+            if resources.sdata_offset is not None:
+                sdata_index = sdata_index + resources.sdata_offset
+            
             if params.sdata_row_size != params.sdata_row_size_padded:
                 resources.io_index[:] = sdata_index
                 sdata_index = (resources.io_index / params.sdata_row_size) * params.sdata_row_size_padded + (resources.io_index % params.sdata_row_size)
-
-            if resources.sdata_offset is not None:
-                sdata_index = sdata_index + resources.sdata_offset
             
             register_list[i][:] = resources.sdata[sdata_index]
         else:
@@ -134,12 +142,13 @@ def store_registers_in_buffer(
         if buffer is None:
             sdata_index = i * stride + offset
 
+            if resources.sdata_offset is not None:
+                sdata_index = sdata_index + resources.sdata_offset
+            
             if params.sdata_row_size != params.sdata_row_size_padded:
                 resources.io_index[:] = sdata_index
                 sdata_index = (resources.io_index / params.sdata_row_size) * params.sdata_row_size_padded + (resources.io_index % params.sdata_row_size)
 
-            if resources.sdata_offset is not None:
-                sdata_index = sdata_index + resources.sdata_offset
             
             resources.sdata[sdata_index] = register_list[i]
         else:

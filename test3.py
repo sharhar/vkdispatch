@@ -59,6 +59,35 @@ def test_fft_1d():
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
 
-test_shape((455, 7, 14))
+def test_convolution_2d():
+    max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
-test_fft_1d()
+    max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+
+    for _ in range(20):
+        dims = pick_dim_count(2)
+        current_shape = [pick_radix_prime() for _ in range(dims)]
+
+        #current_shape = (13, 2, 11)
+
+        while check_fft_dims(current_shape, max_fft_size):
+            data = np.random.rand(*current_shape).astype(np.complex64)
+            data2 = np.random.rand(*current_shape).astype(np.complex64)
+
+            test_data = vd.asbuffer(data)
+            kernel_data = vd.asbuffer(data2)
+
+            print(f"Testing FFT with shape {data.shape}")
+
+            vd.fft.fft2(kernel_data)
+            vd.fft.convolve2D(test_data, kernel_data, print_shader=True)
+
+            reference_data = numpy_convolution(data, data2)
+
+            assert np.allclose(reference_data, test_data.read(0), atol=1e-3)
+
+            current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
+
+#test_shape((2, 3, 5))
+
+test_convolution_2d()

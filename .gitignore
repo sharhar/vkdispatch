@@ -12,6 +12,9 @@ deps/
 # C extensions
 *.so
 
+vd.txt
+vkfft.txt
+
 vkdispatch_native/wrapper.cpp
 
 vkvia.html
