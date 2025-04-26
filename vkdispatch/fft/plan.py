@@ -27,10 +27,26 @@ def set_batch_offsets(resources: FFTResources, params: FFTParams):
     resources.input_batch_offset[:] = vc.global_invocation().y * input_batch_stride_y + vc.global_invocation().z * params.batch_z_stride
     resources.output_batch_offset[:] = vc.global_invocation().y * output_batch_stride_y + vc.global_invocation().z * params.batch_z_stride
 
+def do_c64_mult_const(register_out: vc.ShaderVariable, register_in: vc.ShaderVariable, constant: complex):
+    vc.comment(f"Multiplying {register_in} by {constant}")
+
+    register_out.x = register_in.y * -constant.imag
+    register_out.x = vc.fma(register_in.x, constant.real, register_out.x)
+
+    register_out.y = register_in.y * constant.real
+    register_out.y = vc.fma(register_in.x, constant.imag, register_out.y)
+
 def radix_P(resources: FFTResources, params: FFTParams, register_list: List[vc.ShaderVariable]):
     assert len(register_list) <= len(resources.radix_registers), "Too many registers for radix_P"
 
     if len(register_list) == 1:
+        return
+    
+    if len(register_list) == 2:
+        vc.comment(f"Performing a DFT for Radix-2 FFT")
+        resources.radix_registers[0][:] = register_list[1]
+        register_list[1][:] = register_list[0] - resources.radix_registers[0]
+        register_list[0][:] = register_list[0] + resources.radix_registers[0]
         return
 
     vc.comment(f"Performing a DFT for Radix-{len(register_list)} FFT")
@@ -50,7 +66,8 @@ def radix_P(resources: FFTResources, params: FFTParams, register_list: List[vc.S
                 continue
 
             omega = np.exp(1j * params.angle_factor * i * j / len(register_list))
-            resources.radix_registers[i] += vc.mult_c64_by_const(register_list[j], omega)
+            do_c64_mult_const(resources.omega_register, register_list[j], omega)
+            resources.radix_registers[i] += resources.omega_register
 
     for i in range(0, len(register_list)):
         register_list[i][:] = resources.radix_registers[i]
@@ -61,6 +78,12 @@ def apply_cooley_tukey_twiddle_factors(resources: FFTResources, params: FFTParam
 
     vc.comment(f"Applying Cooley-Tukey twiddle factors for twiddle index {twiddle_index} and twiddle N {twiddle_N}")
 
+    if not isinstance(twiddle_index, int):
+        resources.omega_register.x = params.angle_factor * twiddle_index / twiddle_N
+        resources.omega_register[:] = vc.complex_from_euler_angle(resources.omega_register.x)
+    
+    resources.radix_registers[1][:] = resources.omega_register
+
     for i in range(len(register_list)):
         if i == 0:
             continue
@@ -70,14 +93,17 @@ def apply_cooley_tukey_twiddle_factors(resources: FFTResources, params: FFTParam
                 continue
 
             omega = np.exp(1j * params.angle_factor * i * twiddle_index / twiddle_N)
-            register_list[i][:] = vc.mult_c64_by_const(register_list[i], omega)
+            do_c64_mult_const(resources.omega_register, register_list[i], omega)
+            register_list[i][:] = resources.omega_register
             continue
         
-        resources.omega_register.x = params.angle_factor * i * twiddle_index / twiddle_N
-        resources.omega_register[:] = vc.complex_from_euler_angle(resources.omega_register.x)
-        resources.omega_register[:] = vc.mult_c64(resources.omega_register, register_list[i])
 
-        register_list[i][:] = resources.omega_register
+        do_c64_mult_const(resources.radix_registers[0], register_list[i], resources.radix_registers[1])
+        register_list[i][:] = resources.radix_registers[0]
+
+        if i < len(register_list) - 1:
+            do_c64_mult_const(resources.radix_registers[0], resources.omega_register, resources.radix_registers[1])
+            resources.radix_registers[1][:] = resources.radix_registers[0]
 
 def register_radix_composite(resources: FFTResources, params: FFTParams, register_list: List[vc.ShaderVariable], primes: List[int]):
     if len(register_list) == 1:
@@ -169,6 +195,21 @@ def process_fft_register_stage(resources: FFTResources,
             register_list=resources.registers[invocation.register_selection]
         )
 
+        apply_cooley_tukey_twiddle_factors(
+            resources=resources,
+            params=params,
+            register_list=resources.registers[invocation.register_selection], 
+            twiddle_index=invocation.inner_block_offset, 
+            twiddle_N=invocation.block_width
+        )
+
+        resources.registers[invocation.register_selection] = register_radix_composite(
+            resources=resources,
+            params=params,
+            register_list=resources.registers[invocation.register_selection],
+            primes=stage.primes
+        )
+
     if stage.remainder_offset == 1:
         vc.end()
 
@@ -185,20 +226,6 @@ def process_fft_register_stage(resources: FFTResources,
         if stage.remainder_offset == 1 and ii == stage.extra_ffts:
             vc.if_statement(resources.tid < params.config.N // stage.registers_used)
 
-        apply_cooley_tukey_twiddle_factors(
-            resources=resources,
-            params=params,
-            register_list=resources.registers[invocation.register_selection], 
-            twiddle_index=invocation.inner_block_offset, 
-            twiddle_N=invocation.block_width
-        )
-
-        resources.registers[invocation.register_selection] = register_radix_composite(
-            resources=resources,
-            params=params,
-            register_list=resources.registers[invocation.register_selection],
-            primes=stage.primes
-        )
         
         resources.subsequence_offset[:] = invocation.sub_sequence_offset
 

@@ -4,25 +4,25 @@ import tqdm
 import time
 
 batch_count = 1000
-batch_size = 100
+batch_size = 6
 
 vd.initialize(debug_mode=True)
 
-buffer = vd.RFFTBuffer((2 ** 9, 2 ** 9))
-kernel = vd.RFFTBuffer((2 ** 9, 2 ** 9))
+buffer = vd.Buffer((2 ** 12, 2 ** 12), var_type=vd.complex64)
+#kernel = vd.RFFTBuffer((2 ** 9, 2 ** 9))
 #buffer = vd.RFFTBuffer((650, 169))
 
 cmd_stream_fft = vd.CommandStream()
 
-#vd.fft.rfft2(buffer, cmd_stream=cmd_stream_fft)
+vd.fft.fft(buffer, cmd_stream=cmd_stream_fft, print_shader=True)
 
-vd.fft.convolve2DR(buffer, kernel, cmd_stream=cmd_stream_fft)
+#vd.fft.convolve2DR(buffer, kernel, cmd_stream=cmd_stream_fft)
 
 cmd_stream_vkfft = vd.CommandStream()
 
-#vd.vkfft.rfft(buffer, cmd_stream=cmd_stream_vkfft)
+vd.vkfft.fft(buffer, cmd_stream=cmd_stream_vkfft, axes=[1])
 
-vd.vkfft.convolve_2Dreal(buffer, kernel, cmd_stream=cmd_stream_vkfft)
+#vd.vkfft.convolve_2Dreal(buffer, kernel, cmd_stream=cmd_stream_vkfft)
 
 buffer.read()
 
@@ -39,6 +39,7 @@ start_time = time.time()
 
 for _ in tqdm.tqdm(range(batch_count)):
     cmd_stream_vkfft.submit(batch_size)
+
 
 buffer.read()
 
