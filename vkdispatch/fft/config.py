@@ -22,7 +22,15 @@ class FFTRegisterStageConfig:
     def __init__(self, primes: List[int], max_register_count: int, N: int):
         self.primes = tuple(primes)
         self.fft_length = int(np.round(np.prod(primes)))
-        self.instance_count = max_register_count // self.fft_length
+        instance_primes = prime_factors(N // self.fft_length)
+ 
+        self.instance_count = 1
+
+        while len(instance_primes) > 0:
+            if self.instance_count * self.fft_length * instance_primes[0] > max_register_count:
+                break
+            self.instance_count *= instance_primes[0]
+            instance_primes = instance_primes[1:]
 
         self.registers_used = self.fft_length * self.instance_count
 
@@ -153,7 +161,7 @@ class FFTConfig:
         self.thread_counts = [stage.thread_count for stage in self.stages]
 
         self.batch_threads = max(self.thread_counts)
-        self.exec_size = (self.batch_threads, self.batch_y_count, self.batch_z_count)
+        self.exec_size = (self.batch_z_count, self.batch_threads, self.batch_y_count)
 
     def __str__(self):
         return f"FFT Config:\nN: {self.N}\nregister_count: {self.register_count}\nstages:\n{self.stages}\nlocal_size: {self.thread_counts}"
