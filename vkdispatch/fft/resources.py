@@ -12,7 +12,7 @@ from .prime_utils import prime_factors, DEFAULT_REGISTER_LIMIT
 def allocation_valid(workgroup_size: int, shared_memory: int):
     return workgroup_size <= vd.get_context().max_workgroup_invocations and shared_memory <= vd.get_context().max_shared_memory
 
-def allocate_inline_batches(batch_num: int, batch_threads: int, N: int, max_workgroup_size: int):
+def allocate_inline_batches(batch_num: int, batch_threads: int, N: int, max_workgroup_size: int, max_total_threads: int):
     batch_num_primes = prime_factors(batch_num)
 
     prime_index = len(batch_num_primes) - 1
@@ -21,10 +21,10 @@ def allocate_inline_batches(batch_num: int, batch_threads: int, N: int, max_work
     shared_memory_allocation = N * vd.complex64.item_size
     inline_batches = 1
 
-    while allocation_valid(workgroup_size, shared_memory_allocation) and prime_index >= 0 and inline_batches <= max_workgroup_size:
+    while allocation_valid(workgroup_size, shared_memory_allocation) and prime_index >= 0 and inline_batches <= max_workgroup_size and workgroup_size <= max_total_threads:
         test_prime = batch_num_primes[prime_index]
 
-        if allocation_valid(workgroup_size * test_prime, shared_memory_allocation * test_prime) and inline_batches * test_prime <= max_workgroup_size:
+        if allocation_valid(workgroup_size * test_prime, shared_memory_allocation * test_prime) and inline_batches * test_prime <= max_workgroup_size and workgroup_size * test_prime <= max_total_threads:
             workgroup_size *= test_prime
             shared_memory_allocation *= test_prime
             inline_batches *= test_prime
@@ -62,8 +62,8 @@ class FFTResources:
         self.omega_register[:] = "vec2(0)"
 
 def allocate_fft_resources(config: FFTConfig) -> FFTResources:
-    inline_batch_z = allocate_inline_batches(config.batch_z_count, config.batch_threads, config.sdata_allocation, vd.get_context().max_workgroup_size[0])
-    inline_batch_y = allocate_inline_batches(config.batch_y_count, config.batch_threads * inline_batch_z, config.sdata_allocation * inline_batch_z, vd.get_context().max_workgroup_size[2])
+    inline_batch_z = allocate_inline_batches(config.batch_z_count, config.batch_threads, config.sdata_allocation, vd.get_context().max_workgroup_size[0], vd.get_context().max_workgroup_invocations)
+    inline_batch_y = allocate_inline_batches(config.batch_y_count, config.batch_threads * inline_batch_z, config.sdata_allocation * inline_batch_z, vd.get_context().max_workgroup_size[2], vd.get_context().subgroup_size)
 
     sdata_buffer = vc.shared_buffer(vc.c64, config.sdata_allocation * inline_batch_y * inline_batch_z, "sdata")
     sdata_offset = None

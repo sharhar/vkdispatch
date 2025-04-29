@@ -4,7 +4,7 @@ import tqdm
 import time
 
 batch_count = 1000
-batch_size = 60
+batch_size = 50
 
 vd.initialize(debug_mode=True)
 
@@ -14,13 +14,13 @@ buffer = vd.Buffer((2 ** 10, 2 ** 10), var_type=vd.complex64)
 
 cmd_stream_fft = vd.CommandStream()
 
-vd.fft.fft(buffer, axis=0, cmd_stream=cmd_stream_fft, print_shader=True)
+vd.fft.fft(buffer, axis=1, cmd_stream=cmd_stream_fft, print_shader=True)
 
 #vd.fft.convolve2DR(buffer, kernel, cmd_stream=cmd_stream_fft)
 
 cmd_stream_vkfft = vd.CommandStream()
 
-vd.vkfft.fft(buffer, cmd_stream=cmd_stream_vkfft, axes=[0]) #, keep_shader_code=True)
+vd.vkfft.fft(buffer, cmd_stream=cmd_stream_vkfft, axes=[1]) #, keep_shader_code=True)
 
 #vd.vkfft.convolve_2Dreal(buffer, kernel, cmd_stream=cmd_stream_vkfft)
 

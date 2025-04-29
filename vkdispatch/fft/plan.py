@@ -161,8 +161,12 @@ class FFTRegisterStageInvocation:
         if output_stride == 1:
             self.inner_block_offset = 0
 
-        self.block_index = (self.instance_id * stage.fft_length) / self.block_width
-        self.sub_sequence_offset = self.block_index * self.block_width + self.inner_block_offset
+        #self.block_index = (self.instance_id * stage.fft_length) / self.block_width
+        #self.sub_sequence_offset = self.block_index * self.block_width + self.inner_block_offset
+
+        #self.sub_sequence_offset = (self.instance_id / output_stride) * output_stride * stage.fft_length + self.inner_block_offset
+        
+        self.sub_sequence_offset = self.instance_id * stage.fft_length + self.inner_block_offset * (1 - stage.fft_length)
 
         self.register_selection = slice(instance_index * stage.fft_length, (instance_index + 1) * stage.fft_length)
 
