@@ -18,7 +18,7 @@ def allocate_inline_batches(batch_num: int, batch_threads: int, N: int, max_work
     prime_index = len(batch_num_primes) - 1
 
     workgroup_size = batch_threads
-    shared_memory_allocation = batch_threads * N * vd.complex64.item_size
+    shared_memory_allocation = N * vd.complex64.item_size
     inline_batches = 1
 
     while allocation_valid(workgroup_size, shared_memory_allocation) and prime_index >= 0 and inline_batches <= max_workgroup_size:
@@ -62,22 +62,22 @@ class FFTResources:
         self.omega_register[:] = "vec2(0)"
 
 def allocate_fft_resources(config: FFTConfig) -> FFTResources:
-    inline_batch_z = allocate_inline_batches(config.batch_z_count, config.batch_threads, config.N, vd.get_context().max_workgroup_size[2])
-    inline_batch_y = allocate_inline_batches(config.batch_y_count, config.batch_threads * inline_batch_z, config.N, vd.get_context().max_workgroup_size[1])
+    inline_batch_z = allocate_inline_batches(config.batch_z_count, config.batch_threads, config.sdata_allocation, vd.get_context().max_workgroup_size[0])
+    inline_batch_y = allocate_inline_batches(config.batch_y_count, config.batch_threads * inline_batch_z, config.sdata_allocation * inline_batch_z, vd.get_context().max_workgroup_size[2])
 
     sdata_buffer = vc.shared_buffer(vc.c64, config.sdata_allocation * inline_batch_y * inline_batch_z, "sdata")
     sdata_offset = None
 
     if inline_batch_y > 1 or inline_batch_z > 1:
-        sdata_offset = vc.local_invocation().y * inline_batch_z * config.N
-        sdata_offset = sdata_offset + vc.local_invocation().z * config.N
-        sdata_offset.copy("sdata_offset")
+        sdata_offset = vc.new_uint(
+            vc.local_invocation().z * inline_batch_z * config.N + vc.local_invocation().x * config.N,
+            var_name="sdata_offset")
 
     resources = FFTResources(
         registers=[vc.new(c64, 0, var_name=f"register_{i}") for i in range(config.register_count)],
         radix_registers=[vc.new(c64, 0, var_name=f"radix_{i}") for i in range(config.max_prime_radix)],
         omega_register=vc.new(c64, 0, var_name="omega_register"),
-        tid=vc.local_invocation().x.copy("tid"),
+        tid=vc.local_invocation().y.copy("tid"),
         input_batch_offset=vc.new_uint(var_name="input_batch_offset"),
         output_batch_offset=vc.new_uint(var_name="output_batch_offset"),
         subsequence_offset=vc.new_uint(0, var_name="subsequence_offset"),
@@ -88,7 +88,7 @@ def allocate_fft_resources(config: FFTConfig) -> FFTResources:
         inline_batch_y=inline_batch_y,
         inline_batch_z=inline_batch_z,
         shared_memory_size=config.N * inline_batch_y * inline_batch_z * vd.complex64.item_size,
-        local_size=(config.batch_threads, inline_batch_y, inline_batch_z)
+        local_size=(inline_batch_z, config.batch_threads, inline_batch_y)
     )
 
     #resources.reset()

@@ -24,8 +24,8 @@ def set_batch_offsets(resources: FFTResources, params: FFTParams):
         input_batch_stride_y = (params.config.N // 2) + 1
         output_batch_stride_y = input_batch_stride_y * 2
 
-    resources.input_batch_offset[:] = vc.global_invocation().y * input_batch_stride_y + vc.global_invocation().z * params.batch_z_stride
-    resources.output_batch_offset[:] = vc.global_invocation().y * output_batch_stride_y + vc.global_invocation().z * params.batch_z_stride
+    resources.input_batch_offset[:] = vc.global_invocation().z * input_batch_stride_y + vc.global_invocation().x * params.batch_z_stride
+    resources.output_batch_offset[:] = vc.global_invocation().z * output_batch_stride_y + vc.global_invocation().x * params.batch_z_stride
 
 def do_c64_mult_const(register_out: vc.ShaderVariable, register_in: vc.ShaderVariable, constant: complex):
     vc.comment(f"Multiplying {register_in} by {constant}")
