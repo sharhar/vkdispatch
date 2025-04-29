@@ -78,7 +78,9 @@ def load_buffer_to_registers(
             
             if params.sdata_row_size != params.sdata_row_size_padded:
                 resources.io_index[:] = sdata_index
-                sdata_index = (resources.io_index / params.sdata_row_size) * params.sdata_row_size_padded + (resources.io_index % params.sdata_row_size)
+                resources.io_index_2[:] = (resources.io_index / params.sdata_row_size) * params.sdata_row_size_padded
+                resources.io_index[:] = resources.io_index % params.sdata_row_size
+                sdata_index = resources.io_index_2 + resources.io_index
             
             register_list[i][:] = resources.sdata[sdata_index]
         else:
@@ -141,6 +143,8 @@ def store_registers_in_buffer(
     for i in range(len(register_list)):
         if buffer is None:
             sdata_index = i * stride + offset
+
+            print(resources.sdata_offset)
 
             if resources.sdata_offset is not None:
                 sdata_index = sdata_index + resources.sdata_offset

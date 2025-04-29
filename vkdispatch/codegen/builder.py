@@ -79,7 +79,7 @@ class ShaderDescription:
     pc_structure: List[StructElement]
     uniform_structure: List[StructElement]
     binding_type_list: List[BindingType]
-    exec_count_name: str
+    exec_count_name: Optional[str]
 
     def make_source(self, x: int, y: int, z: int) -> str:
         layout_str = f"layout(local_size_x = {x}, local_size_y = {y}, local_size_z = {z}) in;"
@@ -97,14 +97,26 @@ class ShaderBuilder:
     contents: str
     pre_header: str
 
-    def __init__(self, enable_subgroup_ops: bool = True, enable_atomic_float_ops: bool = True, enable_printf: bool = True, enable_exec_bounds: bool = True) -> None:
+    disable_UBO: bool
+
+    def __init__(self,
+                 enable_subgroup_ops: bool = True,
+                 enable_atomic_float_ops: bool = True,
+                 enable_printf: bool = True,
+                 enable_exec_bounds: bool = True,
+                 disable_UBO: bool = False) -> None:
+        if disable_UBO:
+            enable_exec_bounds = False
+
+        self.disable_UBO = disable_UBO
+
         self.enable_subgroup_ops = enable_subgroup_ops
         self.enable_atomic_float_ops = enable_atomic_float_ops
         self.enable_printf = enable_printf
         self.enable_exec_bounds = enable_exec_bounds
 
         self.pre_header = "#version 450\n"
-        self.pre_header += "#extension GL_ARB_separate_shader_objects : enable\n"
+        #self.pre_header += "#extension GL_ARB_separate_shader_objects : enable\n"
 
         if self.enable_subgroup_ops:
             self.pre_header += "#extension GL_KHR_shader_subgroup_arithmetic : enable\n"
@@ -141,9 +153,11 @@ class ShaderBuilder:
         self.mapping_index = None
         self.mapping_registers = None
         
-        self.exec_count = self.declare_constant(abv.uv4, var_name="exec_count")
-        
+        self.exec_count = None
+
         if self.enable_exec_bounds:
+            self.exec_count = self.declare_constant(abv.uv4, var_name="exec_count")
+
             self.if_statement(self.exec_count.x <= self.global_invocation.x)
             self.return_statement()
             self.end()
@@ -193,6 +207,8 @@ class ShaderBuilder:
         return ShaderVariable(self.append_contents, self.get_name_func(prefix, suffix), var_type, var_name)
     
     def declare_constant(self, var_type: dtype, count: int = 1, var_name: Optional[str] = None):
+        assert not self.disable_UBO, "UBO is disabled, cannot declare constant variable"
+
         suffix = None
         if var_type.glsl_type_extern is not None:
             suffix = ".xyz"
@@ -228,6 +244,11 @@ class ShaderBuilder:
         shape_name = f"{buffer_name}_shape"
         
         self.binding_list.append(ShaderBinding(var_type, buffer_name, 0, BindingType.STORAGE_BUFFER))
+
+        shape_var = None
+
+        if not self.disable_UBO:
+            shape_var = self.declare_constant(abv.iv4, var_name=shape_name)
         
         return BufferVariable(
             self.append_contents, 
@@ -235,7 +256,7 @@ class ShaderBuilder:
             var_type,
             self.binding_count,
             f"{buffer_name}.data",
-            self.declare_constant(abv.iv4, var_name=shape_name),
+            shape_var,
             shape_name
         )
     
@@ -258,13 +279,18 @@ class ShaderBuilder:
         buffer_name = self.get_name_func()(var_name)[0]
         shape_name = f"{buffer_name}_shape"
 
+        shape_var = None
+
+        if not self.disable_UBO:
+            shape_var = self.declare_constant(abv.iv4, var_name=shape_name)
+
         new_var = BufferVariable(
             self.append_contents, 
             self.get_name_func(), 
             var_type,
             -1,
             buffer_name,
-            self.declare_constant(abv.iv4, var_name=shape_name),
+            shape_var,
             shape_name
         )
 
@@ -680,5 +706,5 @@ class ShaderBuilder:
             pc_structure=pc_elements, 
             uniform_structure=uniform_elements, 
             binding_type_list=[binding.value for binding in binding_type_list],
-            exec_count_name=self.exec_count.raw_name
+            exec_count_name= None if self.exec_count is None else self.exec_count.raw_name
         )

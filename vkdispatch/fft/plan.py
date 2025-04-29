@@ -13,19 +13,24 @@ from .config import FFTRegisterStageConfig, FFTParams
 from .memory_io import load_buffer_to_registers, store_registers_in_buffer
 
 def set_batch_offsets(resources: FFTResources, params: FFTParams):
-    input_batch_stride_y = params.batch_y_stride
-    output_batch_stride_y = params.batch_y_stride
+    input_batch_stride_z = params.batch_z_stride
+    output_batch_stride_z = params.batch_z_stride
 
     if params.r2c and not params.inverse:
-        output_batch_stride_y = (params.config.N // 2) + 1
-        input_batch_stride_y = output_batch_stride_y * 2
+        output_batch_stride_z = (params.config.N // 2) + 1
+        input_batch_stride_z = output_batch_stride_z * 2
 
     if params.r2c and params.inverse:
-        input_batch_stride_y = (params.config.N // 2) + 1
-        output_batch_stride_y = input_batch_stride_y * 2
+        input_batch_stride_z = (params.config.N // 2) + 1
+        output_batch_stride_z = input_batch_stride_z * 2
 
-    resources.input_batch_offset[:] = vc.global_invocation().y * input_batch_stride_y + vc.global_invocation().z * params.batch_z_stride
-    resources.output_batch_offset[:] = vc.global_invocation().y * output_batch_stride_y + vc.global_invocation().z * params.batch_z_stride
+    resources.input_batch_offset[:] = vc.global_invocation().z * input_batch_stride_z + vc.global_invocation().x
+
+    if input_batch_stride_z == output_batch_stride_z:
+        resources.output_batch_offset[:] = resources.input_batch_offset
+        return
+
+    resources.output_batch_offset[:] = vc.global_invocation().z * output_batch_stride_z + vc.global_invocation().x
 
 def do_c64_mult_const(register_out: vc.ShaderVariable, register_in: vc.ShaderVariable, constant: complex):
     vc.comment(f"Multiplying {register_in} by {constant}")
@@ -152,7 +157,8 @@ class FFTRegisterStageInvocation:
         self.stage = stage
         self.output_stride = output_stride
 
-        self.block_width = output_stride * stage.fft_length
+        #self.block_width = output_stride * stage.fft_length
+        self.block_width = output_stride # * stage.fft_length
 
         self.instance_id = tid * stage.instance_count + instance_index
 
@@ -161,9 +167,11 @@ class FFTRegisterStageInvocation:
         if output_stride == 1:
             self.inner_block_offset = 0
 
-        self.block_index = (self.instance_id * stage.fft_length) / self.block_width
-        self.sub_sequence_offset = self.block_index * self.block_width + self.inner_block_offset
+        #self.block_index = (self.instance_id * stage.fft_length) / self.block_width
+        #self.sub_sequence_offset = self.block_index * self.block_width + self.inner_block_offset
 
+        self.sub_sequence_offset = self.instance_id
+        
         self.register_selection = slice(instance_index * stage.fft_length, (instance_index + 1) * stage.fft_length)
 
 def process_fft_register_stage(resources: FFTResources,
@@ -226,7 +234,6 @@ def process_fft_register_stage(resources: FFTResources,
         if stage.remainder_offset == 1 and ii == stage.extra_ffts:
             vc.if_statement(resources.tid < params.config.N // stage.registers_used)
 
-        
         resources.subsequence_offset[:] = invocation.sub_sequence_offset
 
         store_registers_in_buffer(

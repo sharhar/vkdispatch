@@ -19,12 +19,18 @@ def set_global_builder(builder: ShaderBuilder):
     return old_value
 
 @contextlib.contextmanager
-def builder_context(enable_subgroup_ops: bool = True, enable_atomic_float_ops: bool = True, enable_printf: bool = True, enable_exec_bounds: bool = True):
+def builder_context(
+    enable_subgroup_ops: bool = True,
+    enable_atomic_float_ops: bool = True,
+    enable_printf: bool = True,
+    enable_exec_bounds: bool = True,
+    disable_UBO: bool = False):
     builder = ShaderBuilder(
         enable_atomic_float_ops=enable_atomic_float_ops,
         enable_subgroup_ops=enable_subgroup_ops,
         enable_printf=enable_printf,
-        enable_exec_bounds=enable_exec_bounds
+        enable_exec_bounds=enable_exec_bounds,
+        disable_UBO=disable_UBO
     )
     old_builder = set_global_builder(builder)
 

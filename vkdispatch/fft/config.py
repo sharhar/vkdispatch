@@ -22,7 +22,18 @@ class FFTRegisterStageConfig:
     def __init__(self, primes: List[int], max_register_count: int, N: int):
         self.primes = tuple(primes)
         self.fft_length = int(np.round(np.prod(primes)))
-        self.instance_count = max_register_count // self.fft_length
+
+        instance_primes = prime_factors(N // self.fft_length)
+
+        self.instance_count = 1
+
+        while len(instance_primes) > 0:
+            if self.instance_count * self.fft_length * instance_primes[0] > max_register_count:
+                break
+            self.instance_count *= instance_primes[0]
+            instance_primes = instance_primes[1:]
+
+        print(f"FFT length: {self.fft_length}, Instance count: {self.instance_count}")
 
         self.registers_used = self.fft_length * self.instance_count
 
@@ -43,14 +54,14 @@ class FFTRegisterStageConfig:
 
         self.sdata_width_padded = self.sdata_width
 
-        if self.sdata_width_padded % 2 == 0:
-            self.sdata_width_padded += 1
+        #if self.sdata_width_padded % 2 == 0:
+        #    self.sdata_width_padded += 1
 
         self.sdata_size = self.sdata_width_padded * int(np.prod(threads_primes))
 
-        if self.sdata_size > vd.get_context().max_shared_memory // vd.complex64.item_size:
-            self.sdata_width_padded = self.sdata_width
-            self.sdata_size = self.sdata_width_padded * int(np.prod(threads_primes))
+        #if self.sdata_size > vd.get_context().max_shared_memory // vd.complex64.item_size:
+        #    self.sdata_width_padded = self.sdata_width
+        #    self.sdata_size = self.sdata_width_padded * int(np.prod(threads_primes))
 
     def __str__(self):
         return f"""
@@ -76,8 +87,8 @@ class FFTParams:
     inverse: bool = False
     normalize: bool = True
     r2c: bool = False
-    batch_y_stride: int = None
     batch_z_stride: int = None
+    batch_x_stride: int = None
     fft_stride: int = None
     angle_factor: float = None
     input_sdata: bool = False
@@ -97,10 +108,10 @@ class FFTConfig:
     stages: Tuple[FFTRegisterStageConfig]
     thread_counts: Tuple[int, int, int]
     fft_stride: int
-    batch_y_stride: int
-    batch_y_count: int
     batch_z_stride: int
     batch_z_count: int
+    batch_x_stride: int
+    batch_x_count: int
     batch_threads: int
     exec_size: Tuple[int, int, int]
     sdata_allocation: int
@@ -117,11 +128,11 @@ class FFTConfig:
         N = buffer_shape[axis]
 
         self.fft_stride = np.round(np.prod(buffer_shape[axis + 1:])).astype(np.int32)
-        self.batch_y_stride = self.fft_stride * N
-        self.batch_y_count = total_buffer_length // self.batch_y_stride
+        self.batch_z_stride = self.fft_stride * N
+        self.batch_z_count = total_buffer_length // self.batch_z_stride
 
-        self.batch_z_stride = 1
-        self.batch_z_count = self.fft_stride
+        self.batch_x_stride = 1
+        self.batch_x_count = self.fft_stride
         
         self.N = N
 
@@ -139,8 +150,7 @@ class FFTConfig:
         register_utilizations = [stage.registers_used for stage in self.stages]
         self.register_count = max(register_utilizations)
 
-        #sdata_utilizations = [stage.sdata_size for stage in self.stages]
-        self.sdata_allocation = 1 #max(sdata_utilizations)
+        self.sdata_allocation = 1
 
         for stage in self.stages:
             if stage.sdata_size < self.sdata_allocation:
@@ -153,7 +163,7 @@ class FFTConfig:
         self.thread_counts = [stage.thread_count for stage in self.stages]
 
         self.batch_threads = max(self.thread_counts)
-        self.exec_size = (self.batch_threads, self.batch_y_count, self.batch_z_count)
+        self.exec_size = (self.batch_x_count, self.batch_threads, self.batch_z_count)
 
     def __str__(self):
         return f"FFT Config:\nN: {self.N}\nregister_count: {self.register_count}\nstages:\n{self.stages}\nlocal_size: {self.thread_counts}"
@@ -174,8 +184,8 @@ class FFTConfig:
             inverse=inverse,
             normalize=normalize,
             r2c=r2c,
-            batch_y_stride=self.batch_y_stride,
             batch_z_stride=self.batch_z_stride,
+            batch_x_stride=self.batch_x_stride,
             fft_stride=self.fft_stride,
             angle_factor=2 * np.pi * (1 if inverse else -1),
             input_sdata=input_sdata,

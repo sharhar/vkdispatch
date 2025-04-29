@@ -90,7 +90,7 @@ def make_fft_shader(
     if name is None:
         name = f"fft_shader_{buffer_shape}_{axis}_{inverse}_{normalize_inverse}_{r2c}"
 
-    with vc.builder_context(enable_exec_bounds=False) as builder:
+    with vc.builder_context(disable_UBO=True, enable_subgroup_ops=False) as builder:
         io_object = FFTInputOutput(builder, input_map, output_map)
 
         fft_config = FFTConfig(buffer_shape, axis)
