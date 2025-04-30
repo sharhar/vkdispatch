@@ -4,11 +4,11 @@ import tqdm
 import time
 
 batch_count = 1000
-batch_size = 50
+batch_size = 100
 
 vd.initialize(debug_mode=True)
 
-buffer = vd.Buffer((2 ** 10, 2 ** 10), var_type=vd.complex64)
+buffer = vd.Buffer((2 ** 8, 2 ** 10), var_type=vd.complex64)
 #kernel = vd.RFFTBuffer((2 ** 9, 2 ** 9))
 #buffer = vd.RFFTBuffer((650, 169))
 

@@ -12,6 +12,8 @@ from .config import FFTRegisterStageConfig, FFTParams
 
 from .memory_io import load_buffer_to_registers, store_registers_in_buffer
 
+
+
 def set_batch_offsets(resources: FFTResources, params: FFTParams):
     input_batch_stride_y = params.batch_y_stride
     output_batch_stride_y = params.batch_y_stride
@@ -82,7 +84,7 @@ def apply_cooley_tukey_twiddle_factors(resources: FFTResources, params: FFTParam
         resources.omega_register.x = params.angle_factor * twiddle_index / twiddle_N
         resources.omega_register[:] = vc.complex_from_euler_angle(resources.omega_register.x)
     
-    resources.radix_registers[1][:] = resources.omega_register
+    inited_radix = False
 
     for i in range(len(register_list)):
         if i == 0:
@@ -93,10 +95,33 @@ def apply_cooley_tukey_twiddle_factors(resources: FFTResources, params: FFTParam
                 continue
 
             omega = np.exp(1j * params.angle_factor * i * twiddle_index / twiddle_N)
+
+            scaled_angle = 2 * np.angle(omega) / np.pi
+            rounded_angle = np.round(scaled_angle)
+
+            if np.abs(scaled_angle - rounded_angle) < 1e-8:
+                angle_int = int(rounded_angle)
+
+                if angle_int == 1:
+                    resources.omega_register.x = register_list[i].x
+                    register_list[i].x = -register_list[i].y
+                    register_list[i].y = resources.omega_register.x
+                elif angle_int == -1:
+                    resources.omega_register.x = register_list[i].x
+                    register_list[i].x = register_list[i].y
+                    register_list[i].y = -resources.omega_register.x
+                elif angle_int == 2 or angle_int == -2:
+                    register_list[i][:] = -register_list[i]
+                
+                continue
+
             do_c64_mult_const(resources.omega_register, register_list[i], omega)
             register_list[i][:] = resources.omega_register
             continue
         
+        if not inited_radix:
+            resources.radix_registers[1][:] = resources.omega_register
+            inited_radix = True
 
         do_c64_mult_const(resources.radix_registers[0], register_list[i], resources.radix_registers[1])
         register_list[i][:] = resources.radix_registers[0]
@@ -161,12 +186,14 @@ class FFTRegisterStageInvocation:
         if output_stride == 1:
             self.inner_block_offset = 0
 
+        print(self.instance_id)
+
         #self.block_index = (self.instance_id * stage.fft_length) / self.block_width
         #self.sub_sequence_offset = self.block_index * self.block_width + self.inner_block_offset
 
         #self.sub_sequence_offset = (self.instance_id / output_stride) * output_stride * stage.fft_length + self.inner_block_offset
         
-        self.sub_sequence_offset = self.instance_id * stage.fft_length + self.inner_block_offset * (1 - stage.fft_length)
+        self.sub_sequence_offset = self.instance_id * stage.fft_length - self.inner_block_offset * (stage.fft_length - 1)
 
         self.register_selection = slice(instance_index * stage.fft_length, (instance_index + 1) * stage.fft_length)
 
