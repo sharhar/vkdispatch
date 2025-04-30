@@ -78,7 +78,9 @@ def load_buffer_to_registers(
             
             if params.sdata_row_size != params.sdata_row_size_padded:
                 resources.io_index[:] = sdata_index
-                sdata_index = (resources.io_index / params.sdata_row_size) * params.sdata_row_size_padded + (resources.io_index % params.sdata_row_size)
+                resources.io_index[:] = resources.io_index + resources.io_index / params.sdata_row_size
+                sdata_index = resources.io_index
+                #sdata_index = (resources.io_index / params.sdata_row_size) * params.sdata_row_size_padded + (resources.io_index % params.sdata_row_size)
             
             register_list[i][:] = resources.sdata[sdata_index]
         else:
@@ -132,7 +134,7 @@ def store_registers_in_buffer(
         buffer: Optional[Buff],
         offset: Const[u32],
         stride: Const[u32],
-        register_list: List[vc.ShaderVariable] = None):
+        register_list: List[vc.ShaderVariable] = None) -> bool:
     if register_list is None:
         register_list = resources.registers
 
@@ -147,7 +149,9 @@ def store_registers_in_buffer(
             
             if params.sdata_row_size != params.sdata_row_size_padded:
                 resources.io_index[:] = sdata_index
-                sdata_index = (resources.io_index / params.sdata_row_size) * params.sdata_row_size_padded + (resources.io_index % params.sdata_row_size)
+                resources.io_index[:] = resources.io_index + resources.io_index / params.sdata_row_size
+                sdata_index = resources.io_index
+                #sdata_index = (resources.io_index / params.sdata_row_size) * params.sdata_row_size_padded + (resources.io_index % params.sdata_row_size)
 
             
             resources.sdata[sdata_index] = register_list[i]
