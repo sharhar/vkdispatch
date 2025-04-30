@@ -186,12 +186,7 @@ class FFTRegisterStageInvocation:
         if output_stride == 1:
             self.inner_block_offset = 0
 
-        print(self.instance_id)
-
-        #self.block_index = (self.instance_id * stage.fft_length) / self.block_width
-        #self.sub_sequence_offset = self.block_index * self.block_width + self.inner_block_offset
-
-        #self.sub_sequence_offset = (self.instance_id / output_stride) * output_stride * stage.fft_length + self.inner_block_offset
+        print(f"instance_id: {self.instance_id} type={type(self.instance_id)}")
         
         self.sub_sequence_offset = self.instance_id * stage.fft_length - self.inner_block_offset * (stage.fft_length - 1)
 
@@ -258,13 +253,13 @@ def process_fft_register_stage(resources: FFTResources,
             vc.if_statement(resources.tid < params.config.N // stage.registers_used)
 
         
-        resources.subsequence_offset[:] = invocation.sub_sequence_offset
+        #resources.subsequence_offset[:] = 
 
         store_registers_in_buffer(
             resources=resources,
             params=params,
             buffer=output,
-            offset=resources.subsequence_offset,
+            offset=invocation.sub_sequence_offset,
             stride=output_stride,
             register_list=resources.registers[invocation.register_selection]
         )

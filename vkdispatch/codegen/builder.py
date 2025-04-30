@@ -115,17 +115,17 @@ class ShaderBuilder:
         if self.enable_printf:
             self.pre_header += "#extension GL_EXT_debug_printf : enable\n"
         
-        self.global_invocation = self.make_var(abv.uv4, "gl_GlobalInvocationID")
-        self.local_invocation = self.make_var(abv.uv4, "gl_LocalInvocationID")
-        self.workgroup = self.make_var(abv.uv4, "gl_WorkGroupID")
-        self.workgroup_size = self.make_var(abv.uv4, "gl_WorkGroupSize")
-        self.num_workgroups = self.make_var(abv.uv4, "gl_NumWorkGroups")
+        self.global_invocation = self.make_var(abv.uv4, "gl_GlobalInvocationID", lexical_unit=True)
+        self.local_invocation = self.make_var(abv.uv4, "gl_LocalInvocationID", lexical_unit=True)
+        self.workgroup = self.make_var(abv.uv4, "gl_WorkGroupID", lexical_unit=True)
+        self.workgroup_size = self.make_var(abv.uv4, "gl_WorkGroupSize", lexical_unit=True)
+        self.num_workgroups = self.make_var(abv.uv4, "gl_NumWorkGroups", lexical_unit=True)
 
-        self.num_subgroups = self.make_var(abv.u32, "gl_NumSubgroups")
-        self.subgroup_id = self.make_var(abv.u32, "gl_SubgroupID")
+        self.num_subgroups = self.make_var(abv.u32, "gl_NumSubgroups", lexical_unit=True)
+        self.subgroup_id = self.make_var(abv.u32, "gl_SubgroupID", lexical_unit=True)
 
-        self.subgroup_size = self.make_var(abv.u32, "gl_SubgroupSize")
-        self.subgroup_invocation = self.make_var(abv.u32, "gl_SubgroupInvocationID")
+        self.subgroup_size = self.make_var(abv.u32, "gl_SubgroupSize", lexical_unit=True)
+        self.subgroup_invocation = self.make_var(abv.u32, "gl_SubgroupInvocationID", lexical_unit=True)
         
         self.reset()
 
@@ -166,6 +166,7 @@ class ShaderBuilder:
         self.contents += ("    " * self.scope_num) + contents
 
     def comment(self, comment: str) -> None:
+        self.append_contents("\n")
         self.append_contents(f"/* {comment} */\n")
     
     def get_name_func(self, prefix: Optional[str] = None, suffix: Optional[str] = None):
@@ -189,8 +190,8 @@ class ShaderBuilder:
             return new_var, raw_name
         return get_name_val
 
-    def make_var(self, var_type: dtype, var_name: Optional[str] = None, prefix: Optional[str] = None, suffix: Optional[str] = None):
-        return ShaderVariable(self.append_contents, self.get_name_func(prefix, suffix), var_type, var_name)
+    def make_var(self, var_type: dtype, var_name: Optional[str] = None, prefix: Optional[str] = None, suffix: Optional[str] = None, lexical_unit: bool = False):
+        return ShaderVariable(self.append_contents, self.get_name_func(prefix, suffix), var_type, var_name, lexical_unit=lexical_unit)
     
     def declare_constant(self, var_type: dtype, count: int = 1, var_name: Optional[str] = None):
         suffix = None
@@ -268,33 +269,33 @@ class ShaderBuilder:
             shape_name
         )
 
-        self.shared_buffers.append(SharedBuffer(var_type, size, repr(new_var)))
+        self.shared_buffers.append(SharedBuffer(var_type, size, new_var.name))
 
         return new_var
     
     def abs(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"abs({arg})")
+        return self.make_var(arg.var_type, f"abs({arg})", lexical_unit=True)
     
     def acos(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"acos({arg})")
+        return self.make_var(arg.var_type, f"acos({arg})", lexical_unit=True)
 
     def acosh(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"acosh({arg})")
+        return self.make_var(arg.var_type, f"acosh({arg})", lexical_unit=True)
 
     def asin(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"asin({arg})")
+        return self.make_var(arg.var_type, f"asin({arg})", lexical_unit=True)
 
     def asinh(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"asinh({arg})")
+        return self.make_var(arg.var_type, f"asinh({arg})", lexical_unit=True)
 
     def atan(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"atan({arg})")
+        return self.make_var(arg.var_type, f"atan({arg})", lexical_unit=True)
     
     def atan2(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        return self.make_var(arg1.var_type, f"atan({arg1}, {arg2})")
+        return self.make_var(arg1.var_type, f"atan({arg1}, {arg2})", lexical_unit=True)
 
     def atanh(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"atanh({arg})")
+        return self.make_var(arg.var_type, f"atanh({arg})", lexical_unit=True)
     
     def atomic_add(self, arg1: ShaderVariable, arg2: ShaderVariable):
         new_var = self.make_var(arg1.var_type)
@@ -305,76 +306,76 @@ class ShaderBuilder:
         self.append_contents("barrier();\n")
     
     def ceil(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"ceil({arg})")
+        return self.make_var(arg.var_type, f"ceil({arg})", lexical_unit=True)
     
     def clamp(self, arg: ShaderVariable, min_val: ShaderVariable, max_val: ShaderVariable):
-        return self.make_var(arg.var_type, f"clamp({arg}, {min_val}, {max_val})")
+        return self.make_var(arg.var_type, f"clamp({arg}, {min_val}, {max_val})", lexical_unit=True)
 
     def cos(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"cos({arg})")
+        return self.make_var(arg.var_type, f"cos({arg})", lexical_unit=True)
     
     def cosh(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"cosh({arg})")
+        return self.make_var(arg.var_type, f"cosh({arg})", lexical_unit=True)
     
     def cross(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        return self.make_var(abv.v3, f"cross({arg1}, {arg2})")
+        return self.make_var(abv.v3, f"cross({arg1}, {arg2})", lexical_unit=True)
     
     def degrees(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"degrees({arg})")
+        return self.make_var(arg.var_type, f"degrees({arg})", lexical_unit=True)
     
     def determinant(self, arg: ShaderVariable):
-        return self.make_var(abv.f32, f"determinant({arg})")
+        return self.make_var(abv.f32, f"determinant({arg})", lexical_unit=True)
     
     def distance(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        return self.make_var(abv.f32, f"distance({arg1}, {arg2})")
+        return self.make_var(abv.f32, f"distance({arg1}, {arg2})", lexical_unit=True)
     
     def dot(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        return self.make_var(abv.f32, f"dot({arg1}, {arg2})")
+        return self.make_var(abv.f32, f"dot({arg1}, {arg2})", lexical_unit=True)
     
     def exp(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"exp({arg})")
+        return self.make_var(arg.var_type, f"exp({arg})", lexical_unit=True)
     
     def exp2(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"exp2({arg})")
+        return self.make_var(arg.var_type, f"exp2({arg})", lexical_unit=True)
 
     def float_bits_to_int(self, arg: ShaderVariable):
-        return self.make_var(abv.i32, f"floatBitsToInt({arg})")
+        return self.make_var(abv.i32, f"floatBitsToInt({arg})", lexical_unit=True)
     
     def float_bits_to_uint(self, arg: ShaderVariable):
-        return self.make_var(abv.u32, f"floatBitsToUint({arg})")
+        return self.make_var(abv.u32, f"floatBitsToUint({arg})", lexical_unit=True)
 
     def floor(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"floor({arg})")
+        return self.make_var(arg.var_type, f"floor({arg})", lexical_unit=True)
     
     def fma(self, arg1: ShaderVariable, arg2: ShaderVariable, arg3: ShaderVariable):
-        return self.make_var(arg1.var_type, f"fma({arg1}, {arg2}, {arg3})")
+        return self.make_var(arg1.var_type, f"fma({arg1}, {arg2}, {arg3})", lexical_unit=True)
     
     def int_bits_to_float(self, arg: ShaderVariable):
-        return self.make_var(abv.f32, f"intBitsToFloat({arg})")
+        return self.make_var(abv.f32, f"intBitsToFloat({arg})", lexical_unit=True)
 
     def inverse(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"inverse({arg})")
+        return self.make_var(arg.var_type, f"inverse({arg})", lexical_unit=True)
     
     def inverse_sqrt(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"inversesqrt({arg})")
+        return self.make_var(arg.var_type, f"inversesqrt({arg})", lexical_unit=True)
     
     def isinf(self, arg: ShaderVariable):
-        return self.make_var(abv.i32, f"any(isinf({arg}))")
+        return self.make_var(abv.i32, f"any(isinf({arg}))", lexical_unit=True)
     
     def isnan(self, arg: ShaderVariable):
-        return self.make_var(abv.i32, f"any(isnan({arg}))")
+        return self.make_var(abv.i32, f"any(isnan({arg}))", lexical_unit=True)
 
     def length(self, arg: ShaderVariable):
-        return self.make_var(abv.f32, f"length({arg})")
+        return self.make_var(abv.f32, f"length({arg})", lexical_unit=True)
 
     def log(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"log({arg})")
+        return self.make_var(arg.var_type, f"log({arg})", lexical_unit=True)
 
     def log2(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"log2({arg})")
+        return self.make_var(arg.var_type, f"log2({arg})", lexical_unit=True)
 
     def max(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        return self.make_var(arg1.var_type, f"max({arg1}, {arg2})")
+        return self.make_var(arg1.var_type, f"max({arg1}, {arg2})", lexical_unit=True)
 
     def memory_barrier(self):
         self.append_contents("memoryBarrier();\n")
@@ -383,72 +384,72 @@ class ShaderBuilder:
         self.append_contents("memoryBarrierShared();\n")
 
     def min(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        return self.make_var(arg1.var_type, f"min({arg1}, {arg2})")
+        return self.make_var(arg1.var_type, f"min({arg1}, {arg2})", lexical_unit=True)
     
     def mix(self, arg1: ShaderVariable, arg2: ShaderVariable, arg3: ShaderVariable):
-        return self.make_var(arg1.var_type, f"mix({arg1}, {arg2}, {arg3})")
+        return self.make_var(arg1.var_type, f"mix({arg1}, {arg2}, {arg3})", lexical_unit=True)
 
     def mod(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        return self.make_var(arg1.var_type, f"mod({arg1}, {arg2})")
+        return self.make_var(arg1.var_type, f"mod({arg1}, {arg2})", lexical_unit=True)
     
     def normalize(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"normalize({arg})")
+        return self.make_var(arg.var_type, f"normalize({arg})", lexical_unit=True)
     
     def pow(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        return self.make_var(arg1.var_type, f"pow({arg1}, {arg2})")
+        return self.make_var(arg1.var_type, f"pow({arg1}, {arg2})", lexical_unit=True)
     
     def radians(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"radians({arg})")
+        return self.make_var(arg.var_type, f"radians({arg})", lexical_unit=True)
     
     def round(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"round({arg})")
+        return self.make_var(arg.var_type, f"round({arg})", lexical_unit=True)
     
     def round_even(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"roundEven({arg})")
+        return self.make_var(arg.var_type, f"roundEven({arg})", lexical_unit=True)
 
     def sign(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"sign({arg})")
+        return self.make_var(arg.var_type, f"sign({arg})", lexical_unit=True)
 
     def sin(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"sin({arg})")
+        return self.make_var(arg.var_type, f"sin({arg})", lexical_unit=True)
     
     def sinh(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"sinh({arg})")
+        return self.make_var(arg.var_type, f"sinh({arg})", lexical_unit=True)
     
     def smoothstep(self, arg1: ShaderVariable, arg2: ShaderVariable, arg3: ShaderVariable):
-        return self.make_var(arg1.var_type, f"smoothstep({arg1}, {arg2}, {arg3})")
+        return self.make_var(arg1.var_type, f"smoothstep({arg1}, {arg2}, {arg3})", lexical_unit=True)
 
     def sqrt(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"sqrt({arg})")
+        return self.make_var(arg.var_type, f"sqrt({arg})", lexical_unit=True)
     
     def step(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        return self.make_var(arg1.var_type, f"step({arg1}, {arg2})")
+        return self.make_var(arg1.var_type, f"step({arg1}, {arg2})", lexical_unit=True)
 
     def tan(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"tan({arg})")
+        return self.make_var(arg.var_type, f"tan({arg})", lexical_unit=True)
     
     def tanh(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"tanh({arg})")
+        return self.make_var(arg.var_type, f"tanh({arg})", lexical_unit=True)
     
     def transpose(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"transpose({arg})")
+        return self.make_var(arg.var_type, f"transpose({arg})", lexical_unit=True)
     
     def trunc(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"trunc({arg})")
+        return self.make_var(arg.var_type, f"trunc({arg})", lexical_unit=True)
 
     def uint_bits_to_float(self, arg: ShaderVariable):
-        return self.make_var(abv.f32, f"uintBitsToFloat({arg})")
+        return self.make_var(abv.f32, f"uintBitsToFloat({arg})", lexical_unit=True)
     
     def mult_c64(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        new_var = self.make_var(arg1.var_type, f"vec2({arg1}.x * {arg2}.x - {arg1}.y * {arg2}.y, {arg1}.x * {arg2}.y + {arg1}.y * {arg2}.x)");
+        new_var = self.make_var(arg1.var_type, f"vec2({arg1}.x * {arg2}.x - {arg1}.y * {arg2}.y, {arg1}.x * {arg2}.y + {arg1}.y * {arg2}.x)", lexical_unit=True)
         return new_var
     
     def mult_c64_by_const(self, arg1: ShaderVariable, number: complex):
-        new_var = self.make_var(arg1.var_type, f"vec2({arg1}.x * {number.real} - {arg1}.y * {number.imag}, {arg1}.x * {number.imag} + {arg1}.y * {number.real})");
+        new_var = self.make_var(arg1.var_type, f"vec2({arg1}.x * {number.real} - {arg1}.y * {number.imag}, {arg1}.x * {number.imag} + {arg1}.y * {number.real})", lexical_unit=True)
         return new_var
     
     def mult_conj_c64(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        new_var = self.make_var(arg1.var_type, f"vec2({arg1}.x * {arg2}.x + {arg1}.y * {arg2}.y, {arg1}.y * {arg2}.x - {arg1}.x * {arg2}.y)");
+        new_var = self.make_var(arg1.var_type, f"vec2({arg1}.x * {arg2}.x + {arg1}.y * {arg2}.y, {arg1}.y * {arg2}.x - {arg1}.x * {arg2}.y)", lexical_unit=True);
         return new_var
 
     def if_statement(self, arg: ShaderVariable, command: Optional[str] = None):
@@ -509,40 +510,40 @@ class ShaderBuilder:
         return self.make_var(abv.i32, f"({arg1} || {arg2})")
 
     def subgroup_add(self, arg1: ShaderVariable):
-        return self.make_var(arg1.var_type, f"subgroupAdd({arg1})")
+        return self.make_var(arg1.var_type, f"subgroupAdd({arg1})", lexical_unit=True)
 
     def subgroup_mul(self, arg1: ShaderVariable):
-        return self.make_var(arg1.var_type, f"subgroupMul({arg1})")
+        return self.make_var(arg1.var_type, f"subgroupMul({arg1})", lexical_unit=True)
 
     def subgroup_min(self, arg1: ShaderVariable):
-        return self.make_var(arg1.var_type, f"subgroupMin({arg1})")
+        return self.make_var(arg1.var_type, f"subgroupMin({arg1})", lexical_unit=True)
 
     def subgroup_max(self, arg1: ShaderVariable):
-        return self.make_var(arg1.var_type, f"subgroupMax({arg1})")
+        return self.make_var(arg1.var_type, f"subgroupMax({arg1})", lexical_unit=True)
 
     def subgroup_and(self, arg1: ShaderVariable):
-        return self.make_var(arg1.var_type, f"subgroupAnd({arg1})")
+        return self.make_var(arg1.var_type, f"subgroupAnd({arg1})", lexical_unit=True)
 
     def subgroup_or(self, arg1: ShaderVariable):
-        return self.make_var(arg1.var_type, f"subgroupOr({arg1})")
+        return self.make_var(arg1.var_type, f"subgroupOr({arg1})", lexical_unit=True)
 
     def subgroup_xor(self, arg1: ShaderVariable):
-        return self.make_var(arg1.var_type, f"subgroupXor({arg1})")
+        return self.make_var(arg1.var_type, f"subgroupXor({arg1})", lexical_unit=True)
 
     def subgroup_elect(self):
-        return self.make_var(abv.i32, f"subgroupElect()")
+        return self.make_var(abv.i32, f"subgroupElect()", lexical_unit=True)
 
     def subgroup_barrier(self):
         self.append_contents("subgroupBarrier();\n")
 
     def new(self, var_type: dtype, *args, var_name: Optional[str] = None):
-        new_var = self.make_var(var_type, var_name=var_name) #f"float({arg1})")
+        new_var = self.make_var(var_type, var_name=var_name, lexical_unit=True) #f"float({arg1})")
 
         decleration_suffix = ""
         if len(args) > 0:
             decleration_suffix = f" = {var_type.glsl_type}({', '.join([str(elem) for elem in args])})"
 
-        self.append_contents(f"{new_var.var_type.glsl_type} {new_var}{decleration_suffix};\n")
+        self.append_contents(f"{new_var.var_type.glsl_type} {new_var.name}{decleration_suffix};\n")
 
         return new_var
 
@@ -643,6 +644,8 @@ class ShaderBuilder:
         header = "" + self.pre_header
 
         for shared_buffer in self.shared_buffers:
+            print("Shared buffer", shared_buffer.name, shared_buffer.size)
+
             header += f"shared {shared_buffer.dtype.glsl_type} {shared_buffer.name}[{shared_buffer.size}];\n"
 
         uniform_elements = self.uniform_struct.build()
