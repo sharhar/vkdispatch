@@ -15,8 +15,8 @@ from .memory_io import load_buffer_to_registers, store_registers_in_buffer
 
 
 def set_batch_offsets(resources: FFTResources, params: FFTParams):
-    input_batch_stride_y = params.batch_y_stride
-    output_batch_stride_y = params.batch_y_stride
+    input_batch_stride_y = params.batch_outer_stride
+    output_batch_stride_y = params.batch_outer_stride
 
     if params.r2c and not params.inverse:
         output_batch_stride_y = (params.config.N // 2) + 1
@@ -26,8 +26,8 @@ def set_batch_offsets(resources: FFTResources, params: FFTParams):
         input_batch_stride_y = (params.config.N // 2) + 1
         output_batch_stride_y = input_batch_stride_y * 2
 
-    resources.input_batch_offset[:] = vc.global_invocation().z * input_batch_stride_y + vc.global_invocation().x * params.batch_z_stride
-    resources.output_batch_offset[:] = vc.global_invocation().z * output_batch_stride_y + vc.global_invocation().x * params.batch_z_stride
+    resources.input_batch_offset[:] = resources.global_outer_index * input_batch_stride_y + resources.global_inner_index * params.batch_inner_stride
+    resources.output_batch_offset[:] = resources.global_outer_index * output_batch_stride_y + resources.global_inner_index * params.batch_inner_stride
 
 def do_c64_mult_const(register_out: vc.ShaderVariable, register_in: vc.ShaderVariable, constant: complex):
     vc.comment(f"Multiplying {register_in} by {constant}")
@@ -185,8 +185,6 @@ class FFTRegisterStageInvocation:
 
         if output_stride == 1:
             self.inner_block_offset = 0
-
-        print(f"instance_id: {self.instance_id} type={type(self.instance_id)}")
         
         self.sub_sequence_offset = self.instance_id * stage.fft_length - self.inner_block_offset * (stage.fft_length - 1)
 
@@ -251,9 +249,6 @@ def process_fft_register_stage(resources: FFTResources,
 
         if stage.remainder_offset == 1 and ii == stage.extra_ffts:
             vc.if_statement(resources.tid < params.config.N // stage.registers_used)
-
-        
-        #resources.subsequence_offset[:] = 
 
         store_registers_in_buffer(
             resources=resources,

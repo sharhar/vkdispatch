@@ -84,8 +84,8 @@ class FFTParams:
     inverse: bool = False
     normalize: bool = True
     r2c: bool = False
-    batch_y_stride: int = None
-    batch_z_stride: int = None
+    batch_outer_stride: int = None
+    batch_inner_stride: int = None
     fft_stride: int = None
     angle_factor: float = None
     input_sdata: bool = False
@@ -105,10 +105,10 @@ class FFTConfig:
     stages: Tuple[FFTRegisterStageConfig]
     thread_counts: Tuple[int, int, int]
     fft_stride: int
-    batch_y_stride: int
-    batch_y_count: int
-    batch_z_stride: int
-    batch_z_count: int
+    batch_outer_stride: int
+    batch_outer_count: int
+    batch_inner_stride: int
+    batch_inner_count: int
     batch_threads: int
     exec_size: Tuple[int, int, int]
     sdata_allocation: int
@@ -125,11 +125,11 @@ class FFTConfig:
         N = buffer_shape[axis]
 
         self.fft_stride = np.round(np.prod(buffer_shape[axis + 1:])).astype(np.int32)
-        self.batch_y_stride = self.fft_stride * N
-        self.batch_y_count = total_buffer_length // self.batch_y_stride
+        self.batch_outer_stride = self.fft_stride * N
+        self.batch_outer_count = total_buffer_length // self.batch_outer_stride
 
-        self.batch_z_stride = 1
-        self.batch_z_count = self.fft_stride
+        self.batch_inner_stride = 1
+        self.batch_inner_count = self.fft_stride
         
         self.N = N
 
@@ -161,7 +161,11 @@ class FFTConfig:
         self.thread_counts = [stage.thread_count for stage in self.stages]
 
         self.batch_threads = max(self.thread_counts)
-        self.exec_size = (self.batch_z_count, self.batch_threads, self.batch_y_count)
+
+        if self.batch_inner_count == 1:
+            self.exec_size = (self.batch_threads, self.batch_outer_count, 1)
+        else:
+            self.exec_size = (self.batch_inner_count, self.batch_threads, self.batch_outer_count)
 
     def __str__(self):
         return f"FFT Config:\nN: {self.N}\nregister_count: {self.register_count}\nstages:\n{self.stages}\nlocal_size: {self.thread_counts}"
@@ -182,8 +186,8 @@ class FFTConfig:
             inverse=inverse,
             normalize=normalize,
             r2c=r2c,
-            batch_y_stride=self.batch_y_stride,
-            batch_z_stride=self.batch_z_stride,
+            batch_outer_stride=self.batch_outer_stride,
+            batch_inner_stride=self.batch_inner_stride,
             fft_stride=self.fft_stride,
             angle_factor=2 * np.pi * (1 if inverse else -1),
             input_sdata=input_sdata,
