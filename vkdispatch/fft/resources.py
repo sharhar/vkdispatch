@@ -46,9 +46,9 @@ class FFTResources:
     sdata_offset: Const[u32]
     io_index: Const[u32]
     io_index_2: Const[u32]
+    global_inner_index: Const[u32]
+    global_outer_index: Const[u32]
 
-    inline_batch_y: int
-    inline_batch_z: int
     shared_memory_size: int
     local_size: Tuple[int, int, int]
 
@@ -62,22 +62,57 @@ class FFTResources:
         self.omega_register[:] = "vec2(0)"
 
 def allocate_fft_resources(config: FFTConfig) -> FFTResources:
-    inline_batch_z = allocate_inline_batches(config.batch_z_count, config.batch_threads, config.sdata_allocation, vd.get_context().max_workgroup_size[0], vd.get_context().max_workgroup_invocations)
-    inline_batch_y = allocate_inline_batches(config.batch_y_count, config.batch_threads * inline_batch_z, config.sdata_allocation * inline_batch_z, vd.get_context().max_workgroup_size[2], vd.get_context().subgroup_size)
+    inline_batch_inner = allocate_inline_batches(
+        config.batch_inner_count,
+        config.batch_threads,
+        config.sdata_allocation,
+        vd.get_context().max_workgroup_size[0],
+        vd.get_context().max_workgroup_invocations)
+    
+    inline_batch_outer = allocate_inline_batches(
+        config.batch_outer_count,
+        config.batch_threads * inline_batch_inner,
+        config.sdata_allocation * inline_batch_inner,
+        vd.get_context().max_workgroup_size[1 if inline_batch_inner == 1 else 2],
+        vd.get_context().subgroup_size)
 
-    sdata_buffer = vc.shared_buffer(vc.c64, config.sdata_allocation * inline_batch_y * inline_batch_z, "sdata")
+    sdata_buffer = vc.shared_buffer(vc.c64, config.sdata_allocation * inline_batch_outer * inline_batch_inner, "sdata")
     sdata_offset = None
 
-    if inline_batch_y > 1 or inline_batch_z > 1:
-        sdata_offset = vc.new_uint(
-            vc.local_invocation().z * inline_batch_z * config.N + vc.local_invocation().x * config.N,
-            var_name="sdata_offset")
+    local_inner = None
+    global_inner = 0
+
+    local_outer = vc.local_invocation().y
+    global_outer = vc.global_invocation().y
+
+    if inline_batch_inner > 1:
+        local_inner = vc.local_invocation().x
+        global_inner = vc.global_invocation().x
+
+        local_outer = vc.local_invocation().z
+        global_outer = vc.global_invocation().z
+
+    if inline_batch_outer > 1 or inline_batch_inner > 1:
+        sdata_offset_value = local_outer * inline_batch_inner * config.N
+
+        if local_inner is not None:
+            sdata_offset_value = sdata_offset_value + local_inner * config.N
+
+        sdata_offset = vc.new_uint(sdata_offset_value, var_name="sdata_offset")
+
+
+    local_size = (inline_batch_inner, config.batch_threads, inline_batch_outer)
+    tid = vc.local_invocation().y
+    
+    if inline_batch_inner == 1:
+        tid = vc.local_invocation().x
+        local_size = (config.batch_threads, inline_batch_outer, 1)
 
     resources = FFTResources(
         registers=[vc.new(c64, 0, var_name=f"register_{i}") for i in range(config.register_count)],
         radix_registers=[vc.new(c64, 0, var_name=f"radix_{i}") for i in range(config.max_prime_radix)],
         omega_register=vc.new(c64, 0, var_name="omega_register"),
-        tid=vc.local_invocation().y.copy("tid"),
+        tid=tid.copy("tid"),
         input_batch_offset=vc.new_uint(var_name="input_batch_offset"),
         output_batch_offset=vc.new_uint(var_name="output_batch_offset"),
         subsequence_offset=vc.new_uint(0, var_name="subsequence_offset"),
@@ -85,11 +120,13 @@ def allocate_fft_resources(config: FFTConfig) -> FFTResources:
         sdata_offset=sdata_offset,
         io_index=vc.new_uint(0, var_name="io_index"),
         io_index_2=vc.new_uint(0, var_name="io_index_2"),
-        inline_batch_y=inline_batch_y,
-        inline_batch_z=inline_batch_z,
-        shared_memory_size=config.N * inline_batch_y * inline_batch_z * vd.complex64.item_size,
-        local_size=(inline_batch_z, config.batch_threads, inline_batch_y)
+        shared_memory_size=config.N * inline_batch_outer * inline_batch_inner * vd.complex64.item_size,
+        local_size=local_size, #(inline_batch_inner, config.batch_threads, inline_batch_outer),
+        global_inner_index=global_inner,
+        global_outer_index=global_outer
     )
+
+
 
     #resources.reset()
 

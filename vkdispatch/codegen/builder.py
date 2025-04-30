@@ -644,8 +644,6 @@ class ShaderBuilder:
         header = "" + self.pre_header
 
         for shared_buffer in self.shared_buffers:
-            print("Shared buffer", shared_buffer.name, shared_buffer.size)
-
             header += f"shared {shared_buffer.dtype.glsl_type} {shared_buffer.name}[{shared_buffer.size}];\n"
 
         uniform_elements = self.uniform_struct.build()

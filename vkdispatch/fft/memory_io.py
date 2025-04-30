@@ -147,18 +147,14 @@ def store_registers_in_buffer(
         if buffer is None:
             sdata_index = i * stride + resources.subsequence_offset
 
-            print(f"Storing {sdata_index} to sdata")
-
             if resources.sdata_offset is not None:
                 sdata_index = sdata_index + resources.sdata_offset
             
-            print(f"Storing {sdata_index} to sdata")
             if params.sdata_row_size != params.sdata_row_size_padded:
                 resources.io_index[:] = sdata_index
                 resources.io_index[:] = resources.io_index + resources.io_index / params.sdata_row_size
                 sdata_index = resources.io_index
             
-            print(f"Storing {sdata_index} to sdata")
             resources.sdata[sdata_index] = register_list[i]
         else:
             set_global_output(resources, params, buffer, i * stride + resources.subsequence_offset, register_list[i])

@@ -20,7 +20,7 @@ vd.fft.fft(buffer, axis=1, cmd_stream=cmd_stream_fft, print_shader=True)
 
 cmd_stream_vkfft = vd.CommandStream()
 
-vd.vkfft.fft(buffer, cmd_stream=cmd_stream_vkfft, axes=[1]) #, keep_shader_code=True)
+vd.vkfft.fft(buffer, cmd_stream=cmd_stream_vkfft, axes=[1])
 
 #vd.vkfft.convolve_2Dreal(buffer, kernel, cmd_stream=cmd_stream_vkfft)
 
