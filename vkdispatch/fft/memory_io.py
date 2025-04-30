@@ -62,7 +62,7 @@ def load_buffer_to_registers(
         params: FFTParams,
         buffer: Optional[Buff],
         offset: Const[u32],
-        stride: Const[u32],
+        stride: int,
         register_list: List[vc.ShaderVariable] = None):
     if register_list is None:
         register_list = resources.registers
@@ -80,7 +80,8 @@ def load_buffer_to_registers(
                 resources.io_index[:] = sdata_index
                 resources.io_index[:] = resources.io_index + resources.io_index / params.sdata_row_size
                 sdata_index = resources.io_index
-                #sdata_index = (resources.io_index / params.sdata_row_size) * params.sdata_row_size_padded + (resources.io_index % params.sdata_row_size)
+
+                #sdata_index = sdata_index + sdata_index / params.sdata_row_size
             
             register_list[i][:] = resources.sdata[sdata_index]
         else:
@@ -133,27 +134,31 @@ def store_registers_in_buffer(
         params: FFTParams,
         buffer: Optional[Buff],
         offset: Const[u32],
-        stride: Const[u32],
+        stride: int,
         register_list: List[vc.ShaderVariable] = None) -> bool:
     if register_list is None:
         register_list = resources.registers
 
     vc.comment(f"Storing registers {register_list} to buffer {buffer} at offset {offset} and stride {stride}")
 
+    resources.subsequence_offset[:] = offset
+
     for i in range(len(register_list)):
         if buffer is None:
-            sdata_index = i * stride + offset
+            sdata_index = i * stride + resources.subsequence_offset
+
+            print(f"Storing {sdata_index} to sdata")
 
             if resources.sdata_offset is not None:
                 sdata_index = sdata_index + resources.sdata_offset
             
+            print(f"Storing {sdata_index} to sdata")
             if params.sdata_row_size != params.sdata_row_size_padded:
                 resources.io_index[:] = sdata_index
                 resources.io_index[:] = resources.io_index + resources.io_index / params.sdata_row_size
                 sdata_index = resources.io_index
-                #sdata_index = (resources.io_index / params.sdata_row_size) * params.sdata_row_size_padded + (resources.io_index % params.sdata_row_size)
-
             
+            print(f"Storing {sdata_index} to sdata")
             resources.sdata[sdata_index] = register_list[i]
         else:
-            set_global_output(resources, params, buffer, i * stride + offset, register_list[i])
+            set_global_output(resources, params, buffer, i * stride + resources.subsequence_offset, register_list[i])

@@ -35,9 +35,9 @@ def allocate_inline_batches(batch_num: int, batch_threads: int, N: int, max_work
 
 @dataclasses.dataclass
 class FFTResources:
-    registers: List[Const[c64]]
-    radix_registers: List[Const[c64]]
-    omega_register: Const[c64]
+    registers: List[vc.ShaderVariable]
+    radix_registers: List[vc.ShaderVariable]
+    omega_register: vc.ShaderVariable
     tid: Const[u32]
     input_batch_offset: Const[u32]
     output_batch_offset: Const[u32]
