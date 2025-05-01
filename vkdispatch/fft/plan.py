@@ -276,15 +276,14 @@ def plan(
         resources: FFTResources,
         params: FFTParams,
         input: Buff = None,
-        output: Buff = None):
+        output: Buff = None,
+        do_sdata_padding: bool = False) -> bool:
 
     set_batch_offsets(resources, params)
 
     output_stride = 1
 
     stage_count = len(params.config.stages)
-
-    do_sdata_padding = False
 
     for i in range(stage_count):
         do_sdata_padding = process_fft_register_stage(
@@ -301,3 +300,5 @@ def plan(
         if i < stage_count - 1:
             vc.memory_barrier()
             vc.barrier()
+
+    return do_sdata_padding

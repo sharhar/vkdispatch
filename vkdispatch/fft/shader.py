@@ -156,7 +156,9 @@ def make_convolution_shader(
 
         vc.comment("Performing forward FFT stage in convolution shader")
 
-        plan(resources, fft_config.params(inverse=False), input=buffer)
+        do_sdata_padding = plan(resources, fft_config.params(inverse=False), input=buffer)
+
+        print(f"Convolution shader sdata padding: {do_sdata_padding}")
 
         vc.memory_barrier()
         vc.barrier()
@@ -171,7 +173,8 @@ def make_convolution_shader(
                 input_buffers=kernel_buffers,
                 input_sdata=True),
             input=kernel_map,
-            output=buffer)
+            output=buffer,
+            do_sdata_padding=do_sdata_padding)
 
         shader_object = vd.ShaderObject(
             builder.build(name),
