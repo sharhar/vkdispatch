@@ -7,31 +7,27 @@ from matplotlib import pyplot as plt
 
 vd.initialize(debug_mode=True)
 
-N = 64
-B = 32
-signal = np.zeros((B, N,), dtype=np.complex64)
+N = 242
+B = 13 * 5
+signal = np.zeros((5, 242, 13), dtype=np.complex64)
 
-signal[:, N//4:N//3] = 1
+signal[:, N//4:N//3, :] = 1
 
 test_data = vd.asbuffer(signal)
 
-@vd.map_registers([vd.complex64])
-def my_map(buffer: vc.Buffer[vc.c64]):
-    vc.mapping_registers()[0][:] = buffer[vc.mapping_index()] * 2
-
 #vd.fft.fft(test_data, test_data, print_shader=True, input_map=my_map)
-vd.fft.fft(test_data, print_shader=True)
+vd.fft.fft(test_data, axis=1, print_shader=True)
 
 data = test_data.read(0)
-reference_data = np.fft.fft(signal)
+reference_data = np.fft.fft(signal, axis=1)
 
 diff_arr = np.abs(data - reference_data)
 
-plt.imshow(np.abs(reference_data))
+plt.imshow(np.abs(reference_data[0]))
 plt.colorbar()
 plt.show()
 
-plt.imshow(np.abs(data))
+plt.imshow(np.abs(data[0] - reference_data[0]))
 plt.colorbar()
 plt.show()
 

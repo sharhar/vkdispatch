@@ -63,7 +63,8 @@ def load_buffer_to_registers(
         buffer: Optional[Buff],
         offset: Const[u32],
         stride: int,
-        register_list: List[vc.ShaderVariable] = None):
+        register_list: List[vc.ShaderVariable] = None,
+        do_sdata_padding: bool = False) -> None:
     if register_list is None:
         register_list = resources.registers
 
@@ -76,7 +77,7 @@ def load_buffer_to_registers(
             if resources.sdata_offset is not None:
                 sdata_index = sdata_index + resources.sdata_offset
             
-            if params.sdata_row_size != params.sdata_row_size_padded:
+            if do_sdata_padding: #params.sdata_row_size != params.sdata_row_size_padded:
                 resources.io_index[:] = sdata_index
                 resources.io_index[:] = resources.io_index + resources.io_index / params.sdata_row_size
                 sdata_index = resources.io_index
@@ -143,6 +144,8 @@ def store_registers_in_buffer(
 
     resources.subsequence_offset[:] = offset
 
+    did_sdata_padding = False
+
     for i in range(len(register_list)):
         if buffer is None:
             sdata_index = i * stride + resources.subsequence_offset
@@ -154,7 +157,10 @@ def store_registers_in_buffer(
                 resources.io_index[:] = sdata_index
                 resources.io_index[:] = resources.io_index + resources.io_index / params.sdata_row_size
                 sdata_index = resources.io_index
+                did_sdata_padding = True
             
             resources.sdata[sdata_index] = register_list[i]
         else:
             set_global_output(resources, params, buffer, i * stride + resources.subsequence_offset, register_list[i])
+
+    return did_sdata_padding

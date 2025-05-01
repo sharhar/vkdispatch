@@ -195,7 +195,8 @@ def process_fft_register_stage(resources: FFTResources,
                                stage: FFTRegisterStageConfig, 
                                output_stride: int, 
                                input = None, 
-                               output = None):
+                               output = None,
+                               do_sdata_padding: bool = False) -> bool:
     do_runtime_if = stage.thread_count < params.config.batch_threads
     
     vc.comment(f"Processing prime group {stage.primes} by doing {stage.instance_count} radix-{stage.fft_length} FFTs on {params.config.N // stage.registers_used} groups")
@@ -205,7 +206,7 @@ def process_fft_register_stage(resources: FFTResources,
 
     for i in range(stage.instance_count):
         stage_invocations.append(FFTRegisterStageInvocation(stage, output_stride, i , resources.tid))
-
+    
     for ii, invocation in enumerate(stage_invocations):
         if stage.remainder_offset == 1 and ii == stage.extra_ffts:
             vc.if_statement(resources.tid < params.config.N // stage.registers_used)
@@ -216,7 +217,8 @@ def process_fft_register_stage(resources: FFTResources,
             buffer=input, 
             offset=invocation.instance_id, 
             stride=params.config.N // stage.fft_length, 
-            register_list=resources.registers[invocation.register_selection]
+            register_list=resources.registers[invocation.register_selection],
+            do_sdata_padding=do_sdata_padding
         )
 
         apply_cooley_tukey_twiddle_factors(
@@ -245,24 +247,30 @@ def process_fft_register_stage(resources: FFTResources,
 
     if do_runtime_if: vc.if_statement(resources.tid < stage.thread_count)
 
+    do_padding_next_list = []
+
     for ii, invocation in enumerate(stage_invocations):
 
         if stage.remainder_offset == 1 and ii == stage.extra_ffts:
             vc.if_statement(resources.tid < params.config.N // stage.registers_used)
 
-        store_registers_in_buffer(
+        do_padding_next_list.append(store_registers_in_buffer(
             resources=resources,
             params=params,
             buffer=output,
             offset=invocation.sub_sequence_offset,
             stride=output_stride,
             register_list=resources.registers[invocation.register_selection]
-        )
+        ))
     
     if stage.remainder_offset == 1:
         vc.end()
 
     if do_runtime_if: vc.end()
+
+    assert any(do_padding_next_list) == all(do_padding_next_list), "do_sdata_padding must be the same for all invocations"
+
+    return any(do_padding_next_list)
 
 def plan(
         resources: FFTResources,
@@ -276,14 +284,17 @@ def plan(
 
     stage_count = len(params.config.stages)
 
+    do_sdata_padding = False
+
     for i in range(stage_count):
-        process_fft_register_stage(
+        do_sdata_padding = process_fft_register_stage(
             resources,
             params,
             params.config.stages[i],
             output_stride,
             input=input if i == 0 else None,
-            output=output if i == stage_count - 1 else None)
+            output=output if i == stage_count - 1 else None,
+            do_sdata_padding=do_sdata_padding)
         
         output_stride *= params.config.stages[i].fft_length
 

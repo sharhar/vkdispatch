@@ -85,12 +85,18 @@ def allocate_fft_resources(config: FFTConfig) -> FFTResources:
     local_outer = vc.local_invocation().y
     global_outer = vc.global_invocation().y
 
-    if inline_batch_inner > 1:
+    tid = vc.local_invocation().x
+    local_size = (config.batch_threads, inline_batch_outer, 1)
+
+    if config.batch_inner_count > 1:
         local_inner = vc.local_invocation().x
         global_inner = vc.global_invocation().x
 
         local_outer = vc.local_invocation().z
         global_outer = vc.global_invocation().z
+
+        local_size = (inline_batch_inner, config.batch_threads, inline_batch_outer)
+        tid = vc.local_invocation().y
 
     if inline_batch_outer > 1 or inline_batch_inner > 1:
         sdata_offset_value = local_outer * inline_batch_inner * config.N
@@ -99,14 +105,6 @@ def allocate_fft_resources(config: FFTConfig) -> FFTResources:
             sdata_offset_value = sdata_offset_value + local_inner * config.N
 
         sdata_offset = vc.new_uint(sdata_offset_value, var_name="sdata_offset")
-
-
-    local_size = (inline_batch_inner, config.batch_threads, inline_batch_outer)
-    tid = vc.local_invocation().y
-    
-    if inline_batch_inner == 1:
-        tid = vc.local_invocation().x
-        local_size = (config.batch_threads, inline_batch_outer, 1)
 
     resources = FFTResources(
         registers=[vc.new(c64, 0, var_name=f"register_{i}") for i in range(config.register_count)],

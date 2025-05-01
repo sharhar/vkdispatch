@@ -88,7 +88,7 @@ def test_convolution_2d():
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
 
-test_shape((65, 77, 12))
+test_shape((5, 242, 13))
 
 test_fft_1d()
 
