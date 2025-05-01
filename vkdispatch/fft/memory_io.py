@@ -7,7 +7,7 @@ from typing import List, Tuple, Optional
 from .resources import FFTResources
 from .config import FFTRegisterStageConfig, FFTParams
 
-def read_mapped_input(resources: FFTResources, params: FFTParams, mapping_index: Const[i32], mapping_function: vd.MappingFunction, output_register: vc.ShaderVariable, index: Const[u32]):
+def read_mapped_input(resources: FFTResources, params: FFTParams, mapping_index: Const[i32], mapping_function: vd.MappingFunction, output_register: vc.ShaderVariable, index: Const[u32], do_sdata_padding: bool) -> None:
     #assert len(mapping_function.register_types) == 1, "Mapping function must have exactly one register type"
     #assert mapping_function.register_types[0] == c64, "Mapping function register type does not match expected return type"
 
@@ -16,9 +16,9 @@ def read_mapped_input(resources: FFTResources, params: FFTParams, mapping_index:
 
         if resources.sdata_offset is not None:
             resources.io_index_2[:] = resources.io_index_2 + resources.sdata_offset
-        
-        if params.sdata_row_size != params.sdata_row_size_padded:
-            resources.io_index_2[:] = (resources.io_index_2 / params.sdata_row_size) * params.sdata_row_size_padded + (resources.io_index_2 % params.sdata_row_size)
+
+        if do_sdata_padding:
+            resources.io_index_2[:] = resources.io_index_2 + resources.io_index_2 / params.sdata_row_size
 
         output_register[:] = resources.sdata[resources.io_index_2]
 
@@ -27,12 +27,12 @@ def read_mapped_input(resources: FFTResources, params: FFTParams, mapping_index:
 
     mapping_function.mapping_function(*params.input_buffers)
 
-def get_global_input(resources: FFTResources, params: FFTParams, buffer: Buff, index: Const[u32], output_register: vc.ShaderVariable):
+def get_global_input(resources: FFTResources, params: FFTParams, buffer: Buff, index: Const[u32], output_register: vc.ShaderVariable, do_sdata_padding: bool) -> None:
     resources.io_index[:] = (index * params.fft_stride + resources.input_batch_offset) #.cast_to(i32)
 
     if not params.r2c:
         if isinstance(buffer, vd.MappingFunction):
-            read_mapped_input(resources, params, resources.io_index, buffer, output_register, index)
+            read_mapped_input(resources, params, resources.io_index, buffer, output_register, index, do_sdata_padding)
         else:
             output_register[:] = buffer[resources.io_index]
 
@@ -40,7 +40,7 @@ def get_global_input(resources: FFTResources, params: FFTParams, buffer: Buff, i
     
     if not params.inverse:
         if isinstance(buffer, vd.MappingFunction):
-            read_mapped_input(resources, params, resources.io_index, buffer, output_register, index)
+            read_mapped_input(resources, params, resources.io_index, buffer, output_register, index, do_sdata_padding)
         else:
             real_value = buffer[resources.io_index / 2][resources.io_index % 2]
             output_register[:] = f"vec2({real_value}, 0)"
@@ -77,16 +77,14 @@ def load_buffer_to_registers(
             if resources.sdata_offset is not None:
                 sdata_index = sdata_index + resources.sdata_offset
             
-            if do_sdata_padding: #params.sdata_row_size != params.sdata_row_size_padded:
+            if do_sdata_padding:
                 resources.io_index[:] = sdata_index
                 resources.io_index[:] = resources.io_index + resources.io_index / params.sdata_row_size
                 sdata_index = resources.io_index
-
-                #sdata_index = sdata_index + sdata_index / params.sdata_row_size
             
             register_list[i][:] = resources.sdata[sdata_index]
         else:
-            get_global_input(resources, params, buffer, i * stride + offset, register_list[i])
+            get_global_input(resources, params, buffer, i * stride + offset, register_list[i], do_sdata_padding)
 
 def write_mapped_output(params: FFTParams, mapping_index: Const[i32], mapping_function: vd.MappingFunction, output_register: vc.ShaderVariable):
     assert len(mapping_function.register_types) == 1, "Mapping function must have exactly one register type"
@@ -153,7 +151,7 @@ def store_registers_in_buffer(
             if resources.sdata_offset is not None:
                 sdata_index = sdata_index + resources.sdata_offset
             
-            if params.sdata_row_size != params.sdata_row_size_padded:
+            if params.sdata_row_size != params.sdata_row_size_padded and stride < 32:
                 resources.io_index[:] = sdata_index
                 resources.io_index[:] = resources.io_index + resources.io_index / params.sdata_row_size
                 sdata_index = resources.io_index

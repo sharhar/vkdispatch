@@ -113,7 +113,7 @@ class BaseVariable:
         if f"{self.name}[{index}]{self.index_suffix}" == str(value):
             return
 
-        self.append_func(f"{self.name}[{index}]{self.index_suffix} = {shader_var_name(value)};\n")
+        self.append_func(f"{self.name}[{shader_var_name(index)}]{self.index_suffix} = {shader_var_name(value)};\n")
 
     def _register_shape(self, shape_var: "ShaderVariable" = None, shape_name: str = None, use_child_type: bool = True):
         self.shape = shape_var
