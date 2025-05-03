@@ -158,8 +158,6 @@ def make_convolution_shader(
 
         do_sdata_padding = plan(resources, fft_config.params(inverse=False), input=buffer)
 
-        print(f"Convolution shader sdata padding: {do_sdata_padding}")
-
         vc.memory_barrier()
         vc.barrier()
 
