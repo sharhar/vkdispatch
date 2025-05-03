@@ -3,7 +3,7 @@ import numpy as np
 import dataclasses
 from typing import List, Tuple, Optional
 
-from .prime_utils import prime_factors, group_primes, DEFAULT_REGISTER_LIMIT
+from .prime_utils import prime_factors, group_primes, default_register_limit
 
 @dataclasses.dataclass
 class FFTRegisterStageConfig:
@@ -134,7 +134,7 @@ class FFTConfig:
         self.N = N
 
         if max_register_count is None:
-            max_register_count = DEFAULT_REGISTER_LIMIT
+            max_register_count = default_register_limit()
 
         max_register_count = min(max_register_count, N)
 

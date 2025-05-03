@@ -12,8 +12,6 @@ from .config import FFTRegisterStageConfig, FFTParams
 
 from .memory_io import load_buffer_to_registers, store_registers_in_buffer
 
-
-
 def set_batch_offsets(resources: FFTResources, params: FFTParams):
     input_batch_stride_y = params.batch_outer_stride
     output_batch_stride_y = params.batch_outer_stride
@@ -173,13 +171,15 @@ class FFTRegisterStageInvocation:
     sub_sequence_offset: int
     register_selection: slice
 
-    def __init__(self, stage: FFTRegisterStageConfig, output_stride: int, instance_index: int, tid: vc.ShaderVariable):
+    def __init__(self, stage: FFTRegisterStageConfig, output_stride: int, instance_index: int, tid: vc.ShaderVariable, N: int):
         self.stage = stage
         self.output_stride = output_stride
 
         self.block_width = output_stride * stage.fft_length
 
-        self.instance_id = tid * stage.instance_count + instance_index
+        instance_index_stride = N // (stage.fft_length * stage.instance_count)
+
+        self.instance_id = tid + instance_index_stride * instance_index
 
         self.inner_block_offset = self.instance_id % output_stride
 
@@ -188,6 +188,10 @@ class FFTRegisterStageInvocation:
         
         self.sub_sequence_offset = self.instance_id * stage.fft_length - self.inner_block_offset * (stage.fft_length - 1)
 
+        if self.block_width == N:
+            self.inner_block_offset = self.instance_id
+            self.sub_sequence_offset = self.inner_block_offset
+        
         self.register_selection = slice(instance_index * stage.fft_length, (instance_index + 1) * stage.fft_length)
 
 def process_fft_register_stage(resources: FFTResources,
@@ -205,7 +209,7 @@ def process_fft_register_stage(resources: FFTResources,
     stage_invocations: List[FFTRegisterStageInvocation] = []
 
     for i in range(stage.instance_count):
-        stage_invocations.append(FFTRegisterStageInvocation(stage, output_stride, i , resources.tid))
+        stage_invocations.append(FFTRegisterStageInvocation(stage, output_stride, i , resources.tid, params.config.N))
     
     for ii, invocation in enumerate(stage_invocations):
         if stage.remainder_offset == 1 and ii == stage.extra_ffts:

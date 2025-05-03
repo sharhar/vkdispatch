@@ -33,6 +33,7 @@ def test_shape(shape):
     print(f"Testing FFT with shape {data.shape}")
 
     for axis in range(len(shape)):
+
         print(f"Testing axis {axis}")
 
         test_data.write(data)
@@ -44,6 +45,7 @@ def test_shape(shape):
         print("Reading data")
 
         assert np.allclose(np.fft.fft(data, axis=axis), test_data.read(0), atol=1e-3)
+
 
 def test_fft_1d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
@@ -88,8 +90,8 @@ def test_convolution_2d():
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
 
-test_shape((5, 242, 13))
+test_shape((44, 234))
 
-#test_fft_1d()
+test_fft_1d()
 
 test_convolution_2d()
