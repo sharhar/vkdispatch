@@ -1,7 +1,13 @@
 import numpy as np
 from typing import List
 
-DEFAULT_REGISTER_LIMIT = 15
+import vkdispatch as vd
+
+def default_register_limit():
+    if "NVIDIA" in vd.get_context().device_infos[0].device_name:
+        return 16
+
+    return 15
 
 def prime_factors(n) -> List[int]:
     factors = []
@@ -41,7 +47,7 @@ def group_primes(primes, register_count):
 
     return groups
 
-def pad_dim(dim: int, max_register_count: int = DEFAULT_REGISTER_LIMIT):
+def pad_dim(dim: int, max_register_count: int = default_register_limit()):
     assert dim > 0, 'Dimension must be greater than 0'
 
     current_dim = dim

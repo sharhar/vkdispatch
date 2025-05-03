@@ -7,7 +7,7 @@ import dataclasses
 from typing import List, Tuple
 
 from .config import FFTConfig
-from .prime_utils import prime_factors, DEFAULT_REGISTER_LIMIT
+from .prime_utils import prime_factors, default_register_limit
 
 def allocation_valid(workgroup_size: int, shared_memory: int):
     return workgroup_size <= vd.get_context().max_workgroup_invocations and shared_memory <= vd.get_context().max_shared_memory
