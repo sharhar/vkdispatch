@@ -47,7 +47,10 @@ def group_primes(primes, register_count):
 
     return groups
 
-def pad_dim(dim: int, max_register_count: int = default_register_limit()):
+def pad_dim(dim: int, max_register_count: int = None):
+    if max_register_count is None:
+        max_register_count = default_register_limit()
+
     assert dim > 0, 'Dimension must be greater than 0'
 
     current_dim = dim
