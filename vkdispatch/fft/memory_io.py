@@ -63,8 +63,6 @@ def read_mapped_input(resources: FFTResources, params: FFTParams, mapping_index:
     mapping_function.mapping_function(*params.input_buffers)
 
 def get_global_input(resources: FFTResources, params: FFTParams, buffer: Buff, index: Const[u32], output_register: vc.ShaderVariable, do_sdata_padding: bool) -> None:
-    resources.io_index[:] = (index * params.fft_stride + resources.input_batch_offset) #.cast_to(i32)
-
     if not params.r2c:
         if isinstance(buffer, vd.MappingFunction):
             read_mapped_input(resources, params, resources.io_index, buffer, output_register, index, do_sdata_padding)
@@ -85,8 +83,9 @@ def get_global_input(resources: FFTResources, params: FFTParams, buffer: Buff, i
     assert not isinstance(buffer, vd.MappingFunction), "Inverse R2C FFT does not support input mapping"
     
     vc.if_statement(index >= (params.config.N // 2) + 1)
-    resources.io_index[:] = ((params.config.N - index) * params.fft_stride + resources.input_batch_offset) #.cast_to(i32)
-    output_register[:] = buffer[resources.io_index]
+    # ((params.config.N - index) * params.fft_stride + resources.input_batch_offset) #.cast_to(i32)
+    resources.io_index_2[:] = 2 * resources.input_batch_offset + params.config.N * params.fft_stride - resources.io_index 
+    output_register[:] = buffer[resources.io_index_2]
     output_register.y = -output_register.y
     vc.else_statement()
     output_register[:] = buffer[resources.io_index]
@@ -105,21 +104,31 @@ def load_buffer_to_registers(
 
     vc.comment(f"Loading to registers {register_list} from buffer {buffer} at offset {offset} and stride {stride}")
 
-    for i in range(len(register_list)):
-        if buffer is None:
-            sdata_index = i * stride + offset
+    if buffer is not None:
+        resources.io_index[:] = offset * params.fft_stride + resources.input_batch_offset
+        
+        for i in range(len(register_list)):
+            #index = i * stride
 
-            if resources.sdata_offset is not None:
-                sdata_index = sdata_index + resources.sdata_offset
+            if i != 0:
+                resources.io_index += stride * params.fft_stride
             
-            if do_sdata_padding:
-                resources.io_index[:] = sdata_index
-                resources.io_index[:] = resources.io_index + resources.io_index / params.sdata_row_size
-                sdata_index = resources.io_index
-            
-            register_list[i][:] = resources.sdata[sdata_index]
-        else:
             get_global_input(resources, params, buffer, i * stride + offset, register_list[i], do_sdata_padding)
+        
+        return
+    if resources.sdata_offset is not None:
+        resources.io_index[:] = offset + resources.sdata_offset
+    else:
+        resources.io_index[:] = offset
+
+    for i in range(len(register_list)):
+        
+        if do_sdata_padding:
+            resources.io_index_2[:] = resources.io_index + stride * i + ((resources.io_index + stride * i) / params.sdata_row_size)
+            register_list[i][:] = resources.sdata[resources.io_index_2]
+        else:
+            register_list[i][:] = resources.sdata[resources.io_index + stride * i]
+            
 
 def write_mapped_output(params: FFTParams, mapping_index: Const[i32], mapping_function: vd.MappingFunction, output_register: vc.ShaderVariable):
     assert len(mapping_function.register_types) == 1, "Mapping function must have exactly one register type"
@@ -236,35 +245,26 @@ def store_registers_from_stages(
         stage_invocations: List[FFTRegisterStageInvocation],
         output: Buff,
         stride: int):
-    
-    #interlaced_register_selection = [None] * len(stage_invocations) * stage.fft_length
 
-    #for ii, invocation in enumerate(stage_invocations):
-    #    interlaced_register_selection[ii::stage.fft_length] = invocation.register_selection
-
-    instance_index_stride = params.config.N // (stage.fft_length * stage.instance_count)
-
-    sdata_padding = params.sdata_row_size != params.sdata_row_size_padded and instance_index_stride < 32
+    sdata_padding = params.sdata_row_size != params.sdata_row_size_padded and stride < 32 and output is None
 
     for jj in range(stage.fft_length):
         for ii, invocation in enumerate(stage_invocations):
             if stage.remainder_offset == 1 and ii == stage.extra_ffts:
                 vc.if_statement(resources.tid < params.config.N // stage.registers_used)
 
-            resources.subsequence_offset[:] = invocation.sub_sequence_offset + jj * stride
+            resources.io_index[:] = invocation.sub_sequence_offset + jj * stride
 
             store_register(
                 resources=resources,
                 params=params,
                 buffer=output,
-                offset=resources.subsequence_offset,
-                #register=resources.registers[interlaced_register_selection[ii * stage.fft_length + jj]],
+                offset=resources.io_index,
                 register=resources.registers[invocation.register_selection][jj],
                 do_sdata_padding=sdata_padding
             )
 
         if stage.remainder_offset == 1:
             vc.end()
-
 
     return sdata_padding

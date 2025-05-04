@@ -90,7 +90,32 @@ def test_convolution_2d():
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
 
+def test_irfft_1d():
+    max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+
+    max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+
+    for _ in range(20):
+        dims = pick_dim_count(1)
+        current_shape = [pick_radix_prime() for _ in range(dims)]
+
+        while check_fft_dims(current_shape, max_fft_size):
+            data = np.random.rand(*current_shape).astype(np.float32)
+
+            test_data = vd.asrfftbuffer(data)
+
+            vd.fft.rfft(test_data)
+            vd.fft.irfft(test_data)
+
+            print(f"Testing FFT with shape {data.shape}")
+
+            assert np.allclose(data, test_data.read_real(0), atol=1e-3)
+
+            current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
+
 test_shape((44, 234))
+
+test_irfft_1d()
 
 test_fft_1d()
 

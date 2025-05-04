@@ -8,21 +8,21 @@ batch_size = 100
 
 vd.initialize(debug_mode=True)
 
-buffer = vd.Buffer((2 ** 10, 2 ** 11), var_type=vd.complex64)
+buffer = vd.Buffer((2 ** 10, 2 ** 12), var_type=vd.complex64)
 
 sync_buffer = vd.Buffer((100, ), vd.float32)
 
 cmd_stream_fft = vd.CommandStream()
 
-vd.fft.fft(buffer, axis=0, cmd_stream=cmd_stream_fft, print_shader=True)
+axis = 0
 
-#vd.fft.convolve2DR(buffer, kernel, cmd_stream=cmd_stream_fft)
+vd.fft.fft(buffer, axis=axis, cmd_stream=cmd_stream_fft, print_shader=True)
 
 cmd_stream_vkfft = vd.CommandStream()
 
-vd.vkfft.fft(buffer, cmd_stream=cmd_stream_vkfft, axes=[0]) #, keep_shader_code=True)
+print_vkfft_shader = False
 
-#vd.vkfft.convolve_2Dreal(buffer, kernel, cmd_stream=cmd_stream_vkfft)
+vd.vkfft.fft(buffer, cmd_stream=cmd_stream_vkfft, axes=[axis], keep_shader_code=print_vkfft_shader)
 
 sync_buffer.read()
 
@@ -38,9 +38,12 @@ print(f"FFT: {batch_count * batch_size / (time.time() - start_time):.2f} FFT/s")
 start_time = time.time()
 
 for _ in tqdm.tqdm(range(batch_count)):
+    if print_vkfft_shader:
+        cmd_stream_vkfft.submit(1)
+        sync_buffer.read()
+        exit()
+
     cmd_stream_vkfft.submit(batch_size)
-    #cmd_stream_vkfft.submit(1)
-    #exit()
 
 
 sync_buffer.read()
