@@ -1,34 +1,48 @@
 import vkdispatch as vd
-import vkdispatch.codegen as vc
-
 import numpy as np
+import tqdm
+import time
 
-from matplotlib import pyplot as plt
+batch_count = 1000
+batch_size = 200
 
 vd.initialize(debug_mode=True)
 
-N = 242
-B = 13 * 5
-signal = np.zeros((5, 242, 13), dtype=np.complex64)
+buffer = vd.RFFTBuffer((2 ** 8, 2 ** 8))
+kernel = vd.RFFTBuffer((2 ** 8, 2 ** 8))
 
-signal[:, N//4:N//3, :] = 1
+cmd_stream_fft = vd.CommandStream()
 
-test_data = vd.asbuffer(signal)
+vd.fft.convolve2DR(buffer, kernel, cmd_stream=cmd_stream_fft)
 
-#vd.fft.fft(test_data, test_data, print_shader=True, input_map=my_map)
-vd.fft.fft(test_data, axis=1, print_shader=True)
+#vd.fft.fft(buffer, axis=0, cmd_stream=cmd_stream_fft)
 
-data = test_data.read(0)
-reference_data = np.fft.fft(signal, axis=1)
+cmd_stream_vkfft = vd.CommandStream()
 
-diff_arr = np.abs(data - reference_data)
+vd.vkfft.rfft(buffer, cmd_stream=cmd_stream_vkfft)
 
-plt.imshow(np.abs(reference_data[0]))
-plt.colorbar()
-plt.show()
+vd.vkfft.irfft(buffer, cmd_stream=cmd_stream_vkfft)
 
-plt.imshow(np.abs(data[0] - reference_data[0]))
-plt.colorbar()
-plt.show()
+#vd.vkfft.convolve_2Dreal(buffer, kernel, cmd_stream=cmd_stream_vkfft)
 
-print(np.allclose(data, reference_data, atol=1e-2))
+
+
+buffer.read()
+
+start_time = time.time()
+
+for _ in tqdm.tqdm(range(batch_count)):
+    cmd_stream_fft.submit(batch_size)
+
+buffer.read()
+
+print(f"FFT: {batch_count * batch_size / (time.time() - start_time):.2f} FFT/s")
+
+start_time = time.time()
+
+for _ in tqdm.tqdm(range(batch_count)):
+    cmd_stream_vkfft.submit(batch_size)
+
+buffer.read()
+
+print(f"VkFFT: {batch_count * batch_size / (time.time() - start_time):.2f} FFT/s")

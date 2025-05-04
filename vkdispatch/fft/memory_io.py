@@ -7,6 +7,41 @@ from typing import List, Tuple, Optional
 from .resources import FFTResources
 from .config import FFTRegisterStageConfig, FFTParams
 
+import dataclasses
+
+@dataclasses.dataclass
+class FFTRegisterStageInvocation:
+    stage: FFTRegisterStageConfig
+    output_stride: int
+    block_width: int
+    inner_block_offset: int
+    block_index: int
+    sub_sequence_offset: int
+    register_selection: slice
+
+    def __init__(self, stage: FFTRegisterStageConfig, output_stride: int, instance_index: int, tid: vc.ShaderVariable, N: int):
+        self.stage = stage
+        self.output_stride = output_stride
+
+        self.block_width = output_stride * stage.fft_length
+
+        instance_index_stride = N // (stage.fft_length * stage.instance_count)
+
+        self.instance_id = tid + instance_index_stride * instance_index
+
+        self.inner_block_offset = self.instance_id % output_stride
+
+        if output_stride == 1:
+            self.inner_block_offset = 0
+        
+        self.sub_sequence_offset = self.instance_id * stage.fft_length - self.inner_block_offset * (stage.fft_length - 1)
+
+        if self.block_width == N:
+            self.inner_block_offset = self.instance_id
+            self.sub_sequence_offset = self.inner_block_offset
+        
+        self.register_selection = slice(instance_index * stage.fft_length, (instance_index + 1) * stage.fft_length)
+
 def read_mapped_input(resources: FFTResources, params: FFTParams, mapping_index: Const[i32], mapping_function: vd.MappingFunction, output_register: vc.ShaderVariable, index: Const[u32], do_sdata_padding: bool) -> None:
     #assert len(mapping_function.register_types) == 1, "Mapping function must have exactly one register type"
     #assert mapping_function.register_types[0] == c64, "Mapping function register type does not match expected return type"
@@ -128,6 +163,28 @@ def set_global_output(resources: FFTResources, params: FFTParams, buffer: Buff, 
     else:
         buffer[resources.io_index / 2][resources.io_index % 2] = true_value.x
 
+def store_register(
+        resources: FFTResources,
+        params: FFTParams,
+        buffer: Optional[Buff],
+        offset: Const[u32],
+        register: vc.ShaderVariable,
+        do_sdata_padding: bool = False) -> None:
+    if buffer is None:
+        sdata_index = offset
+
+        if resources.sdata_offset is not None:
+            sdata_index = sdata_index + resources.sdata_offset
+        
+        if do_sdata_padding:
+            resources.io_index[:] = sdata_index
+            resources.io_index[:] = resources.io_index + resources.io_index / params.sdata_row_size
+            sdata_index = resources.io_index
+        
+        resources.sdata[sdata_index] = register
+    else:
+        set_global_output(resources, params, buffer, offset, register)
+
 def store_registers_in_buffer(
         resources: FFTResources,
         params: FFTParams,
@@ -142,23 +199,72 @@ def store_registers_in_buffer(
 
     resources.subsequence_offset[:] = offset
 
-    did_sdata_padding = False
+    did_sdata_padding = params.sdata_row_size != params.sdata_row_size_padded and stride < 32
 
     for i in range(len(register_list)):
-        if buffer is None:
-            sdata_index = i * stride + resources.subsequence_offset
+        store_register(
+            resources=resources,
+            params=params,
+            buffer=buffer,
+            offset=resources.subsequence_offset + i * stride,
+            register=register_list[i],
+            do_sdata_padding=did_sdata_padding
+        )       
 
-            if resources.sdata_offset is not None:
-                sdata_index = sdata_index + resources.sdata_offset
+        # if buffer is None:
+        #     sdata_index = i * stride + resources.subsequence_offset
+
+        #     if resources.sdata_offset is not None:
+        #         sdata_index = sdata_index + resources.sdata_offset
             
-            if params.sdata_row_size != params.sdata_row_size_padded and stride < 32:
-                resources.io_index[:] = sdata_index
-                resources.io_index[:] = resources.io_index + resources.io_index / params.sdata_row_size
-                sdata_index = resources.io_index
-                did_sdata_padding = True
+        #     if params.sdata_row_size != params.sdata_row_size_padded and stride < 32:
+        #         resources.io_index[:] = sdata_index
+        #         resources.io_index[:] = resources.io_index + resources.io_index / params.sdata_row_size
+        #         sdata_index = resources.io_index
+        #         did_sdata_padding = True
             
-            resources.sdata[sdata_index] = register_list[i]
-        else:
-            set_global_output(resources, params, buffer, i * stride + resources.subsequence_offset, register_list[i])
+        #     resources.sdata[sdata_index] = register_list[i]
+        # else:
+        #     set_global_output(resources, params, buffer, i * stride + resources.subsequence_offset, register_list[i])
 
     return did_sdata_padding
+
+def store_registers_from_stages(
+        resources: FFTResources,
+        params: FFTParams,
+        stage: FFTRegisterStageConfig,
+        stage_invocations: List[FFTRegisterStageInvocation],
+        output: Buff,
+        stride: int):
+    
+    #interlaced_register_selection = [None] * len(stage_invocations) * stage.fft_length
+
+    #for ii, invocation in enumerate(stage_invocations):
+    #    interlaced_register_selection[ii::stage.fft_length] = invocation.register_selection
+
+    instance_index_stride = params.config.N // (stage.fft_length * stage.instance_count)
+
+    sdata_padding = params.sdata_row_size != params.sdata_row_size_padded and instance_index_stride < 32
+
+    for jj in range(stage.fft_length):
+        for ii, invocation in enumerate(stage_invocations):
+            if stage.remainder_offset == 1 and ii == stage.extra_ffts:
+                vc.if_statement(resources.tid < params.config.N // stage.registers_used)
+
+            resources.subsequence_offset[:] = invocation.sub_sequence_offset + jj * stride
+
+            store_register(
+                resources=resources,
+                params=params,
+                buffer=output,
+                offset=resources.subsequence_offset,
+                #register=resources.registers[interlaced_register_selection[ii * stage.fft_length + jj]],
+                register=resources.registers[invocation.register_selection][jj],
+                do_sdata_padding=sdata_padding
+            )
+
+        if stage.remainder_offset == 1:
+            vc.end()
+
+
+    return sdata_padding

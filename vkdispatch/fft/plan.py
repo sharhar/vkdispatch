@@ -10,7 +10,7 @@ import numpy as np
 from .resources import FFTResources
 from .config import FFTRegisterStageConfig, FFTParams
 
-from .memory_io import load_buffer_to_registers, store_registers_in_buffer
+from .memory_io import load_buffer_to_registers, store_registers_from_stages, FFTRegisterStageInvocation
 
 def set_batch_offsets(resources: FFTResources, params: FFTParams):
     input_batch_stride_y = params.batch_outer_stride
@@ -161,39 +161,6 @@ def register_radix_composite(resources: FFTResources, params: FFTParams, registe
 
     return register_list
 
-@dataclasses.dataclass
-class FFTRegisterStageInvocation:
-    stage: FFTRegisterStageConfig
-    output_stride: int
-    block_width: int
-    inner_block_offset: int
-    block_index: int
-    sub_sequence_offset: int
-    register_selection: slice
-
-    def __init__(self, stage: FFTRegisterStageConfig, output_stride: int, instance_index: int, tid: vc.ShaderVariable, N: int):
-        self.stage = stage
-        self.output_stride = output_stride
-
-        self.block_width = output_stride * stage.fft_length
-
-        instance_index_stride = N // (stage.fft_length * stage.instance_count)
-
-        self.instance_id = tid + instance_index_stride * instance_index
-
-        self.inner_block_offset = self.instance_id % output_stride
-
-        if output_stride == 1:
-            self.inner_block_offset = 0
-        
-        self.sub_sequence_offset = self.instance_id * stage.fft_length - self.inner_block_offset * (stage.fft_length - 1)
-
-        if self.block_width == N:
-            self.inner_block_offset = self.instance_id
-            self.sub_sequence_offset = self.inner_block_offset
-        
-        self.register_selection = slice(instance_index * stage.fft_length, (instance_index + 1) * stage.fft_length)
-
 def process_fft_register_stage(resources: FFTResources,
                                params: FFTParams, 
                                stage: FFTRegisterStageConfig, 
@@ -251,30 +218,19 @@ def process_fft_register_stage(resources: FFTResources,
 
     if do_runtime_if: vc.if_statement(resources.tid < stage.thread_count)
 
-    do_padding_next_list = []
-
-    for ii, invocation in enumerate(stage_invocations):
-
-        if stage.remainder_offset == 1 and ii == stage.extra_ffts:
-            vc.if_statement(resources.tid < params.config.N // stage.registers_used)
-
-        do_padding_next_list.append(store_registers_in_buffer(
-            resources=resources,
-            params=params,
-            buffer=output,
-            offset=invocation.sub_sequence_offset,
-            stride=output_stride,
-            register_list=resources.registers[invocation.register_selection]
-        ))
+    do_padding_next = store_registers_from_stages(
+        resources=resources,
+        params=params,
+        stage=stage,
+        stage_invocations=stage_invocations,
+        output=output,
+        stride=output_stride
+    )
     
-    if stage.remainder_offset == 1:
-        vc.end()
 
     if do_runtime_if: vc.end()
 
-    assert any(do_padding_next_list) == all(do_padding_next_list), "do_sdata_padding must be the same for all invocations"
-
-    return any(do_padding_next_list)
+    return do_padding_next
 
 def plan(
         resources: FFTResources,
