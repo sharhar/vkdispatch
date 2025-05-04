@@ -145,7 +145,7 @@ def set_global_output(resources: FFTResources, params: FFTParams, buffer: Buff, 
     if params.inverse and params.normalize:
         true_value[:] = true_value / params.config.N
 
-    resources.io_index[:] = (index * params.fft_stride + resources.output_batch_offset).cast_to(i32)
+    
 
     if not params.r2c:
         if isinstance(buffer, vd.MappingFunction):
@@ -161,7 +161,7 @@ def set_global_output(resources: FFTResources, params: FFTParams, buffer: Buff, 
         if isinstance(buffer, vd.MappingFunction):
             write_mapped_output(params, resources.io_index, buffer, true_value)
         else:
-            buffer[index * params.fft_stride + resources.output_batch_offset] = true_value
+            buffer[resources.io_index] = true_value
 
         vc.end()
 
@@ -194,50 +194,6 @@ def store_register(
     else:
         set_global_output(resources, params, buffer, offset, register)
 
-def store_registers_in_buffer(
-        resources: FFTResources,
-        params: FFTParams,
-        buffer: Optional[Buff],
-        offset: Const[u32],
-        stride: int,
-        register_list: List[vc.ShaderVariable] = None) -> bool:
-    if register_list is None:
-        register_list = resources.registers
-
-    vc.comment(f"Storing registers {register_list} to buffer {buffer} at offset {offset} and stride {stride}")
-
-    resources.subsequence_offset[:] = offset
-
-    did_sdata_padding = params.sdata_row_size != params.sdata_row_size_padded and stride < 32
-
-    for i in range(len(register_list)):
-        store_register(
-            resources=resources,
-            params=params,
-            buffer=buffer,
-            offset=resources.subsequence_offset + i * stride,
-            register=register_list[i],
-            do_sdata_padding=did_sdata_padding
-        )       
-
-        # if buffer is None:
-        #     sdata_index = i * stride + resources.subsequence_offset
-
-        #     if resources.sdata_offset is not None:
-        #         sdata_index = sdata_index + resources.sdata_offset
-            
-        #     if params.sdata_row_size != params.sdata_row_size_padded and stride < 32:
-        #         resources.io_index[:] = sdata_index
-        #         resources.io_index[:] = resources.io_index + resources.io_index / params.sdata_row_size
-        #         sdata_index = resources.io_index
-        #         did_sdata_padding = True
-            
-        #     resources.sdata[sdata_index] = register_list[i]
-        # else:
-        #     set_global_output(resources, params, buffer, i * stride + resources.subsequence_offset, register_list[i])
-
-    return did_sdata_padding
-
 def store_registers_from_stages(
         resources: FFTResources,
         params: FFTParams,
@@ -247,19 +203,25 @@ def store_registers_from_stages(
         stride: int):
 
     sdata_padding = params.sdata_row_size != params.sdata_row_size_padded and stride < 32 and output is None
+    
+    if output is not None:
+        resources.io_index[:] = resources.tid * params.fft_stride + resources.output_batch_offset
+    
+    instance_index_stride = params.config.N // (stage.fft_length * stage.instance_count)
 
     for jj in range(stage.fft_length):
         for ii, invocation in enumerate(stage_invocations):
             if stage.remainder_offset == 1 and ii == stage.extra_ffts:
                 vc.if_statement(resources.tid < params.config.N // stage.registers_used)
 
-            resources.io_index[:] = invocation.sub_sequence_offset + jj * stride
+            if output is not None and jj != 0 or ii != 0:
+                resources.io_index += instance_index_stride * params.fft_stride
 
             store_register(
                 resources=resources,
                 params=params,
                 buffer=output,
-                offset=resources.io_index,
+                offset=invocation.sub_sequence_offset + jj * stride,
                 register=resources.registers[invocation.register_selection][jj],
                 do_sdata_padding=sdata_padding
             )
