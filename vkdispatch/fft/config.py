@@ -147,8 +147,9 @@ class FFTConfig:
         register_utilizations = [stage.registers_used for stage in self.stages]
         self.register_count = max(register_utilizations)
 
-        #sdata_utilizations = [stage.sdata_size for stage in self.stages]
-        self.sdata_allocation = 1 #max(sdata_utilizations)
+        assert self.register_count <= max_register_count, f"Register count {self.register_count} exceeds max register count {max_register_count}"
+
+        self.sdata_allocation = 1 
 
         for stage in self.stages:
             if stage.sdata_size < self.sdata_allocation:

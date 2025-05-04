@@ -52,15 +52,6 @@ class FFTResources:
     shared_memory_size: int
     local_size: Tuple[int, int, int]
 
-    def reset(self):
-        for register in self.registers:
-            register[:] = "vec2(0)"
-        
-        for register in self.radix_registers:
-            register[:] = "vec2(0)"
-        
-        self.omega_register[:] = "vec2(0)"
-
 def allocate_fft_resources(config: FFTConfig) -> FFTResources:
     inline_batch_inner = allocate_inline_batches(
         config.batch_inner_count,
@@ -119,14 +110,10 @@ def allocate_fft_resources(config: FFTConfig) -> FFTResources:
         io_index=vc.new_uint(0, var_name="io_index"),
         io_index_2=vc.new_uint(0, var_name="io_index_2"),
         shared_memory_size=config.N * inline_batch_outer * inline_batch_inner * vd.complex64.item_size,
-        local_size=local_size, #(inline_batch_inner, config.batch_threads, inline_batch_outer),
+        local_size=local_size,
         global_inner_index=global_inner,
         global_outer_index=global_outer
     )
-
-
-
-    #resources.reset()
 
     return resources
 
