@@ -1,5 +1,7 @@
 #include "../internal.hh"
 
+#include <chrono>
+
 Signal::Signal() : state(false) {}
 
 /*
