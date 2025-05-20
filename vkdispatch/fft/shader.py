@@ -17,6 +17,8 @@ import dataclasses
 class FFTInputOutput:
     input_object: Union[vd.Buffer, vd.MappingFunction]
     output_object: Union[vd.Buffer, vd.MappingFunction]
+    kernel_object: Union[vd.Buffer, vd.MappingFunction]
+
     input_types: List[vd.dtype]
     signature: vd.ShaderSignature
 
@@ -25,13 +27,16 @@ class FFTInputOutput:
 
     input_buffers: List[vc.Buffer]
     output_buffers: List[vc.Buffer]
+    kernel_buffers: List[vc.Buffer]
 
     def __init__(self,
                  builder: vc.ShaderBuilder,
                  input_object: Union[vd.Buffer, vd.MappingFunction] = None,
-                 output_object: Union[vd.Buffer, vd.MappingFunction] = None):
+                 output_object: Union[vd.Buffer, vd.MappingFunction] = None,
+                 kernel_object: Union[vd.Buffer, vd.MappingFunction] = None):
         self.input_object = input_object
         self.output_object = output_object
+        self.kernel_object = kernel_object
 
         if self.input_object is None and self.output_object is None:
             self.input_types = [Buff[c64]]
@@ -45,36 +50,48 @@ class FFTInputOutput:
         else:
             self.input_types = self.output_object.buffer_types + self.input_object.buffer_types
 
+        kernel_count = 0
+
+        if self.kernel_object is not None:
+            self.input_types += self.kernel_object.buffer_types
+
+            kernel_count = len(self.kernel_object.buffer_types)
+
         self.signature = vd.ShaderSignature.from_type_annotations(builder, self.input_types)
         sig_vars = self.signature.get_variables()
+
+        io_vars = sig_vars[:len(sig_vars)-kernel_count]
 
         if self.input_object is None and self.output_object is None:
             self.input_buffers = None
             self.output_buffers = None
 
-            self.in_buff = sig_vars[0]
-            self.out_buff = sig_vars[0]
+            self.in_buff = io_vars[0]
+            self.out_buff = io_vars[0]
 
         elif self.output_object is None:
-            self.input_buffers = sig_vars[1:]
+            self.input_buffers = io_vars[1:]
             self.output_buffers = None
 
             self.in_buff = input_object
-            self.out_buff = sig_vars[0]
+            self.out_buff = io_vars[0]
 
         elif self.input_object is None:
             self.input_buffers = None
-            self.output_buffers = sig_vars[:-1]
+            self.output_buffers = io_vars[:-1]
 
-            self.in_buff = sig_vars[-1]
+            self.in_buff = io_vars[-1]
             self.out_buff = output_object
 
         else:
-            self.input_buffers = sig_vars[len(self.output_object.buffer_types):]
-            self.output_buffers = sig_vars[:len(self.output_object.buffer_types)]
+            self.input_buffers = io_vars[len(self.output_object.buffer_types):]
+            self.output_buffers = io_vars[:len(self.output_object.buffer_types)]
 
             self.in_buff = input_object
             self.out_buff = output_object
+
+        if kernel_count > 0:
+            self.kernel_buffers = sig_vars[len(sig_vars)-kernel_count:]
 
 @lru_cache(maxsize=None)
 def make_fft_shader(
@@ -131,7 +148,9 @@ def make_convolution_shader(
         kernel_map: vd.MappingFunction = None,
         axis: int = None, 
         name: str = None, 
-        normalize: bool = True) -> Tuple[vd.ShaderObject, Tuple[int, int, int]]:
+        normalize: bool = True,
+        input_map: vd.MappingFunction = None,
+        output_map: vd.MappingFunction = None) -> Tuple[vd.ShaderObject, Tuple[int, int, int]]:
     if name is None:
         name = f"convolution_shader_{buffer_shape}_{axis}"
 
@@ -146,9 +165,11 @@ def make_convolution_shader(
         kernel_map = vd.map(kernel_map_func, register_types=[c64], input_types=[vc.Buffer[c64]])
 
     with vc.builder_context(enable_exec_bounds=False) as builder:
-        signature = vd.ShaderSignature.from_type_annotations(builder, [Buff[c64]] + kernel_map.buffer_types)
-        buffer = signature.get_variables()[0]
-        kernel_buffers = signature.get_variables()[1:]
+        io_object = FFTInputOutput(builder, input_map, output_map, kernel_map)
+
+        #signature = vd.ShaderSignature.from_type_annotations(builder, [Buff[c64]] + kernel_map.buffer_types)
+        #buffer = signature.get_variables()[0]
+        #kernel_buffers = signature.get_variables()[1:]
 
         fft_config = FFTConfig(buffer_shape, axis)
         
@@ -156,7 +177,13 @@ def make_convolution_shader(
 
         vc.comment("Performing forward FFT stage in convolution shader")
 
-        do_sdata_padding = plan(resources, fft_config.params(inverse=False), input=buffer)
+        do_sdata_padding = plan(
+            resources,
+            fft_config.params(
+                inverse=False,
+                input_buffers=io_object.input_buffers,
+            ),
+            input=io_object.in_buff)
 
         vc.memory_barrier()
         vc.barrier()
@@ -168,15 +195,16 @@ def make_convolution_shader(
             fft_config.params(
                 inverse=True,
                 normalize=normalize,
-                input_buffers=kernel_buffers,
-                input_sdata=True),
-            input=kernel_map,
-            output=buffer,
+                input_buffers=io_object.kernel_buffers, #kernel_buffers,
+                input_sdata=True,
+                output_buffers=io_object.output_buffers),
+            input=io_object.kernel_object,
+            output=io_object.out_buff,
             do_sdata_padding=do_sdata_padding)
 
         shader_object = vd.ShaderObject(
             builder.build(name),
-            signature,
+            io_object.signature,
             local_size=resources.local_size
         )
 
