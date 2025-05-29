@@ -9,6 +9,9 @@ def default_register_limit():
 
     return 15
 
+def default_max_prime():
+    return 13
+
 def prime_factors(n) -> List[int]:
     factors = []
     
