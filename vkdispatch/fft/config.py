@@ -110,7 +110,6 @@ class FFTConfig:
     batch_inner_stride: int
     batch_inner_count: int
     batch_threads: int
-    exec_size: Tuple[int, int, int]
     sdata_allocation: int
 
     sdata_row_size: Optional[int]
@@ -166,11 +165,6 @@ class FFTConfig:
         self.thread_counts = [stage.thread_count for stage in self.stages]
 
         self.batch_threads = max(self.thread_counts)
-
-        if self.batch_inner_count == 1:
-            self.exec_size = (self.batch_threads, self.batch_outer_count, 1)
-        else:
-            self.exec_size = (self.batch_inner_count, self.batch_threads, self.batch_outer_count)
 
     def __str__(self):
         return f"FFT Config:\nN: {self.N}\nregister_count: {self.register_count}\nstages:\n{self.stages}\nlocal_size: {self.thread_counts}"

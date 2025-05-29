@@ -112,7 +112,7 @@ def make_fft_shader(
 
         fft_config = FFTConfig(buffer_shape, axis)
         
-        resources = allocate_fft_resources(fft_config)
+        resources = allocate_fft_resources(fft_config, False)
 
         plan(
             resources,
@@ -131,7 +131,7 @@ def make_fft_shader(
             local_size=resources.local_size
         )
 
-        return shader_object, fft_config.exec_size
+        return shader_object, resources.exec_size
 
 def get_cache_info():
     return make_fft_shader.cache_info()
@@ -167,13 +167,9 @@ def make_convolution_shader(
     with vc.builder_context(enable_exec_bounds=False) as builder:
         io_object = FFTInputOutput(builder, input_map, output_map, kernel_map)
 
-        #signature = vd.ShaderSignature.from_type_annotations(builder, [Buff[c64]] + kernel_map.buffer_types)
-        #buffer = signature.get_variables()[0]
-        #kernel_buffers = signature.get_variables()[1:]
-
         fft_config = FFTConfig(buffer_shape, axis)
         
-        resources = allocate_fft_resources(fft_config)
+        resources = allocate_fft_resources(fft_config, True)
 
         vc.comment("Performing forward FFT stage in convolution shader")
 
@@ -195,7 +191,7 @@ def make_convolution_shader(
             fft_config.params(
                 inverse=True,
                 normalize=normalize,
-                input_buffers=io_object.kernel_buffers, #kernel_buffers,
+                input_buffers=io_object.kernel_buffers, 
                 input_sdata=True,
                 output_buffers=io_object.output_buffers),
             input=io_object.kernel_object,
@@ -208,7 +204,7 @@ def make_convolution_shader(
             local_size=resources.local_size
         )
 
-        return shader_object, fft_config.exec_size
+        return shader_object, resources.exec_size
 
 def get_convoliution_cache_info():
     return make_convolution_shader.cache_info()
