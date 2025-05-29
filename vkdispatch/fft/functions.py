@@ -31,6 +31,8 @@ def fft(
         r2c=r2c,
         input_map=input_map,
         output_map=output_map)
+    
+    print(exec_size)
 
     if print_shader:
         print(fft_shader)

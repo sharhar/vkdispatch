@@ -118,6 +118,13 @@ class ExectionBounds:
 
         if my_blocks is None:
             raise ValueError("Must provide either 'exec_size' or 'workgroups'!")
+        else:
+            for i in range(3):
+                my_block = my_blocks[i]
+                max_block = vd.get_context().max_workgroup_count[i]
+
+                assert my_block > 0, f"Workgroup count for dimension {i} must be greater than 0!"
+                assert my_block <= max_block, f"Workgroup count ({my_block}) for dimension {i} exceeds maximum allowed size ({max_block})!"
         
         return (my_blocks, my_limits)
 
