@@ -102,7 +102,7 @@ def load_buffer_to_registers(
     if register_list is None:
         register_list = resources.registers
 
-    vc.comment(f"Loading to registers {register_list} from buffer {buffer} at offset {offset} and stride {stride}")
+    vc.comment(f"Loading to registers from buffer {buffer} at offset {offset} and stride {stride}")
 
     if buffer is not None:
         resources.io_index[:] = offset * params.fft_stride + resources.input_batch_offset
@@ -145,7 +145,6 @@ def set_global_output(resources: FFTResources, params: FFTParams, buffer: Buff, 
     if params.inverse and params.normalize:
         true_value[:] = true_value / params.config.N
 
-    
 
     if not params.r2c:
         if isinstance(buffer, vd.MappingFunction):
@@ -206,6 +205,8 @@ def store_registers_from_stages(
     
     if output is not None:
         resources.io_index[:] = resources.tid * params.fft_stride + resources.output_batch_offset
+
+    vc.comment(f"Storing from registers to buffer {output} ")
     
     instance_index_stride = params.config.N // (stage.fft_length * stage.instance_count)
 

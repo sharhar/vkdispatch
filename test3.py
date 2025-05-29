@@ -107,8 +107,8 @@ def test_irfft_1d():
 
             test_data = vd.asrfftbuffer(data)
 
-            vd.fft.rfft(test_data)
-            vd.fft.irfft(test_data)
+            vd.fft.rfft(test_data, print_shader=True)
+            vd.fft.irfft(test_data, print_shader=True)
 
             print(f"Testing FFT with shape {data.shape}")
 
@@ -138,12 +138,11 @@ def place_atoms(image: Buff[i32], atom_coords: Buff[f32], rot_matrix: Var[m4], p
 
     vc.atomic_add(image[2 * image_ind.x, 2 * image_ind.y], 1)
 
-print(place_atoms)
+#print(place_atoms)
 
-test_shape((44, 234))
+#test_shape((44, 234))
 
-test_irfft_1d()
-
-test_fft_1d()
+#test_irfft_1d()
+#test_fft_1d()
 
 test_convolution_2d()

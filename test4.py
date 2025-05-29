@@ -24,16 +24,17 @@ print("Testing FFT performance with vkdispatch, cupy, and torch...")
 sync_buff = vd.Buffer((10,), vd.float32)
 
 print("VkDispatch FFT...")
-buff = vd.Buffer((65535, 256, 16), vd.complex64)
+#buff = vd.Buffer((65535, 256, 16), vd.complex64)
+buff = vd.Buffer((65536, 256, 16), vd.complex64)
 
 cmd_stream = vd.CommandStream()
 
-vd.fft.fft(buff, cmd_stream=cmd_stream, axis=2)
+vd.fft.fft(buff, cmd_stream=cmd_stream, axis=2, print_shader=True)
 #vd.fft.ifft2(buff, cmd_stream=cmd_stream)
 
-status_bar = tqdm.tqdm(total=1000)
+status_bar = tqdm.tqdm(total=10000)
 
-for i in range(100):
+for i in range(1000):
     cmd_stream.submit(10)
     status_bar.update(10)
 
