@@ -139,6 +139,7 @@ class ShaderBuilder:
         self.scope_num = 1
         self.contents = ""
         self.mapping_index: ShaderVariable = None
+        self.kernel_index: ShaderVariable = None
         self.mapping_registers: List[ShaderVariable] = None
         
         self.exec_count = self.declare_constant(abv.uv4, var_name="exec_count")
@@ -158,6 +159,9 @@ class ShaderBuilder:
 
     def set_mapping_index(self, index: ShaderVariable):
         self.mapping_index = index
+
+    def set_kernel_index(self, index: ShaderVariable):
+        self.kernel_index = index
 
     def set_mapping_registers(self, registers: ShaderVariable):
         self.mapping_registers = list(registers)

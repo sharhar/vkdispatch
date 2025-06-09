@@ -147,6 +147,7 @@ def cache_clear():
 def make_convolution_shader(
         buffer_shape: Tuple,
         kernel_map: vd.MappingFunction = None,
+        kernel_num: int = 1,
         axis: int = None, 
         name: str = None, 
         normalize: bool = True,
@@ -218,16 +219,19 @@ def make_convolution_shader(
         )
 
         vc.comment("Performing IFFT stage in convolution shader")
-    
-        for i in range(len(resources.registers)):
-            resources.registers[i][:] = backup_registers[i]
 
-        plan(
-            resources,
-            inverse_params,
-            input=io_object.kernel_object,
-            output=io_object.out_buff,
-            do_sdata_padding=do_sdata_padding)
+        for kern_index in range(kernel_num):
+            for i in range(len(resources.registers)):
+                resources.registers[i][:] = backup_registers[i]
+
+            vc.set_kernel_index(kern_index)
+
+            plan(
+                resources,
+                inverse_params,
+                input=io_object.kernel_object,
+                output=io_object.out_buff,
+                do_sdata_padding=do_sdata_padding)
 
         shader_object = vd.ShaderObject(
             builder.build(name),

@@ -66,6 +66,9 @@ def subgroup_invocation():
 def set_mapping_index(index: ShaderVariable):
     GlobalBuilder.obj.set_mapping_index(index)
 
+def set_kernel_index(index: ShaderVariable):
+    GlobalBuilder.obj.set_kernel_index(index)
+
 def set_mapping_registers(registers: ShaderVariable):
     GlobalBuilder.obj.set_mapping_registers(registers)
 

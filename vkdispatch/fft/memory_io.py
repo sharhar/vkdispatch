@@ -65,17 +65,6 @@ def load_sdata_state_to_registers(
         #get_global_input(resources, params, buffer, i * stride + offset, register_list[i], do_sdata_padding)
 
 def read_mapped_input(resources: FFTResources, params: FFTParams, mapping_index: Const[i32], mapping_function: vd.MappingFunction, output_register: vc.ShaderVariable, index: Const[u32], do_sdata_padding: bool) -> None:
-    # if params.input_sdata:
-    #     resources.io_index_2[:] = index
-
-    #     if resources.sdata_offset is not None:
-    #         resources.io_index_2[:] = resources.io_index_2 + resources.sdata_offset
-
-    #     if do_sdata_padding:
-    #         resources.io_index_2[:] = resources.io_index_2 + resources.io_index_2 / params.sdata_row_size
-
-    #     output_register[:] = resources.sdata[resources.io_index_2]
-
     vc.set_mapping_index(mapping_index)
     vc.set_mapping_registers([output_register, resources.omega_register])
 
