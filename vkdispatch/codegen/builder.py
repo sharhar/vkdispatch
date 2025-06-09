@@ -138,8 +138,8 @@ class ShaderBuilder:
         self.shared_buffers = []
         self.scope_num = 1
         self.contents = ""
-        self.mapping_index = None
-        self.mapping_registers = None
+        self.mapping_index: ShaderVariable = None
+        self.mapping_registers: List[ShaderVariable] = None
         
         self.exec_count = self.declare_constant(abv.uv4, var_name="exec_count")
         

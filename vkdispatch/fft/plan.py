@@ -176,7 +176,7 @@ def process_fft_register_stage(resources: FFTResources,
     stage_invocations: List[FFTRegisterStageInvocation] = []
 
     for i in range(stage.instance_count):
-        stage_invocations.append(FFTRegisterStageInvocation(stage, output_stride, i , resources.tid, params.config.N))
+        stage_invocations.append(FFTRegisterStageInvocation(stage, output_stride, i, resources.tid, params.config.N))
     
     for ii, invocation in enumerate(stage_invocations):
         if stage.remainder_offset == 1 and ii == stage.extra_ffts:
