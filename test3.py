@@ -73,7 +73,7 @@ def test_convolution_2d():
         dims = pick_dim_count(2)
         current_shape = [pick_radix_prime() * 2 for _ in range(dims)]
 
-        #current_shape = (13, 2, 11)
+        current_shape = (32, 32, 10) #13, 2, 11)
 
         while check_fft_dims(current_shape, max_fft_size):
             data = np.random.rand(*current_shape).astype(np.complex64)
@@ -85,7 +85,9 @@ def test_convolution_2d():
             print(f"Testing FFT with shape {data.shape}")
 
             vd.fft.fft2(kernel_data)
-            vd.fft.convolve2D(test_data, kernel_data) #, print_shader=True)
+            vd.fft.convolve2D(test_data, kernel_data, print_shader=True)
+
+            exit()
 
             reference_data = numpy_convolution(data, data2)
 
