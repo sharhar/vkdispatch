@@ -150,7 +150,7 @@ def convolve2D(
     assert len(buffer.shape) == 2 or len(buffer.shape) == 3, 'Buffer must have 2 or 3 dimensions'
 
     fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, input_map=input_map)
-    convolve(buffer, kernel, kernel_map=kernel_map, buffer_shape=buffer_shape, cmd_stream=cmd_stream, print_shader=True, axis=len(buffer.shape) - 2, normalize=normalize)
+    convolve(buffer, kernel, kernel_map=kernel_map, buffer_shape=buffer_shape, cmd_stream=cmd_stream, print_shader=print_shader, axis=len(buffer.shape) - 2, normalize=normalize)
     ifft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, normalize=normalize, output_map=output_map)
 
 def convolve2DR(
