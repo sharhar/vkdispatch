@@ -299,7 +299,7 @@ class ShaderBuilder:
     
     def atomic_add(self, arg1: ShaderVariable, arg2: ShaderVariable):
         new_var = self.make_var(arg1.var_type)
-        self.append_contents(f"{new_var.var_type.glsl_type} {new_var} = atomicAdd({arg1}, {arg2});\n")
+        self.append_contents(f"{new_var.var_type.glsl_type} {new_var.name} = atomicAdd({arg1}, {arg2});\n")
         return new_var
     
     def barrier(self):

@@ -3,7 +3,7 @@ import numpy as np
 import dataclasses
 from typing import List, Tuple, Optional
 
-from .prime_utils import prime_factors, group_primes, default_register_limit
+from .prime_utils import prime_factors, group_primes, default_register_limit, default_max_prime
 
 @dataclasses.dataclass
 class FFTRegisterStageConfig:
@@ -110,7 +110,6 @@ class FFTConfig:
     batch_inner_stride: int
     batch_inner_count: int
     batch_threads: int
-    exec_size: Tuple[int, int, int]
     sdata_allocation: int
 
     sdata_row_size: Optional[int]
@@ -139,6 +138,10 @@ class FFTConfig:
         max_register_count = min(max_register_count, N)
 
         all_factors = prime_factors(N)
+
+        for factor in all_factors:
+            assert factor <= default_max_prime(), f"A prime factor of {N} is {factor}, which exceeds the maximum prime supported {default_max_prime()}"
+
         self.max_prime_radix = max(all_factors)
 
         prime_groups = group_primes(all_factors, max_register_count)        
@@ -162,11 +165,6 @@ class FFTConfig:
         self.thread_counts = [stage.thread_count for stage in self.stages]
 
         self.batch_threads = max(self.thread_counts)
-
-        if self.batch_inner_count == 1:
-            self.exec_size = (self.batch_threads, self.batch_outer_count, 1)
-        else:
-            self.exec_size = (self.batch_inner_count, self.batch_threads, self.batch_outer_count)
 
     def __str__(self):
         return f"FFT Config:\nN: {self.N}\nregister_count: {self.register_count}\nstages:\n{self.stages}\nlocal_size: {self.thread_counts}"

@@ -1,4 +1,7 @@
 import vkdispatch as vd
+import vkdispatch.codegen as vc
+from vkdispatch.codegen.abreviations import *
+
 import numpy as np
 import random
 
@@ -104,8 +107,8 @@ def test_irfft_1d():
 
             test_data = vd.asrfftbuffer(data)
 
-            vd.fft.rfft(test_data)
-            vd.fft.irfft(test_data)
+            vd.fft.rfft(test_data, print_shader=True)
+            vd.fft.irfft(test_data, print_shader=True)
 
             print(f"Testing FFT with shape {data.shape}")
 
@@ -113,10 +116,33 @@ def test_irfft_1d():
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
 
-test_shape((44, 234))
+@vd.shader(exec_size=lambda args: args.atom_coords.shape[0])
+def place_atoms(image: Buff[i32], atom_coords: Buff[f32], rot_matrix: Var[m4], pixel_size: Const[f32]):
+    ind = vc.global_invocation().x.copy()
 
-test_irfft_1d()
+    pos = vc.new_vec4() #shader.new(vd.vec4)
+    pos.x = -atom_coords[3*ind + 1] / pixel_size
+    pos.y = atom_coords[3*ind + 0] / pixel_size
+    pos.z = atom_coords[3*ind + 2] / pixel_size
+    pos.w = 1
 
-test_fft_1d()
+    pos[:] = rot_matrix * pos
+
+    image_ind = vc.new_ivec2()
+    image_ind.y = vc.ceil(pos.y).cast_to(vd.int32) + (image.shape.x / 2)
+    image_ind.x = vc.ceil(-pos.x).cast_to(vd.int32) + (image.shape.y / 2)
+
+    vc.if_any(image_ind.x < 0, image_ind.x >= image.shape.x, image_ind.y < 0, image_ind.y >= image.shape.y)
+    vc.return_statement()
+    vc.end()
+
+    vc.atomic_add(image[2 * image_ind.x, 2 * image_ind.y], 1)
+
+#print(place_atoms)
+
+#test_shape((44, 234))
+
+#test_irfft_1d()
+#test_fft_1d()
 
 test_convolution_2d()
