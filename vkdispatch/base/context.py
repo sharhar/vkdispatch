@@ -31,6 +31,7 @@ class Context:
     subgroup_size: int
     max_workgroup_size: Tuple[int]
     max_workgroup_invocations: int
+    max_workgroup_count: Tuple[int, int, int]
     uniform_buffer_alignment: int
     max_shared_memory: int
 
@@ -51,6 +52,9 @@ class Context:
         max_workgroup_sizes_y = []
         max_workgroup_sizes_z = []
         max_workgroup_invocations = []
+        max_workgroup_counts_x = []
+        max_workgroup_counts_y = []
+        max_workgroup_counts_z = []
         uniform_buffer_alignments = []
         max_shared_memory = []
 
@@ -63,13 +67,28 @@ class Context:
 
             max_workgroup_invocations.append(device.max_workgroup_invocations)
 
+            max_workgroup_counts_x.append(device.max_workgroup_count[0])
+            max_workgroup_counts_y.append(device.max_workgroup_count[1])
+            max_workgroup_counts_z.append(device.max_workgroup_count[2])
+
             uniform_buffer_alignments.append(device.uniform_buffer_alignment)
 
             max_shared_memory.append(device.max_compute_shared_memory_size)
 
         self.subgroup_size = min(subgroup_sizes)
-        self.max_workgroup_size = (min(max_workgroup_sizes_x), min(max_workgroup_sizes_y), min(max_workgroup_sizes_z))
+        self.max_workgroup_size = (
+            min(max_workgroup_sizes_x),
+            min(max_workgroup_sizes_y),
+            min(max_workgroup_sizes_z)
+        )
+        
         self.max_workgroup_invocations = min(max_workgroup_invocations)
+        self.max_workgroup_count = (
+            min(max_workgroup_counts_x),
+            min(max_workgroup_counts_y),
+            min(max_workgroup_counts_z)
+        )
+
         self.uniform_buffer_alignment = max(uniform_buffer_alignments)
         self.max_shared_memory = min(max_shared_memory)
 

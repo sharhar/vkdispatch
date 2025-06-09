@@ -113,8 +113,6 @@ class ReductionObject:
 
         reduction_buffer = vd.Buffer(tuple(output_buffer_shape), self.out_type)
 
-        print(reduction_buffer.shape)
-
         stage1_params = vd.ReductionParams(
             input_offset=0,
             input_size=input_size,

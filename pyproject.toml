@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vkdispatch"
-version = "0.0.21"
+version = "0.0.24"
 authors = [
   { name="Shahar Sandhaus", email="shahar.sandhaus@gmail.com" },
 ]
