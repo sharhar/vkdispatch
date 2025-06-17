@@ -221,6 +221,9 @@ def make_convolution_shader(
         vc.comment("Performing IFFT stage in convolution shader")
 
         for kern_index in range(kernel_num):
+            vc.memory_barrier()
+            vc.barrier()
+            
             for i in range(len(resources.registers)):
                 resources.registers[i][:] = backup_registers[i]
 

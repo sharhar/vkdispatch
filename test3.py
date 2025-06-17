@@ -69,11 +69,15 @@ def test_convolution_2d():
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(20):
-        dims = pick_dim_count(2)
+    for i in range(200):
+        dims = 2 # pick_dim_count(2)
         current_shape = [pick_radix_prime() * 2 for _ in range(dims)]
 
-        current_shape = (32, 32, 10) #13, 2, 11)
+        #current_shape = [308, 338] # (32, 32, 10) #13, 2, 11)
+
+        prev_reference_data = None
+        prev_test_data_cpu = None
+        prev_kernel_data = None
 
         while check_fft_dims(current_shape, max_fft_size):
             data = np.random.rand(*current_shape).astype(np.complex64)
@@ -82,17 +86,50 @@ def test_convolution_2d():
             test_data = vd.asbuffer(data)
             kernel_data = vd.asbuffer(data2)
 
-            print(f"Testing FFT with shape {data.shape}")
+            print(f"{i} Testing FFT with shape {data.shape} {current_shape}")
 
             vd.fft.fft2(kernel_data)
-            vd.fft.convolve2D(test_data, kernel_data, print_shader=True)
-
-            exit()
+            vd.fft.convolve2D(test_data, kernel_data) #, print_shader=True)
 
             reference_data = numpy_convolution(data, data2)
 
-            assert np.allclose(reference_data, test_data.read(0), atol=1e-3)
+            test_data_cpu = test_data.read(0)
 
+            print(f"Mean squared error: {np.log(np.sum(np.abs(reference_data - test_data_cpu) ** 2))}")
+            print(f"Max error: {np.log(np.max(np.abs(reference_data - test_data_cpu)))}")
+
+            passed_test = np.allclose(reference_data, test_data.read(0), atol=1e-3)
+
+            if not passed_test:
+                np.save(f"test_data.npy", test_data_cpu)
+                np.save(f"kernel_data.npy", kernel_data.read(0))
+                np.save(f"reference_data.npy", reference_data)
+
+                np.save(f"prev_test_data_cpu.npy", prev_test_data_cpu)
+                np.save(f"prev_kernel_data.npy", prev_kernel_data)
+                np.save(f"prev_reference_data.npy", prev_reference_data)
+
+                test_data_cpu_fft = np.fft.fft(test_data_cpu)
+                reference_data_fft = np.fft.fft(reference_data)
+
+                np.save(f"test_data_fft.npy", test_data_cpu_fft)
+                np.save(f"reference_data_fft.npy", reference_data_fft)
+
+                test_data_cpu_fft2 = np.fft.fft(test_data_cpu_fft, axis=0)
+                reference_data_fft2 = np.fft.fft(reference_data_fft, axis=0)
+
+                test_data_cpu_fft2[0, 0] = 0
+                reference_data_fft2[0, 0] = 0
+
+                np.save(f"test_data_fft2.npy", test_data_cpu_fft2)
+                np.save(f"reference_data_fft2.npy", reference_data_fft2)
+            else:
+                prev_test_data_cpu = test_data_cpu
+                prev_reference_data = reference_data
+                prev_kernel_data = kernel_data.read(0)
+
+            assert passed_test
+            
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
 
 def test_irfft_1d():
