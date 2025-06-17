@@ -111,6 +111,7 @@ def irfft3(buffer: vd.RFFTBuffer, cmd_stream: vd.CommandStream = None, print_sha
 def convolve(
         *buffers: vd.Buffer,
         kernel_map: vd.MappingFunction = None,
+        kernel_num: int = 1,
         buffer_shape: Tuple = None,
         cmd_stream: vd.CommandStream = None,
         print_shader: bool = False,
@@ -125,6 +126,7 @@ def convolve(
     fft_shader, exec_size = make_convolution_shader(
         tuple(buffer_shape),
         kernel_map,
+        kernel_num,
         axis,
         name=name,
         normalize=normalize,

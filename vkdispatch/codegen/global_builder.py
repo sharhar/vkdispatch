@@ -75,6 +75,9 @@ def set_mapping_registers(registers: ShaderVariable):
 def mapping_index():
     return GlobalBuilder.obj.mapping_index
 
+def kernel_index():
+    return GlobalBuilder.obj.kernel_index
+
 def mapping_registers():
     return GlobalBuilder.obj.mapping_registers
 
