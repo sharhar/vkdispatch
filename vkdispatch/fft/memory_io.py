@@ -61,9 +61,6 @@ def load_sdata_state_to_registers(
 
         register_list[i][:] = resources.sdata[resources.io_index]
 
-        #read_shared_memory(resources, params, register_list[i], i * stride + offset, do_sdata_padding)
-        #get_global_input(resources, params, buffer, i * stride + offset, register_list[i], do_sdata_padding)
-
 def read_mapped_input(resources: FFTResources, params: FFTParams, mapping_index: Const[i32], mapping_function: vd.MappingFunction, output_register: vc.ShaderVariable, index: Const[u32], do_sdata_padding: bool) -> None:
     vc.set_mapping_index(mapping_index)
     vc.set_mapping_registers([output_register, resources.omega_register])
