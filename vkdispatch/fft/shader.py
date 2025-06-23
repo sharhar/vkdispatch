@@ -6,6 +6,7 @@ from typing import List, Tuple, Union
 from functools import lru_cache
 import numpy as np
 
+from .memory_io import load_sdata_state_to_registers, FFTRegisterStageInvocation
 from .config import FFTConfig, FFTParams
 from .resources import allocate_fft_resources
 
@@ -146,6 +147,7 @@ def cache_clear():
 def make_convolution_shader(
         buffer_shape: Tuple,
         kernel_map: vd.MappingFunction = None,
+        kernel_num: int = 1,
         axis: int = None, 
         name: str = None, 
         normalize: bool = True,
@@ -171,6 +173,10 @@ def make_convolution_shader(
         
         resources = allocate_fft_resources(fft_config, True)
 
+        backup_registers = []
+        for i in range(len(resources.registers)):
+            backup_registers.append(vc.new(c64, 0, var_name=f"backup_register_{i}"))
+        
         vc.comment("Performing forward FFT stage in convolution shader")
 
         do_sdata_padding = plan(
@@ -184,19 +190,51 @@ def make_convolution_shader(
         vc.memory_barrier()
         vc.barrier()
 
-        vc.comment("Performing convolution and IFFT stage in convolution shader")
-        
-        plan(
-            resources,
-            fft_config.params(
+        vc.comment("Performing convolution stage in convolution shader")
+
+        inverse_params = fft_config.params(
                 inverse=True,
                 normalize=normalize,
                 input_buffers=io_object.kernel_buffers, 
-                input_sdata=True,
-                output_buffers=io_object.output_buffers),
-            input=io_object.kernel_object,
-            output=io_object.out_buff,
-            do_sdata_padding=do_sdata_padding)
+                output_buffers=io_object.output_buffers)
+        
+        assert inverse_params.config.stages[0].instance_count == 1, "Something is very wrong"
+
+        invocation = FFTRegisterStageInvocation(
+            inverse_params.config.stages[0],
+            1, 0,
+            resources.tid,
+            inverse_params.config.N
+        )
+
+        vc.comment(f"Loading state to registers in convolution shader")
+
+        load_sdata_state_to_registers(
+            resources,
+            inverse_params,
+            invocation.instance_id,
+            inverse_params.config.N // inverse_params.config.stages[0].fft_length,
+            backup_registers[invocation.register_selection],
+            do_sdata_padding
+        )
+
+        vc.comment("Performing IFFT stage in convolution shader")
+
+        for kern_index in range(kernel_num):
+            vc.memory_barrier()
+            vc.barrier()
+            
+            for i in range(len(resources.registers)):
+                resources.registers[i][:] = backup_registers[i]
+
+            vc.set_kernel_index(kern_index)
+
+            plan(
+                resources,
+                inverse_params,
+                input=io_object.kernel_object,
+                output=io_object.out_buff,
+                do_sdata_padding=do_sdata_padding)
 
         shader_object = vd.ShaderObject(
             builder.build(name),

@@ -42,21 +42,26 @@ class FFTRegisterStageInvocation:
         
         self.register_selection = slice(instance_index * stage.fft_length, (instance_index + 1) * stage.fft_length)
 
-def read_mapped_input(resources: FFTResources, params: FFTParams, mapping_index: Const[i32], mapping_function: vd.MappingFunction, output_register: vc.ShaderVariable, index: Const[u32], do_sdata_padding: bool) -> None:
-    #assert len(mapping_function.register_types) == 1, "Mapping function must have exactly one register type"
-    #assert mapping_function.register_types[0] == c64, "Mapping function register type does not match expected return type"
-
-    if params.input_sdata:
-        resources.io_index_2[:] = index
+def load_sdata_state_to_registers(
+        resources: FFTResources,
+        params: FFTParams,
+        offset: Const[u32],
+        stride: int,
+        register_list: List[vc.ShaderVariable] = None,
+        do_sdata_padding: bool = False) -> None:
+    
+    for i in range(len(register_list)):
+        resources.io_index[:] = i * stride + offset
 
         if resources.sdata_offset is not None:
-            resources.io_index_2[:] = resources.io_index_2 + resources.sdata_offset
+            resources.io_index[:] = resources.io_index + resources.sdata_offset
 
         if do_sdata_padding:
-            resources.io_index_2[:] = resources.io_index_2 + resources.io_index_2 / params.sdata_row_size
+            resources.io_index[:] = resources.io_index + resources.io_index / params.sdata_row_size
 
-        output_register[:] = resources.sdata[resources.io_index_2]
+        register_list[i][:] = resources.sdata[resources.io_index]
 
+def read_mapped_input(resources: FFTResources, params: FFTParams, mapping_index: Const[i32], mapping_function: vd.MappingFunction, output_register: vc.ShaderVariable, index: Const[u32], do_sdata_padding: bool) -> None:
     vc.set_mapping_index(mapping_index)
     vc.set_mapping_registers([output_register, resources.omega_register])
 
@@ -83,7 +88,6 @@ def get_global_input(resources: FFTResources, params: FFTParams, buffer: Buff, i
     assert not isinstance(buffer, vd.MappingFunction), "Inverse R2C FFT does not support input mapping"
     
     vc.if_statement(index >= (params.config.N // 2) + 1)
-    # ((params.config.N - index) * params.fft_stride + resources.input_batch_offset) #.cast_to(i32)
     resources.io_index_2[:] = 2 * resources.input_batch_offset + params.config.N * params.fft_stride - resources.io_index 
     output_register[:] = buffer[resources.io_index_2]
     output_register.y = -output_register.y
@@ -108,21 +112,19 @@ def load_buffer_to_registers(
         resources.io_index[:] = offset * params.fft_stride + resources.input_batch_offset
         
         for i in range(len(register_list)):
-            #index = i * stride
-
             if i != 0:
                 resources.io_index += stride * params.fft_stride
             
             get_global_input(resources, params, buffer, i * stride + offset, register_list[i], do_sdata_padding)
         
         return
+    
     if resources.sdata_offset is not None:
         resources.io_index[:] = offset + resources.sdata_offset
     else:
         resources.io_index[:] = offset
 
     for i in range(len(register_list)):
-        
         if do_sdata_padding:
             resources.io_index_2[:] = resources.io_index + stride * i + ((resources.io_index + stride * i) / params.sdata_row_size)
             register_list[i][:] = resources.sdata[resources.io_index_2]
