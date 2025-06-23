@@ -272,6 +272,6 @@ setup(
     cmdclass={
        'build_ext': CustomBuildExt,
     },
-    version="0.0.24",
+    version="0.0.26",
     zip_safe=False,
 )
