@@ -36,7 +36,7 @@ class CommandStream(vd.CommandList):
 
     uniform_descriptors: List[Tuple[vd.DescriptorSet, int, int]]
 
-    name_to_pc_key_dict: Dict[str, Tuple[str, str]]
+    name_to_pc_key_dict: Dict[str, List[Tuple[str, str]]]
     queued_pc_values: Dict[Tuple[str, str], Any]
 
     def __init__(self, reset_on_submit: bool = False, submit_on_record: bool = False) -> None:
@@ -84,11 +84,14 @@ class CommandStream(vd.CommandList):
         super().reset()
     
     def bind_var(self, name: str):
-        if name in self.name_to_pc_key_dict.keys():
-            raise ValueError("Variable already bound!")
+        #if name in self.name_to_pc_key_dict.keys():
+        #    raise ValueError("Variable already bound!")
         
         def register_var(key: Tuple[str, str]):
-            self.name_to_pc_key_dict[name] = key
+            if not name in self.name_to_pc_key_dict.keys():
+                self.name_to_pc_key_dict[name] = []
+
+            self.name_to_pc_key_dict[name].append(key)
 
         return register_var
     
@@ -96,7 +99,8 @@ class CommandStream(vd.CommandList):
         if name not in self.name_to_pc_key_dict.keys():
             raise ValueError("Variable not bound!")
         
-        self.queued_pc_values[self.name_to_pc_key_dict[name]] = value
+        for key in self.name_to_pc_key_dict[name]:
+            self.queued_pc_values[key] = value
     
     def record_shader(self, 
                       plan: vd.ComputePlan,
