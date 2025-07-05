@@ -80,7 +80,7 @@ def execute_fft_plan(
         if cmd_stream.submit_on_record:
             cmd_stream.submit()
 
-def fft(
+def fft_old(
         buffer: vd.Buffer,
         input: vd.Buffer = None,
         axes: List[int] = None,
@@ -106,9 +106,7 @@ def fft(
         input=input
     )
 
-    #execute_fft_plan(buffer, buffer.shape, axes, cmd_stream, False, False, padding, pad_frequency_domain)
-
-def ifft(
+def ifft_old(
         buffer: vd.Buffer, 
         input: vd.Buffer = None,
         axes: List[int] = None, 
@@ -117,7 +115,6 @@ def ifft(
         pad_frequency_domain: bool = False,
         cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None,\
         keep_shader_code: bool = False):
-    #execute_fft_plan(buffer, buffer.shape, axes, cmd_stream, False, True, padding, pad_frequency_domain, normalize)
 
     execute_fft_plan(
         buffer,
@@ -137,7 +134,7 @@ def ifft(
         input=input
         )
 
-def rfft(
+def rfft_old(
         buffer: vd.RFFTBuffer,
         input: vd.Buffer = None,
         axes: List[int] = None,
@@ -147,7 +144,6 @@ def rfft(
         keep_shader_code: bool = False):
     assert buffer.shape[-1] > 2, "Buffer shape must have at least 3 elements in the last dimension"
 
-    #execute_fft_plan(buffer, buffer.shape[:-1] + (buffer.shape[-1] - 2,), axes, cmd_stream, True, False, padding, pad_frequency_domain)
     execute_fft_plan(
         buffer,
         False,
@@ -166,7 +162,7 @@ def rfft(
         input=input
     )
 
-def irfft(
+def irfft_old(
         buffer: vd.RFFTBuffer,
         input: vd.Buffer = None,
         axes: List[int] = None, 
@@ -177,7 +173,6 @@ def irfft(
         keep_shader_code: bool = False):
     assert buffer.shape[-1] > 2, "Buffer shape must have at least 3 elements in the last dimension"
 
-    #execute_fft_plan(buffer, buffer.shape[:-1] + (buffer.shape[-1] - 2,), axes, cmd_stream, True, True, padding, pad_frequency_domain, normalize)
     execute_fft_plan(
         buffer,
         True,
@@ -288,3 +283,43 @@ def create_kernel_2Dreal(
     return kernel
 
 
+def fft(
+        buffer: vd.Buffer,
+        input_buffer: vd.Buffer = None,
+        buffer_shape: Tuple = None,
+        cmd_stream: vd.CommandStream = None,
+        print_shader: bool = False,
+        axis: int = None,
+        inverse: bool = False,
+        normalize_inverse: bool = True,
+        r2c: bool = False):
+    
+    if axis is None:
+        axis = [len(buffer.shape) - 1]
+    
+    if isinstance(axis, int):
+        axis = [axis]
+
+    if buffer_shape is None:
+        buffer_shape = buffer.shape
+
+    config = FFTConfig(
+        buffer_handle=buffer._handle,
+        shape=sanitize_input_tuple(buffer_shape),
+        axes=sanitize_input_tuple(axis),
+        padding=None,
+        pad_freq_domain=False,
+        input_shape=sanitize_input_tuple(input_buffer.shape if input_buffer is not None else None),
+        input_type=input_buffer.var_type if input_buffer is not None else None,
+        keep_shader_code=print_shader,
+        normalize=normalize_inverse,
+        do_r2c=r2c
+    )
+
+    execute_fft_plan(
+        buffer,
+        inverse=inverse,
+        cmd_stream=cmd_stream,
+        input=input_buffer,
+        config=config
+    )
