@@ -323,3 +323,64 @@ def fft(
         input=input_buffer,
         config=config
     )
+
+def fft2(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+    assert len(buffer.shape) == 2 or len(buffer.shape) == 3, 'Buffer must have 2 or 3 dimensions'
+
+    axes = (len(buffer.shape) - 2, len(buffer.shape) - 1)
+
+    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=axes)
+
+def fft3(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+    assert len(buffer.shape) == 3, 'Buffer must have 3 dimensions'
+
+    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=(0, 1, 2))
+
+def ifft(
+        buffer: vd.Buffer,
+        cmd_stream: vd.CommandStream = None,
+        print_shader: bool = False,
+        axis: int = None,
+        normalize: bool = True):
+    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=axis, inverse=True, normalize_inverse=normalize)
+
+def ifft2(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+    assert len(buffer.shape) == 2 or len(buffer.shape) == 3, 'Buffer must have 2 or 3 dimensions'
+
+    axes = (len(buffer.shape) - 2, len(buffer.shape) - 1)
+
+    ifft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=axes)
+
+def ifft3(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+    assert len(buffer.shape) == 3, 'Buffer must have 3 dimensions'
+
+    ifft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=(0, 1, 2))
+
+
+def rfft(buffer: vd.RFFTBuffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False, axis: int = None):
+    fft(buffer, buffer_shape=buffer.real_shape, cmd_stream=cmd_stream, print_shader=print_shader, r2c=True, axis=axis)
+
+def rfft2(buffer: vd.RFFTBuffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+    assert len(buffer.real_shape) == 2 or len(buffer.real_shape) == 3, 'Buffer must have 2 or 3 dimensions'
+
+    axes = (len(buffer.shape) - 2, len(buffer.shape) - 1)
+    rfft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=axes)
+
+def rfft3(buffer: vd.RFFTBuffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+    assert len(buffer.real_shape) == 3, 'Buffer must have 3 dimensions'
+
+    rfft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=(0, 1, 2))
+
+def irfft(buffer: vd.RFFTBuffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False, normalize: bool = True, axis: int = None):
+    fft(buffer, buffer_shape=buffer.real_shape, cmd_stream=cmd_stream, print_shader=print_shader, inverse=True, normalize_inverse=normalize, r2c=True, axis=axis)
+
+def irfft2(buffer: vd.RFFTBuffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+    assert len(buffer.real_shape) == 2 or len(buffer.real_shape) == 3, 'Buffer must have 2 or 3 dimensions'
+
+    axes = (len(buffer.shape) - 2, len(buffer.shape) - 1)
+    irfft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=axes)
+
+def irfft3(buffer: vd.RFFTBuffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+    assert len(buffer.real_shape) == 3, 'Buffer must have 3 dimensions'
+
+    irfft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=(0, 1, 2))
