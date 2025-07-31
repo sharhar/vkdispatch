@@ -324,6 +324,15 @@ void Stream::record_worker(int worker_id) {
                 LOG_VERBOSE("Command %d executed", i);
 
                 if(i < command_buffer->size() - 1) {
+                    memory_barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                    memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+                    if(command_buffer->operator[](i).pipeline_stage == VK_PIPELINE_STAGE_TRANSFER_BIT)
+                        memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+                    
+                    if(command_buffer->operator[](i+1).pipeline_stage == VK_PIPELINE_STAGE_TRANSFER_BIT)
+                        memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
                     vkCmdPipelineBarrier(
                         cmd_buffer, 
                         command_buffer->operator[](i).pipeline_stage, 
@@ -332,6 +341,15 @@ void Stream::record_worker(int worker_id) {
                         &memory_barrier, 
                         0, 0, 0, 0);
                 } else if (instance != work_item.work_header->instance_count - 1 && i == command_buffer->size() - 1) {
+                    memory_barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                    memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+                    if(command_buffer->operator[](i).pipeline_stage == VK_PIPELINE_STAGE_TRANSFER_BIT)
+                        memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+                    
+                    if(command_buffer->operator[](i+1).pipeline_stage == VK_PIPELINE_STAGE_TRANSFER_BIT)
+                        memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
                     vkCmdPipelineBarrier(
                         cmd_buffer, 
                         command_buffer->operator[](i).pipeline_stage, 
@@ -400,14 +418,5 @@ void Stream::submit_worker() {
         LOG_VERBOSE("Submitting command buffer for work item %p", work_item.work_header);
         
         fences[work_item.current_index]->doSubmit(queue, &submitInfo, work_item.signal, &this->queue_usage_mutex);
-
-        // VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, fences[work_item.current_index]->fence));
-    
-        // if(work_item.signal != NULL) {
-        //     VK_CALL(vkWaitForFences(device, 1, &fences[work_item.current_index]->fence, VK_TRUE, UINT64_MAX));
-        //     work_item.signal->notify();
-        // }
-
-        // fences[work_item.current_index]->signalSubmission();
     }
 }
