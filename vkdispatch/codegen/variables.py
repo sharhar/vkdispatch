@@ -124,6 +124,9 @@ class BaseVariable:
         self.can_index = True
         self.use_child_type = use_child_type
 
+    def __bool__(self) -> bool:
+        raise ValueError(f"Vkdispatch variables cannot be cast to a python boolean")
+
 class ShaderVariable(BaseVariable):
     def __init__(self, 
                  append_func: Callable[[str], None], 
@@ -388,18 +391,26 @@ class ShaderVariable(BaseVariable):
         return self.new(self.var_type, f"{other} | {self}")
 
     def __iadd__(self, other):
+        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
+
         self.append_func(f"{self} += {other};\n")
         return self
 
     def __isub__(self, other):
+        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
+
         self.append_func(f"{self} -= {other};\n")
         return self
 
     def __imul__(self, other):
+        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
+
         self.append_func(f"{self} *= {other};\n")
         return self
 
     def __itruediv__(self, other):
+        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
+
         self.append_func(f"{self} /= {other};\n")
         return self
 
@@ -408,10 +419,14 @@ class ShaderVariable(BaseVariable):
     #    return self
 
     def __imod__(self, other):
+        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
+
         self.append_func(f"{self} %= {other};\n")
         return self
 
     def __ipow__(self, other):
+        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
+
         other_str = str(other)
 
         if isinstance(other, ShaderVariable):
@@ -421,22 +436,32 @@ class ShaderVariable(BaseVariable):
         return self
 
     def __ilshift__(self, other):
+        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
+
         self.append_func(f"{self} <<= {other};\n")
         return self
 
     def __irshift__(self, other):
+        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
+
         self.append_func(f"{self} >>= {other};\n")
         return self
 
     def __iand__(self, other):
+        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
+
         self.append_func(f"{self} &= {other};\n")
         return self
 
     def __ixor__(self, other):
+        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
+
         self.append_func(f"{self} ^= {other};\n")
         return self
 
     def __ior__(self, other):
+        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
+
         self.append_func(f"{self} |= {other};\n")
         return self
 
