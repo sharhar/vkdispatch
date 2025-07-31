@@ -194,8 +194,21 @@ class ShaderBuilder:
             return new_var, raw_name
         return get_name_val
 
-    def make_var(self, var_type: dtype, var_name: Optional[str] = None, prefix: Optional[str] = None, suffix: Optional[str] = None, lexical_unit: bool = False):
-        return ShaderVariable(self.append_contents, self.get_name_func(prefix, suffix), var_type, var_name, lexical_unit=lexical_unit)
+    def make_var(self,
+                 var_type: dtype,
+                 var_name: Optional[str] = None,
+                 prefix: Optional[str] = None,
+                 suffix: Optional[str] = None,
+                 lexical_unit: bool = False,
+                 settable: bool = False) -> ShaderVariable:
+        return ShaderVariable(
+            self.append_contents,
+            self.get_name_func(prefix, suffix),
+            var_type,
+            var_name,
+            lexical_unit=lexical_unit,
+            settable=settable
+        )
     
     def declare_constant(self, var_type: dtype, count: int = 1, var_name: Optional[str] = None):
         suffix = None
@@ -541,7 +554,7 @@ class ShaderBuilder:
         self.append_contents("subgroupBarrier();\n")
 
     def new(self, var_type: dtype, *args, var_name: Optional[str] = None):
-        new_var = self.make_var(var_type, var_name=var_name, lexical_unit=True) #f"float({arg1})")
+        new_var = self.make_var(var_type, var_name=var_name, lexical_unit=True, settable=True)
 
         decleration_suffix = ""
         if len(args) > 0:

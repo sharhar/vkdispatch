@@ -40,6 +40,7 @@ class BaseVariable:
     index_suffix: str = ""
     _varying: bool = False
     lexical_unit: bool = False
+    settable: bool = False
 
     def __init__(
         self,
@@ -47,7 +48,8 @@ class BaseVariable:
         name_func: Callable[[str], Tuple[str, str]], 
         var_type: vd.dtype,
         name: str = None,
-        lexical_unit: bool = False
+        lexical_unit: bool = False,
+        settable: bool = False
     ) -> None:
         self.append_func = append_func
         self.name_func = name_func
@@ -57,8 +59,7 @@ class BaseVariable:
         both_names = self.name_func(name)
         self.name = both_names[0]
         self.raw_name = both_names[1]
-
-        #self._register_shape()
+        self.settable = settable
     
     def __repr__(self) -> str:
         if self.lexical_unit:
@@ -66,8 +67,8 @@ class BaseVariable:
 
         return f"({self.name})"
     
-    def new(self, var_type: vd.dtype, name: str = None, lexcical_unit: bool = False):
-        return BaseVariable(self.append_func, self.name_func, var_type, name, lexical_unit=lexcical_unit)
+    def new(self, var_type: vd.dtype, name: str = None, lexcical_unit: bool = False, settable: bool = False) -> "BaseVariable":
+        return BaseVariable(self.append_func, self.name_func, var_type, name, lexical_unit=lexcical_unit, settable=settable)
     
     def __getitem__(self, index) -> "ShaderVariable":
         if not self.can_index:
@@ -76,30 +77,32 @@ class BaseVariable:
         return_type = self.var_type.child_type if self.use_child_type else self.var_type
 
         if isinstance(index, ShaderVariable) or isinstance(index, (int, np.integer)):
-            return self.new(return_type, f"{self.name}[{shader_var_name(index)}]")
+            return self.new(return_type, f"{self.name}[{shader_var_name(index)}]", settable=self.settable)
         
         if isinstance(index, tuple):
             index_strs = tuple(shader_var_name(i) for i in index)
 
             if len(index_strs) == 1:
-                return self.new(return_type, f"{self.name}[{index_strs[0]}]{self.index_suffix}")
+                return self.new(return_type, f"{self.name}[{index_strs[0]}]{self.index_suffix}", settable=self.settable)
             elif self.shape is None:
                 raise ValueError("Cannot do multidimentional index into object with no shape!")
             
             if len(index_strs) == 2:
                 true_index = f"{index_strs[0]} * {self.shape.y} + {index_strs[1]}"
-                return self.new(return_type, f"{self.name}[{true_index}]{self.index_suffix}")
+                return self.new(return_type, f"{self.name}[{true_index}]{self.index_suffix}", settable=self.settable)
             elif len(index_strs) == 3:
                 true_index = f"{index_strs[0]} * {self.shape.y} + {index_strs[1]}"
                 true_index = f"({true_index}) * {self.shape.z} + {index_strs[2]}"
-                return self.new(return_type, f"{self.name}[{true_index}]{self.index_suffix}")
+                return self.new(return_type, f"{self.name}[{true_index}]{self.index_suffix}", settable=self.settable)
             else:
                 raise ValueError(f"Unsupported number of indicies {len(index)}!")
 
         else:
             raise ValueError(f"Unsupported index type {index} of type {type(index)}!")
 
-    def __setitem__(self, index, value: "ShaderVariable") -> None:        
+    def __setitem__(self, index, value: "ShaderVariable") -> None:
+        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
+
         if isinstance(index, slice):
             if index.start is None and index.stop is None and index.step is None:
                 self.append_func(f"{self.name} = {shader_var_name(value)};\n")
@@ -127,29 +130,37 @@ class ShaderVariable(BaseVariable):
                  name_func: Callable[[str], Tuple[str, str]], 
                  var_type: vd.dtype, 
                  name: Optional[str] = None,
-                 lexical_unit: bool = False
+                 lexical_unit: bool = False,
+                 settable: bool = False
         ) -> None:
-        super().__init__(append_func, name_func, var_type, name, lexical_unit=lexical_unit)
+        super().__init__(
+            append_func,
+            name_func,
+            var_type,
+            name,
+            lexical_unit=lexical_unit,
+            settable=settable
+        )
 
         if vd.is_complex(self.var_type):
-            self.real = self.new(self.var_type.child_type, f"{self}.x", lexical_unit=True)
-            self.imag = self.new(self.var_type.child_type, f"{self}.y", lexical_unit=True)
+            self.real = self.new(self.var_type.child_type, f"{self}.x", lexical_unit=True, settable=settable)
+            self.imag = self.new(self.var_type.child_type, f"{self}.y", lexical_unit=True, settable=settable)
             self.x = self.real
             self.y = self.imag
 
             self._register_shape()
         
         if vd.is_vector(self.var_type):
-            self.x = self.new(self.var_type.child_type, f"{self}.x", lexical_unit=True)
+            self.x = self.new(self.var_type.child_type, f"{self}.x", lexical_unit=True, settable=settable)
             
             if self.var_type.child_count >= 2:
-                self.y = self.new(self.var_type.child_type, f"{self}.y", lexical_unit=True)
+                self.y = self.new(self.var_type.child_type, f"{self}.y", lexical_unit=True, settable=settable)
 
             if self.var_type.child_count >= 3:
-                self.z = self.new(self.var_type.child_type, f"{self}.z", lexical_unit=True)
+                self.z = self.new(self.var_type.child_type, f"{self}.z", lexical_unit=True, settable=settable)
 
             if self.var_type.child_count == 4:
-                self.w = self.new(self.var_type.child_type, f"{self}.w", lexical_unit=True)
+                self.w = self.new(self.var_type.child_type, f"{self}.w", lexical_unit=True, settable=settable)
             
             self._register_shape()
         
@@ -158,15 +169,15 @@ class ShaderVariable(BaseVariable):
 
         self._initilized = True
 
-    def new(self, var_type: vd.dtype, name: str = None, lexical_unit: bool = False):
-        return ShaderVariable(self.append_func, self.name_func, var_type, name, lexical_unit=lexical_unit)
+    def new(self, var_type: vd.dtype, name: str = None, lexical_unit: bool = False, settable: bool = False):
+        return ShaderVariable(self.append_func, self.name_func, var_type, name, lexical_unit=lexical_unit, settable=settable)
     
     def new_scaled_and_offset_int(self, var_type: vd.dtype, name: str = None):
         return ScaledAndOfftsetIntVariable(self.append_func, self.name_func, var_type, name)
 
     def copy(self, var_name: str = None):
         """Create a new variable with the same value as the current variable."""
-        new_var = self.new(self.var_type, var_name, lexical_unit=True)
+        new_var = self.new(self.var_type, var_name, lexical_unit=True, settable=True)
         self.append_func(f"{self.var_type.glsl_type} {new_var.name} = {self};\n")
         return new_var
 
@@ -537,6 +548,7 @@ class BufferVariable(BoundVariable):
 
             self.name = name if name is not None else self.name
             self.raw_name = raw_name if raw_name is not None else self.raw_name
+            self.settable = True
 
             self._register_shape(shape_var=shape_var, shape_name=shape_name, use_child_type=False)
 
