@@ -15,6 +15,21 @@ from typing import Optional
 import enum
 import dataclasses
 
+def var_types_to_floating(var_type: dtype) -> dtype:
+    if var_type == abv.i32 or var_type == abv.u32:
+        return abv.f32
+
+    if var_type == abv.iv2 or var_type == abv.uv2:
+        return abv.v2
+
+    if var_type == abv.iv3 or var_type == abv.uv3:
+        return abv.v3
+    
+    if var_type == abv.iv4 or var_type == abv.uv4:
+        return abv.v4
+    
+    return var_type
+
 class BindingType(enum.Enum):
     """
     A dataclass that represents the type of a binding in a shader. Either a
@@ -294,25 +309,32 @@ class ShaderBuilder:
         return self.make_var(arg.var_type, f"abs({arg})", lexical_unit=True)
     
     def acos(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"acos({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"acos({arg})", lexical_unit=True)
 
     def acosh(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"acosh({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"acosh({arg})", lexical_unit=True)
 
     def asin(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"asin({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"asin({arg})", lexical_unit=True)
 
     def asinh(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"asinh({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"asinh({arg})", lexical_unit=True)
 
     def atan(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"atan({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"atan({arg})", lexical_unit=True)
     
     def atan2(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        return self.make_var(arg1.var_type, f"atan({arg1}, {arg2})", lexical_unit=True)
+        # TODO: correctly handle pure float inputs
+
+        floating_arg1 = var_types_to_floating(arg1.var_type)
+        floating_arg2 = var_types_to_floating(arg2.var_type)
+
+        assert floating_arg1 == floating_arg2, f"Both arguments to atan2 ({arg1.var_type} and {arg2.var_type}) must be of the same dimentionality"
+
+        return self.make_var(floating_arg1, f"atan({arg1}, {arg2})", lexical_unit=True)
 
     def atanh(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"atanh({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"atanh({arg})", lexical_unit=True)
     
     def atomic_add(self, arg1: ShaderVariable, arg2: ShaderVariable):
         new_var = self.make_var(arg1.var_type)
@@ -323,22 +345,22 @@ class ShaderBuilder:
         self.append_contents("barrier();\n")
     
     def ceil(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"ceil({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"ceil({arg})", lexical_unit=True)
     
     def clamp(self, arg: ShaderVariable, min_val: ShaderVariable, max_val: ShaderVariable):
-        return self.make_var(arg.var_type, f"clamp({arg}, {min_val}, {max_val})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"clamp({arg}, {min_val}, {max_val})", lexical_unit=True)
 
     def cos(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"cos({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"cos({arg})", lexical_unit=True)
     
     def cosh(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"cosh({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"cosh({arg})", lexical_unit=True)
     
     def cross(self, arg1: ShaderVariable, arg2: ShaderVariable):
         return self.make_var(abv.v3, f"cross({arg1}, {arg2})", lexical_unit=True)
     
     def degrees(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"degrees({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"degrees({arg})", lexical_unit=True)
     
     def determinant(self, arg: ShaderVariable):
         return self.make_var(abv.f32, f"determinant({arg})", lexical_unit=True)
@@ -350,10 +372,10 @@ class ShaderBuilder:
         return self.make_var(abv.f32, f"dot({arg1}, {arg2})", lexical_unit=True)
     
     def exp(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"exp({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"exp({arg})", lexical_unit=True)
     
     def exp2(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"exp2({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"exp2({arg})", lexical_unit=True)
 
     def float_bits_to_int(self, arg: ShaderVariable):
         return self.make_var(abv.i32, f"floatBitsToInt({arg})", lexical_unit=True)
@@ -362,19 +384,23 @@ class ShaderBuilder:
         return self.make_var(abv.u32, f"floatBitsToUint({arg})", lexical_unit=True)
 
     def floor(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"floor({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"floor({arg})", lexical_unit=True)
     
     def fma(self, arg1: ShaderVariable, arg2: ShaderVariable, arg3: ShaderVariable):
+        # TODO: properly handle type conversion and float inputs
+
         return self.make_var(arg1.var_type, f"fma({arg1}, {arg2}, {arg3})", lexical_unit=True)
     
     def int_bits_to_float(self, arg: ShaderVariable):
         return self.make_var(abv.f32, f"intBitsToFloat({arg})", lexical_unit=True)
 
     def inverse(self, arg: ShaderVariable):
+        assert arg.var_type.dimentions == 2, f"Cannot apply inverse to non-matrix type {arg.var_type}"
+
         return self.make_var(arg.var_type, f"inverse({arg})", lexical_unit=True)
     
     def inverse_sqrt(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"inversesqrt({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"inversesqrt({arg})", lexical_unit=True)
     
     def isinf(self, arg: ShaderVariable):
         return self.make_var(abv.i32, f"any(isinf({arg}))", lexical_unit=True)
@@ -386,12 +412,14 @@ class ShaderBuilder:
         return self.make_var(abv.f32, f"length({arg})", lexical_unit=True)
 
     def log(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"log({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"log({arg})", lexical_unit=True)
 
     def log2(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"log2({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"log2({arg})", lexical_unit=True)
 
     def max(self, arg1: ShaderVariable, arg2: ShaderVariable):
+        # TODO: properly handle type conversion and float inputs
+
         return self.make_var(arg1.var_type, f"max({arg1}, {arg2})", lexical_unit=True)
 
     def memory_barrier(self):
@@ -401,52 +429,58 @@ class ShaderBuilder:
         self.append_contents("memoryBarrierShared();\n")
 
     def min(self, arg1: ShaderVariable, arg2: ShaderVariable):
+        # TODO: properly handle type conversion and float inputs
+
         return self.make_var(arg1.var_type, f"min({arg1}, {arg2})", lexical_unit=True)
     
     def mix(self, arg1: ShaderVariable, arg2: ShaderVariable, arg3: ShaderVariable):
+        # TODO: properly handle type conversion and float inputs
+
         return self.make_var(arg1.var_type, f"mix({arg1}, {arg2}, {arg3})", lexical_unit=True)
 
     def mod(self, arg1: ShaderVariable, arg2: ShaderVariable):
+        # TODO: properly handle type conversion and float inputs
+
         return self.make_var(arg1.var_type, f"mod({arg1}, {arg2})", lexical_unit=True)
     
     def normalize(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"normalize({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"normalize({arg})", lexical_unit=True)
     
     def pow(self, arg1: ShaderVariable, arg2: ShaderVariable):
         return self.make_var(arg1.var_type, f"pow({arg1}, {arg2})", lexical_unit=True)
     
     def radians(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"radians({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"radians({arg})", lexical_unit=True)
     
     def round(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"round({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"round({arg})", lexical_unit=True)
     
     def round_even(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"roundEven({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"roundEven({arg})", lexical_unit=True)
 
     def sign(self, arg: ShaderVariable):
         return self.make_var(arg.var_type, f"sign({arg})", lexical_unit=True)
 
     def sin(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"sin({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"sin({arg})", lexical_unit=True)
     
     def sinh(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"sinh({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"sinh({arg})", lexical_unit=True)
     
     def smoothstep(self, arg1: ShaderVariable, arg2: ShaderVariable, arg3: ShaderVariable):
         return self.make_var(arg1.var_type, f"smoothstep({arg1}, {arg2}, {arg3})", lexical_unit=True)
 
     def sqrt(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"sqrt({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"sqrt({arg})", lexical_unit=True)
     
     def step(self, arg1: ShaderVariable, arg2: ShaderVariable):
         return self.make_var(arg1.var_type, f"step({arg1}, {arg2})", lexical_unit=True)
 
     def tan(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"tan({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"tan({arg})", lexical_unit=True)
     
     def tanh(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"tanh({arg})", lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"tanh({arg})", lexical_unit=True)
     
     def transpose(self, arg: ShaderVariable):
         return self.make_var(arg.var_type, f"transpose({arg})", lexical_unit=True)
