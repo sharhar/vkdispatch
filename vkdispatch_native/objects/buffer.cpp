@@ -100,6 +100,20 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
 
                 int buffer_index = stream_index;
 
+                VkMemoryBarrier barrier = {
+                    VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                    0,
+                    VK_ACCESS_HOST_WRITE_BIT,      // Source: Previous writes by the Host
+                    VK_ACCESS_TRANSFER_READ_BIT,   // Destination: vkCmdCopyBuffer will read
+                };
+                vkCmdPipelineBarrier(
+                    cmd_buffer,
+                    VK_PIPELINE_STAGE_HOST_BIT,          // All operations on the host are done
+                    VK_PIPELINE_STAGE_TRANSFER_BIT,      // The transfer operation will start
+                    0, // No dependency flags needed here typically
+                    1, &barrier, 0, NULL, 0, NULL
+                );
+
                 vkCmdCopyBuffer(cmd_buffer, buffer->stagingBuffers[buffer_index], buffer->buffers[buffer_index], 1, &bufferCopy);
             }
         );
@@ -134,6 +148,20 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
             int buffer_index = stream_index;
 
             vkCmdCopyBuffer(cmd_buffer, buffer->buffers[buffer_index], buffer->stagingBuffers[buffer_index], 1, &bufferCopy);
+
+            VkMemoryBarrier barrier = {
+                VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                0,
+                VK_ACCESS_TRANSFER_WRITE_BIT,
+                VK_ACCESS_HOST_READ_BIT,
+            };
+            vkCmdPipelineBarrier(
+                cmd_buffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_HOST_BIT,
+                0, // No dependency flags needed here typically
+                1, &barrier, 0, NULL, 0, NULL
+            );
         }
     );
 
