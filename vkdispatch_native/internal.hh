@@ -96,6 +96,26 @@ public:
     void destroy_handle(int64_t index, uint64_t handle, std::function<void(uint64_t)> destroy_func);
 };
 
+/**
+ * @brief A struct that contains information about the Vulkan instance.
+ * 
+ * This struct contains the handle to the:
+ * - Vulkan instance (VkInstance)
+ * - Debug messenger (VkDebugUtilsMessengerEXT)
+ * - Physical devices (VkPhysicalDevice)
+ * - Features of the physical devices (VkPhysicalDeviceFeatures2)
+ * - Shader atomic float features (VkPhysicalDeviceShaderAtomicFloatFeaturesEXT)
+ * - Shader float16 and int8 features (VkPhysicalDeviceShaderFloat16Int8Features)
+ * - 16-bit storage features (VkPhysicalDevice16BitStorageFeatures)
+ * - Physical device properties (VkPhysicalDeviceProperties2)
+ * - Subgroup properties (VkPhysicalDeviceSubgroupProperties)
+ * - Device details (PhysicalDeviceDetails)
+ * - Queue family properties (VkQueueFamilyProperties)
+ * 
+ * 
+ * These handles are primarily used for iterating over the physical devices and their properties
+ * so that the program can adapt to the capabilities of the available hardware.
+ */
 typedef struct {
     VkInstance instance;
     VkDebugUtilsMessengerEXT debug_messenger;
@@ -110,6 +130,12 @@ typedef struct {
     std::vector<std::vector<VkQueueFamilyProperties>> queue_family_properties;
 } MyInstance;
 
+/**
+ * @brief Global instance of MyInstance.
+ * 
+ * This instance is used to store the Vulkan instance and its related properties.
+ * It is initialized during the program startup and used throughout the program.
+ */
 extern MyInstance _instance;
 
 struct Context {
