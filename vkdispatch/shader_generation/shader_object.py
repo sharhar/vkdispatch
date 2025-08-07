@@ -181,11 +181,13 @@ class ShaderObject:
         self.build()
         return self.make_repr()
     
-    def make_repr(self) -> str:
+    def make_repr(self, line_numbers: bool = True) -> str:
         result = ""
 
         for ii, line in enumerate(self.source.split("\n")):
-            result += f"{ii + 1:4d}: {line}\n"
+            line_prefix = f"{ii + 1:4d}: " if line_numbers else ""
+            
+            result += f"{line_prefix}{line}\n"
 
         return result
 
