@@ -15,11 +15,10 @@ import subprocess
 import sys
 import tempfile
 import os
+from matplotlib import pyplot as plt
 
-# Set environment variable to help with CUDA context management
 os.environ['CUDA_LAUNCH_BLOCKING'] = '0'
 
-# Import other libraries after Numba
 try:
     import pycuda.autoinit
     import pycuda.driver as cuda
@@ -57,12 +56,13 @@ class KernelLaunchBenchmark:
         @vd.shader("data.size")
         def simple_add_shader(data: Buff[f32]):
             i = vc.global_invocation().x
-            data[i] = data[i] + 1.0
+            data[i] = 1.0
 
         cmd_stream = vd.CommandStream()
 
         gpu_data = vd.asbuffer(self.host_data)
-               
+        
+       
         simple_add_shader(gpu_data, cmd_stream=cmd_stream)
 
         for _ in range(100):
@@ -90,7 +90,7 @@ class KernelLaunchBenchmark:
         __global__ void simple_add(float* data, int n) {
             int idx = blockIdx.x * blockDim.x + threadIdx.x;
             if (idx < n) {
-                data[idx] += 1.0f;
+                data[idx] = 1.0f;
             }
         }
         """
@@ -152,16 +152,17 @@ class KernelLaunchBenchmark:
         @wp.kernel
         def simple_add_kernel(data: wp.array(dtype=float)):
             i = wp.tid()
-            if i < data.shape[0]:
-                data[i] = data[i] + 1.0
+            data[i] = 1.0
         
         # Allocate GPU memory
         gpu_data = wp.array(self.host_data.copy(), dtype=wp.float32, device="cuda:0")
         
         # Warm-up with regular launches
         for _ in range(100):
-            wp.launch(simple_add_kernel, dim=self.array_size, 
-                    inputs=[gpu_data], device="cuda:0")
+            wp.launch(simple_add_kernel,
+                    dim=self.array_size, 
+                    inputs=[gpu_data],
+                    device="cuda:0")
         wp.synchronize_device("cuda:0")
         
         # Create CUDA graph using Warp's capture mechanism
@@ -290,6 +291,29 @@ def get_device_info():
         print(f"Could not get CUDA device info: {e}")
 
 
+def do_comparison_benchmark(
+        array_size: int,
+        num_launches: int,
+        batch_size: int,
+        num_trials: int = 5):
+    benchmark = KernelLaunchBenchmark(array_size=array_size, 
+                                        num_launches=num_launches,
+                                        batch_size=batch_size)
+        
+    results_dict = benchmark.run_multiple_trials(num_trials=num_trials)
+
+    means_dict = {
+        lib: np.mean(times) if times else 0.0
+        for lib, times in results_dict.items()
+    }
+
+    std_dict = {
+        lib: np.std(times) if len(times) > 1 else 0.0
+        for lib, times in results_dict.items()
+    }
+
+    return means_dict, std_dict
+
 def main():
     print("CUDA Kernel Launch Overhead Benchmark")
     print("=" * 60)
@@ -302,19 +326,53 @@ def main():
         wp.init()
 
     # Configuration
-    array_sizes = [102400]  # Small array to minimize GPU work
+    array_size = 10  # Small array to minimize GPU work
     num_launches = 50000
     num_trials = 5
-    batch_size = 100  # Number of kernel launches per graph
+    batch_sizes = [1, 5, 10, 50, 200, 1000]  # Number of kernel launches per graph
 
-    for array_size in array_sizes:
+    means = {
+        'pycuda': [],
+        'warp': [],
+        'vkdispatch': [],
+    }
+
+    stds = {
+        'pycuda': [],
+        'warp': [],
+        'vkdispatch': [],
+    }
+
+    for batch_size in batch_sizes:
         print(f"Benchmarking with data size: {array_size * 4 / (1024 * 1024)} MB")
-        benchmark = KernelLaunchBenchmark(array_size=array_size, 
-                                        num_launches=num_launches,
-                                        batch_size=batch_size)
-        
-        results = benchmark.run_multiple_trials(num_trials=num_trials)
-        benchmark.print_summary(results)
+        run_results = do_comparison_benchmark(
+            array_size=array_size,
+            num_launches=num_launches,
+            batch_size=batch_size,
+            num_trials=num_trials
+        )
+
+        for lib, times in run_results[0].items():
+            means[lib].append(times)
+
+        for lib, times in run_results[1].items():
+            stds[lib].append(times)
+
+    # Plotting results
+    plt.figure(figsize=(12, 6))
+    for lib in means.keys():
+        plt.errorbar(batch_sizes, means[lib], yerr=stds[lib], label=lib.upper(), marker='o')
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel('Batch Size (Number of Kernel Launches per Graph)')
+    plt.ylabel('Time (seconds)')
+    plt.title('Kernel Launch Overhead Benchmark')
+    plt.legend()
+    plt.grid()
+    plt.tight_layout()
+    plt.savefig('kernel_launch_benchmark.png')
+    plt.show()
+
 
 
 if __name__ == "__main__":
