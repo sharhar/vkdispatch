@@ -105,7 +105,7 @@ struct FFTPlan* stage_fft_plan_create_extern(
         num_batches,
         single_kernel_multiple_batches,
         keep_shader_code]
-        (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+        (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
             LOG_VERBOSE("Initializing FFT on device %d, stream %d, recorder %d", device_index, stream_index, recorder_index);
 
             VkFFTConfiguration config = {};
@@ -247,7 +247,7 @@ void stage_fft_record_extern(
         0,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         [ctx, plan, recorder_count, vkfft_applications_handle, buffer, inverse, kernel, input_buffer]
-        (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+        (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
             int index = stream_index * recorder_count + recorder_index;
 
             VkFFTLaunchParams launchParams = {};

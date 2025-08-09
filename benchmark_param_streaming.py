@@ -41,30 +41,37 @@ import vkdispatch as vd
 import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import *
 
+vd.initialize(debug_mode=False, log_level=vd.LogLevel.ERROR)
+
 class KernelLaunchBenchmark:
     def __init__(self, array_size: int = 1024, num_launches: int = 10000, batch_size: int = 100):
         self.array_size = array_size
         self.num_launches = num_launches
         self.results = {}
         
+        assert self.num_launches % batch_size == 0, "num_launches must be divisible by batch_size"
+
         # Create test data
         self.host_data = np.ones(array_size, dtype=np.float32)
+
+        self.params_data = np.random.rand(num_launches).astype(np.float32)
 
         self.batch_size = batch_size
 
     def benchmark_vkdispatch(self) -> float:
-        @vd.shader("data.size")
-        def simple_add_shader(data: Buff[f32]):
+        @vd.shader("data.size", enable_exec_bounds=False)
+        def simple_add_shader(data: Buff[f32], param: Var[f32]):
             i = vc.global_invocation().x
-            data[i] = 1.0
+            data[i] = param
 
         cmd_stream = vd.CommandStream()
 
         gpu_data = vd.asbuffer(self.host_data)
        
-        simple_add_shader(gpu_data, cmd_stream=cmd_stream)
+        simple_add_shader(gpu_data, cmd_stream.bind_var("param"), cmd_stream=cmd_stream)
 
         for _ in range(100):
+            cmd_stream.set_var("param", 0.0)
             cmd_stream.submit()
 
         gpu_data.read(0)
@@ -72,7 +79,8 @@ class KernelLaunchBenchmark:
         num_graph_launches = self.num_launches // self.batch_size
 
         start_time = time.perf_counter()
-        for _ in range(num_graph_launches):
+        for i in range(num_graph_launches):
+            cmd_stream.set_var("param", self.params_data[i*self.batch_size:(i+1)*self.batch_size])
             cmd_stream.submit_any(instance_count=self.batch_size)
         gpu_data.read(0)
         end_time = time.perf_counter()
@@ -86,13 +94,20 @@ class KernelLaunchBenchmark:
             
         # Simple kernel that adds 1 to each element
         kernel_code = """
-        __global__ void simple_add(float* data, int n) {
+        __global__ void simple_add(float* data, float* params, int* indicies, int stream_index, int n) {
             int idx = blockIdx.x * blockDim.x + threadIdx.x;
             if (idx < n) {
-                data[idx] = 1.0f;
+                data[idx] = params[indicies[stream_index]];
+
+                if (idx == 0) {
+                    indicies[stream_index] += 1;
+                }
             }
         }
         """
+
+        num_batches = self.num_launches // self.batch_size
+        num_streams = min(4, num_batches)  # Use up to 4 streams
         
         # Compile kernel
         mod = SourceModule(kernel_code)
@@ -100,6 +115,8 @@ class KernelLaunchBenchmark:
         
         # Allocate GPU memory
         gpu_data = gpuarray.to_gpu(self.host_data.copy())
+        param_index_data = gpuarray.to_gpu(np.zeros(shape=(num_streams,), dtype=np.int32))
+        param_gpu_data = gpuarray.to_gpu(self.params_data.copy())
         
         # Calculate grid/block dimensions
         block_size = 256
@@ -112,8 +129,7 @@ class KernelLaunchBenchmark:
         cuda.Context.synchronize()
         
         # Use multiple streams for better batching
-        num_batches = self.num_launches // self.batch_size
-        num_streams = min(4, num_batches)  # Use up to 4 streams
+        
         streams = [cuda.Stream() for _ in range(num_streams)]
         
         # Benchmark - launch kernels in batches across multiple streams
@@ -123,7 +139,11 @@ class KernelLaunchBenchmark:
             stream = streams[batch % num_streams]
             # Launch batch_size kernels on this stream without sync
             for _ in range(self.batch_size):
-                kernel_func(gpu_data, np.int32(self.array_size),
+                kernel_func(gpu_data,
+                            param_gpu_data,
+                            param_index_data,
+                            np.int32(batch % num_streams),
+                            np.int32(self.array_size),
                         block=(block_size, 1, 1), grid=(grid_size, 1), stream=stream)
         
         # Synchronize all streams
@@ -148,18 +168,24 @@ class KernelLaunchBenchmark:
             
         # Define simple Warp kernel
         @wp.kernel
-        def simple_add_kernel(data: wp.array(dtype=float)):
+        def simple_add_kernel(data: wp.array(dtype=float), params: wp.array(dtype=float), index: wp.array(dtype=int)):
             i = wp.tid()
-            data[i] = 1.0
-        
+            if i < data.shape[0]:
+                data[i] = params[index[0]]
+
+                if i == 0:
+                    index[0] += 1
+
         # Allocate GPU memory
         gpu_data = wp.array(self.host_data.copy(), dtype=wp.float32, device="cuda:0")
+        gpu_param_data = wp.array(self.params_data.copy(), dtype=wp.float32, device="cuda:0")
+        gpu_index_data = wp.array(np.zeros(shape=(1,), dtype=np.int32), device="cuda:0")
         
         # Warm-up with regular launches
         for _ in range(100):
             wp.launch(simple_add_kernel,
                     dim=self.array_size, 
-                    inputs=[gpu_data],
+                    inputs=[gpu_data, gpu_param_data, gpu_index_data],
                     device="cuda:0")
         wp.synchronize_device("cuda:0")
         
@@ -170,7 +196,7 @@ class KernelLaunchBenchmark:
         with wp.ScopedCapture(device="cuda:0") as capture:
             for _ in range(self.batch_size):
                 wp.launch(simple_add_kernel, dim=self.array_size,
-                        inputs=[gpu_data], device="cuda:0")
+                        inputs=[gpu_data, gpu_param_data, gpu_index_data], device="cuda:0")
         
         # Get the captured graph
         graph = capture.graph
@@ -364,11 +390,11 @@ def main():
     plt.yscale('log')
     plt.xlabel('Batch Size (Number of Kernel Launches per Graph)')
     plt.ylabel('Time (seconds)')
-    plt.title('Kernel Launch Overhead Benchmark')
+    plt.title('Param Streaming Overhead Benchmark')
     plt.legend()
     plt.grid()
     plt.tight_layout()
-    plt.savefig('kernel_launch_benchmark.png')
+    plt.savefig('param_streaming_benchmark.png')
     plt.show()
 
 

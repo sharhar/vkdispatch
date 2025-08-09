@@ -237,6 +237,8 @@ void Stream::record_worker(int worker_id) {
 
     bool doing_synchronouns_record = false;
 
+    BarrierManager barrier_manager;
+
     while(this->run_stream.load()) {
         struct WorkQueueItem work_item;
 
@@ -318,7 +320,7 @@ void Stream::record_worker(int worker_id) {
                 LOG_VERBOSE("Recording command %d of type %s on worker %d", i, command_buffer->operator[](i).name, worker_id);
 
                 LOG_VERBOSE("Executing command %d", i);
-                command_buffer->operator[](i).func->operator()(cmd_buffer, device_index, stream_index, worker_id, current_instance_data);
+                command_buffer->operator[](i).func->operator()(cmd_buffer, device_index, stream_index, worker_id, current_instance_data, &barrier_manager);
                 current_instance_data += command_buffer->operator[](i).pc_size;
 
                 LOG_VERBOSE("Command %d executed", i);
@@ -333,13 +335,13 @@ void Stream::record_worker(int worker_id) {
                     if(command_buffer->operator[](i+1).pipeline_stage == VK_PIPELINE_STAGE_TRANSFER_BIT)
                         memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 
-                    vkCmdPipelineBarrier(
-                        cmd_buffer, 
-                        command_buffer->operator[](i).pipeline_stage, 
-                        command_buffer->operator[](i+1).pipeline_stage, 
-                        0, 1, 
-                        &memory_barrier, 
-                        0, 0, 0, 0);
+                    // vkCmdPipelineBarrier(
+                    //     cmd_buffer, 
+                    //     command_buffer->operator[](i).pipeline_stage, 
+                    //     command_buffer->operator[](i+1).pipeline_stage, 
+                    //     0, 1, 
+                    //     &memory_barrier, 
+                    //     0, 0, 0, 0);
                 } else if (instance != work_item.work_header->instance_count - 1 && i == command_buffer->size() - 1) {
                     memory_barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
                     memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
@@ -350,18 +352,20 @@ void Stream::record_worker(int worker_id) {
                     if(command_buffer->operator[](i+1).pipeline_stage == VK_PIPELINE_STAGE_TRANSFER_BIT)
                         memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 
-                    vkCmdPipelineBarrier(
-                        cmd_buffer, 
-                        command_buffer->operator[](i).pipeline_stage, 
-                        command_buffer->operator[](0).pipeline_stage, 
-                        0, 1, 
-                        &memory_barrier, 
-                        0, 0, 0, 0);
+                    // vkCmdPipelineBarrier(
+                    //     cmd_buffer, 
+                    //     command_buffer->operator[](i).pipeline_stage, 
+                    //     command_buffer->operator[](0).pipeline_stage, 
+                    //     0, 1, 
+                    //     &memory_barrier, 
+                    //     0, 0, 0, 0);
                 }
             }
         }
         
         VK_CALL(vkEndCommandBuffer(cmd_buffer));
+
+        barrier_manager.reset();
 
         ctx->work_queue->finish(work_item.work_header);
 
@@ -419,4 +423,67 @@ void Stream::submit_worker() {
         
         fences[work_item.current_index]->doSubmit(queue, &submitInfo, work_item.signal, &this->queue_usage_mutex);
     }
+}
+
+BarrierManager::BarrierManager() {
+
+}
+
+void BarrierManager::record_barriers(VkCommandBuffer cmd_buffer, struct BufferBarrierInfo* buffer_barrier_infos, int buffer_barrier_count, int stream_index) {
+    int barrier_count = 0;
+
+    VkBufferMemoryBarrier* buffer_barriers = (VkBufferMemoryBarrier*)malloc(sizeof(VkBufferMemoryBarrier) * buffer_barrier_count);
+    memset(buffer_barriers, 0, sizeof(VkBufferMemoryBarrier) * buffer_barrier_count);
+
+    for(int i = 0; i < buffer_barrier_count; i++) {
+        struct Buffer* buffer_id = buffer_barrier_infos[i].buffer_id;
+
+        // Don't add a barrier if the buffer is not in the map
+        if(buffer_states.find(buffer_id) == buffer_states.end()) {
+            buffer_states[buffer_id] = std::make_pair(buffer_barrier_infos[i].read, buffer_barrier_infos[i].write);
+            continue;
+        }
+
+        if(!buffer_states[buffer_id].second && !buffer_barrier_infos[i].write) {
+            continue; // No need to add a barrier if the buffer is not being written to
+        }
+
+        VkAccessFlags srcAccessMask = 0;
+        srcAccessMask |= buffer_states[buffer_id].first ? VK_ACCESS_SHADER_READ_BIT : 0;
+        srcAccessMask |= buffer_states[buffer_id].second ? VK_ACCESS_SHADER_WRITE_BIT : 0;
+
+        VkAccessFlags dstAccessMask = 0;
+        dstAccessMask |= buffer_barrier_infos[i].read ? VK_ACCESS_SHADER_READ_BIT : 0;
+        dstAccessMask |= buffer_barrier_infos[i].write ? VK_ACCESS_SHADER_WRITE_BIT : 0;
+
+        buffer_barriers[barrier_count].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        buffer_barriers[barrier_count].pNext = nullptr;
+        buffer_barriers[barrier_count].srcAccessMask = srcAccessMask;
+        buffer_barriers[barrier_count].dstAccessMask = dstAccessMask;
+        buffer_barriers[barrier_count].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        buffer_barriers[barrier_count].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        buffer_barriers[barrier_count].buffer = buffer_id->buffers[stream_index];
+        buffer_barriers[barrier_count].offset = 0;
+        buffer_barriers[barrier_count].size = VK_WHOLE_SIZE;
+
+        buffer_states[buffer_id] = std::make_pair(buffer_barrier_infos[i].read, buffer_barrier_infos[i].write);
+
+        barrier_count++;
+    }
+
+    vkCmdPipelineBarrier(
+        cmd_buffer,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        0,
+        0, nullptr,
+        barrier_count, buffer_barriers,
+        0, nullptr
+    );
+
+    free(buffer_barriers);
+}
+
+void BarrierManager::reset() {
+    buffer_states.clear();
 }

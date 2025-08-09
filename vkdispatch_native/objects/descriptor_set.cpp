@@ -21,7 +21,7 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
         [ctx, descriptor_set_layouts_handle, sets_handle, pools_handle, binding_count, poolSizes]
-        (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+        (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
             LOG_VERBOSE("Creating Descriptor Set for device %d on stream %d recorder %d", device_index, stream_index, recorder_index);
 
             VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
@@ -85,10 +85,21 @@ void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set) {
     delete descriptor_set;
 }
 
-void descriptor_set_write_buffer_extern(struct DescriptorSet* descriptor_set, unsigned int binding, void* object, unsigned long long offset, unsigned long long range, int uniform) {
+void descriptor_set_write_buffer_extern(
+    struct DescriptorSet* descriptor_set,
+    unsigned int binding,
+    void* object,
+    unsigned long long offset,
+    unsigned long long range,
+    int uniform,
+    int read_access,
+    int write_access) {
+
     struct Buffer* buffer = (struct Buffer*)object;
 
     struct Context* ctx = descriptor_set->plan->ctx;
+
+    descriptor_set->buffer_barriers.push_back({buffer, read_access, write_access});
 
     uint64_t sets_handle = descriptor_set->sets_handle;
 
@@ -96,7 +107,7 @@ void descriptor_set_write_buffer_extern(struct DescriptorSet* descriptor_set, un
         "descriptor-set-write-buffer",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        [buffer, ctx, sets_handle, offset, range, binding, uniform](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+        [buffer, ctx, sets_handle, offset, range, binding, uniform](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
             VkDescriptorBufferInfo buffDesc;
             buffDesc.buffer = buffer->buffers[stream_index];
 
@@ -126,7 +137,14 @@ void descriptor_set_write_buffer_extern(struct DescriptorSet* descriptor_set, un
 }
 
 
-void descriptor_set_write_image_extern(struct DescriptorSet* descriptor_set, unsigned int binding, void* object, void* sampler_obj) {
+void descriptor_set_write_image_extern(
+    struct DescriptorSet* descriptor_set,
+    unsigned int binding,
+    void* object,
+    void* sampler_obj,
+    int read_access,
+    int write_access) {
+
     struct Image* image = (struct Image*)object;
     struct Sampler* sampler = (struct Sampler*)sampler_obj;
 
@@ -138,7 +156,7 @@ void descriptor_set_write_image_extern(struct DescriptorSet* descriptor_set, uns
         "descriptor-set-write-image",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        [image, sampler, ctx, sets_handle, binding](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+        [image, sampler, ctx, sets_handle, binding](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
             VkDescriptorImageInfo imageDesc;
             imageDesc.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             imageDesc.imageView = image->imageViews[stream_index];

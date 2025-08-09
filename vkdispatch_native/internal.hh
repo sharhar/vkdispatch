@@ -186,8 +186,25 @@ struct Sampler {
     std::vector<VkSampler> samplers;
 };
 
+struct BufferBarrierInfo {
+    struct Buffer* buffer_id;
+    int read;
+    int write;
+};
+
+class BarrierManager {
+public:
+    BarrierManager();
+    void record_barriers(VkCommandBuffer cmd_buffer, struct BufferBarrierInfo* buffer_barrier_infos, int buffer_barrier_count, int stream_index);
+    void reset();
+
+    std::unordered_map<void*, std::pair<int, int>> buffer_states;
+
+    //std::vector<VkImageMemoryBarrier> staged_image_barriers;
+};
+
 struct CommandInfo {
-    std::shared_ptr<std::function<void(VkCommandBuffer, int, int, int, void*)>> func;
+    std::shared_ptr<std::function<void(VkCommandBuffer, int, int, int, void*, BarrierManager*)>> func;
     VkPipelineStageFlags pipeline_stage;
     size_t pc_size;
     const char* name;
@@ -205,7 +222,7 @@ void command_list_record_command(
     const char* name,
     size_t pc_size,
     VkPipelineStageFlags pipeline_stage,
-    std::function<void(VkCommandBuffer, int, int, int, void*)> func
+    std::function<void(VkCommandBuffer, int, int, int, void*, BarrierManager*)> func
 );
 
 struct ComputePlan {
@@ -228,6 +245,8 @@ struct DescriptorSet {
     struct ComputePlan* plan;
     uint64_t sets_handle;
     uint64_t pools_handle;
+
+    std::vector<BufferBarrierInfo> buffer_barriers;
 };
 
 #endif // INTERNAL_H

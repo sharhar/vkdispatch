@@ -14,12 +14,27 @@ class DescriptorSet:
         self._handle = vkdispatch_native.descriptor_set_create(compute_plan_handle)
         check_for_errors()
 
-    def bind_buffer(self, buffer: Buffer, binding: int, offset: int = 0, range: int = 0, uniform: bool = False) -> None:
+    def bind_buffer(self, buffer: Buffer, binding: int, offset: int = 0, range: int = 0, uniform: bool = False, read_access: bool = True, write_access: bool = True) -> None:
+        #print(f"Read Access: {read_access}, Write Access: {write_access}, Uniform: {uniform}")
         vkdispatch_native.descriptor_set_write_buffer(
-            self._handle, binding, buffer._handle, offset, range, 1 if uniform else 0
+            self._handle,
+            binding,
+            buffer._handle,
+            offset,
+            range,
+            1 if uniform else 0,
+            1 if read_access else 0,
+            1 if write_access else 0
         )
         check_for_errors()
 
-    def bind_sampler(self, sampler: Sampler, binding: int) -> None:
-        vkdispatch_native.descriptor_set_write_image(self._handle, binding, sampler.image._handle, sampler._handle)
+    def bind_sampler(self, sampler: Sampler, binding: int, read_access: bool = True, write_access: bool = True) -> None:
+        vkdispatch_native.descriptor_set_write_image(
+            self._handle,
+            binding,
+            sampler.image._handle,
+            sampler._handle,
+            1 if read_access else 0,
+            1 if write_access else 0
+        )
         check_for_errors()

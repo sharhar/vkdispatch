@@ -348,7 +348,7 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
             "image-write",
             0,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
-            [image_write_info](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+            [image_write_info](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
                 LOG_INFO(
                     "Writing data to image (%p) at offset (%d, %d, %d) with extent (%d, %d, %d)", 
                     image_write_info.image, image_write_info.offset.x, image_write_info.offset.y, 
@@ -366,7 +366,7 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
                 "mip-map-generation",
                 0,
                 VK_PIPELINE_STAGE_TRANSFER_BIT,
-                [image](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+                [image](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
                     struct ImageMipMapInfo image_mip_map_info = {};
                     image_mip_map_info.image = image;
                     image_mip_map_info.mip_count = image->mip_levels;
@@ -436,7 +436,7 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
         "image-read",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        [image, offset, extent, baseLayer, layerCount](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+        [image, offset, extent, baseLayer, layerCount](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
             struct ImageReadInfo image_read_info = {};
             image_read_info.image = image;
             image_read_info.offset = offset;
