@@ -1,7 +1,6 @@
 import vkdispatch as vd
 
-from .variables import ShaderVariable
-from .builder import ShaderBuilder
+from .builder import ShaderBuilder, ShaderVariable
 
 import contextlib
 
