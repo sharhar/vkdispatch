@@ -94,6 +94,7 @@ class ShaderDescription:
     pc_structure: List[StructElement]
     uniform_structure: List[StructElement]
     binding_type_list: List[BindingType]
+    binding_access: List[Tuple[bool, bool]] # List of tuples indicating read and write access for each binding
     exec_count_name: str
 
     def make_source(self, x: int, y: int, z: int) -> str:
@@ -103,6 +104,8 @@ class ShaderDescription:
 class ShaderBuilder:
     var_count: int
     binding_count: int
+    binding_read_access: Dict[int, bool]
+    binding_write_access: Dict[int, bool]
     binding_list: List[ShaderBinding]
     shared_buffers: List[SharedBuffer]
     scope_num: int
@@ -150,6 +153,8 @@ class ShaderBuilder:
         self.pc_struct = StructBuilder()
         self.uniform_struct = StructBuilder()
         self.binding_list = []
+        self.binding_read_access = {}
+        self.binding_write_access = {}
         self.shared_buffers = []
         self.scope_num = 1
         self.contents = ""
@@ -261,6 +266,8 @@ class ShaderBuilder:
         shape_name = f"{buffer_name}_shape"
         
         self.binding_list.append(ShaderBinding(var_type, buffer_name, 0, BindingType.STORAGE_BUFFER))
+        self.binding_read_access[self.binding_count] = True
+        self.binding_write_access[self.binding_count] = True
         
         return BufferVariable(
             self.append_contents, 
@@ -277,6 +284,8 @@ class ShaderBuilder:
 
         image_name = f"tex{self.binding_count}" if var_name is None else var_name
         self.binding_list.append(ShaderBinding(abv.v4, image_name, dimensions, BindingType.SAMPLER))
+        self.binding_read_access[self.binding_count] = False
+        self.binding_write_access[self.binding_count] = False
         
         return ImageVariable(
             self.append_contents, 
@@ -704,7 +713,7 @@ class ShaderBuilder:
             header += f"\nlayout(set = 0, binding = 0) uniform UniformObjectBuffer {{\n { uniform_decleration_contents } \n}} UBO;\n"
 
         binding_type_list = [BindingType.UNIFORM_BUFFER]
-        
+        binding_access = [(True, False)]  # UBO is read-only
         
         for ii, binding in enumerate(self.binding_list):
             if binding.binding_type == BindingType.STORAGE_BUFFER:
@@ -714,9 +723,17 @@ class ShaderBuilder:
 
                 header += f"layout(set = 0, binding = {ii + 1}) buffer Buffer{ii + 1} {{ {true_type} data[]; }} {binding.name};\n"
                 binding_type_list.append(binding.binding_type)
+                binding_access.append((
+                    self.binding_read_access[ii + 1],
+                    self.binding_write_access[ii + 1]
+                ))
             else:
                 header += f"layout(set = 0, binding = {ii + 1}) uniform sampler{binding.dimension}D {binding.name};\n"
                 binding_type_list.append(binding.binding_type)
+                binding_access.append((
+                    self.binding_read_access[ii + 1],
+                    self.binding_write_access[ii + 1]
+                ))
         
         pc_elements = self.pc_struct.build()
 
@@ -733,5 +750,6 @@ class ShaderBuilder:
             pc_structure=pc_elements, 
             uniform_structure=uniform_elements, 
             binding_type_list=[binding.value for binding in binding_type_list],
+            binding_access=binding_access,
             exec_count_name=self.exec_count.raw_name
         )

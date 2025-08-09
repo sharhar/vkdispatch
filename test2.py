@@ -1,3 +1,5 @@
+print("Generating DFT shader...")
+
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 import numpy as np
