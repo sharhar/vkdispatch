@@ -23,7 +23,7 @@ void command_list_record_command(
     const char* name,
     size_t pc_size,
     VkPipelineStageFlags pipeline_stage,
-    std::function<void(VkCommandBuffer, int, int, int, void*)> func
+    std::function<void(VkCommandBuffer, int, int, int, void*, BarrierManager*)> func
 ) {
     command_list->program_id = program_id;
     program_id += 1;
@@ -32,7 +32,7 @@ void command_list_record_command(
     command.name = name;
     command.pc_size = pc_size;
     command.pipeline_stage = pipeline_stage;
-    command.func = std::make_shared<std::function<void(VkCommandBuffer, int, int, int, void*)>>(func);
+    command.func = std::make_shared<std::function<void(VkCommandBuffer, int, int, int, void*,  BarrierManager*)>>(func);
 
     command_list->commands.push_back(command);
     

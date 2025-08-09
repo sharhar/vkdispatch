@@ -194,7 +194,7 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
             "noop-on-init",
             0,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
-            [](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+            [](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
                 // Do nothing
             }
         );

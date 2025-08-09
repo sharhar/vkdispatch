@@ -705,6 +705,7 @@ class ShaderBuilder:
 
         binding_type_list = [BindingType.UNIFORM_BUFFER]
         
+        
         for ii, binding in enumerate(self.binding_list):
             if binding.binding_type == BindingType.STORAGE_BUFFER:
                 true_type = binding.dtype.glsl_type

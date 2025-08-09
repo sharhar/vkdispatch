@@ -177,7 +177,7 @@ class CommandStream(vd.CommandList):
                 self.uniform_builder[key] = value
             
             for descriptor_set, offset, size in self.uniform_descriptors:
-                descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, True)
+                descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, True, write_access=False)
 
             self.uniform_constants_buffer.write(self.uniform_builder.tobytes())
 

@@ -92,7 +92,7 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
             "buffer_write",
             0,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
-            [buffer, offset, size](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+            [buffer, offset, size](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
                 VkBufferCopy bufferCopy;
                 bufferCopy.size = size;
                 bufferCopy.dstOffset = offset;
@@ -139,7 +139,7 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
         "buffer_read",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        [buffer, offset, size](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+        [buffer, offset, size](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
             VkBufferCopy bufferCopy;
             bufferCopy.size = size;
             bufferCopy.dstOffset = 0;
