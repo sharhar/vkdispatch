@@ -689,9 +689,9 @@ class ImageVariable(BoundVariable):
             raise ValueError("Unsupported number of dimensions!")
 
         if lod is None:
-            return self.new(dtypes.v4, f"texture({self}, {sample_coord_string})")
+            return self.new(dtypes.vec4, f"texture({self}, {sample_coord_string})")
         
-        return self.new(dtypes.v4, f"textureLod({self}, {sample_coord_string}, {lod})")
+        return self.new(dtypes.vec4, f"textureLod({self}, {sample_coord_string}, {lod})")
 
 class ShaderBuilder:
     var_count: int
