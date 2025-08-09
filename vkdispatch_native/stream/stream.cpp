@@ -471,15 +471,17 @@ void BarrierManager::record_barriers(VkCommandBuffer cmd_buffer, struct BufferBa
         barrier_count++;
     }
 
-    vkCmdPipelineBarrier(
-        cmd_buffer,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        0,
-        0, nullptr,
-        barrier_count, buffer_barriers,
-        0, nullptr
-    );
+    if (barrier_count != 0) {
+        vkCmdPipelineBarrier(
+            cmd_buffer,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            0,
+            0, nullptr,
+            barrier_count, buffer_barriers,
+            0, nullptr
+        );
+    }
 
     free(buffer_barriers);
 }

@@ -4,7 +4,7 @@ from .arguments import Buffer, Image1D, Image2D, Image3D
 
 from .arguments import _ArgType
 from .struct_builder import StructBuilder, StructElement
-from .variables import BaseVariable, ShaderVariable
+from .variables import ShaderVariable # BaseVariable, ShaderVariable
 from .variables import BoundVariable, BufferVariable, ImageVariable
 
 from .builder import ShaderBinding

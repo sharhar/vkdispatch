@@ -219,13 +219,15 @@ benchmarks = {
     "vkdispatch": do_benchmark_vkdispatch
 }
 
+vd.make_context()
+
 means = {platform: {kernel_type: [] for kernel_type in kernel_types} for platform in platforms}
 stds = {platform: {kernel_type: [] for kernel_type in kernel_types} for platform in platforms}
 
 iter_count = 1024 * 1024  # Total number of iterations for the benchmark
-run_count = 3  # Number of times to run each benchmark
+run_count = 5  # Number of times to run each benchmark
 
-for batch_size_exp in range(5, 8):
+for batch_size_exp in range(3, 12):
     batch_size = 2 ** batch_size_exp
 
     for platform in platforms:
@@ -249,13 +251,6 @@ for batch_size_exp in range(5, 8):
             stds[platform][kernel_type].append(std_time)
 
 # ----------- Print results ------------------------------------------------
-# print("\nBenchmark Results:")
-# for kernel_type in kernel_types:
-#     print(f"\nKernel Type: {kernel_type}")
-#     for batch_size_exp, (mean, std) in enumerate(zip(means[kernel_type], stds[kernel_type])):
-#         batch_size = 2 ** (batch_size_exp + 1)
-#         print(f"Batch Size: {batch_size}, Mean Time: {mean:.6f} s, Std Dev: {std:.6f} s")
-# print("\nBenchmark completed.")
 
 print("\nBenchmark Results:")
 for platform in platforms:
@@ -270,25 +265,6 @@ print("\nBenchmark completed.")
 # ----------- Plot results (optional) -----------------------------
 
 import matplotlib.pyplot as plt
-
-# plt.figure(figsize=(10, 6))
-# for kernel_type in kernel_types:
-#     plt.errorbar(
-#         [2 ** (i + 1) for i in range(len(means[kernel_type]))],
-#         means[kernel_type],
-#         yerr=stds[kernel_type],
-#         label=kernel_type,
-#         capsize=5
-#     )
-# plt.xscale('log', base=2)
-# plt.yscale('log')
-# plt.xlabel('Batch Size')
-# plt.ylabel('Mean Time (s)')
-# plt.title('Kernel Launch Overhead Benchmark')
-# plt.legend()
-# plt.grid(True)
-# plt.tight_layout()
-# plt.savefig('kernel_launch_overhead.png')
 
 plt.figure(figsize=(10, 6))
 for platform in platforms:

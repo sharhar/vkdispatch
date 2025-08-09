@@ -223,16 +223,16 @@ class KernelLaunchBenchmark:
             for trial in range(num_trials):
                 print(f"  Trial {trial + 1}/{num_trials}...", end=" ")
                 
-                try:
-                    elapsed = self.run_single_library_trial(library)
-                    if elapsed is not None:
-                        library_times.append(elapsed)
-                        launches_per_sec = self.num_launches / elapsed
-                        print(f"{elapsed:.4f}s ({launches_per_sec:,.0f} launches/sec)")
-                    else:
-                        print("Failed")
-                except Exception as e:
-                    print(f"Error: {e}")
+                #try:
+                elapsed = self.run_single_library_trial(library)
+                if elapsed is not None:
+                    library_times.append(elapsed)
+                    launches_per_sec = self.num_launches / elapsed
+                    print(f"{elapsed:.4f}s ({launches_per_sec:,.0f} launches/sec)")
+                else:
+                    print("Failed")
+                #except Exception as e:
+                #    print(f"Error: {e}")
             
             results[library] = library_times
         

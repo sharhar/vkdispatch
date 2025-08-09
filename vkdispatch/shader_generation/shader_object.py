@@ -236,7 +236,13 @@ class ShaderObject:
                 if not isinstance(arg, vd.Buffer):
                     raise ValueError(f"Expected a buffer for argument '{shader_arg.name}'!")
                 
-                bound_buffers.append((arg, shader_arg.binding, shader_arg.shader_shape_name))
+                bound_buffers.append(vd.BufferBindInfo(
+                    buffer=arg,
+                    binding=shader_arg.binding,
+                    shape_name=shader_arg.shader_shape_name,
+                    read_access=self.shader_description.binding_access[shader_arg.binding][0],
+                    write_access=self.shader_description.binding_access[shader_arg.binding][1]
+                ))
 
             elif shader_arg.arg_type == vd.ShaderArgumentType.IMAGE:
                 if not isinstance(arg, vd.Sampler):
