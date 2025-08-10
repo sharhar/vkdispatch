@@ -816,6 +816,8 @@ class BufferVariable(BoundVariable):
 
 class ImageVariable(BoundVariable):
     dimensions: int = 0
+    read_lambda: Callable[[], None]
+    write_lambda: Callable[[], None]
 
     def __init__(self,
                  append_func: Callable[[str], None],
@@ -824,11 +826,21 @@ class ImageVariable(BoundVariable):
                  binding: int,
                  dimensions: int,
                  name: Optional[str] = None,
+                 read_lambda: Callable[[], None] = None,
+                 write_lambda: Callable[[], None] = None,
             ) -> None:
             super().__init__(append_func, name_func, var_type, binding, name)
 
+            self.read_lambda = read_lambda
+            self.write_lambda = write_lambda
             self.dimensions = dimensions
-    
+
+    def read_callback(self):
+        self.read_lambda()
+
+    def write_callback(self):
+        self.write_lambda() 
+
     def sample(self, coord: "ShaderVariable", lod: "ShaderVariable" = None) -> "ShaderVariable":
         if self.dimensions == 0:
             raise ValueError("Cannot sample a texture with dimension 0!")
@@ -845,9 +857,9 @@ class ImageVariable(BoundVariable):
             raise ValueError("Unsupported number of dimensions!")
 
         if lod is None:
-            return self.new(dtypes.vec4, f"texture({self}, {sample_coord_string})")
+            return self.new(dtypes.vec4, f"texture({self}, {sample_coord_string})", [self])
         
-        return self.new(dtypes.vec4, f"textureLod({self}, {sample_coord_string}, {lod})")
+        return self.new(dtypes.vec4, f"textureLod({self}, {sample_coord_string}, {lod})", [self])
 
 class ShaderBuilder:
     var_count: int
@@ -1044,6 +1056,12 @@ class ShaderBuilder:
         self.binding_list.append(ShaderBinding(dtypes.vec4, image_name, dimensions, BindingType.SAMPLER))
         self.binding_read_access[self.binding_count] = False
         self.binding_write_access[self.binding_count] = False
+
+        def read_lambda():
+            self.binding_read_access[self.binding_count] = True
+
+        def write_lambda():
+            self.binding_write_access[self.binding_count] = True
         
         return ImageVariable(
             self.append_contents, 
@@ -1051,7 +1069,9 @@ class ShaderBuilder:
             dtypes.vec4,
             self.binding_count,
             dimensions,
-            f"{image_name}"
+            f"{image_name}",
+            read_lambda=read_lambda,
+            write_lambda=write_lambda
         )
     
     def shared_buffer(self, var_type: dtype, size: int, var_name: Optional[str] = None):

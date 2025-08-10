@@ -438,6 +438,10 @@ void BarrierManager::record_barriers(VkCommandBuffer cmd_buffer, struct BufferBa
     for(int i = 0; i < buffer_barrier_count; i++) {
         struct Buffer* buffer_id = buffer_barrier_infos[i].buffer_id;
 
+        if(!buffer_barrier_infos[i].read && !buffer_barrier_infos[i].write) {
+            continue; // No need to add a barrier if the buffer is not being read or written to
+        }
+
         // Don't add a barrier if the buffer is not in the map
         if(buffer_states.find(buffer_id) == buffer_states.end()) {
             buffer_states[buffer_id] = std::make_pair(buffer_barrier_infos[i].read, buffer_barrier_infos[i].write);
