@@ -27,6 +27,13 @@ class BufferBindInfo:
     read_access: bool
     write_access: bool
 
+@dataclasses.dataclass
+class ImageBindInfo:
+    """A dataclass to hold information about an image binding."""
+    sampler: vd.Sampler
+    binding: int
+    read_access: bool
+    write_access: bool
 
 class CommandStream(vd.CommandList):
     """TODO: Docstring"""
@@ -116,8 +123,8 @@ class CommandStream(vd.CommandList):
                       shader_description: vc.ShaderDescription, 
                       exec_limits: Tuple[int, int, int], 
                       blocks: Tuple[int, int, int],
-                      bound_buffers: List[BufferBindInfo], #Tuple[vd.Buffer, int, str]],
-                      bound_samplers: List[Tuple[vd.Sampler, int]],
+                      bound_buffers: List[BufferBindInfo],
+                      bound_samplers: List[ImageBindInfo],
                       uniform_values: Dict[str, Any] = {},
                       pc_values: Dict[str, Any] = {},
                       shader_uuid: str = None
@@ -146,8 +153,13 @@ class CommandStream(vd.CommandList):
             
             self.uniform_values[(shader_uuid, buffer_bind_info.shape_name)] = buffer_bind_info.buffer.shader_shape
         
-        for sampler, binding in bound_samplers:
-            descriptor_set.bind_sampler(sampler, binding)
+        for sampler_bind_info in bound_samplers:
+            descriptor_set.bind_sampler(
+                sampler_bind_info.sampler,
+                sampler_bind_info.binding,
+                read_access=sampler_bind_info.read_access,
+                write_access=sampler_bind_info.write_access
+            )
 
         for key, value in uniform_values.items():
             self.uniform_values[(shader_uuid, key)] = value

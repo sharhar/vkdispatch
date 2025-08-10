@@ -9,6 +9,8 @@ __pycache__/
 data/
 deps/
 
+*.png
+
 # C extensions
 *.so
 

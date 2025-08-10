@@ -179,6 +179,31 @@ def select_devices(use_cpu: bool, all_devices) -> List[int]:
 
 __context = None
 
+def select_queue_families(device_index: int, queue_count: int = None) -> List[int]:
+    device = get_devices()[device_index]
+
+    compute_queue_family = get_compute_queue_family_index(device, device_index)
+    graphics_queue_family = get_graphics_queue_family_index(device, device_index)
+
+    if queue_count is None:
+        queue_count = 2
+
+        if "NVIDIA" in device.device_name:
+            queue_count = 3
+
+        if compute_queue_family == graphics_queue_family:
+            queue_count = 1
+    
+    queue_families = []
+
+    for i in range(queue_count):
+        if i % 2 == 0:
+            queue_families.append(compute_queue_family)
+        else:
+            queue_families.append(graphics_queue_family)
+
+    return queue_families
+
 def make_context(
     devices: Union[int, List[int], None] = None,
     queue_families: Union[List[List[int]], None] = None,

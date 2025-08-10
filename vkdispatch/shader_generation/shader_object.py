@@ -248,7 +248,12 @@ class ShaderObject:
                 if not isinstance(arg, vd.Sampler):
                     raise ValueError(f"Expected an image for argument '{shader_arg.name}'!")
                 
-                bound_samplers.append((arg, shader_arg.binding))
+                bound_samplers.append(vd.ImageBindInfo(
+                    sampler=arg,
+                    binding=shader_arg.binding,
+                    read_access=self.shader_description.binding_access[shader_arg.binding][0],
+                    write_access=self.shader_description.binding_access[shader_arg.binding][1]
+                ))
             
             elif shader_arg.arg_type == vd.ShaderArgumentType.CONSTANT:
                 if callable(arg):
