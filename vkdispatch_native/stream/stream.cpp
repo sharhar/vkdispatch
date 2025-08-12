@@ -54,7 +54,7 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
     this->stream_index = stream_index;
     this->data_buffer = malloc(1024 * 1024);
     this->data_buffer_size = 1024 * 1024;
-    this->recording_thread_count = 2;
+    this->recording_thread_count = 1;
     this->sync_record = false;
     this->record_thread_states.resize(recording_thread_count);
     this->run_stream.store(false);
@@ -131,14 +131,18 @@ Stream::Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFam
 
     this->run_stream.store(true);
 
-    submit_thread = std::thread([this]() { this->submit_worker(); });
-    
-    record_threads = new std::thread[recording_thread_count];
-    for(int i = 0; i < recording_thread_count; i++) {
-        record_threads[i] = std::thread([this, i]() { this->record_worker(i); });
+    if(this->recording_thread_count > 1) {
+        submit_thread = std::thread([this]() { this->submit_worker(); });
+        
+        record_threads = new std::thread[recording_thread_count];
+        for(int i = 0; i < recording_thread_count; i++) {
+            record_threads[i] = std::thread([this, i]() { this->record_worker(i); });
+        }
+        
+        ingest_thread = std::thread([this]() { this->ingest_worker(); });
+    } else {
+        submit_thread = std::thread([this]() { this->fused_worker(); });
     }
-    
-    ingest_thread = std::thread([this]() { this->ingest_worker(); });
 }
 
 void Stream::destroy() {
@@ -146,14 +150,16 @@ void Stream::destroy() {
     this->record_queue_cv.notify_all();
     this->submit_queue_cv.notify_all();
 
-    ingest_thread.join();
-    
-    for(int i = 0; i < recording_thread_count; i++) {
-        record_threads[i].join();
+    if(this->recording_thread_count > 1) {
+        ingest_thread.join();
+        
+        for(int i = 0; i < recording_thread_count; i++) {
+            record_threads[i].join();
+        }
+
+        delete[] record_threads;
     }
 
-    delete[] record_threads;
-    
     submit_thread.join();
     
     for(int i = 0; i < semaphores.size(); i++) {
@@ -173,13 +179,38 @@ void Stream::destroy() {
         delete[] commandBufferStates[i];
     }
 
-    //vkFreeCommandBuffers(device, commandPool, commandBuffers.size(), commandBuffers.data());
-    //vkDestroyCommandPool(device, commandPool, nullptr);
-
     fences.clear();
     semaphores.clear();
     recording_results.clear();
 
+}
+
+int ingest_work_item(
+    struct WorkQueueItem& work_item,
+    Stream* stream,
+    WorkQueue* work_queue,
+    struct WorkHeader* work_header,
+    int current_index) {
+
+    stream->fences[current_index]->waitAndReset();
+        
+    if(!work_queue->pop(&work_header, stream->stream_index)) {
+        LOG_INFO("Thread worker for device %d, stream %d has no more work", stream->device_index, stream->stream_index);
+        stream->run_stream = false;
+        return current_index;
+    }
+
+    work_item.current_index = current_index;
+    work_item.work_header = work_header;
+    work_item.signal = work_header->signal;
+    work_item.recording_result = &stream->recording_results[current_index];
+    work_item.recording_result->state = &stream->commandBufferStates[0][current_index];
+
+    current_index = (current_index + 1) % stream->fences.size();
+    
+    work_item.next_index = current_index;
+
+    return current_index;
 }
 
 void Stream::ingest_worker() {
@@ -190,25 +221,33 @@ void Stream::ingest_worker() {
     int current_index = fences.size() - 1;
 
     while(this->run_stream.load()) {
-        fences[current_index]->waitAndReset();
+        // fences[current_index]->waitAndReset();
         
-        if(!work_queue->pop(&work_header, stream_index)) {
-            LOG_INFO("Thread worker for device %d, stream %d has no more work", device_index, stream_index);
-            this->run_stream = false;
-            break;
-        }
+        // if(!work_queue->pop(&work_header, stream_index)) {
+        //     LOG_INFO("Thread worker for device %d, stream %d has no more work", device_index, stream_index);
+        //     this->run_stream = false;
+        //     break;
+        // }
+
+        // struct WorkQueueItem work_item;
+        // work_item.current_index = current_index;
+        // work_item.work_header = work_header;
+        // work_item.signal = work_header->signal;
+        // work_item.recording_result = &recording_results[current_index];
+        // work_item.recording_result->state = &commandBufferStates[0][current_index];
+
+        // int last_index = current_index;
+        // current_index = (current_index + 1) % fences.size();
+        
+        // work_item.next_index = current_index;
 
         struct WorkQueueItem work_item;
-        work_item.current_index = current_index;
-        work_item.work_header = work_header;
-        work_item.signal = work_header->signal;
-        work_item.recording_result = &recording_results[current_index];
-        work_item.recording_result->state = &commandBufferStates[0][current_index];
-
-        int last_index = current_index;
-        current_index = (current_index + 1) % fences.size();
         
-        work_item.next_index = current_index;
+        current_index = ingest_work_item(work_item, this, work_queue, work_header, current_index);
+
+        if(!this->run_stream.load()) {
+            break;
+        }
         
         {
             std::unique_lock<std::mutex> lock(this->submit_queue_mutex);
@@ -223,6 +262,48 @@ void Stream::ingest_worker() {
     }
 
     LOG_INFO("Thread worker for device %d, stream %d has quit", device_index, stream_index);
+}
+
+int record_work_item(
+    struct WorkQueueItem& work_item,
+    Stream* stream,
+    BarrierManager& barrier_manager,
+    int cmd_buffer_index) {
+     
+    VkCommandBuffer cmd_buffer = stream->commandBufferVectors[0][cmd_buffer_index];
+
+    work_item.recording_result->commandBuffer = cmd_buffer;
+
+    cmd_buffer_index = (cmd_buffer_index + 1) % stream->commandBufferVectors[0].size();
+
+    VkCommandBufferBeginInfo beginInfo = {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    VK_CALL_RETURN(vkBeginCommandBuffer(cmd_buffer, &beginInfo), cmd_buffer_index);
+
+    std::shared_ptr<std::vector<struct CommandInfo>> command_buffer = work_item.work_header->commands;
+
+    char* current_instance_data = (char*)&work_item.work_header[1];
+    for(size_t instance = 0; instance < work_item.work_header->instance_count; instance++) {
+        for (size_t i = 0; i < command_buffer->size(); i++) {
+            LOG_VERBOSE("Recording command %d of type %s on worker %d", i, command_buffer->operator[](i).name, 0);
+
+            LOG_VERBOSE("Executing command %d", i);
+            command_buffer->operator[](i).func->operator()(cmd_buffer, stream->device_index, stream->stream_index, 0, current_instance_data, &barrier_manager);
+            current_instance_data += command_buffer->operator[](i).pc_size;
+
+            LOG_VERBOSE("Command %d executed", i);
+        }
+    }
+    
+    VK_CALL_RETURN(vkEndCommandBuffer(cmd_buffer), cmd_buffer_index);
+
+    barrier_manager.reset();
+
+    stream->ctx->work_queue->finish(work_item.work_header);
+
+    return cmd_buffer_index;
 }
 
 void Stream::record_worker(int worker_id) {
@@ -300,74 +381,60 @@ void Stream::record_worker(int worker_id) {
             LOG_INFO("Record Worker %d has work %p of index (%d) with next index (%d)", worker_id, work_item.work_header, work_item.current_index, work_item.next_index);
         }
 
-        VkCommandBuffer cmd_buffer = commandBufferVectors[worker_id][cmd_buffer_index];
+        // VkCommandBuffer cmd_buffer = commandBufferVectors[worker_id][cmd_buffer_index];
 
-        work_item.recording_result->commandBuffer = cmd_buffer;
+        // work_item.recording_result->commandBuffer = cmd_buffer;
 
-        cmd_buffer_index = (cmd_buffer_index + 1) % commandBufferVectors[worker_id].size();
+        // cmd_buffer_index = (cmd_buffer_index + 1) % commandBufferVectors[worker_id].size();
 
-        VkCommandBufferBeginInfo beginInfo = {};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        // VkCommandBufferBeginInfo beginInfo = {};
+        // beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        // beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-        VK_CALL(vkBeginCommandBuffer(cmd_buffer, &beginInfo));
+        // VK_CALL(vkBeginCommandBuffer(cmd_buffer, &beginInfo));
 
-        std::shared_ptr<std::vector<struct CommandInfo>> command_buffer = work_item.work_header->commands;
+        // std::shared_ptr<std::vector<struct CommandInfo>> command_buffer = work_item.work_header->commands;
 
-        char* current_instance_data = (char*)&work_item.work_header[1];
-        for(size_t instance = 0; instance < work_item.work_header->instance_count; instance++) {
-            for (size_t i = 0; i < command_buffer->size(); i++) {
-                LOG_VERBOSE("Recording command %d of type %s on worker %d", i, command_buffer->operator[](i).name, worker_id);
+        // char* current_instance_data = (char*)&work_item.work_header[1];
+        // for(size_t instance = 0; instance < work_item.work_header->instance_count; instance++) {
+        //     for (size_t i = 0; i < command_buffer->size(); i++) {
+        //         LOG_VERBOSE("Recording command %d of type %s on worker %d", i, command_buffer->operator[](i).name, worker_id);
 
-                LOG_VERBOSE("Executing command %d", i);
-                command_buffer->operator[](i).func->operator()(cmd_buffer, device_index, stream_index, worker_id, current_instance_data, &barrier_manager);
-                current_instance_data += command_buffer->operator[](i).pc_size;
+        //         LOG_VERBOSE("Executing command %d", i);
+        //         command_buffer->operator[](i).func->operator()(cmd_buffer, device_index, stream_index, worker_id, current_instance_data, &barrier_manager);
+        //         current_instance_data += command_buffer->operator[](i).pc_size;
 
-                LOG_VERBOSE("Command %d executed", i);
+        //         LOG_VERBOSE("Command %d executed", i);
 
-                if(i < command_buffer->size() - 1) {
-                    memory_barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-                    memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        //         if(i < command_buffer->size() - 1) {
+        //             memory_barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        //             memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
-                    if(command_buffer->operator[](i).pipeline_stage == VK_PIPELINE_STAGE_TRANSFER_BIT)
-                        memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        //             if(command_buffer->operator[](i).pipeline_stage == VK_PIPELINE_STAGE_TRANSFER_BIT)
+        //                 memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
                     
-                    if(command_buffer->operator[](i+1).pipeline_stage == VK_PIPELINE_STAGE_TRANSFER_BIT)
-                        memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        //             if(command_buffer->operator[](i+1).pipeline_stage == VK_PIPELINE_STAGE_TRANSFER_BIT)
+        //                 memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        //         } else if (instance != work_item.work_header->instance_count - 1 && i == command_buffer->size() - 1) {
+        //             memory_barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        //             memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
-                    // vkCmdPipelineBarrier(
-                    //     cmd_buffer, 
-                    //     command_buffer->operator[](i).pipeline_stage, 
-                    //     command_buffer->operator[](i+1).pipeline_stage, 
-                    //     0, 1, 
-                    //     &memory_barrier, 
-                    //     0, 0, 0, 0);
-                } else if (instance != work_item.work_header->instance_count - 1 && i == command_buffer->size() - 1) {
-                    memory_barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-                    memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-                    if(command_buffer->operator[](i).pipeline_stage == VK_PIPELINE_STAGE_TRANSFER_BIT)
-                        memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        //             if(command_buffer->operator[](i).pipeline_stage == VK_PIPELINE_STAGE_TRANSFER_BIT)
+        //                 memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
                     
-                    if(command_buffer->operator[](i+1).pipeline_stage == VK_PIPELINE_STAGE_TRANSFER_BIT)
-                        memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-
-                    // vkCmdPipelineBarrier(
-                    //     cmd_buffer, 
-                    //     command_buffer->operator[](i).pipeline_stage, 
-                    //     command_buffer->operator[](0).pipeline_stage, 
-                    //     0, 1, 
-                    //     &memory_barrier, 
-                    //     0, 0, 0, 0);
-                }
-            }
-        }
+        //             if(command_buffer->operator[](i+1).pipeline_stage == VK_PIPELINE_STAGE_TRANSFER_BIT)
+        //                 memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        //         }
+        //     }
+        // }
         
-        VK_CALL(vkEndCommandBuffer(cmd_buffer));
+        // VK_CALL(vkEndCommandBuffer(cmd_buffer));
 
-        barrier_manager.reset();
+        // barrier_manager.reset();
 
-        ctx->work_queue->finish(work_item.work_header);
+        // ctx->work_queue->finish(work_item.work_header);
+
+        cmd_buffer_index = record_work_item(work_item, this, barrier_manager, cmd_buffer_index);
 
         {
             std::unique_lock<std::mutex> lock(this->submit_queue_mutex);
@@ -375,6 +442,28 @@ void Stream::record_worker(int worker_id) {
             this->submit_queue_cv.notify_all();
         }
     }
+}
+
+void submit_work_item(
+    struct WorkQueueItem& work_item,
+    Stream* stream) {
+    
+    VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+
+    VkSubmitInfo submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = &stream->semaphores[work_item.current_index];
+    submitInfo.pWaitDstStageMask = &waitStage;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &work_item.recording_result->commandBuffer;
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = &stream->semaphores[work_item.next_index];
+
+    LOG_VERBOSE("Submitting command buffer for work item %p", work_item.work_header);
+    
+    stream->fences[work_item.current_index]->doSubmit(stream->queue, &submitInfo, work_item.signal, &stream->queue_usage_mutex);
+
 }
 
 void Stream::submit_worker() {
@@ -406,22 +495,42 @@ void Stream::submit_worker() {
             this->submit_queue.pop();
         }
 
+        submit_work_item(work_item, this);
 
-        VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
-        VkSubmitInfo submitInfo = {};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores = &semaphores[work_item.current_index];
-        submitInfo.pWaitDstStageMask = &waitStage;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &work_item.recording_result->commandBuffer;
-        submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores = &semaphores[work_item.next_index];
+        // VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
-        LOG_VERBOSE("Submitting command buffer for work item %p", work_item.work_header);
+        // VkSubmitInfo submitInfo = {};
+        // submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        // submitInfo.waitSemaphoreCount = 1;
+        // submitInfo.pWaitSemaphores = &semaphores[work_item.current_index];
+        // submitInfo.pWaitDstStageMask = &waitStage;
+        // submitInfo.commandBufferCount = 1;
+        // submitInfo.pCommandBuffers = &work_item.recording_result->commandBuffer;
+        // submitInfo.signalSemaphoreCount = 1;
+        // submitInfo.pSignalSemaphores = &semaphores[work_item.next_index];
+
+        // LOG_VERBOSE("Submitting command buffer for work item %p", work_item.work_header);
         
-        fences[work_item.current_index]->doSubmit(queue, &submitInfo, work_item.signal, &this->queue_usage_mutex);
+        // fences[work_item.current_index]->doSubmit(queue, &submitInfo, work_item.signal, &this->queue_usage_mutex);
+    }
+}
+
+void Stream::fused_worker() {
+    struct Context* ctx = this->ctx;
+    WorkQueue* work_queue = ctx->work_queue;
+    struct WorkHeader* work_header = NULL;
+    int current_index = fences.size() - 1;
+    int cmd_buffer_index = 0;
+    BarrierManager barrier_manager;
+
+    while(this->run_stream.load()) {
+        struct WorkQueueItem work_item;
+        
+        current_index = ingest_work_item(work_item, this, work_queue, work_header, current_index);
+        cmd_buffer_index = record_work_item(work_item, this, barrier_manager, cmd_buffer_index);
+        submit_work_item(work_item, this);
+        
     }
 }
 

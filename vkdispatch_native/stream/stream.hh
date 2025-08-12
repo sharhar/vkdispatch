@@ -47,6 +47,8 @@ public:
     void record_worker(int worker_id);
     void submit_worker();
 
+    void fused_worker();
+
     struct Context* ctx;
     VkDevice device;
     int device_index;
