@@ -3,8 +3,9 @@ import vkdispatch as vd
 import matplotlib.pyplot as plt
 import sys
 import time
+import csv
 
-from kernel_launch_overhead_utils_matrix import do_benchmark, adjust_lightness
+from kernels_utils import do_benchmark, adjust_lightness
 
 platforms = [
     "warp",
@@ -49,20 +50,17 @@ for device_id in device_ids:
 
 vd.make_context(devices=device_ids, queue_families=vkdispatch_queue_families)
 
-print(vd.get_context().queue_families)
+datas = {platform: {kernel_type: [] for kernel_type in kernel_types} for platform in platforms}
 
-means = {platform: {kernel_type: [] for kernel_type in kernel_types} for platform in platforms}
-stds = {platform: {kernel_type: [] for kernel_type in kernel_types} for platform in platforms}
-
-iter_count = 1024 * 1024  # Total number of iterations for the benchmark
-run_count = 3 # Number of times to run each benchmark
+iter_count = 4 * 1024 * 1024  # Total number of iterations for the benchmark
+run_count = 10 # Number of times to run each benchmark
 
 identity_matrix = np.diag(np.ones(shape=(4,), dtype=np.float32))
 
 params_host = np.zeros(shape=(2*iter_count, 4, 4), dtype=np.float32)
 params_host[:] = identity_matrix
 
-batch_size_exponents = list(range(2, 11))  # Batch sizes from 8 to 1024
+batch_size_exponents = list(range(2, 14))  # Batch sizes from 8 to 1024
 
 for batch_size_exp in batch_size_exponents:
     batch_size = 2 ** batch_size_exp
@@ -83,21 +81,28 @@ for batch_size_exp in batch_size_exponents:
                 device_ids
             ))
 
-        mean_rate = np.mean(rates)
-        std_rate = np.std(rates)
-
-        means[platform][kernel_type].append(mean_rate)
-        stds[platform][kernel_type].append(std_rate)
+        datas[platform][kernel_type].append(rates)
 
 # ----------- Print results ------------------------------------------------
 
-print("\nBenchmark Results:")
-for platform, kernel_type in test_configs:
-    print(f"\nKernel Type: {kernel_type} on Platform: {platform}")
-    for batch_size_exp, (mean, std) in enumerate(zip(means[platform][kernel_type], stds[platform][kernel_type])):
-        batch_size = 2 ** (batch_size_exponents[batch_size_exp])
-        print(f"Batch Size: {batch_size}, Mean Kernels/second: {mean:.6f} s, Std Dev: {std:.6f} s")
-print("\nBenchmark completed.")
+output_name = f"kernels_per_batch_size_{len(device_ids)}_devices_{stream_count}_streams"
+
+with open(output_name + ".csv", 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    # Write header
+    writer.writerow(['Platform', 'Kernel Type', 'Batch Size'] + [f'Run {i + 1} (Kernels/second)' for i in range(run_count)] + ['Mean', 'Std Dev'])
+    for platform, kernel_type in test_configs:
+        test_data = datas[platform][kernel_type]
+        for batch_size_idx, rates in enumerate(test_data):
+            batch_size = 2 ** batch_size_exponents[batch_size_idx]
+            
+            rounded_rates = [int(round(rate, 0)) for rate in rates]
+            rounded_mean = round(np.mean(rates), 2)
+            rounded_std = round(np.std(rates), 2)
+            
+            writer.writerow([platform, kernel_type, batch_size] + rounded_rates + [rounded_mean, rounded_std])
+print(f"Raw benchmark data written to {output_name}.csv")
+
 
 # ----------- Plot results (optional) -----------------------------
 
@@ -106,21 +111,29 @@ for platform, kernel_type in test_configs:
     base_color = platform_colors[platform]
     color = adjust_lightness(base_color, kernel_factors[kernel_type])
 
+    test_data = datas[platform][kernel_type]
+
+    means = [np.mean(data) for data in test_data]
+    stds = [np.std(data) for data in test_data]
+
     plt.errorbar(
-        [2 ** (batch_size_exponents[i]) for i in range(len(means[platform][kernel_type]))],
-        means[platform][kernel_type],
-        yerr=stds[platform][kernel_type],
+        [2 ** (batch_size_exponents[i]) for i in range(len(means))],
+        means,
+        yerr=stds,
         label=f"{platform} - {kernel_type}",
         capsize=5,
         color=color
     )
 
 plt.xscale('log', base=2)
-#plt.yscale('log')
+plt.yscale('log')
 plt.xlabel('Batch Size')
 plt.ylabel('Kernels/second')
 plt.title(f'Kernel Launch Overhead Benchmark (Stream Count: {stream_count}, Devices: {len(device_ids)}, Param Size: 128 bytes)')
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-plt.savefig(f'kernel_launch_overhead_matrix_{stream_count}_streams_{len(device_ids)}_devices.png')
+plt.savefig(output_name + "_log.png")
+
+plt.yscale('linear')
+plt.savefig(output_name + "_linear.png")

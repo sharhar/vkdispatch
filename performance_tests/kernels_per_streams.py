@@ -50,15 +50,10 @@ for device_id in device_ids:
 
 vd.make_context(devices=device_ids, queue_families=vkdispatch_queue_families)
 
-print(vkdispatch_queue_families)
-
-#means = {platform: {kernel_type: [] for kernel_type in kernel_types} for platform in platforms}
-#stds = {platform: {kernel_type: [] for kernel_type in kernel_types} for platform in platforms}
-
 datas = {platform: {kernel_type: [] for kernel_type in kernel_types} for platform in platforms}
 
-iter_count = 1024 * 1024  # Total number of iterations for the benchmark
-run_count = 3 # Number of times to run each benchmark
+iter_count = 4 * 1024 * 1024  # Total number of iterations for the benchmark
+run_count = 10 # Number of times to run each benchmark
 
 identity_matrix = np.diag(np.ones(shape=(4,), dtype=np.float32))
 
@@ -86,12 +81,7 @@ for streams in stream_counts:
                 device_ids
             ))
 
-        #mean_rate = np.mean(rates)
-        #std_rate = np.std(rates)
-
         datas[platform][kernel_type].append(rates)
-        
-        #stds[platform][kernel_type].append(std_rate)
 
 # ----------- Print results ------------------------------------------------
 
@@ -142,7 +132,7 @@ plt.title(f'Kernel Launch Overhead Benchmark (Devices: {len(device_ids)}, Param 
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-plt.savefig(output_name + ".png")
+plt.savefig(output_name + "_log.png")
 
 plt.yscale('linear')
 plt.savefig(output_name + "_linear.png")
