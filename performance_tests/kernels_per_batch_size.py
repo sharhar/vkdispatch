@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import sys
 import time
 
-from kernel_launch_overhead_utils import do_benchmark, adjust_lightness
+from kernel_launch_overhead_utils_matrix import do_benchmark, adjust_lightness
 
 platforms = [
     "warp",
@@ -12,22 +12,16 @@ platforms = [
 ]
 
 kernel_types = [
-    #"noop",
     "const",
     "param_stream",
-    #"param_pointer_chase"
 ]
 
 test_configs = [
-    #("warp", "noop"),
-    #("warp", "const"),
+    ("warp", "const"),
     ("warp", "param_stream"),
-    #("warp", "param_pointer_chase"),
 
-    #("vkdispatch", "noop"),
     ("vkdispatch", "const"),
     ("vkdispatch", "param_stream"),
-    #("vkdispatch", "param_pointer_chase")
 ]
 
 
@@ -41,7 +35,7 @@ platform_colors = {
 
 # Kernel lightness factors
 kernel_factors = {
-    kernel_type: 0.50 + 1 * (i / max(1, len(kernel_types) - 1))
+    kernel_type: 0.50 + 0.5 * (i / max(1, len(kernel_types) - 1))
     for i, kernel_type in enumerate(kernel_types)
 }
 
@@ -60,19 +54,19 @@ print(vd.get_context().queue_families)
 means = {platform: {kernel_type: [] for kernel_type in kernel_types} for platform in platforms}
 stds = {platform: {kernel_type: [] for kernel_type in kernel_types} for platform in platforms}
 
-iter_count = 4 * 1024 * 1024  # Total number of iterations for the benchmark
-run_count = 10 # Number of times to run each benchmark
+iter_count = 1024 * 1024  # Total number of iterations for the benchmark
+run_count = 3 # Number of times to run each benchmark
 
-params_host = np.arange(iter_count, dtype=np.float32)
+identity_matrix = np.diag(np.ones(shape=(4,), dtype=np.float32))
 
-batch_size_exponents = list(range(5, 11))  # Batch sizes from 8 to 1024
+params_host = np.zeros(shape=(2*iter_count, 4, 4), dtype=np.float32)
+params_host[:] = identity_matrix
+
+batch_size_exponents = list(range(2, 11))  # Batch sizes from 8 to 1024
 
 for batch_size_exp in batch_size_exponents:
     batch_size = 2 ** batch_size_exp
 
-    #for platform in platforms:
-
-        #for kernel_type in kernel_types:
     for platform, kernel_type in test_configs:
         rates = []
         for i in range(run_count):
@@ -84,6 +78,7 @@ for batch_size_exp in batch_size_exponents:
                 params_host,
                 batch_size,
                 iter_count,
+                stream_count,
                 stream_count,
                 device_ids
             ))
@@ -124,8 +119,8 @@ plt.xscale('log', base=2)
 #plt.yscale('log')
 plt.xlabel('Batch Size')
 plt.ylabel('Kernels/second')
-plt.title(f'Kernel Launch Overhead Benchmark (Stream Count: {stream_count}, Devices: {len(device_ids)})')
+plt.title(f'Kernel Launch Overhead Benchmark (Stream Count: {stream_count}, Devices: {len(device_ids)}, Param Size: 128 bytes)')
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-plt.savefig(f'kernel_launch_overhead_{stream_count}_streams_{len(device_ids)}_devices.png')
+plt.savefig(f'kernel_launch_overhead_matrix_{stream_count}_streams_{len(device_ids)}_devices.png')

@@ -197,6 +197,12 @@ def select_queue_families(device_index: int, queue_count: int = None) -> List[in
     queue_families = []
 
     for i in range(queue_count):
+        # For NVIDIA, it's better to just have one graphics queue family
+        # and mulitple compute queues
+        if "NVIDIA" in device.device_name and i != 1:
+            queue_families.append(compute_queue_family)
+            continue
+
         if i % 2 == 0:
             queue_families.append(compute_queue_family)
         else:
