@@ -10,6 +10,7 @@ data/
 deps/
 
 *.png
+*.csv
 
 # C extensions
 *.so

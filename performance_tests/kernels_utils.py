@@ -10,45 +10,36 @@ import colorsys
 # ----------- Define kernels for measuring launch overheads ---------------
 
 @wp.kernel
-def k_noop_warp(out: wp.array(dtype=float), params: wp.array(dtype=float), index_buffer: wp.array(dtype=int), param_index: int):
-    pass
-
-@wp.kernel
-def k_const_warp(out: wp.array(dtype=float), params: wp.array(dtype=float), index_buffer: wp.array(dtype=int), param_index: int):
+def k_const_warp(out: wp.array(dtype=float), mat1: wp.mat44f, mat2: wp.mat44f):
     i = wp.tid()
     if i == 0:
-        out[i] = out[i] + 1.0
+        out[i] = out[i] + wp.determinant(mat1) + wp.determinant(mat2)
 
 @wp.kernel
-def k_param_stream_warp(out: wp.array(dtype=float), params: wp.array(dtype=float), index_buffer: wp.array(dtype=int), param_index: int):
+def k_param_stream_warp(out: wp.array(dtype=float), matricies: wp.array(dtype=wp.mat44f), param_index: int):
     i = wp.tid()
     if i == 0:
-        out[i] = params[param_index] + 1.0
+        out[i] = out[i] + wp.determinant(matricies[param_index]) + wp.determinant(matricies[param_index + 1])
 
-@wp.kernel
-def k_param_pointer_chase_warp(out: wp.array(dtype=float), params: wp.array(dtype=float), index_buffer: wp.array(dtype=int), param_index: int):
-    i = wp.tid()
-    if i == 0:
-        param_idx = index_buffer[0]
-        out[i] = params[param_idx] + 1.0
-        index_buffer[0] += 1
+def make_graph_warp(kernel, out, matricies, batch_size, stream, device, do_streaming):
+    identity_matrix = np.diag(np.ones(shape=(4,), dtype=np.float32))
 
-def make_graph_warp(kernel, out, params, index_buffer, batch_size, stream, device):
     with wp.ScopedCapture(device=device, stream=stream) as capture:
         for i in range(batch_size):
+            inputs = [out, identity_matrix, identity_matrix] if not do_streaming else [out, matricies, 2*i]
+
             wp.launch(
                 kernel,
                 dim=1,
-                inputs=[out, params, index_buffer, i],
+                inputs=inputs,
                 device=device,
                 stream=stream
             )
 
     return capture.graph
 
-def do_benchmark_warp(kernel, params_host, kernel_type, batch_size, iter_count, streams_per_device, device_ids):
+def do_benchmark_warp(kernel, params_host, kernel_type, batch_size, iter_count, streams_per_device, stream_count, device_ids):
     out_arrays = []
-    index_buffers = []
     params_arrays = []
     h_buffs = []
     graphs = []
@@ -66,22 +57,22 @@ def do_benchmark_warp(kernel, params_host, kernel_type, batch_size, iter_count, 
         streams.append(stream)
 
         out_arrays.append(wp.zeros(shape=(1,), dtype=wp.float32, device=device))
-        index_buffers.append(wp.zeros(shape=(1,), dtype=wp.int32, device=device))
         
         if kernel_type == "param_stream":
-            h_buffs.append(wp.zeros(shape=(batch_size,), dtype=wp.float32, device=device, pinned=True))
-            params_arrays.append(wp.zeros(shape=(batch_size,), dtype=wp.float32, device=device))
+            h_buffs.append(wp.zeros(shape=(2 * batch_size,), dtype=wp.mat44f, device=device, pinned=True))
+            params_arrays.append(wp.zeros(shape=(2 * batch_size,), dtype=wp.mat44f, device=device))
         else:
-            params_arrays.append(wp.array(params_host, dtype=wp.float32, device=device))
+            h_buffs.append(None)
+            params_arrays.append(None)
 
         graphs.append(make_graph_warp(
             kernel,
             out_arrays[i],
-            params_arrays[i],
-            index_buffers[i],
+            params_arrays[i] ,
             batch_size,
             stream,
-            device
+            device,
+            kernel_type == "param_stream"
         ))
 
     assert iter_count % batch_size == 0, "iter_count must be a multiple of batch_size"
@@ -90,19 +81,17 @@ def do_benchmark_warp(kernel, params_host, kernel_type, batch_size, iter_count, 
 
     start_time = time.perf_counter()
     for i in range(num_graph_launches):
-        #for j in range(total_streams):
         device = devices[i % len(device_ids)]
         stream_idx = i % total_streams
 
         if kernel_type == "param_stream":
-            h_buffs[stream_idx].numpy()[:] = params_host[i*batch_size:(i+1)*batch_size]
+            h_buffs[stream_idx].numpy()[:] = params_host[2*i*batch_size:2*(i+1)*batch_size]
             wp.copy(params_arrays[stream_idx], h_buffs[stream_idx], stream=streams[stream_idx])
 
         wp.capture_launch(graphs[stream_idx], stream=streams[stream_idx])
     
     for dev in devices:
         wp.synchronize_device(dev)
-    #wp.synchronize_device("cuda:0")
     end_time = time.perf_counter()
 
     # Cleanup
@@ -110,7 +99,6 @@ def do_benchmark_warp(kernel, params_host, kernel_type, batch_size, iter_count, 
     del streams
     del out_arrays
     del params_arrays
-    del index_buffers
     
     if kernel_type == "param_stream":
         del h_buffs
@@ -122,46 +110,33 @@ def do_benchmark_warp(kernel, params_host, kernel_type, batch_size, iter_count, 
 
 # ----------- Define kernels for measuring launch overheads ---------------
 
-@vd.shader(local_size=(1, 1, 1), workgroups=(1, 1, 1), enable_exec_bounds=False)
-def k_noop_vkdispatch(out: vc.Buff[vc.f32], params: vc.Buff[vc.f32], index_buffer: vc.Buff[vc.i32]):
-    pass
 
 @vd.shader(local_size=(1, 1, 1), workgroups=(1, 1, 1), enable_exec_bounds=False)
-def k_const_vkdispatch(out: vc.Buff[vc.f32], params: vc.Buff[vc.f32], index_buffer: vc.Buff[vc.i32]):
+def k_const_vkdispatch(out: vc.Buff[vc.f32], mat1: vc.Const[vc.m4], mat2: vc.Const[vc.m4]):
     i = vc.global_invocation().x
     vc.if_statement(i == 0)
-    out[i] = out[i] + 1.0
+    out[i] = out[i] + vc.determinant(mat1) + vc.determinant(mat2)
     vc.end()
 
 @vd.shader(local_size=(1, 1, 1), workgroups=(1, 1, 1), enable_exec_bounds=False)
-def k_param_stream_vkdispatch(out: vc.Buff[vc.f32], param: vc.Var[vc.f32], index_buffer: vc.Buff[vc.i32]):
+def k_param_stream_vkdispatch(out: vc.Buff[vc.f32], mat1: vc.Var[vc.m4], mat2: vc.Var[vc.m4]):
     i = vc.global_invocation().x
     vc.if_statement(i == 0)
-    out[i] = param + 1.0
+    out[i] = out[i] + vc.determinant(mat1) + vc.determinant(mat2)
     vc.end()
 
-@vd.shader(local_size=(1, 1, 1), workgroups=(1, 1, 1))
-def k_param_pointer_chase_vkdispatch(out: vc.Buff[vc.f32], params: vc.Buff[vc.f32], index_buffer: vc.Buff[vc.i32]):
-    i = vc.global_invocation().x
-    vc.if_statement(i == 0)
-    param_idx = index_buffer[0]
-    out[i] = params[param_idx] + 1.0
-    index_buffer[0] += 1
-    vc.end()
-
-def do_benchmark_vkdispatch(kernel, params_host, kernel_type, batch_size, iter_count, streams_per_device, device_ids):
+def do_benchmark_vkdispatch(kernel, params_host, kernel_type, batch_size, iter_count, streams_per_device, stream_count, device_ids):
     out_buff = vd.Buffer(shape=(1,), var_type=vd.float32)
-    index_buffer = vd.Buffer(shape=(1,), var_type=vd.int32)
-    index_buffer.write(np.array([0], dtype=np.int32))
-    params_buff = vd.Buffer(shape=(iter_count,), var_type=vd.float32)
-    params_buff.write(params_host)
+    identity_matrix = np.diag(np.ones(shape=(4,), dtype=np.float32))
+
+    do_streaming = kernel_type == "param_stream"
 
     cmd_stream = vd.CommandStream()
     
     kernel(
         out_buff,
-        cmd_stream.bind_var("param") if kernel_type == "param_stream" else params_buff,
-        index_buffer,
+        cmd_stream.bind_var("mat1") if do_streaming else identity_matrix,
+        cmd_stream.bind_var("mat2") if do_streaming else identity_matrix,
         cmd_stream=cmd_stream
     )
 
@@ -174,9 +149,12 @@ def do_benchmark_vkdispatch(kernel, params_host, kernel_type, batch_size, iter_c
     start_time = time.perf_counter()
     for i in range(num_graph_launches):
         if kernel_type == "param_stream":
-            cmd_stream.set_var("param", params_host[i*batch_size:(i+1)*batch_size])
+            cmd_stream.set_var("mat1", params_host[2*i*batch_size:2*(i+1)*batch_size:2])
+            cmd_stream.set_var("mat2", params_host[2*i*batch_size+1:2*(i+1)*batch_size:2])
 
-        cmd_stream.submit(instance_count=batch_size, stream_index= i % total_streams)
+        raw_stream_index = i % total_streams
+        raw_stream_index = raw_stream_index + (stream_count - streams_per_device) * raw_stream_index // streams_per_device
+        cmd_stream.submit(instance_count=batch_size, stream_index=raw_stream_index)
         
     out_buff.read()
     end_time = time.perf_counter()
@@ -185,16 +163,12 @@ def do_benchmark_vkdispatch(kernel, params_host, kernel_type, batch_size, iter_c
 
 kernels = {
     "warp": {
-        "noop": k_noop_warp,
         "const": k_const_warp,
         "param_stream": k_param_stream_warp,
-        "param_pointer_chase": k_param_pointer_chase_warp
     },
     "vkdispatch": {
-        "noop": k_noop_vkdispatch,
         "const": k_const_vkdispatch,
         "param_stream": k_param_stream_vkdispatch,
-        "param_pointer_chase": k_param_pointer_chase_vkdispatch
     }
 }
 
@@ -203,13 +177,14 @@ benchmarks = {
     "vkdispatch": do_benchmark_vkdispatch
 }
 
-def do_benchmark(platform, kernel_type, params_host, batch_size, iter_count, stream_count, device_ids):
+def do_benchmark(platform, kernel_type, params_host, batch_size, iter_count, streams_per_device, stream_count, device_ids):
     elapsed_time = benchmarks[platform](
         kernels[platform][kernel_type],
         params_host,
         kernel_type,
         batch_size,
         iter_count,
+        streams_per_device,
         stream_count,
         device_ids
     )
