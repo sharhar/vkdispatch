@@ -3,4 +3,3 @@ This file is to keep track of all the features and fixed that need to be impleme
  - Finish improving robustness of codegen by adding code to detect possible GLSL errors before they occur and give the user a more useful error
  - Implement dynamic local size through specialization constants
  - Add proper memory cleanup
- - Finish new barrier logic by also including images
