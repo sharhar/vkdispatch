@@ -13,11 +13,12 @@ struct RecordingResultData {
 };
 
 struct WorkQueueItem {
-    int current_index;
-    int next_index;
+    uint64_t current_index;
+    // int next_index;
     struct WorkHeader* work_header;
     Signal* signal;
     RecordingResultData* recording_result;
+    VkPipelineStageFlags waitStage;
 };
 
 class Fence {
@@ -40,7 +41,16 @@ public:
 
 class Stream {
 public:
-    Stream(struct Context* ctx, VkDevice device, VkQueue queue, int queueFamilyIndex, int device_index, int stream_index);
+    Stream(
+        struct Context* ctx,
+        VkDevice device,
+        VkQueue queue,
+        int queueFamilyIndex,
+        int device_index,
+        int stream_index,
+        int recording_thread_count,
+        int inflight_cmd_buffer_count);
+
     void destroy();
 
     void ingest_worker();
@@ -62,14 +72,19 @@ public:
     std::vector<VkCommandBuffer>* commandBufferVectors;
     bool** commandBufferStates;
     
-    std::vector<Fence*> fences;
+    //std::vector<Fence*> fences;
+    //std::vector<VkSemaphore> semaphores;
+
+    VkSemaphore timeline_semaphore;
+    uint64_t next_signal = 1;
+    uint64_t last_completed = 0;
     
-    std::vector<VkSemaphore> semaphores;
     std::vector<struct RecordingResultData> recording_results;
 
     std::thread ingest_thread;
     std::thread* record_threads;
     int recording_thread_count;
+    int inflight_cmd_buffer_count;
 
     std::mutex record_submit_mutex;
     bool sync_record;

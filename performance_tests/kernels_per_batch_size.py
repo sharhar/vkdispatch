@@ -52,8 +52,8 @@ vd.make_context(devices=device_ids, queue_families=vkdispatch_queue_families)
 
 datas = {platform: {kernel_type: [] for kernel_type in kernel_types} for platform in platforms}
 
-iter_count = 4 * 1024 * 1024  # Total number of iterations for the benchmark
-run_count = 10 # Number of times to run each benchmark
+iter_count = 1024 * 1024  # Total number of iterations for the benchmark
+run_count = 3 # Number of times to run each benchmark
 
 identity_matrix = np.diag(np.ones(shape=(4,), dtype=np.float32))
 
