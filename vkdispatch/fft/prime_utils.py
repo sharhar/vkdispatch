@@ -4,7 +4,7 @@ from typing import List
 import vkdispatch as vd
 
 def default_register_limit():
-    if "NVIDIA" in vd.get_context().device_infos[0].device_name:
+    if vd.get_devices()[0].is_nvidia():
         return 16
 
     return 15

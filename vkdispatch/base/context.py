@@ -20,7 +20,10 @@ class Context:
         stream_count (`int`): The number of submission threads to use.
         subgroup_size (`int`): The subgroup size of the devices.
         max_workgroup_size (`Tuple[int]`): The maximum workgroup size of the devices.
+        max_workgroup_invocations (`int`): The maximum number of workgroup invocations.
+        max_workgroup_count (`Tuple[int, int, int]`): The maximum workgroup count of the devices.
         uniform_buffer_alignment (`int`): The uniform buffer alignment of the devices.
+        max_shared_memory (`int`): The maximum shared memory size of the devices.
     """
 
     _handle: int
@@ -99,7 +102,7 @@ class Context:
 def get_compute_queue_family_index(device: DeviceInfo, device_index: int) -> int:
     # First check if we have a pure compute queue family with (sparse) transfer capabilities
     for i, queue_family in enumerate(device.queue_properties):
-        if queue_family[1] == 6 or queue_family == 14:
+        if queue_family[1] == 6 or queue_family[1] == 14:
             return i
 
     # If not, check if we have a compute queue family without graphics capabilities
@@ -131,20 +134,6 @@ def get_graphics_queue_family_index(device: DeviceInfo, device_index: int) -> in
             return i
 
     raise ValueError(f"Device {device_index} does not have a compute queue family!")
-
-def get_device_queues(device_index: int,  all_queues) -> List[int]:
-    device = get_devices()[device_index]
-
-    compute_queue_family = get_compute_queue_family_index(device, device_index)
-    graphics_queue_family = get_graphics_queue_family_index(device, device_index)
-    
-    if all_queues and compute_queue_family != graphics_queue_family:
-        if "NVIDIA" in device.device_name:
-            return [compute_queue_family, compute_queue_family, graphics_queue_family]
-
-        return [compute_queue_family, graphics_queue_family]
-
-    return [compute_queue_family]
 
 def select_devices(use_cpu: bool, all_devices) -> List[int]:
     device_infos = get_devices()
@@ -188,7 +177,7 @@ def select_queue_families(device_index: int, queue_count: int = None) -> List[in
     if queue_count is None:
         queue_count = 2
 
-        if "NVIDIA" in device.device_name:
+        if device.is_nvidia():
             queue_count = 3
 
         if compute_queue_family == graphics_queue_family:
@@ -212,6 +201,7 @@ def select_queue_families(device_index: int, queue_count: int = None) -> List[in
 
 def make_context(
     devices: Union[int, List[int], None] = None,
+    queue_counts: Union[int, List[int], None] = None,
     queue_families: Union[List[List[int]], None] = None,
     use_cpu: bool = False,
     max_streams: bool = False,
@@ -219,40 +209,51 @@ def make_context(
     all_queues: bool = False
 ) -> Context:
     global __context
-
-    device_list = [devices]
     
     if __context is None:
         initialize()
         
-        if device_list[0] is None:
-            device_list[0] = select_devices(use_cpu, all_devices or max_streams)
+        if devices is None:
+            devices = select_devices(use_cpu, all_devices or max_streams)
             
             if not queue_families is None:
                 raise ValueError("If queue_families is provided, devices must also be provided!")
 
-
-        if isinstance(device_list[0], int):
-            device_list[0] = [device_list[0]]
-
+        if isinstance(devices, int):
+            devices = [devices]
+        
         if queue_families is None:
-            queue_families = [get_device_queues(dev_index, max_streams or all_queues) for dev_index in device_list[0]]
+            queue_families = []
+
+            for ii, dev_index in enumerate(devices):
+                queue_family_count = None if max_streams or all_queues else 1
+
+                if queue_counts is not None:
+                    if isinstance(queue_counts, int):
+                        queue_family_count = queue_counts
+                    else:
+                        queue_family_count = queue_counts[ii]
+
+                queue_families.append(
+                    select_queue_families(dev_index, queue_family_count)
+                )
 
         total_devices = len(get_devices())
 
         # Do type checking before passing to native code
-        assert len(device_list[0]) == len(
+        assert len(devices) == len(
             queue_families
         ), "Device and submission thread count lists must be the same length!"
-        # assert all([isinstance(dev, int) for dev in devices])
+        
         assert all(
-            [type(dev) == int for dev in device_list[0]]
+            [type(dev) == int for dev in devices]
         ), "Device list must be a list of integers!"
+
         assert all(
-            [dev >= 0 and dev < total_devices for dev in device_list[0]]
+            [dev >= 0 and dev < total_devices for dev in devices]
         ), f"All device indicies must between 0 and {total_devices}"
 
-        __context = Context(device_list[0], queue_families)
+        __context = Context(devices, queue_families)
 
     return __context
 
