@@ -176,7 +176,16 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
                 LOG_INFO("Creating queue %d with handle %p", k, queue);
 
                 ctx->stream_index_map[i].push_back(ctx->streams.size());
-                ctx->streams.push_back(new Stream(ctx, ctx->devices[i], queue, queueCreateInfos[j].queueFamilyIndex, i, ctx->streams.size()));
+                ctx->streams.push_back(new Stream(
+                    ctx,
+                    ctx->devices[i],
+                    queue,
+                    queueCreateInfos[j].queueFamilyIndex,
+                    i,
+                    ctx->streams.size(),
+                    1, // recording_thread_count
+                    4  // inflight_cmd_buffer_count
+                ));
             }            
         }
 
