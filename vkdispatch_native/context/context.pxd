@@ -8,6 +8,7 @@ cdef extern from "context/context.hh":
     struct Context
 
     Context* context_create_extern(int* device_indicies, int* queue_counts, int* queue_families, int device_count)
+    void context_queue_wait_idle_extern(Context* context, int queue_index);
     void context_destroy_extern(Context* device_context);
 
 cpdef inline context_create(list[int] device_indicies, list[list[int]] queue_families):
@@ -42,6 +43,9 @@ cpdef inline context_create(list[int] device_indicies, list[list[int]] queue_fam
     free(queue_families_c)
 
     return result
+
+cpdef inline void context_queue_wait_idle(unsigned long long context, int queue_index):
+    context_queue_wait_idle_extern(<Context*>context, queue_index)
 
 cpdef inline context_destroy(unsigned long long context):
     context_destroy_extern(<Context*>context)

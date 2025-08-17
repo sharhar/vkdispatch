@@ -222,7 +222,7 @@ struct FFTPlan* stage_fft_plan_create_extern(
     );
 
     int submit_index = -2;
-    command_list_submit_extern(ctx->command_list, NULL, 1, &submit_index, 1, NULL, RECORD_TYPE_SYNC);
+    command_list_submit_extern(ctx->command_list, NULL, 1, submit_index, NULL, RECORD_TYPE_SYNC);
     command_list_reset_extern(ctx->command_list);
     RETURN_ON_ERROR(NULL)
 

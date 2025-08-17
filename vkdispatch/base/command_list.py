@@ -89,6 +89,6 @@ class CommandList:
             assert self.get_instance_size() * instance_count == len(data), "Data length must be the product of the instance size and instance count!"
 
         vkdispatch_native.command_list_submit(
-            self._handle, data, instance_count, [stream_index]
+            self._handle, data, instance_count, stream_index
         )
         check_for_errors()
