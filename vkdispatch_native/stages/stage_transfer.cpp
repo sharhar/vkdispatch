@@ -7,7 +7,7 @@ void stage_transfer_record_copy_buffer_extern(struct CommandList* command_list, 
     memcpy(my_copy_info, copy_info, sizeof(*my_copy_info));
 
     //if(!copy_info->src->per_device && copy_info->dst->per_device) {
-    //    set_error("Cannot copy from per-stream buffer to per-device buffer!");
+    //    set_error("Cannot copy from per-queue buffer to per-device buffer!");
     //    return;
     //}
 
@@ -25,14 +25,14 @@ void stage_transfer_record_copy_buffer_extern(struct CommandList* command_list, 
     // command_list_record_command(command_list, command);
 }
 
-void stage_transfer_copy_buffer_exec_internal(VkCommandBuffer cmd_buffer, const struct BufferCopyInfo& info, int device_index, int stream_index) {
+void stage_transfer_copy_buffer_exec_internal(VkCommandBuffer cmd_buffer, const struct BufferCopyInfo& info, int device_index, int queue_index) {
     VkBufferCopy bufferCopy = {};
     bufferCopy.srcOffset = info.src_offset;
     bufferCopy.dstOffset = info.dst_offset;
     bufferCopy.size = info.size;
 
-    int src_index = stream_index;
-    int dst_index = stream_index;
+    int src_index = queue_index;
+    int dst_index = queue_index;
 
     vkCmdCopyBuffer(cmd_buffer, info.src->buffers[src_index], info.dst->buffers[dst_index], 1, &bufferCopy);
 }

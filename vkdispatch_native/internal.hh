@@ -60,9 +60,9 @@ void set_error(const char* format, ...);
 #include "./stages/stage_fft.hh"
 #include "./stages/stage_compute.hh"
 
-#include "./stream/work_queue.hh"
-#include "./stream/signal.hh"
-#include "./stream/stream.hh"
+#include "./queue/work_queue.hh"
+#include "./queue/signal.hh"
+#include "./queue/queue.hh"
 
 struct HandleHeader {
     uint64_t handle;
@@ -75,8 +75,8 @@ struct HandleHeader {
 class HandleManager {
 public:
     uint64_t next_handle;
-    int stream_count;
-    int* stream_to_device_map;
+    int queue_count;
+    int* queue_to_device_map;
     std::shared_mutex handle_mutex;
 
     std::unordered_map<uint64_t, struct HandleHeader> handles;
@@ -84,7 +84,7 @@ public:
     HandleManager(Context* ctx);
 
     uint64_t register_device_handle(const char* name);
-    uint64_t register_stream_handle(const char* name);
+    uint64_t register_queue_handle(const char* name);
     uint64_t register_handle(const char* name, size_t count, bool per_device);
 
     void set_handle(int64_t index, uint64_t handle, uint64_t value);
@@ -144,8 +144,8 @@ struct Context {
     uint32_t deviceCount;
     std::vector<VkPhysicalDevice> physicalDevices;
     std::vector<VkDevice> devices;
-    std::vector<std::vector<int>> stream_index_map;
-    std::vector<Stream*> streams;
+    std::vector<std::vector<int>> queue_index_map;
+    std::vector<Queue*> queues;
     std::vector<VmaAllocator> allocators;
 
     HandleManager* handle_manager;
@@ -197,7 +197,7 @@ struct BufferBarrierInfo {
 class BarrierManager {
 public:
     BarrierManager();
-    void record_barriers(VkCommandBuffer cmd_buffer, struct BufferBarrierInfo* buffer_barrier_infos, int buffer_barrier_count, int stream_index);
+    void record_barriers(VkCommandBuffer cmd_buffer, struct BufferBarrierInfo* buffer_barrier_infos, int buffer_barrier_count, int queue_index);
     void reset();
 
     std::unordered_map<void*, std::pair<int, int>> buffer_states;

@@ -11,12 +11,12 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
     image->extent = extent;
     image->layers = layers;
     image->mip_levels = 1;
-    image->images.resize(ctx->streams.size());
-    image->allocations.resize(ctx->streams.size());
-    image->imageViews.resize(ctx->streams.size());
-    image->stagingBuffers.resize(ctx->streams.size());
-    image->stagingAllocations.resize(ctx->streams.size());
-    image->barriers.resize(ctx->streams.size());
+    image->images.resize(ctx->queues.size());
+    image->allocations.resize(ctx->queues.size());
+    image->imageViews.resize(ctx->queues.size());
+    image->stagingBuffers.resize(ctx->queues.size());
+    image->stagingAllocations.resize(ctx->queues.size());
+    image->barriers.resize(ctx->queues.size());
     image->block_size = image_format_block_size_extern(format);
 
     for(int i = 0; i < ctx->deviceCount; i++) {
@@ -49,8 +49,8 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
     VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
                             | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-    for (int i = 0; i < ctx->streams.size(); i++) {
-        int device_index = ctx->streams[i]->device_index;
+    for (int i = 0; i < ctx->queues.size(); i++) {
+        int device_index = ctx->queues[i]->device_index;
 
         VkImageCreateInfo imageCreateInfo;
         memset(&imageCreateInfo, 0, sizeof(VkImageCreateInfo));
@@ -121,7 +121,7 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
 
 void image_destroy_extern(struct Image* image) {
     for (int i = 0; i < image->images.size(); i++) {
-        int device_index = image->ctx->streams[i]->device_index;
+        int device_index = image->ctx->queues[i]->device_index;
 
         vkDestroyImageView(image->ctx->devices[device_index], image->imageViews[i], NULL);
         vmaDestroyImage(image->ctx->allocators[device_index], image->images[i], image->allocations[i]);
@@ -143,7 +143,7 @@ struct Sampler* image_create_sampler_extern(struct Context* ctx,
 
     struct Sampler* sampler = new struct Sampler();
     sampler->ctx = ctx;
-    sampler->samplers.resize(ctx->streams.size());
+    sampler->samplers.resize(ctx->queues.size());
 
     VkSamplerCreateInfo samplerCreateInfo;
     memset(&samplerCreateInfo, 0, sizeof(VkSamplerCreateInfo));
@@ -164,8 +164,8 @@ struct Sampler* image_create_sampler_extern(struct Context* ctx,
     samplerCreateInfo.borderColor = (VkBorderColor)border_color;
     samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
 
-    for (int i = 0; i < ctx->streams.size(); i++) {
-        int device_index = ctx->streams[i]->device_index;
+    for (int i = 0; i < ctx->queues.size(); i++) {
+        int device_index = ctx->queues[i]->device_index;
         VK_CALL_RETNULL(vkCreateSampler(ctx->devices[device_index], &samplerCreateInfo, NULL, &sampler->samplers[i]));
     }
 
@@ -174,7 +174,7 @@ struct Sampler* image_create_sampler_extern(struct Context* ctx,
 
 void image_destroy_sampler_extern(struct Sampler* sampler) {
     for (int i = 0; i < sampler->samplers.size(); i++) {
-        int device_index = sampler->ctx->streams[i]->device_index;
+        int device_index = sampler->ctx->queues[i]->device_index;
         vkDestroySampler(sampler->ctx->devices[device_index], sampler->samplers[i], NULL);
     }
 
@@ -186,17 +186,17 @@ unsigned int image_format_block_size_extern(unsigned int format) {
     return formatInfo.block_size;
 }
 
-void image_memory_barrier_internal(struct Image* image, int stream_index, VkCommandBuffer command_buffer, VkAccessFlags accessMask, VkImageLayout layout, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask) {
-	image->barriers[stream_index].dstAccessMask = accessMask;
-	image->barriers[stream_index].newLayout = layout;
+void image_memory_barrier_internal(struct Image* image, int queue_index, VkCommandBuffer command_buffer, VkAccessFlags accessMask, VkImageLayout layout, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask) {
+	image->barriers[queue_index].dstAccessMask = accessMask;
+	image->barriers[queue_index].newLayout = layout;
 
-    vkCmdPipelineBarrier(command_buffer, srcStageMask, dstStageMask, 0, 0, NULL, 0, NULL, 1, &image->barriers[stream_index]);
+    vkCmdPipelineBarrier(command_buffer, srcStageMask, dstStageMask, 0, 0, NULL, 0, NULL, 1, &image->barriers[queue_index]);
 	
-	image->barriers[stream_index].srcAccessMask = image->barriers[stream_index].dstAccessMask;
-	image->barriers[stream_index].oldLayout = image->barriers[stream_index].newLayout;
+	image->barriers[queue_index].srcAccessMask = image->barriers[queue_index].dstAccessMask;
+	image->barriers[queue_index].oldLayout = image->barriers[queue_index].newLayout;
 }
 
-void image_write_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageWriteInfo& info, int device_index, int stream_index) {
+void image_write_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageWriteInfo& info, int device_index, int queue_index) {
     VkBufferImageCopy bufferImageCopy;
     memset(&bufferImageCopy, 0, sizeof(VkBufferImageCopy));
     bufferImageCopy.bufferOffset = 0;
@@ -211,7 +211,7 @@ void image_write_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageWri
     if(info.layerCount > 0) {
         image_memory_barrier_internal(
             info.image,
-            stream_index, 
+            queue_index, 
             cmd_buffer, 
             VK_ACCESS_TRANSFER_WRITE_BIT, 
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
@@ -219,12 +219,12 @@ void image_write_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageWri
             VK_PIPELINE_STAGE_TRANSFER_BIT
         );
 
-        vkCmdCopyBufferToImage(cmd_buffer, info.image->stagingBuffers[stream_index], info.image->images[stream_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferImageCopy);
+        vkCmdCopyBufferToImage(cmd_buffer, info.image->stagingBuffers[queue_index], info.image->images[queue_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferImageCopy);
     }
 
     image_memory_barrier_internal(
         info.image,
-        stream_index, 
+        queue_index, 
         cmd_buffer, 
         VK_ACCESS_SHADER_READ_BIT, 
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
@@ -233,12 +233,12 @@ void image_write_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageWri
     );
 }
 
-void image_generate_mipmaps_internal(VkCommandBuffer cmd_buffer, const struct ImageMipMapInfo& info, int device_index, int stream_index) {
+void image_generate_mipmaps_internal(VkCommandBuffer cmd_buffer, const struct ImageMipMapInfo& info, int device_index, int queue_index) {
     LOG_VERBOSE("Generating mipmaps for image %p", info.image);
 
     image_memory_barrier_internal(
         info.image,
-        stream_index, 
+        queue_index, 
         cmd_buffer, 
         VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT, 
         VK_IMAGE_LAYOUT_GENERAL, 
@@ -257,7 +257,7 @@ void image_generate_mipmaps_internal(VkCommandBuffer cmd_buffer, const struct Im
 
         image_memory_barrier_internal(
             info.image,
-            stream_index, 
+            queue_index, 
             cmd_buffer, 
             VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT, 
             VK_IMAGE_LAYOUT_GENERAL, 
@@ -283,8 +283,8 @@ void image_generate_mipmaps_internal(VkCommandBuffer cmd_buffer, const struct Im
 
         vkCmdBlitImage(
             cmd_buffer,
-            info.image->images[stream_index], VK_IMAGE_LAYOUT_GENERAL,
-            info.image->images[stream_index], VK_IMAGE_LAYOUT_GENERAL,
+            info.image->images[queue_index], VK_IMAGE_LAYOUT_GENERAL,
+            info.image->images[queue_index], VK_IMAGE_LAYOUT_GENERAL,
             1, &imageBlit,
             VK_FILTER_LINEAR
         );
@@ -298,7 +298,7 @@ void image_generate_mipmaps_internal(VkCommandBuffer cmd_buffer, const struct Im
     
     image_memory_barrier_internal(
         info.image,
-        stream_index, 
+        queue_index, 
         cmd_buffer, 
         VK_ACCESS_SHADER_READ_BIT, 
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
@@ -326,7 +326,7 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
 
         LOG_INFO("Writing data to buffer %d", buffer_index);
 
-        int device_index = ctx->streams[buffer_index]->device_index;
+        int device_index = ctx->queues[buffer_index]->device_index;
 
         LOG_INFO("Writing data to buffer %d in device %d", buffer_index, device_index);
 
@@ -348,7 +348,7 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
             "image-write",
             0,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
-            [image_write_info](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
+            [image_write_info](VkCommandBuffer cmd_buffer, int device_index, int queue_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
                 LOG_INFO(
                     "Writing data to image (%p) at offset (%d, %d, %d) with extent (%d, %d, %d)", 
                     image_write_info.image, image_write_info.offset.x, image_write_info.offset.y, 
@@ -356,7 +356,7 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
                     image_write_info.extent.height, image_write_info.extent.depth
                 );
 
-                image_write_exec_internal(cmd_buffer, image_write_info, device_index, stream_index);
+                image_write_exec_internal(cmd_buffer, image_write_info, device_index, queue_index);
             }
         );
         
@@ -366,12 +366,12 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
                 "mip-map-generation",
                 0,
                 VK_PIPELINE_STAGE_TRANSFER_BIT,
-                [image](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
+                [image](VkCommandBuffer cmd_buffer, int device_index, int queue_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
                     struct ImageMipMapInfo image_mip_map_info = {};
                     image_mip_map_info.image = image;
                     image_mip_map_info.mip_count = image->mip_levels;
 
-                    image_generate_mipmaps_internal(cmd_buffer, image_mip_map_info, device_index, stream_index);
+                    image_generate_mipmaps_internal(cmd_buffer, image_mip_map_info, device_index, queue_index);
                 }
             );
         }
@@ -388,7 +388,7 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
     delete[] signals;
 }
 
-void image_read_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageReadInfo& info, int device_index, int stream_index) {
+void image_read_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageReadInfo& info, int device_index, int queue_index) {
     VkBufferImageCopy bufferImageCopy;
     memset(&bufferImageCopy, 0, sizeof(VkBufferImageCopy));
     bufferImageCopy.bufferOffset = 0;
@@ -402,7 +402,7 @@ void image_read_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageRead
 
     image_memory_barrier_internal(
         info.image,
-        stream_index, 
+        queue_index, 
         cmd_buffer, 
         VK_ACCESS_TRANSFER_READ_BIT, 
         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
@@ -410,11 +410,11 @@ void image_read_exec_internal(VkCommandBuffer cmd_buffer, const struct ImageRead
         VK_PIPELINE_STAGE_TRANSFER_BIT
     );
 
-    vkCmdCopyImageToBuffer(cmd_buffer, info.image->images[stream_index], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, info.image->stagingBuffers[stream_index], 1, &bufferImageCopy);
+    vkCmdCopyImageToBuffer(cmd_buffer, info.image->images[queue_index], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, info.image->stagingBuffers[queue_index], 1, &bufferImageCopy);
 
     image_memory_barrier_internal(
         info.image,
-        stream_index, 
+        queue_index, 
         cmd_buffer, 
         VK_ACCESS_SHADER_READ_BIT, 
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
@@ -428,7 +428,7 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
 
     struct Context* ctx = image->ctx;
 
-    int device_index = ctx->streams[index]->device_index;
+    int device_index = ctx->queues[index]->device_index;
 
     size_t data_size = extent.width * extent.height * extent.depth * layerCount * image->block_size;
 
@@ -436,7 +436,7 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
         "image-read",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        [image, offset, extent, baseLayer, layerCount](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
+        [image, offset, extent, baseLayer, layerCount](VkCommandBuffer cmd_buffer, int device_index, int queue_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
             struct ImageReadInfo image_read_info = {};
             image_read_info.image = image;
             image_read_info.offset = offset;
@@ -444,7 +444,7 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
             image_read_info.baseLayer = baseLayer;
             image_read_info.layerCount = layerCount;
 
-            image_read_exec_internal(cmd_buffer, image_read_info, device_index, stream_index);
+            image_read_exec_internal(cmd_buffer, image_read_info, device_index, queue_index);
         }
     );
     

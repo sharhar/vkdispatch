@@ -18,7 +18,7 @@ struct BufferReadInfo {
 struct Buffer* buffer_create_extern(struct Context* context, unsigned long long size, int per_device);
 void buffer_destroy_extern(struct Buffer* buffer);
 
-void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int device_index);
-void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int device_index);
+void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int index);
+void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int index);
 
 #endif // SRC_BUFFER_H_

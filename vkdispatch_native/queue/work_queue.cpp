@@ -3,7 +3,7 @@
 static size_t __work_id = 0;
 
 WorkQueue::WorkQueue(int max_work_items, int max_programs) {
-    work_infos = new WorkInfo2[max_work_items];
+    work_infos = new WorkInfo[max_work_items];
     program_infos = new ProgramInfo[max_programs];
     work_info_count = max_work_items;
     program_info_count = max_programs;
@@ -30,7 +30,7 @@ void WorkQueue::stop() {
     this->cv_push.notify_all();
 }
 
-void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int stream_index, Signal* signal, int record_type) {
+void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int queue_index, Signal* signal, int record_type) {
     std::unique_lock<std::mutex> lock(this->mutex);
     
     auto start = std::chrono::high_resolution_clock::now();
@@ -97,7 +97,7 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
     }
 
     work_infos[found_indicies[1]].program_index = found_indicies[0];
-    work_infos[found_indicies[1]].stream_index = stream_index;
+    work_infos[found_indicies[1]].queue_index = queue_index;
     work_infos[found_indicies[1]].dirty = true;
     work_infos[found_indicies[1]].state = WORK_STATE_PENDING;
     work_infos[found_indicies[1]].work_id = __work_id;
@@ -143,10 +143,10 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
     this->cv_push.notify_all();
 }
 
-bool WorkQueue::pop(struct WorkHeader** header, int stream_index) {
+bool WorkQueue::pop(struct WorkHeader** header, int queue_index) {
     std::unique_lock<std::mutex> lock(this->mutex);
 
-    this->cv_push.wait(lock, [this, stream_index, header] () {
+    this->cv_push.wait(lock, [this, queue_index, header] () {
         if(!running) {
             return true;
         }
@@ -158,8 +158,8 @@ bool WorkQueue::pop(struct WorkHeader** header, int stream_index) {
             if(this->work_infos[i].dirty &&
                this->work_infos[i].state == WORK_STATE_PENDING &&
                this->work_infos[i].work_id < work_id &&
-               (this->work_infos[i].stream_index == stream_index ||
-                this->work_infos[i].stream_index == -1))
+               (this->work_infos[i].queue_index == queue_index ||
+                this->work_infos[i].queue_index == -1))
             {
                 work_id = this->work_infos[i].work_id;
                 selected_index = i;

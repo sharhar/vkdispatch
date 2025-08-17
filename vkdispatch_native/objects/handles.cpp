@@ -2,27 +2,27 @@
 
 HandleManager::HandleManager(Context* ctx) {
     next_handle = 1;
-    stream_count = ctx->streams.size();
+    queue_count = ctx->queues.size();
 
-    stream_to_device_map = new int[stream_count];
-    for (int i = 0; i < stream_count; i++) {
-        stream_to_device_map[i] = ctx->streams[i]->device_index;
+    queue_to_device_map = new int[queue_count];
+    for (int i = 0; i < queue_count; i++) {
+        queue_to_device_map[i] = ctx->queues[i]->device_index;
     }
 }
 
 uint64_t HandleManager::register_device_handle(const char* name) {
-    return register_handle(name, stream_count, true);
+    return register_handle(name, queue_count, true);
 }
 
-uint64_t HandleManager::register_stream_handle(const char* name) {
-    return register_handle(name, stream_count, false);
+uint64_t HandleManager::register_queue_handle(const char* name) {
+    return register_handle(name, queue_count, false);
 }
 
 uint64_t HandleManager::register_handle(const char* name, size_t count, bool per_device) {
     std::unique_lock lock(handle_mutex);
 
-    if(per_device && count != stream_count) {
-        LOG_ERROR("Per device handle count does not match stream count");
+    if(per_device && count != queue_count) {
+        LOG_ERROR("Per device handle count does not match queue count");
         return 0;
     }
     
@@ -71,15 +71,15 @@ void HandleManager::set_handle_per_device(int device_index, uint64_t handle, std
     bool found_any = false;
     bool found_all = true;
 
-    for (int i = 0; i < stream_count; i++) {
-        if (stream_to_device_map[i] == device_index) {
+    for (int i = 0; i < queue_count; i++) {
+        if (queue_to_device_map[i] == device_index) {
             found_all = found_all && (handles[handle].data[i] != 0);
             found_any = found_any || (handles[handle].data[i] != 0);
         }
     }
 
     if(found_any && !found_all) {
-        LOG_ERROR("Handle already set for some streams but not all");
+        LOG_ERROR("Handle already set for some queues but not all");
         return;
     }
 
@@ -94,8 +94,8 @@ void HandleManager::set_handle_per_device(int device_index, uint64_t handle, std
 
     uint64_t value = value_func(device_index);
 
-    for (int i = 0; i < stream_count; i++) {
-        if (stream_to_device_map[i] == device_index) {
+    for (int i = 0; i < queue_count; i++) {
+        if (queue_to_device_map[i] == device_index) {
             handles[handle].data[i] = value;
         }
     }
@@ -124,7 +124,7 @@ uint64_t* HandleManager::get_handle_pointer_no_lock(int64_t index, uint64_t hand
 void HandleManager::destroy_handle(int64_t index, uint64_t handle, std::function<void(uint64_t)> destroy_func) {
     std::unique_lock lock(handle_mutex);
 
-    //destroy_func((T)handles[handle].data[stream_index]);
-    //delete (T)handles[handle].data[stream_index];
+    //destroy_func((T)handles[handle].data[queue_index]);
+    //delete (T)handles[handle].data[queue_index];
     //handles.erase(handle);
 }

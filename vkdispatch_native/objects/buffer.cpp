@@ -15,15 +15,15 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
     buffer->ctx = ctx;
     buffer->size = size;
     
-    LOG_INFO("Creating %d buffers (one per stream)", ctx->streams.size());
+    LOG_INFO("Creating %d buffers (one per queue)", ctx->queues.size());
 
-    buffer->allocations.resize(ctx->streams.size());
-    buffer->buffers.resize(ctx->streams.size());
-    buffer->stagingAllocations.resize(ctx->streams.size());
-    buffer->stagingBuffers.resize(ctx->streams.size());
+    buffer->allocations.resize(ctx->queues.size());
+    buffer->buffers.resize(ctx->queues.size());
+    buffer->stagingAllocations.resize(ctx->queues.size());
+    buffer->stagingBuffers.resize(ctx->queues.size());
 
     for (int i = 0; i < buffer->buffers.size(); i++) {
-        int device_index = ctx->streams[i]->device_index;
+        int device_index = ctx->queues[i]->device_index;
 
         VkBufferCreateInfo bufferCreateInfo;
         memset(&bufferCreateInfo, 0, sizeof(VkBufferCreateInfo));
@@ -55,7 +55,7 @@ void buffer_destroy_extern(struct Buffer* buffer) {
     LOG_INFO("Destroying buffer with handle %p", buffer);
 
     for(int i = 0; i < buffer->buffers.size(); i++) {
-        int device_index = buffer->ctx->streams[i]->device_index;
+        int device_index = buffer->ctx->queues[i]->device_index;
 
         vmaDestroyBuffer(buffer->ctx->allocators[device_index], buffer->buffers[i], buffer->allocations[i]);
         vmaDestroyBuffer(buffer->ctx->allocators[device_index], buffer->stagingBuffers[i], buffer->stagingAllocations[i]);
@@ -79,7 +79,7 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
 
         LOG_INFO("Writing data to buffer %d", buffer_index);
 
-        int device_index = ctx->streams[buffer_index]->device_index;
+        int device_index = ctx->queues[buffer_index]->device_index;
 
         LOG_INFO("Writing data to buffer %d in device %d", buffer_index, device_index);
 
@@ -92,13 +92,13 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
             "buffer_write",
             0,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
-            [buffer, offset, size](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
+            [buffer, offset, size](VkCommandBuffer cmd_buffer, int device_index, int queue_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
                 VkBufferCopy bufferCopy;
                 bufferCopy.size = size;
                 bufferCopy.dstOffset = offset;
                 bufferCopy.srcOffset = 0;
 
-                int buffer_index = stream_index;
+                int buffer_index = queue_index;
 
                 VkMemoryBarrier barrier = {
                     VK_STRUCTURE_TYPE_MEMORY_BARRIER,
@@ -133,21 +133,19 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
 
     struct Context* ctx = buffer->ctx;
     
-    int device_index = ctx->streams[index]->device_index;
+    int device_index = ctx->queues[index]->device_index;
 
     command_list_record_command(ctx->command_list,
         "buffer_read",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        [buffer, offset, size](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
+        [buffer, offset, size](VkCommandBuffer cmd_buffer, int device_index, int queue_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
             VkBufferCopy bufferCopy;
             bufferCopy.size = size;
             bufferCopy.dstOffset = 0;
             bufferCopy.srcOffset = offset;
 
-            int buffer_index = stream_index;
-
-            vkCmdCopyBuffer(cmd_buffer, buffer->buffers[buffer_index], buffer->stagingBuffers[buffer_index], 1, &bufferCopy);
+            vkCmdCopyBuffer(cmd_buffer, buffer->buffers[queue_index], buffer->stagingBuffers[queue_index], 1, &bufferCopy);
 
             VkMemoryBarrier barrier = {
                 VK_STRUCTURE_TYPE_MEMORY_BARRIER,
