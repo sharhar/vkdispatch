@@ -40,6 +40,8 @@ public:
     void record_worker(int worker_id);
     void submit_worker();
 
+    void wait_for_timestamp(uint64_t timestamp);
+
     void fused_worker();
 
     struct Context* ctx;

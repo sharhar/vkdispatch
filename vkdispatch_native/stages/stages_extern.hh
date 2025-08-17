@@ -62,8 +62,10 @@ struct FFTPlan* stage_fft_plan_create_extern(
     int num_batches,
     int single_kernel_multiple_batches,
     int keep_shader_code);
+void stage_fft_plan_destroy_extern(FFTPlan* plan);
 
 struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct ComputePlanCreateInfo* create_info);
+void stage_compute_plan_destroy_extern(ComputePlan* plan);
 void stage_compute_record_extern(struct CommandList* command_list, struct ComputePlan* plan, struct DescriptorSet* descriptor_set, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z);
 
 void stage_fft_record_extern(

@@ -96,6 +96,7 @@ class Context:
         self.max_shared_memory = min(max_shared_memory)
 
     def __del__(self) -> None:
+        print(f"Destroying context {self._handle} with devices {self.devices} and queue families {self.queue_families}")
         pass # vkdispatch_native.context_destroy(self._handle)
 
 def get_compute_queue_family_index(device: DeviceInfo, device_index: int) -> int:
@@ -282,7 +283,7 @@ def queue_wait_idle(queue_index: int = None) -> None:
 
     assert queue_index is None or isinstance(queue_index, int), "queue_index must be an integer or None."
     assert queue_index is None or queue_index >= -1, "queue_index must be a non-negative integer or -1 (for all queues)."
-    assert queue_index < get_context().queue_count, f"Queue index {queue_index} is out of bounds for context with {get_context().queue_count} queues."
+    assert queue_index is None or queue_index < get_context().queue_count, f"Queue index {queue_index} is out of bounds for context with {get_context().queue_count} queues."
 
     vkdispatch_native.context_queue_wait_idle(get_context_handle(), queue_index if queue_index is not None else -1)
     check_for_errors()

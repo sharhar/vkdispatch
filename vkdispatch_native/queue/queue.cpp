@@ -124,6 +124,19 @@ void Queue::destroy() {
 
 }
 
+void Queue::wait_for_timestamp(uint64_t timestamp) {
+    uint64_t last_completed = 0;
+    VK_CALL(vkGetSemaphoreCounterValue(device, timeline_semaphore, &last_completed));
+    if (last_completed < timestamp) {
+        VkSemaphoreWaitInfo wi{};
+        wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+        wi.semaphoreCount = 1;
+        wi.pSemaphores = &timeline_semaphore;
+        wi.pValues     = &timestamp;
+        VK_CALL(vkWaitSemaphores(device, &wi, UINT64_MAX));
+    }
+}
+
 void ingest_work_item(
     struct WorkQueueItem& work_item,
     Queue* queue,
@@ -132,18 +145,20 @@ void ingest_work_item(
     uint64_t current_index) {
 
     if (current_index + 1 > queue->inflight_cmd_buffer_count) {
-        uint64_t wait_value = current_index + 1 - queue->inflight_cmd_buffer_count;
+        queue->wait_for_timestamp(current_index + 1 - queue->inflight_cmd_buffer_count);
+        
+        //uint64_t wait_value = current_index + 1 - queue->inflight_cmd_buffer_count;
 
-        uint64_t last_completed = 0;
-        VK_CALL(vkGetSemaphoreCounterValue(queue->device, queue->timeline_semaphore, &last_completed));
-        if (last_completed < wait_value) {
-            VkSemaphoreWaitInfo wi{};
-            wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-            wi.semaphoreCount = 1;
-            wi.pSemaphores = &queue->timeline_semaphore;
-            wi.pValues     = &wait_value;
-            VK_CALL(vkWaitSemaphores(queue->device, &wi, UINT64_MAX));
-        }
+        // uint64_t last_completed = 0;
+        // VK_CALL(vkGetSemaphoreCounterValue(queue->device, queue->timeline_semaphore, &last_completed));
+        // if (last_completed < wait_value) {
+        //     VkSemaphoreWaitInfo wi{};
+        //     wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+        //     wi.semaphoreCount = 1;
+        //     wi.pSemaphores = &queue->timeline_semaphore;
+        //     wi.pValues     = &wait_value;
+        //     VK_CALL(vkWaitSemaphores(queue->device, &wi, UINT64_MAX));
+        // }
     }
         
     if(!work_queue->pop(&work_header, queue->queue_index)) {
@@ -214,13 +229,18 @@ int record_work_item(
 
     std::shared_ptr<std::vector<struct CommandInfo>> command_buffer = work_item.work_header->commands;
 
+    struct ExecIndicies exec_indices = {};
+    exec_indices.device_index = queue->device_index;
+    exec_indices.queue_index = queue->queue_index;
+    exec_indices.recorder_index = worker_id;
+
     char* current_instance_data = (char*)&work_item.work_header[1];
     for(size_t instance = 0; instance < work_item.work_header->instance_count; instance++) {
         for (size_t i = 0; i < command_buffer->size(); i++) {
             LOG_VERBOSE("Recording command %d of type %s on worker %d", i, command_buffer->operator[](i).name, worker_id);
 
             LOG_VERBOSE("Executing command %d", i);
-            command_buffer->operator[](i).func->operator()(cmd_buffer, queue->device_index, queue->queue_index, worker_id, current_instance_data, &barrier_manager);
+            command_buffer->operator[](i).func->operator()(cmd_buffer, exec_indices, current_instance_data, &barrier_manager, work_item.current_index + 1);
             current_instance_data += command_buffer->operator[](i).pc_size;
 
             work_item.waitStage |= command_buffer->operator[](i).pipeline_stage;

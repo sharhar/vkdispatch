@@ -53,7 +53,7 @@ class Buffer(typing.Generic[_ArgType]):
         check_for_errors()
 
     def __del__(self) -> None:
-        pass  # vkdispatch_native.buffer_destroy(self._handle)
+        vkdispatch_native.buffer_destroy(self._handle)
 
     def write(self, data: Union[bytes, np.ndarray], index: int = -1) -> None:
         """Given data in some numpy array, write that data to the buffer at the

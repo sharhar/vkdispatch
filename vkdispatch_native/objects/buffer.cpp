@@ -59,16 +59,16 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
 }
 
 void buffer_destroy_extern(struct Buffer* buffer) {
-    LOG_INFO("Destroying buffer with handle %p", buffer);
+    //LOG_WARNING("Destroying buffer with handle %p", buffer);
 
-    for(int i = 0; i < buffer->buffers.size(); i++) {
-        int device_index = buffer->ctx->queues[i]->device_index;
+    // for(int i = 0; i < buffer->buffers.size(); i++) {
+    //     int device_index = buffer->ctx->queues[i]->device_index;
 
-        vmaDestroyBuffer(buffer->ctx->allocators[device_index], buffer->buffers[i], buffer->allocations[i]);
-        vmaDestroyBuffer(buffer->ctx->allocators[device_index], buffer->stagingBuffers[i], buffer->stagingAllocations[i]);
-    }
+    //     vmaDestroyBuffer(buffer->ctx->allocators[device_index], buffer->buffers[i], buffer->allocations[i]);
+    //     vmaDestroyBuffer(buffer->ctx->allocators[device_index], buffer->stagingBuffers[i], buffer->stagingAllocations[i]);
+    // }
 
-    delete buffer;
+    // delete buffer;
 }
 
 void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int index) {
@@ -99,13 +99,13 @@ void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long o
             "buffer_write",
             0,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
-            [buffer, offset, size](VkCommandBuffer cmd_buffer, int device_index, int queue_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
+            [buffer, offset, size](VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
                 VkBufferCopy bufferCopy;
                 bufferCopy.size = size;
                 bufferCopy.dstOffset = offset;
                 bufferCopy.srcOffset = 0;
 
-                int buffer_index = queue_index;
+                int buffer_index = indicies.queue_index;
 
                 VkMemoryBarrier barrier = {
                     VK_STRUCTURE_TYPE_MEMORY_BARRIER,
@@ -146,13 +146,13 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
         "buffer_read",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        [buffer, offset, size](VkCommandBuffer cmd_buffer, int device_index, int queue_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
+        [buffer, offset, size](VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             VkBufferCopy bufferCopy;
             bufferCopy.size = size;
             bufferCopy.dstOffset = 0;
             bufferCopy.srcOffset = offset;
 
-            vkCmdCopyBuffer(cmd_buffer, buffer->buffers[queue_index], buffer->stagingBuffers[queue_index], 1, &bufferCopy);
+            vkCmdCopyBuffer(cmd_buffer, buffer->buffers[indicies.queue_index], buffer->stagingBuffers[indicies.queue_index], 1, &bufferCopy);
 
             VkMemoryBarrier barrier = {
                 VK_STRUCTURE_TYPE_MEMORY_BARRIER,

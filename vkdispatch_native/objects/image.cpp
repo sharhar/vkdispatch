@@ -124,15 +124,17 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
 }
 
 void image_destroy_extern(struct Image* image) {
-    for (int i = 0; i < image->images.size(); i++) {
-        int device_index = image->ctx->queues[i]->device_index;
+    LOG_WARNING("Destroying image with handle %p", image);
+    
+    // for (int i = 0; i < image->images.size(); i++) {
+    //     int device_index = image->ctx->queues[i]->device_index;
 
-        vkDestroyImageView(image->ctx->devices[device_index], image->imageViews[i], NULL);
-        vmaDestroyImage(image->ctx->allocators[device_index], image->images[i], image->allocations[i]);
-        vmaDestroyBuffer(image->ctx->allocators[device_index], image->stagingBuffers[i], image->stagingAllocations[i]);
-    }
+    //     vkDestroyImageView(image->ctx->devices[device_index], image->imageViews[i], NULL);
+    //     vmaDestroyImage(image->ctx->allocators[device_index], image->images[i], image->allocations[i]);
+    //     vmaDestroyBuffer(image->ctx->allocators[device_index], image->stagingBuffers[i], image->stagingAllocations[i]);
+    // }
 
-    delete image;
+    // delete image;
 }
 
 struct Sampler* image_create_sampler_extern(struct Context* ctx, 
@@ -352,7 +354,7 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
             "image-write",
             0,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
-            [image_write_info](VkCommandBuffer cmd_buffer, int device_index, int queue_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
+            [image_write_info](VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
                 LOG_INFO(
                     "Writing data to image (%p) at offset (%d, %d, %d) with extent (%d, %d, %d)", 
                     image_write_info.image, image_write_info.offset.x, image_write_info.offset.y, 
@@ -360,7 +362,7 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
                     image_write_info.extent.height, image_write_info.extent.depth
                 );
 
-                image_write_exec_internal(cmd_buffer, image_write_info, device_index, queue_index);
+                image_write_exec_internal(cmd_buffer, image_write_info, indicies.device_index, indicies.queue_index);
             }
         );
         
@@ -370,12 +372,12 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
                 "mip-map-generation",
                 0,
                 VK_PIPELINE_STAGE_TRANSFER_BIT,
-                [image](VkCommandBuffer cmd_buffer, int device_index, int queue_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
+                [image](VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
                     struct ImageMipMapInfo image_mip_map_info = {};
                     image_mip_map_info.image = image;
                     image_mip_map_info.mip_count = image->mip_levels;
 
-                    image_generate_mipmaps_internal(cmd_buffer, image_mip_map_info, device_index, queue_index);
+                    image_generate_mipmaps_internal(cmd_buffer, image_mip_map_info, indicies.device_index, indicies.queue_index);
                 }
             );
         }
@@ -440,7 +442,7 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
         "image-read",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        [image, offset, extent, baseLayer, layerCount](VkCommandBuffer cmd_buffer, int device_index, int queue_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
+        [image, offset, extent, baseLayer, layerCount](VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             struct ImageReadInfo image_read_info = {};
             image_read_info.image = image;
             image_read_info.offset = offset;
@@ -448,7 +450,7 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
             image_read_info.baseLayer = baseLayer;
             image_read_info.layerCount = layerCount;
 
-            image_read_exec_internal(cmd_buffer, image_read_info, device_index, queue_index);
+            image_read_exec_internal(cmd_buffer, image_read_info, indicies.device_index, indicies.queue_index);
         }
     );
     

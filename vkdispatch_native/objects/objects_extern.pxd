@@ -29,8 +29,6 @@ cdef extern from "objects/objects_extern.hh":
     void buffer_write_extern(Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int index)
     void buffer_read_extern(Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int index)
 
-    
-
     CommandList* command_list_create_extern(Context* context)
     void command_list_destroy_extern(CommandList* command_list)
     unsigned long long command_list_get_instance_size_extern(CommandList* command_list) 

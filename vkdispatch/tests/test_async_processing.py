@@ -188,16 +188,16 @@ def get_program(index: int, config: RunConfig) -> vd.ComputePlan:
 
 descriptor_set_cache: Dict[Tuple[int, int, int], vd.DescriptorSet] = {}
 
-def get_descriptor_set(out_buffer: int, in_buffer: int, program_handle, config: RunConfig) -> vd.DescriptorSet:
+def get_descriptor_set(out_buffer: int, in_buffer: int, program: vd.ComputePlan, config: RunConfig) -> vd.DescriptorSet:
     global descriptor_set_cache
 
-    dict_key = (out_buffer, in_buffer, program_handle)
+    dict_key = (out_buffer, in_buffer, program._handle)
 
     if dict_key not in descriptor_set_cache:        
         output_buffer = get_buffer(out_buffer, config)
         input_buffer = get_buffer(in_buffer, config)
 
-        descriptor_set = vd.DescriptorSet(program_handle)
+        descriptor_set = vd.DescriptorSet(program)
         descriptor_set.bind_buffer(output_buffer, 0)
         descriptor_set.bind_buffer(input_buffer, 1)
 
@@ -218,7 +218,7 @@ def clear_caches():
 
 def do_vkdispatch_command(cmd_list: vd.CommandList, out_buffer: int, in_buffer: int, program: int, config: RunConfig):
     compute_plan = get_program(program, config)
-    descriptor_set = get_descriptor_set(out_buffer, in_buffer, compute_plan._handle, config)
+    descriptor_set = get_descriptor_set(out_buffer, in_buffer, compute_plan, config)
 
     cmd_list.reset()
     
