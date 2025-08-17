@@ -14,29 +14,10 @@ struct RecordingResultData {
 
 struct WorkQueueItem {
     uint64_t current_index;
-    // int next_index;
     struct WorkHeader* work_header;
     Signal* signal;
     RecordingResultData* recording_result;
     VkPipelineStageFlags waitStage;
-};
-
-class Fence {
-public:
-    Fence(VkDevice device);
-
-    void waitAndReset();
-    void doSubmit(VkQueue queue, VkSubmitInfo* submitInfo, Signal* signal, std::mutex* queue_usage_mutex);
-
-    void destroy();
-
-    VkDevice device;
-    VkFence fence;
-
-    bool submitted;
-
-    std::mutex mutex;
-    std::condition_variable cv;
 };
 
 class Stream {
@@ -70,10 +51,7 @@ public:
     std::atomic<bool> run_stream;
     
     std::vector<VkCommandBuffer>* commandBufferVectors;
-    bool** commandBufferStates;
-    
-    //std::vector<Fence*> fences;
-    //std::vector<VkSemaphore> semaphores;
+    bool* commandBufferStates;
 
     VkSemaphore timeline_semaphore;
     uint64_t next_signal = 1;

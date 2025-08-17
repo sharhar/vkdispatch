@@ -280,14 +280,9 @@ def test_async_commands():
         programs = np.random.randint(0, config.program_count, size=exec_count)
 
         for input_buffer, output_buffer, program in zip(input_buffers, output_buffers, programs):
-            if input_buffer == output_buffer:
-                continue
-
             do_vkdispatch_command(cmd_list, output_buffer, input_buffer, program, config)
         
         for input_buffer, output_buffer, program in zip(input_buffers, output_buffers, programs):
-            if input_buffer == output_buffer:
-                continue
             do_numpy_command(output_buffer, input_buffer, program, config)
 
         for i in range(config.buffer_count):

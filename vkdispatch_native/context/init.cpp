@@ -228,11 +228,16 @@ void init_extern(bool debug, LogLevel log_level) {
     _instance.subgroup_properties.resize(device_count);
     _instance.device_details.resize(device_count);
     _instance.queue_family_properties.resize(device_count);
+    _instance.timeline_semaphore_features.resize(device_count);
     VK_CALL(vkEnumeratePhysicalDevices(_instance.instance, &device_count, _instance.physicalDevices.data()));
 
     for(int i = 0; i < _instance.physicalDevices.size(); i++) {
+        _instance.timeline_semaphore_features[i] = {};
+        _instance.timeline_semaphore_features[i].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
+
         _instance.atomicFloatFeatures[i] = {};
         _instance.atomicFloatFeatures[i].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT;
+        _instance.atomicFloatFeatures[i].pNext = &_instance.timeline_semaphore_features[i];
         
         _instance.float16int8Features[i] = {};
         _instance.float16int8Features[i].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES;

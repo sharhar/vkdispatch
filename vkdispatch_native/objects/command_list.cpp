@@ -7,7 +7,6 @@ struct CommandList* command_list_create_extern(struct Context* context) {
     LOG_INFO("Creating command list with handle %p", command_list);
 
     command_list->ctx = context;
-    //command_list->conditional_boolean_count = 0;
     command_list->compute_instance_size = 0;
 
     return command_list;
@@ -52,12 +51,12 @@ void command_list_reset_extern(struct CommandList* command_list) {
     LOG_INFO("Command list reset");
 }
 
-void command_list_submit_extern(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int* indicies, int count, void* signal, int recordType) {
+void command_list_submit_extern(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int index, void* signal, int recordType) {
     struct Context* ctx = command_list->ctx;
     
-    LOG_INFO("Submitting command list with handle %p to stream %d", command_list, indicies[0]);
+    LOG_INFO("Submitting command list with handle %p to stream %d", command_list, index);
 
-    if(indicies[0] == -2) {
+    if(index == -2) {
         if(signal != NULL) {
             set_error("Signal is not supported for all streams");
             return;
@@ -67,6 +66,6 @@ void command_list_submit_extern(struct CommandList* command_list, void* instance
             ctx->work_queue->push(command_list, instance_buffer, instance_count, i, reinterpret_cast<Signal*>(signal), recordType);
         }
     } else {
-        ctx->work_queue->push(command_list, instance_buffer, instance_count, indicies[0], reinterpret_cast<Signal*>(signal), recordType);
+        ctx->work_queue->push(command_list, instance_buffer, instance_count, index, reinterpret_cast<Signal*>(signal), recordType);
     }
 }

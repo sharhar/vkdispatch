@@ -4,6 +4,7 @@
 #include "../base.hh"
 
 struct Context* context_create_extern(int* device_indicies, int* queue_counts, int* queue_families, int device_count);
+void context_queue_wait_idle_extern(struct Context* context, int queue_index);
 void context_destroy_extern(struct Context* context);
 
 #endif  // SRC_DEVICE_CONTEXT_H_

@@ -1,51 +1,5 @@
 #include "../internal.hh"
 
-Fence::Fence(VkDevice device) {
-    VkFenceCreateInfo fenceInfo = {};
-    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-    VK_CALL(vkCreateFence(device, &fenceInfo, nullptr, &fence));
-
-    this->device = device;
-    this->submitted = true;
-}
-
-void Fence::waitAndReset() {
-    std::unique_lock<std::mutex> lock(mutex);
-
-    cv.wait(lock, [this]() {
-        return this->submitted;
-    });
-
-    VK_CALL(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX));
-    VK_CALL(vkResetFences(device, 1, &fence));
-
-    this->submitted = false;
-}
-
-void Fence::doSubmit(VkQueue queue, VkSubmitInfo* submitInfo, Signal* signal, std::mutex* queue_usage_mutex) {
-    std::unique_lock<std::mutex> lock(mutex);
-
-    queue_usage_mutex->lock();
-
-    VK_CALL(vkQueueSubmit(queue, 1, submitInfo, fence));
-
-    queue_usage_mutex->unlock();
-
-    if(signal != NULL) {
-        VK_CALL(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX));
-        signal->notify();
-    }
-
-    this->submitted = true;
-    cv.notify_all();
-}
-
-void Fence::destroy() {
-    vkDestroyFence(device, fence, nullptr);
-}
-
 Stream::Stream(
     struct Context* ctx,
     VkDevice device,
@@ -73,7 +27,11 @@ Stream::Stream(
 
     commandPools = new VkCommandPool[recording_thread_count];
     commandBufferVectors = new std::vector<VkCommandBuffer>[recording_thread_count];
-    commandBufferStates = new bool*[recording_thread_count];
+    commandBufferStates = new bool[inflight_cmd_buffer_count];
+
+    for(int j = 0; j < inflight_cmd_buffer_count; j++) {
+            commandBufferStates[j] = false;
+        }
 
     for(int i = 0; i < recording_thread_count; i++) {
         VkCommandPoolCreateInfo poolInfo = {};
@@ -90,12 +48,6 @@ Stream::Stream(
 
         commandBufferVectors[i].resize(inflight_cmd_buffer_count);
         VK_CALL(vkAllocateCommandBuffers(device, &allocInfo, commandBufferVectors[i].data()));
-
-        commandBufferStates[i] = new bool[inflight_cmd_buffer_count];
-        
-        for(int j = 0; j < inflight_cmd_buffer_count; j++) {
-            commandBufferStates[i][j] = false;
-        }
     }
 
     VkFenceCreateInfo fenceInfo = {};
@@ -112,39 +64,10 @@ Stream::Stream(
     semaphoreInfo.pNext = &semType;
 
     VK_CALL(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &timeline_semaphore));
-
-    //fences.resize(inflight_cmd_buffer_count);
-    //semaphores.resize(inflight_cmd_buffer_count);
     
     recording_results.resize(inflight_cmd_buffer_count);
 
     LOG_INFO("Creating %d fences and semaphores", inflight_cmd_buffer_count);
-
-    //for(int i = 0; i < inflight_cmd_buffer_count; i++) {
-        //fences[i] = new Fence(device);
-        //VK_CALL(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &semaphores[i]));
-    //}
-
-    LOG_INFO("Created stream with %d fences and semaphores", inflight_cmd_buffer_count);
-
-    VkCommandBufferBeginInfo beginInfo = {};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    VK_CALL(vkBeginCommandBuffer(commandBufferVectors[0][0], &beginInfo));
-    VK_CALL(vkEndCommandBuffer(commandBufferVectors[0][0]));
-    
-    // VkSubmitInfo submitInfo = {};
-    // submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    // submitInfo.signalSemaphoreCount = 1;
-    // submitInfo.pSignalSemaphores = &semaphores.data()[semaphores.size() - 1];
-    // submitInfo.commandBufferCount = 1;
-    // submitInfo.pCommandBuffers = &commandBufferVectors[0][0];
-
-    // LOG_INFO("Submitting initial command buffer");
-    // VK_CALL(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
-
-    // LOG_INFO("Waiting for initial command buffer");
-    // VK_CALL(vkQueueWaitIdle(queue));
 
     this->run_stream.store(true);
 
@@ -178,14 +101,8 @@ void Stream::destroy() {
     }
 
     submit_thread.join();
-    
-    // for(int i = 0; i < semaphores.size(); i++) {
-    //     vkDestroySemaphore(device, semaphores[i], nullptr);
-    // }
 
-    // for(int i = 0; i < fences.size(); i++) {
-    //     fences[i]->destroy();
-    // }
+    vkDestroySemaphore(device, timeline_semaphore, nullptr);
 
     for(int i = 0; i < recording_thread_count; i++) {
         for(int j = 0; j < commandBufferVectors[i].size(); j++) {
@@ -193,11 +110,10 @@ void Stream::destroy() {
         }
 
         vkDestroyCommandPool(device, commandPools[i], nullptr);
-        delete[] commandBufferStates[i];
     }
 
-    //fences.clear();
-    //semaphores.clear();
+    delete[] commandBufferStates;
+
     recording_results.clear();
 
 }
@@ -208,23 +124,6 @@ void ingest_work_item(
     WorkQueue* work_queue,
     struct WorkHeader* work_header,
     uint64_t current_index) {
-
-    // if(current_index >= stream->inflight_cmd_buffer_count) {
-    //     uint64_t wait_index = current_index - stream->inflight_cmd_buffer_count;
-
-    //     uint64_t last_completed;
-    //     VK_CALL(vkGetSemaphoreCounterValue(stream->device, stream->timeline_semaphore, &last_completed));
-
-    //     if(last_completed < wait_index) {
-    //         VkSemaphoreWaitInfo wait_info{ };
-    //         wait_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-    //         wait_info.semaphoreCount = 1;
-    //         wait_info.pSemaphores = &stream->timeline_semaphore;
-    //         wait_info.pValues = &wait_index;
-
-    //         VK_CALL(vkWaitSemaphores(stream->device, &wait_info, UINT64_MAX));
-    //     }
-    // }
 
     if (current_index + 1 > stream->inflight_cmd_buffer_count) {
         uint64_t wait_value = current_index + 1 - stream->inflight_cmd_buffer_count;
@@ -251,7 +150,7 @@ void ingest_work_item(
     work_item.work_header = work_header;
     work_item.signal = work_header->signal;
     work_item.recording_result = &stream->recording_results[current_index % stream->inflight_cmd_buffer_count];
-    work_item.recording_result->state = &stream->commandBufferStates[0][current_index % stream->inflight_cmd_buffer_count];
+    work_item.recording_result->state = &stream->commandBufferStates[current_index % stream->inflight_cmd_buffer_count];
 }
 
 void Stream::ingest_worker() {
@@ -457,7 +356,6 @@ void submit_work_item(
         VK_CALL(vkWaitSemaphores(stream->device, &wait_info, UINT64_MAX));
         work_item.signal->notify();
     }
-
 }
 
 void Stream::submit_worker() {
@@ -509,7 +407,6 @@ void Stream::fused_worker() {
 
         cmd_buffer_index = record_work_item(work_item, this, barrier_manager, cmd_buffer_index, 0);
         submit_work_item(work_item, this);
-        
     }
 }
 

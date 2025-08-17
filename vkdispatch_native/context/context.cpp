@@ -198,27 +198,71 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
     LOG_INFO("Created context at %p with %d devices", ctx, device_count);
 
-    for(int i = 0; i < ctx->streams.size(); i++) {
-        command_list_record_command(ctx->command_list, 
-            "noop-on-init",
-            0,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            [](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
-                // Do nothing
-            }
-        );
+    // for(int i = 0; i < ctx->streams.size(); i++) {
+    //     command_list_record_command(ctx->command_list, 
+    //         "noop-on-init",
+    //         0,
+    //         VK_PIPELINE_STAGE_TRANSFER_BIT,
+    //         [](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
+    //             // Do nothing
+    //         }
+    //     );
 
-        Signal signal;
-        command_list_submit_extern(ctx->command_list, NULL, 1, &i, 1, &signal, RECORD_TYPE_SYNC);
-        command_list_reset_extern(ctx->command_list);
-        RETURN_ON_ERROR(NULL)
+    //     Signal signal;
+    //     command_list_submit_extern(ctx->command_list, NULL, 1, i, &signal, RECORD_TYPE_SYNC);
+    //     command_list_reset_extern(ctx->command_list);
+    //     RETURN_ON_ERROR(NULL)
 
-        signal.wait();
-    }
+    //     signal.wait();
+    // }
+
+    context_queue_wait_idle_extern(ctx, -1);
 
     ctx->handle_manager = new HandleManager(ctx);
 
     return ctx;
+}
+
+void context_queue_wait_idle_extern(struct Context* context, int queue_index) {
+    command_list_record_command(context->command_list, 
+        "noop-on-init",
+        0,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        [](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
+            // Do nothing
+        }
+    );
+
+    if(queue_index == -1) {
+        Signal* signals = new Signal[context->streams.size()];
+
+        for(int i = 0; i < context->streams.size(); i++) {
+            command_list_submit_extern(
+                context->command_list,
+                NULL,
+                1, i,
+                &signals[i],
+                RECORD_TYPE_SYNC);
+        }
+
+        for(int i = 0; i < context->streams.size(); i++) {
+            signals[i].wait();
+        }
+
+        delete[] signals;
+    } else {
+        Signal signal;
+        command_list_submit_extern(
+            context->command_list,
+            NULL,
+            1, queue_index,
+            &signal,
+            RECORD_TYPE_SYNC);
+        signal.wait();
+    }
+
+    command_list_reset_extern(context->command_list);
+    RETURN_ON_ERROR()
 }
 
 void context_destroy_extern(struct Context* context) {

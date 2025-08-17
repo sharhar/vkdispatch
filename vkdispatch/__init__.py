@@ -15,7 +15,7 @@ from .base.dtype import mat2, mat4
 from .base.dtype import is_scalar, is_complex, is_vector, is_matrix, is_dtype
 from .base.dtype import to_numpy_dtype, from_numpy_dtype, to_vector
 
-from .base.context import get_context
+from .base.context import get_context, queue_wait_idle
 from .base.context import get_context_handle
 from .base.context import make_context, select_queue_families
 from .base.context import is_context_initialized

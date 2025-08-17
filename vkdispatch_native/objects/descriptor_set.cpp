@@ -55,7 +55,7 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
     );
 
     int submit_index = -2;
-    command_list_submit_extern(plan->ctx->command_list, NULL, 1, &submit_index, 1, NULL, RECORD_TYPE_SYNC);
+    command_list_submit_extern(plan->ctx->command_list, NULL, 1, submit_index, NULL, RECORD_TYPE_SYNC);
     command_list_reset_extern(plan->ctx->command_list);
     RETURN_ON_ERROR(NULL)
 
@@ -131,7 +131,7 @@ void descriptor_set_write_buffer_extern(
     );
 
     int submit_index = -2;
-    command_list_submit_extern(ctx->command_list, NULL, 1, &submit_index, 1, NULL, RECORD_TYPE_SYNC);
+    command_list_submit_extern(ctx->command_list, NULL, 1, submit_index, NULL, RECORD_TYPE_SYNC);
     command_list_reset_extern(ctx->command_list);
     RETURN_ON_ERROR(;)
 }
@@ -179,7 +179,7 @@ void descriptor_set_write_image_extern(
     );
 
     int submit_index = -2;
-    command_list_submit_extern(ctx->command_list, NULL, 1, &submit_index, 1, NULL, RECORD_TYPE_SYNC);
+    command_list_submit_extern(ctx->command_list, NULL, 1, submit_index, NULL, RECORD_TYPE_SYNC);
     command_list_reset_extern(ctx->command_list);
     RETURN_ON_ERROR(;)
 }

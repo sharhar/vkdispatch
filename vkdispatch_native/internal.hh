@@ -111,6 +111,7 @@ public:
  * - Subgroup properties (VkPhysicalDeviceSubgroupProperties)
  * - Device details (PhysicalDeviceDetails)
  * - Queue family properties (VkQueueFamilyProperties)
+ * - Timeline semaphore features (VkPhysicalDeviceTimelineSemaphoreFeatures)
  * 
  * 
  * These handles are primarily used for iterating over the physical devices and their properties
@@ -128,6 +129,7 @@ typedef struct {
     std::vector<VkPhysicalDeviceSubgroupProperties> subgroup_properties;
     std::vector<struct PhysicalDeviceDetails> device_details;
     std::vector<std::vector<VkQueueFamilyProperties>> queue_family_properties;
+    std::vector<VkPhysicalDeviceTimelineSemaphoreFeatures> timeline_semaphore_features;
 } MyInstance;
 
 /**
@@ -199,8 +201,6 @@ public:
     void reset();
 
     std::unordered_map<void*, std::pair<int, int>> buffer_states;
-
-    //std::vector<VkImageMemoryBarrier> staged_image_barriers;
 };
 
 struct CommandInfo {

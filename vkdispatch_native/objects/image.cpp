@@ -376,7 +376,7 @@ void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkEx
             );
         }
 
-        command_list_submit_extern(ctx->command_list, NULL, 1, &buffer_index, 1, &signals[i], RECORD_TYPE_ASYNC);
+        command_list_submit_extern(ctx->command_list, NULL, 1, buffer_index, &signals[i], RECORD_TYPE_ASYNC);
         command_list_reset_extern(ctx->command_list);
         RETURN_ON_ERROR(;)
     }
@@ -449,7 +449,7 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
     );
     
     Signal signal;
-    command_list_submit_extern(ctx->command_list, NULL, 1, &index, 1, &signal, RECORD_TYPE_ASYNC);
+    command_list_submit_extern(ctx->command_list, NULL, 1, index, &signal, RECORD_TYPE_ASYNC);
     command_list_reset_extern(ctx->command_list);
     RETURN_ON_ERROR(;)
     
