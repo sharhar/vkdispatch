@@ -1,13 +1,24 @@
-#include "../internal.hh"
+#include "context.hh"
 #include <vector>
 #include <algorithm>
 #include <unordered_map>
 #include <utility>
+#include <string.h>
 
 #include <climits>
 
 #include <glslang_c_interface.h>
 #include <glslang/Public/resource_limits_c.h>
+
+#include "init.hh"
+
+#include "../queue/signal.hh"
+#include "../queue/queue.hh"
+
+#include "../objects/command_list.hh"
+#include "../objects/objects_extern.hh"
+
+//#include "../internal.hh"
 
 void inplace_min(int* a, int b) {
     if(b < *a) {

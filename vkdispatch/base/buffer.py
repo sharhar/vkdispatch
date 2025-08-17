@@ -117,9 +117,9 @@ class Buffer(typing.Generic[_ArgType]):
 
             check_for_errors()
         else:
-            result = np.zeros((self.ctx.stream_count,) + self.shape + self.var_type.true_numpy_shape, dtype=to_numpy_dtype(true_scalar))
+            result = np.zeros((self.ctx.queue_count,) + self.shape + self.var_type.true_numpy_shape, dtype=to_numpy_dtype(true_scalar))
 
-            for i in range(self.ctx.stream_count):
+            for i in range(self.ctx.queue_count):
                 result[i] = self.read(i)
 
         return result

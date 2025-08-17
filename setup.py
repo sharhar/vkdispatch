@@ -116,12 +116,12 @@ append_to_sources("vkdispatch_native/", [
     "context/init.cpp",
     "context/context.cpp",
     "context/errors.cpp",
+    "context/handles.cpp",
 
     "objects/buffer.cpp",
     "objects/image.cpp",
     "objects/command_list.cpp",
     "objects/descriptor_set.cpp",
-    "objects/handles.cpp",
 
     "stages/stage_transfer.cpp",
     "stages/stage_fft.cpp",
@@ -130,9 +130,10 @@ append_to_sources("vkdispatch_native/", [
     "queue/queue.cpp",
     "queue/signal.cpp",
     "queue/work_queue.cpp",
+    "queue/barrier_manager.cpp",
     
-    "lib_impls/VMAImpl.cpp",
-    "lib_impls/VolkImpl.cpp"
+    "libs/VMAImpl.cpp",
+    "libs/VolkImpl.cpp"
 ])
 
 if vulkan_sdk_root is None:

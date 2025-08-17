@@ -1,15 +1,18 @@
-#include "../internal.hh"
+#include "init.hh"
 
+#include <mutex>
 #include <algorithm>
 #include <string>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include <glslang_c_interface.h>
 
 std::mutex __log_mutex = {};
 std::mutex __log_level_mutex = {};
 LogLevel __log_level_limit = LOG_LEVEL_WARNING;
-MyInstance _instance;
+Instance _instance;
 
 const char* prefixes[] = {
     "VERBOSE",

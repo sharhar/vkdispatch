@@ -1,3 +1,5 @@
+# this is legacy code that I am keeoping for now, but it is not used in the current implementation
+
 # distutils: language=c++
 from libcpp cimport bool
 import sys

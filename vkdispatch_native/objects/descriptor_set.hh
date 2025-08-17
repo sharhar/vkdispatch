@@ -2,27 +2,16 @@
 #define SRC_DESCRIPTOR_SET_H
 
 #include "../base.hh"
+#include "../queue/barrier_manager.hh"
 
-struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan);
-void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set);
+#include <vector>
 
-void descriptor_set_write_buffer_extern(
-    struct DescriptorSet* descriptor_set,
-    unsigned int binding,
-    void* object,
-    unsigned long long offset,
-    unsigned long long range,
-    int uniform,
-    int read_access,
-    int write_access
-);
-void descriptor_set_write_image_extern(
-    struct DescriptorSet* descriptor_set,
-    unsigned int binding,
-    void* object,
-    void* sampler_obj,
-    int read_access,
-    int write_access
-);
+struct DescriptorSet {
+    struct ComputePlan* plan;
+    uint64_t sets_handle;
+    uint64_t pools_handle;
+
+    std::vector<BufferBarrierInfo> buffer_barriers;
+};
 
 #endif // SRC_DESCRIPTOR_SET_H

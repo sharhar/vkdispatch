@@ -3,6 +3,8 @@
 
 #include "../base.hh"
 
+// this is legacy code that I am keeoping for now, but it is not used in the current implementation
+
 struct BufferCopyInfo {
     struct Buffer* src;
     struct Buffer* dst;

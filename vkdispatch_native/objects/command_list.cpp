@@ -1,4 +1,6 @@
-#include "../internal.hh"
+#include "command_list.hh"
+
+#include "../context/context.hh"
 
 static size_t program_id = 1;
 
