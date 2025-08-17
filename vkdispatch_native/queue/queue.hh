@@ -1,5 +1,5 @@
-#ifndef _STREAM_SRC_STREAM_H
-#define _STREAM_SRC_STREAM_H
+#ifndef _QUEUE_SRC_QUEUE_H
+#define _QUEUE_SRC_QUEUE_H
 
 #include "../base.hh"
 
@@ -20,15 +20,15 @@ struct WorkQueueItem {
     VkPipelineStageFlags waitStage;
 };
 
-class Stream {
+class Queue {
 public:
-    Stream(
+    Queue(
         struct Context* ctx,
         VkDevice device,
         VkQueue queue,
         int queueFamilyIndex,
         int device_index,
-        int stream_index,
+        int queue_index,
         int recording_thread_count,
         int inflight_cmd_buffer_count);
 
@@ -48,7 +48,7 @@ public:
     void* data_buffer;
     size_t data_buffer_size;
 
-    std::atomic<bool> run_stream;
+    std::atomic<bool> run_queue;
     
     std::vector<VkCommandBuffer>* commandBufferVectors;
     bool* commandBufferStates;
@@ -79,7 +79,7 @@ public:
 
     std::mutex queue_usage_mutex;
 
-    int stream_index;
+    int queue_index;
 };
 
 #endif

@@ -127,9 +127,9 @@ append_to_sources("vkdispatch_native/", [
     "stages/stage_fft.cpp",
     "stages/stage_compute.cpp",
 
-    "stream/stream.cpp",
-    "stream/signal.cpp",
-    "stream/work_queue.cpp",
+    "queue/queue.cpp",
+    "queue/signal.cpp",
+    "queue/work_queue.cpp",
     
     "lib_impls/VMAImpl.cpp",
     "lib_impls/VolkImpl.cpp"

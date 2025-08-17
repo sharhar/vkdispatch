@@ -1,12 +1,12 @@
 #include "../internal.hh"
 
-Stream::Stream(
+Queue::Queue(
     struct Context* ctx,
     VkDevice device,
     VkQueue queue, 
     int queueFamilyIndex,
     int device_index,
-    int stream_index,
+    int queue_index,
     int recording_thread_count,
     int inflight_cmd_buffer_count) {
 
@@ -14,16 +14,16 @@ Stream::Stream(
     this->device = device;
     this->queue = queue;
     this->device_index = device_index;
-    this->stream_index = stream_index;
+    this->queue_index = queue_index;
     this->data_buffer = malloc(1024 * 1024);
     this->data_buffer_size = 1024 * 1024;
     this->recording_thread_count = recording_thread_count;
     this->sync_record = false;
     this->record_thread_states.resize(recording_thread_count);
-    this->run_stream.store(false);
+    this->run_queue.store(false);
     this->inflight_cmd_buffer_count = inflight_cmd_buffer_count;
 
-    LOG_INFO("Creating stream with device %p, queue %p, queue family index %d", device, queue, queueFamilyIndex);
+    LOG_INFO("Creating queue with VkDevice %p, VkQueue %p, queue family index %d", device, queue, queueFamilyIndex);
 
     commandPools = new VkCommandPool[recording_thread_count];
     commandBufferVectors = new std::vector<VkCommandBuffer>[recording_thread_count];
@@ -69,7 +69,7 @@ Stream::Stream(
 
     LOG_INFO("Creating %d fences and semaphores", inflight_cmd_buffer_count);
 
-    this->run_stream.store(true);
+    this->run_queue.store(true);
 
     if(this->recording_thread_count > 1) {
         submit_thread = std::thread([this]() { this->submit_worker(); });
@@ -85,8 +85,8 @@ Stream::Stream(
     }
 }
 
-void Stream::destroy() {
-    this->run_stream.store(false);
+void Queue::destroy() {
+    this->run_queue.store(false);
     this->record_queue_cv.notify_all();
     this->submit_queue_cv.notify_all();
 
@@ -120,53 +120,53 @@ void Stream::destroy() {
 
 void ingest_work_item(
     struct WorkQueueItem& work_item,
-    Stream* stream,
+    Queue* queue,
     WorkQueue* work_queue,
     struct WorkHeader* work_header,
     uint64_t current_index) {
 
-    if (current_index + 1 > stream->inflight_cmd_buffer_count) {
-        uint64_t wait_value = current_index + 1 - stream->inflight_cmd_buffer_count;
+    if (current_index + 1 > queue->inflight_cmd_buffer_count) {
+        uint64_t wait_value = current_index + 1 - queue->inflight_cmd_buffer_count;
 
         uint64_t last_completed = 0;
-        VK_CALL(vkGetSemaphoreCounterValue(stream->device, stream->timeline_semaphore, &last_completed));
+        VK_CALL(vkGetSemaphoreCounterValue(queue->device, queue->timeline_semaphore, &last_completed));
         if (last_completed < wait_value) {
             VkSemaphoreWaitInfo wi{};
             wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
             wi.semaphoreCount = 1;
-            wi.pSemaphores = &stream->timeline_semaphore;
+            wi.pSemaphores = &queue->timeline_semaphore;
             wi.pValues     = &wait_value;
-            VK_CALL(vkWaitSemaphores(stream->device, &wi, UINT64_MAX));
+            VK_CALL(vkWaitSemaphores(queue->device, &wi, UINT64_MAX));
         }
     }
         
-    if(!work_queue->pop(&work_header, stream->stream_index)) {
-        LOG_INFO("Thread worker for device %d, stream %d has no more work", stream->device_index, stream->stream_index);
-        stream->run_stream = false;
+    if(!work_queue->pop(&work_header, queue->queue_index)) {
+        LOG_INFO("Thread worker for device %d, queue %d has no more work", queue->device_index, queue->queue_index);
+        queue->run_queue = false;
         return;
     }
 
     work_item.current_index = current_index;
     work_item.work_header = work_header;
     work_item.signal = work_header->signal;
-    work_item.recording_result = &stream->recording_results[current_index % stream->inflight_cmd_buffer_count];
-    work_item.recording_result->state = &stream->commandBufferStates[current_index % stream->inflight_cmd_buffer_count];
+    work_item.recording_result = &queue->recording_results[current_index % queue->inflight_cmd_buffer_count];
+    work_item.recording_result->state = &queue->commandBufferStates[current_index % queue->inflight_cmd_buffer_count];
 }
 
-void Stream::ingest_worker() {
+void Queue::ingest_worker() {
     struct Context* ctx = this->ctx;
     WorkQueue* work_queue = ctx->work_queue;
     struct WorkHeader* work_header = NULL;
 
     uint64_t current_index = 0;
 
-    while(this->run_stream.load()) {
+    while(this->run_queue.load()) {
         struct WorkQueueItem work_item;
         
         ingest_work_item(work_item, this, work_queue, work_header, current_index);
         current_index++;
 
-        if(!this->run_stream.load()) {
+        if(!this->run_queue.load()) {
             break;
         }
         
@@ -182,21 +182,21 @@ void Stream::ingest_worker() {
         }
     }
 
-    LOG_INFO("Thread worker for device %d, stream %d has quit", device_index, stream_index);
+    LOG_INFO("Thread worker for device %d, queue %d has quit", device_index, queue_index);
 }
 
 int record_work_item(
     struct WorkQueueItem& work_item,
-    Stream* stream,
+    Queue* queue,
     BarrierManager& barrier_manager,
     int cmd_buffer_index,
     int worker_id) {
      
-    VkCommandBuffer cmd_buffer = stream->commandBufferVectors[worker_id][cmd_buffer_index];
+    VkCommandBuffer cmd_buffer = queue->commandBufferVectors[worker_id][cmd_buffer_index];
 
     work_item.recording_result->commandBuffer = cmd_buffer;
 
-    cmd_buffer_index = (cmd_buffer_index + 1) % stream->commandBufferVectors[worker_id].size();
+    cmd_buffer_index = (cmd_buffer_index + 1) % queue->commandBufferVectors[worker_id].size();
 
     VkCommandBufferBeginInfo beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -214,7 +214,7 @@ int record_work_item(
             LOG_VERBOSE("Recording command %d of type %s on worker %d", i, command_buffer->operator[](i).name, worker_id);
 
             LOG_VERBOSE("Executing command %d", i);
-            command_buffer->operator[](i).func->operator()(cmd_buffer, stream->device_index, stream->stream_index, worker_id, current_instance_data, &barrier_manager);
+            command_buffer->operator[](i).func->operator()(cmd_buffer, queue->device_index, queue->queue_index, worker_id, current_instance_data, &barrier_manager);
             current_instance_data += command_buffer->operator[](i).pc_size;
 
             work_item.waitStage |= command_buffer->operator[](i).pipeline_stage;
@@ -227,12 +227,12 @@ int record_work_item(
 
     barrier_manager.reset();
 
-    stream->ctx->work_queue->finish(work_item.work_header);
+    queue->ctx->work_queue->finish(work_item.work_header);
 
     return cmd_buffer_index;
 }
 
-void Stream::record_worker(int worker_id) {
+void Queue::record_worker(int worker_id) {
     VkMemoryBarrier memory_barrier = {
         VK_STRUCTURE_TYPE_MEMORY_BARRIER,
         0,
@@ -246,7 +246,7 @@ void Stream::record_worker(int worker_id) {
 
     BarrierManager barrier_manager;
 
-    while(this->run_stream.load()) {
+    while(this->run_queue.load()) {
         struct WorkQueueItem work_item;
 
         {   
@@ -266,7 +266,7 @@ void Stream::record_worker(int worker_id) {
             this->record_thread_states[worker_id] = false;
 
             this->record_queue_cv.wait(lock, [this]() {
-                if(!this->run_stream.load()) {
+                if(!this->run_queue.load()) {
                     return true;
                 }
 
@@ -289,7 +289,7 @@ void Stream::record_worker(int worker_id) {
                 return true;
             });
 
-            if(!this->run_stream.load()) {
+            if(!this->run_queue.load()) {
                 break;
             }
 
@@ -319,7 +319,7 @@ void Stream::record_worker(int worker_id) {
 
 void submit_work_item(
     struct WorkQueueItem& work_item,
-    Stream* stream) {
+    Queue* queue) {
 
     const uint64_t signalValue = work_item.current_index + 1;
 
@@ -338,35 +338,35 @@ void submit_work_item(
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.pNext = &timeline_submit_info;
     submit_info.waitSemaphoreCount   = 1;
-    submit_info.pWaitSemaphores      = &stream->timeline_semaphore;
+    submit_info.pWaitSemaphores      = &queue->timeline_semaphore;
     submit_info.pWaitDstStageMask    = &work_item.waitStage;
     submit_info.commandBufferCount   = 1;
     submit_info.pCommandBuffers      = &work_item.recording_result->commandBuffer;
     submit_info.signalSemaphoreCount = 1;
-    submit_info.pSignalSemaphores    = &stream->timeline_semaphore;
+    submit_info.pSignalSemaphores    = &queue->timeline_semaphore;
 
-    VK_CALL(vkQueueSubmit(stream->queue, 1, &submit_info, VK_NULL_HANDLE));
+    VK_CALL(vkQueueSubmit(queue->queue, 1, &submit_info, VK_NULL_HANDLE));
 
     if (work_item.signal != nullptr) {
         VkSemaphoreWaitInfo wait_info = { };
         wait_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
         wait_info.semaphoreCount = 1;
-        wait_info.pSemaphores = &stream->timeline_semaphore;
+        wait_info.pSemaphores = &queue->timeline_semaphore;
         wait_info.pValues     = &signalValue;
-        VK_CALL(vkWaitSemaphores(stream->device, &wait_info, UINT64_MAX));
+        VK_CALL(vkWaitSemaphores(queue->device, &wait_info, UINT64_MAX));
         work_item.signal->notify();
     }
 }
 
-void Stream::submit_worker() {
-    while(this->run_stream.load()) {
+void Queue::submit_worker() {
+    while(this->run_queue.load()) {
         struct WorkQueueItem work_item;
 
         {
             std::unique_lock<std::mutex> lock(this->submit_queue_mutex);
 
             this->submit_queue_cv.wait(lock, [this]() {
-                if(!this->run_stream.load()) {
+                if(!this->run_queue.load()) {
                     return true;
                 }
                 
@@ -377,7 +377,7 @@ void Stream::submit_worker() {
                 return this->submit_queue.front().recording_result->state[0];
             });
 
-            if(!this->run_stream.load()) {
+            if(!this->run_queue.load()) {
                 break;
             }
 
@@ -391,7 +391,7 @@ void Stream::submit_worker() {
     }
 }
 
-void Stream::fused_worker() {
+void Queue::fused_worker() {
     struct Context* ctx = this->ctx;
     WorkQueue* work_queue = ctx->work_queue;
     struct WorkHeader* work_header = NULL;
@@ -399,7 +399,7 @@ void Stream::fused_worker() {
     int cmd_buffer_index = 0;
     BarrierManager barrier_manager;
 
-    while(this->run_stream.load()) {
+    while(this->run_queue.load()) {
         struct WorkQueueItem work_item;
         
         ingest_work_item(work_item, this, work_queue, work_header, current_index);
@@ -414,7 +414,7 @@ BarrierManager::BarrierManager() {
 
 }
 
-void BarrierManager::record_barriers(VkCommandBuffer cmd_buffer, struct BufferBarrierInfo* buffer_barrier_infos, int buffer_barrier_count, int stream_index) {
+void BarrierManager::record_barriers(VkCommandBuffer cmd_buffer, struct BufferBarrierInfo* buffer_barrier_infos, int buffer_barrier_count, int queue_index) {
     int barrier_count = 0;
 
     VkBufferMemoryBarrier* buffer_barriers = (VkBufferMemoryBarrier*)malloc(sizeof(VkBufferMemoryBarrier) * buffer_barrier_count);
@@ -451,7 +451,7 @@ void BarrierManager::record_barriers(VkCommandBuffer cmd_buffer, struct BufferBa
         buffer_barriers[barrier_count].dstAccessMask = dstAccessMask;
         buffer_barriers[barrier_count].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         buffer_barriers[barrier_count].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        buffer_barriers[barrier_count].buffer = buffer_id->buffers[stream_index];
+        buffer_barriers[barrier_count].buffer = buffer_id->buffers[queue_index];
         buffer_barriers[barrier_count].offset = 0;
         buffer_barriers[barrier_count].size = VK_WHOLE_SIZE;
 

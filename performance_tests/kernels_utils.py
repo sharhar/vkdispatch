@@ -155,8 +155,8 @@ def do_benchmark_vkdispatch(kernel, params_host, kernel_type, batch_size, iter_c
         raw_stream_index = i % total_streams
         raw_stream_index = raw_stream_index + (stream_count - streams_per_device) * raw_stream_index // streams_per_device
         cmd_stream.submit(instance_count=batch_size, stream_index=raw_stream_index)
-        
-    out_buff.read()
+
+    vd.queue_wait_idle()   
     end_time = time.perf_counter()
 
     return end_time - start_time

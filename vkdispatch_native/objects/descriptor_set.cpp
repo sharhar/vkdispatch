@@ -3,8 +3,8 @@
 struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
     struct DescriptorSet* descriptor_set = new struct DescriptorSet();
     descriptor_set->plan = plan;
-    descriptor_set->sets_handle = plan->ctx->handle_manager->register_stream_handle("DescriptorSet");
-    descriptor_set->pools_handle = plan->ctx->handle_manager->register_stream_handle("DescriptorPool");
+    descriptor_set->sets_handle = plan->ctx->handle_manager->register_queue_handle("DescriptorSet");
+    descriptor_set->pools_handle = plan->ctx->handle_manager->register_queue_handle("DescriptorPool");
 
     struct Context* ctx = plan->ctx;
 
@@ -21,8 +21,8 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
         [ctx, descriptor_set_layouts_handle, sets_handle, pools_handle, binding_count, poolSizes]
-        (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
-            LOG_VERBOSE("Creating Descriptor Set for device %d on stream %d recorder %d", device_index, stream_index, recorder_index);
+        (VkCommandBuffer cmd_buffer, int device_index, int queue_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
+            LOG_VERBOSE("Creating Descriptor Set for device %d on queue %d recorder %d", device_index, queue_index, recorder_index);
 
             VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
             memset(&descriptorPoolCreateInfo, 0, sizeof(VkDescriptorPoolCreateInfo));
@@ -31,7 +31,7 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
             descriptorPoolCreateInfo.poolSizeCount = binding_count;
             descriptorPoolCreateInfo.pPoolSizes = poolSizes;
 
-            LOG_VERBOSE("Creating Descriptor Pool for device %d on stream %d recorder %d", device_index, stream_index, recorder_index);
+            LOG_VERBOSE("Creating Descriptor Pool for device %d on queue %d recorder %d", device_index, queue_index, recorder_index);
 
             VkDescriptorPool pool;
             VK_CALL(vkCreateDescriptorPool(ctx->devices[device_index], &descriptorPoolCreateInfo, NULL, &pool));
@@ -42,15 +42,15 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
             descriptorSetAllocateInfo.descriptorPool = pool;
             descriptorSetAllocateInfo.descriptorSetCount = 1;
 
-            LOG_VERBOSE("Descriptor Set Layout Handle: %d", (uint64_t)ctx->handle_manager->get_handle(stream_index, descriptor_set_layouts_handle));
+            LOG_VERBOSE("Descriptor Set Layout Handle: %d", (uint64_t)ctx->handle_manager->get_handle(queue_index, descriptor_set_layouts_handle));
 
-            descriptorSetAllocateInfo.pSetLayouts = (VkDescriptorSetLayout*)ctx->handle_manager->get_handle_pointer(stream_index, descriptor_set_layouts_handle);
+            descriptorSetAllocateInfo.pSetLayouts = (VkDescriptorSetLayout*)ctx->handle_manager->get_handle_pointer(queue_index, descriptor_set_layouts_handle);
 
             VkDescriptorSet set;
             VK_CALL(vkAllocateDescriptorSets(ctx->devices[device_index], &descriptorSetAllocateInfo, &set));
 
-            ctx->handle_manager->set_handle(stream_index, sets_handle, (uint64_t)set);
-            ctx->handle_manager->set_handle(stream_index, pools_handle, (uint64_t)pool);
+            ctx->handle_manager->set_handle(queue_index, sets_handle, (uint64_t)set);
+            ctx->handle_manager->set_handle(queue_index, pools_handle, (uint64_t)pool);
         }
     );
 
@@ -65,14 +65,14 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
 void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set) {
     struct Context* ctx = descriptor_set->plan->ctx;
 
-    // for (int i = 0; i < descriptor_set->plan->ctx->streams.size(); i++) {
+    // for (int i = 0; i < descriptor_set->plan->ctx->queues.size(); i++) {
     //     VkDescriptorPool pool = descriptor_set->pools[i];
 
     //      command_list_record_command(descriptor_set->plan->ctx->command_list, 
     //         "descriptor-set-destroy",
     //         0,
     //         VK_PIPELINE_STAGE_TRANSFER_BIT,
-    //         [ctx, pool](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
+    //         [ctx, pool](VkCommandBuffer cmd_buffer, int device_index, int queue_index, int recorder_index, void* pc_data) {
     //             vkDestroyDescriptorPool(ctx->devices[device_index], pool, NULL);
     //         }
     //     );
@@ -107,9 +107,9 @@ void descriptor_set_write_buffer_extern(
         "descriptor-set-write-buffer",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        [buffer, ctx, sets_handle, offset, range, binding, uniform](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
+        [buffer, ctx, sets_handle, offset, range, binding, uniform](VkCommandBuffer cmd_buffer, int device_index, int queue_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
             VkDescriptorBufferInfo buffDesc;
-            buffDesc.buffer = buffer->buffers[stream_index];
+            buffDesc.buffer = buffer->buffers[queue_index];
 
             buffDesc.offset = offset;
             buffDesc.range = range == 0 ? VK_WHOLE_SIZE : range;
@@ -117,7 +117,7 @@ void descriptor_set_write_buffer_extern(
             VkWriteDescriptorSet writeDescriptor;
             memset(&writeDescriptor, 0, sizeof(VkWriteDescriptorSet));
             writeDescriptor.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            writeDescriptor.dstSet = (VkDescriptorSet)ctx->handle_manager->get_handle(stream_index, sets_handle);
+            writeDescriptor.dstSet = (VkDescriptorSet)ctx->handle_manager->get_handle(queue_index, sets_handle);
             writeDescriptor.dstBinding = binding;
             writeDescriptor.dstArrayElement = 0;
             writeDescriptor.descriptorCount = 1;
@@ -156,16 +156,16 @@ void descriptor_set_write_image_extern(
         "descriptor-set-write-image",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        [image, sampler, ctx, sets_handle, binding](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
+        [image, sampler, ctx, sets_handle, binding](VkCommandBuffer cmd_buffer, int device_index, int queue_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
             VkDescriptorImageInfo imageDesc;
             imageDesc.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageDesc.imageView = image->imageViews[stream_index];
-            imageDesc.sampler = sampler->samplers[stream_index];
+            imageDesc.imageView = image->imageViews[queue_index];
+            imageDesc.sampler = sampler->samplers[queue_index];
 
             VkWriteDescriptorSet writeDescriptor;
             memset(&writeDescriptor, 0, sizeof(VkWriteDescriptorSet));
             writeDescriptor.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            writeDescriptor.dstSet = (VkDescriptorSet)ctx->handle_manager->get_handle(stream_index, sets_handle);
+            writeDescriptor.dstSet = (VkDescriptorSet)ctx->handle_manager->get_handle(queue_index, sets_handle);
             writeDescriptor.dstBinding = binding;
             writeDescriptor.dstArrayElement = 0;
             writeDescriptor.descriptorCount = 1;

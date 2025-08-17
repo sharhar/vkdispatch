@@ -42,8 +42,6 @@ def run_vkdispatch(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batc
     buffer = vd.Buffer(shape, var_type=vd.complex64)
     output_buffer = vd.Buffer(shape, var_type=vd.complex64)
     buffer_shape = buffer.shape
-    
-    sync_buffer = vd.Buffer((10,), var_type=vd.float32)
 
     cmd_stream = vd.CommandStream()
 
@@ -58,7 +56,7 @@ def run_vkdispatch(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batc
     for _ in range(warmup):
         cmd_stream.submit(iter_batch)
 
-    sync_buffer.read()
+    vd.queue_wait_idle()
 
     gb_byte_count = 2 * 8 * output_buffer.size / (1024 * 1024 * 1024)
     
@@ -67,7 +65,7 @@ def run_vkdispatch(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batc
     for _ in range(iter_count // iter_batch):
         cmd_stream.submit(iter_batch)
 
-    sync_buffer.read()
+    vd.queue_wait_idle()
 
     elapsed_time = time.perf_counter() - start_time
 
@@ -77,8 +75,6 @@ def run_vkfft(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batch: in
     buffer = vd.Buffer(shape, var_type=vd.complex64)
     output_buffer = vd.Buffer(shape, var_type=vd.complex64)
     buffer_shape = buffer.shape
-    
-    sync_buffer = vd.Buffer((10,), var_type=vd.float32)
 
     cmd_stream = vd.CommandStream()
 
@@ -93,7 +89,7 @@ def run_vkfft(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batch: in
     for _ in range(warmup):
         cmd_stream.submit(iter_batch)
 
-    sync_buffer.read()
+    vd.queue_wait_idle()
 
     gb_byte_count = 2 * 8 * output_buffer.size / (1024 * 1024 * 1024)
     
@@ -102,7 +98,7 @@ def run_vkfft(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batch: in
     for _ in range(iter_count // iter_batch):
         cmd_stream.submit(iter_batch)
 
-    sync_buffer.read()
+    vd.queue_wait_idle()
 
     elapsed_time = time.perf_counter() - start_time
 
