@@ -208,7 +208,7 @@ void context_queue_wait_idle_extern(struct Context* context, int queue_index) {
         "noop-on-init",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        [](VkCommandBuffer cmd_buffer, int device_index, int queue_index, int recorder_index, void* pc_data, BarrierManager* barrier_manager) {
+        [](VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             // Do nothing
         }
     );

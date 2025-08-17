@@ -129,7 +129,7 @@ class CommandStream(vd.CommandList):
                       pc_values: Dict[str, Any] = {},
                       shader_uuid: str = None
                     ) -> None:
-        descriptor_set = vd.DescriptorSet(plan._handle)
+        descriptor_set = vd.DescriptorSet(plan)
 
         if shader_uuid is None:
             shader_uuid = shader_description.name + "_" + str(uuid.uuid4())

@@ -3,6 +3,10 @@ import numpy as np
 import csv
 import sys
 
+import vkdispatch as vd
+
+vd.initialize(debug_mode=True)
+
 data_size = 16 * 1024 * 1024 # 16 MB
 
 test_backends = ['torch', 'vkdispatch', 'vkfft', 'scipy']

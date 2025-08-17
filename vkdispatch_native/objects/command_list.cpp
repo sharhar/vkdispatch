@@ -15,7 +15,6 @@ struct CommandList* command_list_create_extern(struct Context* context) {
 }
 
 void command_list_destroy_extern(struct CommandList* command_list) {
-    LOG_INFO("Destroying command list with handle %p", command_list);
     delete command_list;
 }
 
@@ -24,7 +23,7 @@ void command_list_record_command(
     const char* name,
     size_t pc_size,
     VkPipelineStageFlags pipeline_stage,
-    std::function<void(VkCommandBuffer, int, int, int, void*, BarrierManager*)> func
+    std::function<void(VkCommandBuffer, struct ExecIndicies, void*, BarrierManager*, uint64_t)> func
 ) {
     command_list->program_id = program_id;
     program_id += 1;
@@ -33,7 +32,7 @@ void command_list_record_command(
     command.name = name;
     command.pc_size = pc_size;
     command.pipeline_stage = pipeline_stage;
-    command.func = std::make_shared<std::function<void(VkCommandBuffer, int, int, int, void*,  BarrierManager*)>>(func);
+    command.func = std::make_shared<std::function<void(VkCommandBuffer, struct ExecIndicies, void*,  BarrierManager*, uint64_t)>>(func);
 
     command_list->commands.push_back(command);
     

@@ -25,6 +25,8 @@ cdef extern from "stages/stages_extern.hh":
         const char* shader_name
 
     ComputePlan* stage_compute_plan_create_extern(Context* ctx, ComputePlanCreateInfo* create_info)
+    void stage_compute_plan_destroy_extern(ComputePlan* plan)
+
     void stage_compute_record_extern(CommandList* command_list, ComputePlan* plan, DescriptorSet* descriptor_set, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z)
 
     struct Context
@@ -56,6 +58,9 @@ cdef extern from "stages/stages_extern.hh":
         int num_batches,
         int single_kernel_multiple_batches,
         int keep_shader_code)
+
+    void stage_fft_plan_destroy_extern(FFTPlan* plan)
+
     void stage_fft_record_extern(
         CommandList* command_list, 
         FFTPlan* plan,
@@ -81,6 +86,9 @@ cpdef inline stage_compute_plan_create(unsigned long long context, bytes shader_
     free(create_info.descriptorTypes)
 
     return <unsigned long long>plan
+
+cpdef inline stage_compute_plan_destroy(unsigned long long plan):
+    stage_compute_plan_destroy_extern(<ComputePlan*>plan)
 
 cpdef inline stage_compute_record(unsigned long long command_list, unsigned long long plan, unsigned long long descriptor_set, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z):
     cdef CommandList* cl = <CommandList*>command_list
@@ -155,6 +163,9 @@ cpdef inline stage_fft_plan_create(
     free(dims__)
 
     return <unsigned long long>plan
+
+cpdef inline stage_fft_plan_destroy(unsigned long long plan):
+    stage_fft_plan_destroy_extern(<FFTPlan*>plan)
 
 cpdef inline stage_fft_record(
     unsigned long long command_list, 

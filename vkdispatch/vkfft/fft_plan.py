@@ -80,6 +80,10 @@ class VkFFTPlan:
         )
         vd.check_for_errors()
 
+    def __del__(self):
+        vkdispatch_native.stage_fft_plan_destroy(self._handle)
+        vd.check_for_errors()
+
     def record(self, command_list: vd.CommandList, buffer: vd.Buffer, inverse: bool = False, kernel: vd.Buffer = None, input: vd.Buffer = None):
         vkdispatch_native.stage_fft_record(
             command_list._handle, 

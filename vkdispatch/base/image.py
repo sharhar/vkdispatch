@@ -227,6 +227,9 @@ class Sampler:
             max_lod,
             border_color.value
         )
+    
+    def __del__(self) -> None:
+        vkdispatch_native.image_destroy_sampler(self._handle)
 
 class Image:
     def __init__(
@@ -300,7 +303,7 @@ class Image:
         )
 
     def __del__(self) -> None:
-        pass  # vkdispatch_native.buffer_destroy(self._handle)
+        vkdispatch_native.image_destroy(self._handle)
 
     def write(self, data: np.ndarray, device_index: int = -1) -> None:
         if data.size * np.dtype(data.dtype).itemsize != self.mem_size:

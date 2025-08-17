@@ -31,7 +31,7 @@ class CommandList:
         check_for_errors()
 
     def __del__(self) -> None:
-        pass  # vkdispatch_native.command_list_destroy(self._handle)
+        vkdispatch_native.command_list_destroy(self._handle)
 
     def get_instance_size(self) -> int:
         """Get the total size of the command list in bytes."""
