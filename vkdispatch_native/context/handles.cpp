@@ -1,4 +1,6 @@
-#include "../internal.hh"
+#include "handles.hh"
+
+#include "context.hh"
 
 HandleManager::HandleManager(Context* ctx) {
     next_handle = 1;

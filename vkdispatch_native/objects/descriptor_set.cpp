@@ -1,4 +1,12 @@
-#include "../internal.hh"
+#include "descriptor_set.hh"
+#include "command_list.hh"
+#include "buffer.hh"
+#include "image.hh"
+
+#include "../context/context.hh"
+#include "../stages/stage_compute.hh"
+
+#include "objects_extern.hh"
 
 struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
     struct DescriptorSet* descriptor_set = new struct DescriptorSet();

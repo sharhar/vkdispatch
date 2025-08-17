@@ -1,4 +1,5 @@
-#include "../internal.hh"
+#include "../base.hh"
+#include "signal.hh"
 
 Signal::Signal() : state(false) {}
 

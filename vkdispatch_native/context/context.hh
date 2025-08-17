@@ -3,8 +3,29 @@
 
 #include "../base.hh"
 
-struct Context* context_create_extern(int* device_indicies, int* queue_counts, int* queue_families, int device_count);
-void context_queue_wait_idle_extern(struct Context* context, int queue_index);
-void context_destroy_extern(struct Context* context);
+#include "../libs/VMA.h"
+
+#include "../queue/queue.hh"
+#include "../queue/work_queue.hh"
+
+#include "handles.hh"
+
+struct Context {
+    uint32_t deviceCount;
+    std::vector<VkPhysicalDevice> physicalDevices;
+    std::vector<VkDevice> devices;
+    std::vector<std::vector<int>> queue_index_map;
+    std::vector<Queue*> queues;
+    std::vector<VmaAllocator> allocators;
+
+    HandleManager* handle_manager;
+
+    std::mutex glslang_mutex;
+
+    void* glslang_resource_limits;
+
+    struct CommandList* command_list;
+    WorkQueue* work_queue;
+};
 
 #endif  // SRC_DEVICE_CONTEXT_H_

@@ -6,6 +6,8 @@
 #include <atomic>
 #include <queue>
 #include <thread>
+#include <mutex>
+#include <condition_variable>
 
 struct RecordingResultData {
     bool* state;

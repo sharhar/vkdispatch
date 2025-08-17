@@ -1,4 +1,11 @@
-#include "../internal.hh"
+#include "buffer.hh"
+#include "objects_extern.hh"
+#include "command_list.hh"
+
+#include "../context/context.hh"
+#include "../queue/signal.hh"
+
+#include <cstring>
 
 struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size, int per_device) {
     if(size == 0) {

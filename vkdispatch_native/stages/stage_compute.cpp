@@ -1,4 +1,11 @@
-#include "../internal.hh"
+#include "stage_compute.hh"
+#include "stages_extern.hh"
+
+#include "../context/context.hh"
+#include "../objects/descriptor_set.hh"
+#include "../objects/command_list.hh"
+#include "../objects/objects_extern.hh"
+
 
 #include <chrono>
 #include <thread>

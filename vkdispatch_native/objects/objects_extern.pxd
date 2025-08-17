@@ -4,8 +4,12 @@ import sys
 
 from libc.stdlib cimport malloc, free
 
-cdef extern from "objects/image.hh":
+cdef extern from "objects/objects_extern.hh":
     struct Context
+    struct Buffer
+    struct CommandList
+    struct ComputePlan
+    struct DescriptorSet
     struct Image
     struct Sampler
     struct VkOffset3D:
@@ -17,6 +21,27 @@ cdef extern from "objects/image.hh":
         int width
         int height
         int depth
+
+
+    Buffer* buffer_create_extern(Context* context, unsigned long long size, int per_device)
+    void buffer_destroy_extern(Buffer* buffer)
+
+    void buffer_write_extern(Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int index)
+    void buffer_read_extern(Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int index)
+
+    
+
+    CommandList* command_list_create_extern(Context* context)
+    void command_list_destroy_extern(CommandList* command_list)
+    unsigned long long command_list_get_instance_size_extern(CommandList* command_list) 
+    void command_list_reset_extern(CommandList* command_list)
+    void command_list_submit_extern(CommandList* command_list, void* instance_buffer, unsigned int instanceCount, int index, void* signal, int recordType)
+
+    DescriptorSet* descriptor_set_create_extern(ComputePlan* plan)
+    void descriptor_set_destroy_extern(DescriptorSet* descriptor_set)
+
+    void descriptor_set_write_buffer_extern(DescriptorSet* descriptor_set, unsigned int binding, void* object, unsigned long long offset, unsigned long long range, int uniform, int read_access, int write_access)
+    void descriptor_set_write_image_extern(DescriptorSet* descriptor_set, unsigned int binding, void* object, void* sampler_obj, int read_access, int write_access)
 
     Image* image_create_extern(Context* context, VkExtent3D extent, unsigned int layers, unsigned int format, unsigned int type, unsigned int view_type, unsigned int generate_mips)
     void image_destroy_extern(Image* image)
@@ -40,6 +65,75 @@ cdef extern from "objects/image.hh":
 
     #void image_copy_extern(Image* src, Image* dst, VkOffset3D src_offset, unsigned int src_baseLayer, unsigned int src_layerCount, 
     #                                               VkOffset3D dst_offset, unsigned int dst_baseLayer, unsigned int dst_layerCount, VkExtent3D extent, int device_index)
+
+
+cpdef inline buffer_create(unsigned long long context, unsigned long long size, int per_device):
+    return <unsigned long long>buffer_create_extern(<Context*>context, size, per_device)
+
+cpdef inline buffer_destroy(unsigned long long buffer):
+    buffer_destroy_extern(<Buffer*>buffer)
+
+cpdef inline buffer_write(unsigned long long buffer, bytes data, unsigned long long offset, unsigned long long size, int index):
+    cdef const char* data_view = data
+    buffer_write_extern(<Buffer*>buffer, <void*>data_view, offset, size, index)
+
+cpdef inline buffer_read(unsigned long long buffer, unsigned long long offset, unsigned long long size, int index):
+    cdef bytes data = bytes(size)
+    cdef char* data_view = data
+
+    buffer_read_extern(<Buffer*>buffer, <void*>data_view, offset, size, index)
+
+    return data
+
+cpdef inline command_list_create(unsigned long long context):
+    return <unsigned long long>command_list_create_extern(<Context*>context)
+
+cpdef inline command_list_destroy(unsigned long long command_list):
+    command_list_destroy_extern(<CommandList*>command_list)
+
+cpdef inline command_list_get_instance_size(unsigned long long command_list):
+    return command_list_get_instance_size_extern(<CommandList*>command_list)
+
+cpdef inline command_list_reset(unsigned long long command_list):
+    command_list_reset_extern(<CommandList*>command_list)
+
+cpdef inline command_list_submit(unsigned long long command_list, bytes data, unsigned int instance_count, int index):
+    cdef const char* data_view = NULL
+    if data is not None:
+        data_view = data
+
+    command_list_submit_extern(<CommandList*>command_list, <void*>data_view, instance_count, index, <void*>0, 0)
+
+cpdef inline descriptor_set_create(unsigned long long plan):
+    cdef ComputePlan* p = <ComputePlan*>plan
+    return <unsigned long long>descriptor_set_create_extern(p)
+
+cpdef inline descriptor_set_destroy(unsigned long long descriptor_set):
+    descriptor_set_destroy_extern(<DescriptorSet*>descriptor_set)
+
+cpdef inline descriptor_set_write_buffer(
+    unsigned long long descriptor_set,
+    unsigned int binding,
+    unsigned long long object,
+    unsigned long long offset,
+    unsigned long long range,
+    int uniform,
+    int read_access,
+    int write_access):
+
+    cdef DescriptorSet* ds = <DescriptorSet*>descriptor_set
+    descriptor_set_write_buffer_extern(ds, binding, <void*>object, offset, range, uniform, read_access, write_access)
+
+cpdef inline descriptor_set_write_image(
+    unsigned long long descriptor_set,
+    unsigned int binding,
+    unsigned long long object,
+    unsigned long long sampler_obj,
+    int read_access,
+    int write_access):
+
+    cdef DescriptorSet* ds = <DescriptorSet*>descriptor_set
+    descriptor_set_write_image_extern(ds, binding, <void*>object, <void*>sampler_obj, read_access, write_access)
 
 cpdef inline image_create(unsigned long long context, tuple[unsigned int, unsigned int, unsigned int] extent, unsigned int layers, unsigned int format, unsigned int type, unsigned int view_type, unsigned int generate_mips):
     assert len(extent) == 3

@@ -1,17 +1,20 @@
-#include "../internal.hh"
+#include "stage_transfer.hh"
+
+#include "../objects/buffer.hh"
 
 void stage_transfer_record_copy_buffer_extern(struct CommandList* command_list, struct BufferCopyInfo* copy_info) {
     // we allocate using `malloc` rather than new here because we need to free this memory later without knowing it's type
     // requiring us to allocate with `malloc` and free with `free`
-    struct BufferCopyInfo* my_copy_info = (struct BufferCopyInfo*)malloc(sizeof(*my_copy_info));
-    memcpy(my_copy_info, copy_info, sizeof(*my_copy_info));
+    
+    //struct BufferCopyInfo* my_copy_info = (struct BufferCopyInfo*)malloc(sizeof(*my_copy_info));
+    //memcpy(my_copy_info, copy_info, sizeof(*my_copy_info));
 
     //if(!copy_info->src->per_device && copy_info->dst->per_device) {
     //    set_error("Cannot copy from per-queue buffer to per-device buffer!");
     //    return;
     //}
 
-    LOG_INFO("Recording copy buffer stage");
+    //LOG_INFO("Recording copy buffer stage");
 
     // struct CommandInfo command = {};
     // command.type = COMMAND_TYPE_BUFFER_COPY;

@@ -1,11 +1,16 @@
 #ifndef LOG_HH_SRC_LOG_HH
 #define LOG_HH_SRC_LOG_HH
 
-#include "../base.hh"
-
 #include <mutex>
 
 #include <stdarg.h>
+
+enum LogLevel {
+    LOG_LEVEL_VERBOSE = 0,
+    LOG_LEVEL_INFO = 1,
+    LOG_LEVEL_WARNING = 2,
+    LOG_LEVEL_ERROR = 3
+};
 
 extern std::mutex __log_mutex;
 extern std::mutex __log_level_mutex;

@@ -1,4 +1,10 @@
-#include "../internal.hh"
+#include "stage_fft.hh"
+#include "stages_extern.hh"
+
+#include "../context/context.hh"
+#include "../objects/buffer.hh"
+#include "../objects/command_list.hh"
+#include "../objects/objects_extern.hh"
 
 #include <vkFFT.h>
 

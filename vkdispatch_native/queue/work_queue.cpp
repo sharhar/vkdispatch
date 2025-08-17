@@ -1,4 +1,8 @@
-#include "../internal.hh"
+#include "work_queue.hh"
+#include "../objects/command_list.hh"
+#include "../objects/objects_extern.hh"
+
+#include <cstring>
 
 static size_t __work_id = 0;
 
