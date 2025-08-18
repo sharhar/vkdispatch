@@ -105,6 +105,8 @@ void buffer_destroy_extern(struct Buffer* buffer) {
     context_submit_command(ctx, "buffer-destroy", -2, NULL, RECORD_TYPE_SYNC,
         [ctx, buffers_handle, allocations_handle, staging_buffers_handle, staging_allocations_handle]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
+            uint64_t buffer_timestamp = ctx->handle_manager->get_handle_timestamp(indicies.queue_index, buffers_handle);
+            ctx->queues[indicies.queue_index]->wait_for_timestamp(buffer_timestamp);
 
             VkBuffer buffer = (VkBuffer)ctx->handle_manager->get_handle(indicies.queue_index, buffers_handle, 0);
             VmaAllocation allocation = (VmaAllocation)ctx->handle_manager->get_handle(indicies.queue_index, allocations_handle, 0);

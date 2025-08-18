@@ -20,6 +20,7 @@ struct HandleHeader {
 
 class HandleManager {
 public:
+    Context* ctx;
     uint64_t next_handle;
     int queue_count;
     int* queue_to_device_map;
@@ -43,7 +44,7 @@ public:
     uint64_t get_handle_timestamp(int64_t index, uint64_t handle);
 
     void destroy_handle(int64_t index, uint64_t handle);
-    void destroy_handle_per_device(int device_index, uint64_t handle, std::function<void(uint64_t, uint64_t)> destroy_func);
+    void destroy_handle_per_device(int device_index, uint64_t handle, bool wait_for_timestamp, std::function<void(uint64_t)> destroy_func);
 };
 
 #endif
