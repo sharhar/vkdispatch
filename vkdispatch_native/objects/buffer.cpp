@@ -251,7 +251,6 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
 
     // wait for the recording thread to finish again
     signal->wait();
-    signal->reset();
 
     // wait for the staging buffer to be ready
     uint64_t staging_buffer_timestamp = ctx->handle_manager->get_handle_timestamp(queue_index, buffer->staging_buffers_handle);
