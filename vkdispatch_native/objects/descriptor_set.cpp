@@ -24,10 +24,7 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
     unsigned int binding_count = plan->binding_count;
     VkDescriptorPoolSize* poolSizes = plan->poolSizes;
 
-    command_list_record_command(ctx->command_list, 
-        "descriptor-set-init",
-        0,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
+    context_submit_command(ctx, "descriptor-set-init", -2, NULL, RECORD_TYPE_SYNC,
         [ctx, descriptor_set_layouts_handle, sets_handle, pools_handle, binding_count, poolSizes]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             LOG_VERBOSE("Creating Descriptor Set for device %d on queue %d recorder %d", indicies.device_index, indicies.queue_index, indicies.recorder_index);
@@ -41,31 +38,26 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
 
             LOG_VERBOSE("Creating Descriptor Pool for device %d on queue %d recorder %d", indicies.device_index, indicies.queue_index, indicies.recorder_index);
 
-            VkDescriptorPool pool;
-            VK_CALL(vkCreateDescriptorPool(ctx->devices[indicies.device_index], &descriptorPoolCreateInfo, NULL, &pool));
+            VkDescriptorPool h_pool;
+            VK_CALL(vkCreateDescriptorPool(ctx->devices[indicies.device_index], &descriptorPoolCreateInfo, NULL, &h_pool));
 
             VkDescriptorSetAllocateInfo descriptorSetAllocateInfo;
             memset(&descriptorSetAllocateInfo, 0, sizeof(VkDescriptorSetAllocateInfo));
             descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-            descriptorSetAllocateInfo.descriptorPool = pool;
+            descriptorSetAllocateInfo.descriptorPool = h_pool;
             descriptorSetAllocateInfo.descriptorSetCount = 1;
 
             LOG_VERBOSE("Descriptor Set Layout Handle: %d", (uint64_t)ctx->handle_manager->get_handle(indicies.queue_index, descriptor_set_layouts_handle));
 
             descriptorSetAllocateInfo.pSetLayouts = (VkDescriptorSetLayout*)ctx->handle_manager->get_handle_pointer(indicies.queue_index, descriptor_set_layouts_handle, 0);
 
-            VkDescriptorSet set;
-            VK_CALL(vkAllocateDescriptorSets(ctx->devices[indicies.device_index], &descriptorSetAllocateInfo, &set));
+            VkDescriptorSet h_set;
+            VK_CALL(vkAllocateDescriptorSets(ctx->devices[indicies.device_index], &descriptorSetAllocateInfo, &h_set));
 
-            ctx->handle_manager->set_handle(indicies.queue_index, sets_handle, (uint64_t)set);
-            ctx->handle_manager->set_handle(indicies.queue_index, pools_handle, (uint64_t)pool);
+            ctx->handle_manager->set_handle(indicies.queue_index, sets_handle, (uint64_t)h_set);
+            ctx->handle_manager->set_handle(indicies.queue_index, pools_handle, (uint64_t)h_pool);
         }
     );
-
-    int submit_index = -2;
-    command_list_submit_extern(plan->ctx->command_list, NULL, 1, submit_index, NULL, RECORD_TYPE_SYNC);
-    command_list_reset_extern(plan->ctx->command_list);
-    RETURN_ON_ERROR(NULL)
 
     return descriptor_set;
 }
@@ -78,10 +70,7 @@ void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set) {
     uint64_t sets_handle = descriptor_set->sets_handle;
     uint64_t pools_handle = descriptor_set->pools_handle;
 
-    command_list_record_command(ctx->command_list, 
-        "descriptor-set-destroy",
-        0,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
+    context_submit_command(ctx, "descriptor-set-destroy", -2, NULL, RECORD_TYPE_SYNC,
         [ctx, sets_handle, pools_handle]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             uint64_t set_timestamp = ctx->handle_manager->get_handle_timestamp(indicies.queue_index, sets_handle);
@@ -97,11 +86,6 @@ void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set) {
             LOG_VERBOSE("Descriptor Set destroyed for device %d on queue %d recorder %d", indicies.device_index, indicies.queue_index, indicies.recorder_index);
         }
     );
-
-    int submit_index = -2;
-    command_list_submit_extern(ctx->command_list, NULL, 1, submit_index, NULL, RECORD_TYPE_SYNC);
-    command_list_reset_extern(ctx->command_list);
-    RETURN_ON_ERROR(;)
 
     delete descriptor_set;
 }
@@ -120,18 +104,16 @@ void descriptor_set_write_buffer_extern(
 
     struct Context* ctx = descriptor_set->plan->ctx;
 
-    descriptor_set->buffer_barriers.push_back({buffer, read_access, write_access});
-
     uint64_t sets_handle = descriptor_set->sets_handle;
+    uint64_t buffers_handle = buffer->buffers_handle;
 
-    command_list_record_command(ctx->command_list, 
-        "descriptor-set-write-buffer",
-        0,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        [buffer, ctx, sets_handle, offset, range, binding, uniform]
+    descriptor_set->buffer_barriers.push_back({buffers_handle, read_access, write_access});   
+    
+    context_submit_command(ctx, "descriptor-set-write-buffer", -2, NULL, RECORD_TYPE_SYNC,
+        [ctx, sets_handle, buffers_handle, offset, range, binding, uniform]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             VkDescriptorBufferInfo buffDesc;
-            buffDesc.buffer = buffer->buffers[indicies.queue_index];
+            buffDesc.buffer = (VkBuffer)ctx->handle_manager->get_handle(indicies.queue_index, buffers_handle, 0);
 
             buffDesc.offset = offset;
             buffDesc.range = range == 0 ? VK_WHOLE_SIZE : range;
@@ -151,11 +133,6 @@ void descriptor_set_write_buffer_extern(
             vkUpdateDescriptorSets(ctx->devices[indicies.device_index], 1, &writeDescriptor, 0, NULL);
         }
     );
-
-    int submit_index = -2;
-    command_list_submit_extern(ctx->command_list, NULL, 1, submit_index, NULL, RECORD_TYPE_SYNC);
-    command_list_reset_extern(ctx->command_list);
-    RETURN_ON_ERROR(;)
 }
 
 
@@ -174,10 +151,7 @@ void descriptor_set_write_image_extern(
 
     uint64_t sets_handle = descriptor_set->sets_handle;
 
-    command_list_record_command(ctx->command_list, 
-        "descriptor-set-write-image",
-        0,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
+    context_submit_command(ctx, "descriptor-set-write-image", -2, NULL, RECORD_TYPE_SYNC,
         [image, sampler, ctx, sets_handle, binding]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             VkDescriptorImageInfo imageDesc;
@@ -200,9 +174,4 @@ void descriptor_set_write_image_extern(
             vkUpdateDescriptorSets(ctx->devices[indicies.device_index], 1, &writeDescriptor, 0, NULL);
         }
     );
-
-    int submit_index = -2;
-    command_list_submit_extern(ctx->command_list, NULL, 1, submit_index, NULL, RECORD_TYPE_SYNC);
-    command_list_reset_extern(ctx->command_list);
-    RETURN_ON_ERROR(;)
 }

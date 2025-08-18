@@ -37,7 +37,7 @@ void stage_transfer_copy_buffer_exec_internal(VkCommandBuffer cmd_buffer, const 
     int src_index = queue_index;
     int dst_index = queue_index;
 
-    vkCmdCopyBuffer(cmd_buffer, info.src->buffers[src_index], info.dst->buffers[dst_index], 1, &bufferCopy);
+    //vkCmdCopyBuffer(cmd_buffer, info.src->buffers[src_index], info.dst->buffers[dst_index], 1, &bufferCopy);
 }
 
 void stage_transfer_record_copy_image_extern(struct CommandList* command_list, struct ImageCopyInfo* copy_info) {

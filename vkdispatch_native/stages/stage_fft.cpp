@@ -253,24 +253,28 @@ void stage_fft_record_extern(
     int recorder_count = plan->recorder_count;
     uint64_t vkfft_applications_handle = plan->vkfft_applications_handle;
 
+    uint64_t buffer_handle = buffer->buffers_handle;
+    uint64_t kernel_handle = kernel ? kernel->buffers_handle : 0;
+    uint64_t input_buffer_handle = input_buffer ? input_buffer->buffers_handle : 0;
+
     command_list_record_command(command_list, 
         "fft-exec",
         0,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        [ctx, plan, recorder_count, vkfft_applications_handle, buffer, inverse, kernel, input_buffer]
+        [ctx, plan, recorder_count, vkfft_applications_handle, inverse, buffer_handle, kernel_handle, input_buffer_handle]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             int index = indicies.queue_index * recorder_count + indicies.recorder_index;
 
             VkFFTLaunchParams launchParams = {};
-            launchParams.buffer = &buffer->buffers[indicies.queue_index];
+            launchParams.buffer = (VkBuffer*)ctx->handle_manager->get_handle_pointer(indicies.queue_index, buffer_handle, timestamp);
             launchParams.commandBuffer = &cmd_buffer;
 
-            if(kernel != NULL) {
-                launchParams.kernel = &kernel->buffers[indicies.queue_index];
+            if(kernel_handle != 0) {
+                launchParams.kernel = (VkBuffer*)ctx->handle_manager->get_handle_pointer(indicies.queue_index, kernel_handle, timestamp);
             }
 
-            if(input_buffer != NULL) {
-                launchParams.inputBuffer = &input_buffer->buffers[indicies.queue_index];
+            if(input_buffer_handle != 0) {
+                launchParams.inputBuffer = (VkBuffer*)ctx->handle_manager->get_handle_pointer(indicies.queue_index, input_buffer_handle, timestamp);
             }
 
             VkFFTApplication* application = (VkFFTApplication*)ctx->handle_manager->get_handle(index, vkfft_applications_handle, timestamp);

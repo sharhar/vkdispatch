@@ -3,12 +3,15 @@
 
 #include "../base.hh"
 
-#include "../libs/VMA.h"
+#include "../libs/VMA.hh"
 
 #include "../queue/queue.hh"
+#include "../queue/barrier_manager.hh"
 #include "../queue/work_queue.hh"
 
 #include "handles.hh"
+
+#include <functional>
 
 struct Context {
     uint32_t deviceCount;
@@ -27,5 +30,14 @@ struct Context {
     struct CommandList* command_list;
     WorkQueue* work_queue;
 };
+
+void context_submit_command(
+    Context* context, 
+    const char* name,
+    int queue_index,
+    Signal* signal,
+    RecordType record_type,
+    std::function<void(VkCommandBuffer, struct ExecIndicies, void*, BarrierManager*, uint64_t)> func
+);
 
 #endif  // SRC_DEVICE_CONTEXT_H_
