@@ -148,10 +148,7 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
     VkDescriptorSetLayoutBinding* bindings = plan->bindings;
     unsigned int binding_count = plan->binding_count;
 
-    command_list_record_command(ctx->command_list, 
-        "compute-init",
-        0,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
+    context_submit_command(ctx, "compute-destroy", -2, NULL, RECORD_TYPE_SYNC,
         [ctx, code, code_size, pc_size, descriptor_set_layouts_handle, pipeline_layouts_handle, pipelines_handle, bindings, binding_count]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             ctx->handle_manager->set_handle_per_device(indicies.device_index, descriptor_set_layouts_handle, 
@@ -248,16 +245,36 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
         }
     );
 
-    int submit_index = -2;
-    command_list_submit_extern(ctx->command_list, NULL, 1, submit_index, NULL, RECORD_TYPE_SYNC);
-    command_list_reset_extern(ctx->command_list);
-    RETURN_ON_ERROR(NULL)
-
     return plan;
 }
 
 void stage_compute_plan_destroy_extern(ComputePlan* plan) {
-    //LOG_WARNING("Destroying compute plan with handle %p", plan);
+    struct Context* ctx = plan->ctx;
+
+    uint64_t descriptor_set_layouts_handle = plan->descriptorSetLayouts_handle;
+    uint64_t pipeline_layouts_handle = plan->pipelineLayouts_handle;
+    uint64_t pipelines_handle = plan->pipelines_handle;
+
+    context_submit_command(ctx, "compute-init", -2, NULL, RECORD_TYPE_SYNC,
+        [ctx, descriptor_set_layouts_handle, pipeline_layouts_handle, pipelines_handle]
+        (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
+            VkDevice device = ctx->devices[indicies.device_index];
+
+            ctx->handle_manager->destroy_handle_per_device(indicies.device_index, pipelines_handle, true,
+            [device] (uint64_t h_pipeline) {
+                vkDestroyPipeline(device, (VkPipeline)h_pipeline, NULL);
+            });
+
+            ctx->handle_manager->destroy_handle_per_device(indicies.device_index, pipeline_layouts_handle, false,
+            [device] (uint64_t h_pipeline_layout) {
+                vkDestroyPipelineLayout(device, (VkPipelineLayout)h_pipeline_layout, NULL);
+            });
+
+            ctx->handle_manager->destroy_handle_per_device(indicies.device_index, descriptor_set_layouts_handle, false,
+            [device] (uint64_t h_descriptor_set_layout) {
+                vkDestroyDescriptorSetLayout(device, (VkDescriptorSetLayout)h_descriptor_set_layout, NULL);
+            });
+    });
 }
 
 void stage_compute_record_extern(struct CommandList* command_list, struct ComputePlan* plan, struct DescriptorSet* descriptor_set, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z) {

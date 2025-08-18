@@ -91,10 +91,7 @@ struct FFTPlan* stage_fft_plan_create_extern(
     plan->fences_handle = fences_handle;
     plan->vkfft_applications_handle = vkfft_applications_handle;
 
-    command_list_record_command(ctx->command_list, 
-        "fft-init",
-        0,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
+    context_submit_command(ctx, "fft-init", -2, NULL, RECORD_TYPE_SYNC,
         [ctx, recorder_count, 
         fences_handle, vkfft_applications_handle, 
         dims, rows, cols, depth, do_r2c, 
@@ -227,17 +224,40 @@ struct FFTPlan* stage_fft_plan_create_extern(
         }
     );
 
-    int submit_index = -2;
-    command_list_submit_extern(ctx->command_list, NULL, 1, submit_index, NULL, RECORD_TYPE_SYNC);
-    command_list_reset_extern(ctx->command_list);
-    RETURN_ON_ERROR(NULL)
-
     return plan;
 }
 
 void stage_fft_plan_destroy_extern(FFTPlan* plan) {
-    LOG_WARNING("Destroying FFT plan with handle %p", plan);
-    
+    struct Context* ctx = plan->ctx;
+
+    int recorder_count = plan->recorder_count;
+
+    uint64_t fences_handle = plan->fences_handle;
+    uint64_t vkfft_applications_handle = plan->vkfft_applications_handle;
+
+    context_submit_command(ctx, "compute-destroy", -2, NULL, RECORD_TYPE_SYNC,
+        [ctx, recorder_count, vkfft_applications_handle, fences_handle]
+        (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
+            for(int j = 0; j < recorder_count; j++) {
+                int app_index = indicies.queue_index * recorder_count + j;
+
+                uint64_t vkfft_timestamp = ctx->handle_manager->get_handle_timestamp(app_index, vkfft_applications_handle);
+                ctx->queues[indicies.queue_index]->wait_for_timestamp(vkfft_timestamp);
+
+                VkFence fence = (VkFence)ctx->handle_manager->get_handle(app_index, fences_handle, 0);
+                vkDestroyFence(ctx->devices[indicies.device_index], fence, NULL);
+
+                VkFFTApplication* application = (VkFFTApplication*)ctx->handle_manager->get_handle(app_index, vkfft_applications_handle, 0);
+                deleteVkFFT(application);
+
+
+                ctx->handle_manager->destroy_handle(app_index, fences_handle);
+                ctx->handle_manager->destroy_handle(app_index, vkfft_applications_handle);
+            }
+        }
+    );
+
+    delete plan;
 }
 
 void stage_fft_record_extern(

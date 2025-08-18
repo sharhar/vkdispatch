@@ -124,7 +124,7 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
 }
 
 void image_destroy_extern(struct Image* image) {
-    LOG_WARNING("Destroying image with handle %p", image);
+    // LOG_WARNING("Destroying image with handle %p", image);
     
     // for (int i = 0; i < image->images.size(); i++) {
     //     int device_index = image->ctx->queues[i]->device_index;
@@ -179,12 +179,12 @@ struct Sampler* image_create_sampler_extern(struct Context* ctx,
 }
 
 void image_destroy_sampler_extern(struct Sampler* sampler) {
-    for (int i = 0; i < sampler->samplers.size(); i++) {
-        int device_index = sampler->ctx->queues[i]->device_index;
-        vkDestroySampler(sampler->ctx->devices[device_index], sampler->samplers[i], NULL);
-    }
+    //for (int i = 0; i < sampler->samplers.size(); i++) {
+    //    int device_index = sampler->ctx->queues[i]->device_index;
+    //    vkDestroySampler(sampler->ctx->devices[device_index], sampler->samplers[i], NULL);
+    //}
 
-    delete sampler;
+    // delete sampler;
 }
 
 unsigned int image_format_block_size_extern(unsigned int format) {

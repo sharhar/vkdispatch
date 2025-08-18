@@ -3,6 +3,8 @@
 #include "context.hh"
 
 HandleManager::HandleManager(Context* ctx) {
+    this->ctx = ctx;
+
     next_handle = 1;
     queue_count = ctx->queues.size();
 
@@ -163,7 +165,7 @@ void HandleManager::destroy_handle(int64_t index, uint64_t handle) {
     }
 }
 
-void HandleManager::destroy_handle_per_device(int device_index, uint64_t handle, std::function<void(uint64_t, uint64_t)> destroy_func) {
+void HandleManager::destroy_handle_per_device(int device_index, uint64_t handle, bool wait_for_timestamp, std::function<void(uint64_t)> destroy_func) {
     std::unique_lock lock(handle_mutex);
 
     if(!handles[handle].per_device) {
@@ -176,8 +178,8 @@ void HandleManager::destroy_handle_per_device(int device_index, uint64_t handle,
 
     for (int i = 0; i < queue_count; i++) {
         if (queue_to_device_map[i] == device_index) {
-            found_all = found_all && (handles[handle].data[i] != 0);
-            found_any = found_any || (handles[handle].data[i] != 0);
+            found_all = found_all && (handles[handle].data[i] == 0);
+            found_any = found_any || (handles[handle].data[i] == 0);
         }
     }
 
@@ -208,10 +210,9 @@ void HandleManager::destroy_handle_per_device(int device_index, uint64_t handle,
                 return;
             }
 
-            uint64_t current_timestamp = handles[handle].timestamps[i].load(std::memory_order_relaxed);
-            
-            if (handle_timestamp < current_timestamp) {
-                handle_timestamp = current_timestamp;
+            if(wait_for_timestamp) {
+                uint64_t current_timestamp = handles[handle].timestamps[i].load(std::memory_order_relaxed);
+                ctx->queues[i]->wait_for_timestamp(current_timestamp);
             }
         }
     }
@@ -221,5 +222,18 @@ void HandleManager::destroy_handle_per_device(int device_index, uint64_t handle,
         return;
     }
 
-    destroy_func(handle_value, handle_timestamp);
+    destroy_func(handle_value);
+
+    for (int i = 0; i < queue_count; i++) {
+        if (queue_to_device_map[i] == device_index) {
+            handles[handle].data[i] = 0;
+            handles[handle].delete_count++;   
+        }
+    }
+
+    if (handles[handle].delete_count >= handles[handle].count) {
+        delete[] handles[handle].data;
+        delete[] handles[handle].timestamps;
+        handles.erase(handle);
+    }
 }
