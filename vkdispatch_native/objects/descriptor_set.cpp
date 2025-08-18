@@ -83,6 +83,9 @@ void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set) {
                 vkDestroyDescriptorPool(ctx->devices[indicies.device_index], pool, NULL);
             }
 
+            ctx->handle_manager->destroy_handle(indicies.queue_index, sets_handle);
+            ctx->handle_manager->destroy_handle(indicies.queue_index, pools_handle);
+
             LOG_VERBOSE("Descriptor Set destroyed for device %d on queue %d recorder %d", indicies.device_index, indicies.queue_index, indicies.recorder_index);
         }
     );
@@ -150,14 +153,17 @@ void descriptor_set_write_image_extern(
     struct Context* ctx = descriptor_set->plan->ctx;
 
     uint64_t sets_handle = descriptor_set->sets_handle;
+    uint64_t samplers_handle = sampler->samplers_handle;
 
     context_submit_command(ctx, "descriptor-set-write-image", -2, NULL, RECORD_TYPE_SYNC,
-        [image, sampler, ctx, sets_handle, binding]
+        [image, ctx, sets_handle, samplers_handle, binding]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
+            VkSampler sampler = (VkSampler)ctx->handle_manager->get_handle(indicies.queue_index, samplers_handle, 0);
+
             VkDescriptorImageInfo imageDesc;
             imageDesc.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             imageDesc.imageView = image->imageViews[indicies.queue_index];
-            imageDesc.sampler = sampler->samplers[indicies.queue_index];
+            imageDesc.sampler = sampler;
 
             VkWriteDescriptorSet writeDescriptor;
             memset(&writeDescriptor, 0, sizeof(VkWriteDescriptorSet));

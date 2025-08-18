@@ -181,7 +181,7 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
                     queueCreateInfos[j].queueFamilyIndex,
                     i,
                     ctx->queues.size(),
-                    1, // recording_thread_count
+                    4, // recording_thread_count
                     4  // inflight_cmd_buffer_count
                 ));
             }            
