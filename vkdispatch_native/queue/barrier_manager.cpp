@@ -1,9 +1,10 @@
 #include "barrier_manager.hh"
 #include <cstring>
 
+#include "../context/context.hh"
 #include "../objects/buffer.hh"
 
-BarrierManager::BarrierManager() {
+BarrierManager::BarrierManager(Context* context) : ctx(context) {
 
 }
 
@@ -14,7 +15,7 @@ void BarrierManager::record_barriers(VkCommandBuffer cmd_buffer, struct BufferBa
     memset(buffer_barriers, 0, sizeof(VkBufferMemoryBarrier) * buffer_barrier_count);
 
     for(int i = 0; i < buffer_barrier_count; i++) {
-        struct Buffer* buffer_id = buffer_barrier_infos[i].buffer_id;
+        uint64_t buffer_id = buffer_barrier_infos[i].buffer_id;
 
         if(!buffer_barrier_infos[i].read && !buffer_barrier_infos[i].write) {
             continue; // No need to add a barrier if the buffer is not being read or written to
@@ -44,7 +45,7 @@ void BarrierManager::record_barriers(VkCommandBuffer cmd_buffer, struct BufferBa
         buffer_barriers[barrier_count].dstAccessMask = dstAccessMask;
         buffer_barriers[barrier_count].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         buffer_barriers[barrier_count].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        buffer_barriers[barrier_count].buffer = buffer_id->buffers[queue_index];
+        buffer_barriers[barrier_count].buffer = (VkBuffer)ctx->handle_manager->get_handle(queue_index, buffer_id, 0);
         buffer_barriers[barrier_count].offset = 0;
         buffer_barriers[barrier_count].size = VK_WHOLE_SIZE;
 

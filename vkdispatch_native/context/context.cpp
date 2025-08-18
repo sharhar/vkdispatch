@@ -245,6 +245,21 @@ void context_queue_wait_idle_extern(struct Context* context, int queue_index) {
     RETURN_ON_ERROR()
 }
 
+void context_submit_command(
+    Context* context, 
+    const char* name,
+    int queue_index,
+    Signal* signal,
+    RecordType record_type,
+    std::function<void(VkCommandBuffer, struct ExecIndicies, void*, BarrierManager*, uint64_t)> func
+) {
+    command_list_record_command(context->command_list, name, 0, VK_PIPELINE_STAGE_TRANSFER_BIT, func);
+
+    command_list_submit_extern(context->command_list, NULL, 1, queue_index, signal, record_type);
+    command_list_reset_extern(context->command_list);
+    RETURN_ON_ERROR(;)
+}
+
 void context_destroy_extern(struct Context* context) {
     for(int i = 0; i < context->queues.size(); i++) {
         context->queues[i]->destroy();

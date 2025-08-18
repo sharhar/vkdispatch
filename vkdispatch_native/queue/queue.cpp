@@ -270,7 +270,7 @@ void Queue::record_worker(int worker_id) {
 
     bool doing_synchronouns_record = false;
 
-    BarrierManager barrier_manager;
+    BarrierManager barrier_manager(ctx);
 
     while(this->run_queue.load()) {
         struct WorkQueueItem work_item;
@@ -423,7 +423,7 @@ void Queue::fused_worker() {
     struct WorkHeader* work_header = NULL;
     int current_index = 0;
     int cmd_buffer_index = 0;
-    BarrierManager barrier_manager;
+    BarrierManager barrier_manager(ctx);
 
     while(this->run_queue.load()) {
         struct WorkQueueItem work_item;

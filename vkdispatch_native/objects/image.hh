@@ -2,7 +2,7 @@
 #define SRC_IMAGE_H_
 
 #include "../base.hh"
-#include "../libs/VMA.h"
+#include "../libs/VMA.hh"
 
 struct Image {
     struct Context* ctx;

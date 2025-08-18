@@ -3,7 +3,9 @@
 
 #include "../base.hh"
 
-#include "../libs/VMA.h"
+#include "../libs/VMA.hh"
+
+#include "../queue/signal.hh"
 
 #include <vector>
 #include <functional>
@@ -11,10 +13,18 @@
 struct Buffer {
     struct Context* ctx;
     uint64_t size;
-    std::vector<VkBuffer> buffers;
-    std::vector<VmaAllocation> allocations;
-    std::vector<VkBuffer> stagingBuffers;
-    std::vector<VmaAllocation> stagingAllocations;
+
+    uint64_t signals_pointers_handle;
+
+    uint64_t buffers_handle;
+    uint64_t allocations_handle;
+    uint64_t staging_buffers_handle;
+    uint64_t staging_allocations_handle;
+
+    //std::vector<VkBuffer> buffers;
+    //std::vector<VmaAllocation> allocations;
+    //std::vector<VkBuffer> stagingBuffers;
+    //std::vector<VmaAllocation> stagingAllocations;
 };
 
 #endif // SRC_BUFFER_H_
