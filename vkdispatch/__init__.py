@@ -40,7 +40,6 @@ from .base.image import BorderColor
 
 from .base.compute_plan import ComputePlan
 
-from .base.transfer_operations import stage_transfer_copy_buffers
 from .base.descriptor_set import DescriptorSet
 
 from .base.command_list import CommandList

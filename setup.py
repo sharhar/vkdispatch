@@ -37,7 +37,7 @@ platform_extra_link_args = []
 platform_extra_compile_args = (
     ["/W3", "/GL", "/DNDEBUG", "/MD", "/EHsc", "/std:c++17"]
     if system == "Windows"
-    else ["-g", "-std=c++17"]
+    else ["-O0", "-g", "-std=c++17"]
 )
 
 include_directories = [
@@ -48,6 +48,8 @@ include_directories = [
 
 if os.name == "posix":
     platform_extra_link_args.append("-g")
+    platform_extra_link_args.append("-O0")
+    platform_extra_link_args.append("-fno-omit-frame-pointer")
     platform_link_libraries.extend(["dl", "pthread"])
 
 
@@ -123,7 +125,6 @@ append_to_sources("vkdispatch_native/", [
     "objects/command_list.cpp",
     "objects/descriptor_set.cpp",
 
-    "stages/stage_transfer.cpp",
     "stages/stage_fft.cpp",
     "stages/stage_compute.cpp",
 

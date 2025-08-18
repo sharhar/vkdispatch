@@ -8,6 +8,45 @@
 
 #include "objects_extern.hh"
 
+#include <shared_mutex>
+#include <vector>
+
+class BarrierInfoManager {
+public:
+    int ref_count;
+    std::vector<BufferBarrierInfo*> buffer_barrier_lists;
+
+    std::shared_mutex handle_mutex;
+
+    BarrierInfoManager(int ref_count) {
+        this->ref_count = ref_count;
+    }
+
+    void add_list(BufferBarrierInfo* list)  {
+        std::unique_lock lock(handle_mutex);
+        buffer_barrier_lists.push_back(list);
+    }
+
+    void decr_ref() {
+        std::unique_lock lock(handle_mutex);
+        ref_count--;
+
+        if(ref_count > 0) {
+            return;
+        }
+
+        for (BufferBarrierInfo* barrier_list : buffer_barrier_lists) {
+            free(barrier_list);
+        }
+        buffer_barrier_lists.clear();
+        delete this;
+    }
+};
+
+void descriptor_set_add_buffer_info_list(struct DescriptorSet* desc_set, BufferBarrierInfo* list) {
+    desc_set->barrier_info_manager->add_list(list);
+}
+
 struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
     struct DescriptorSet* descriptor_set = new struct DescriptorSet();
     descriptor_set->plan = plan;
@@ -20,6 +59,8 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
 
     uint64_t sets_handle = descriptor_set->sets_handle;
     uint64_t pools_handle = descriptor_set->pools_handle;
+
+    descriptor_set->barrier_info_manager = new BarrierInfoManager(ctx->queues.size());
 
     unsigned int binding_count = plan->binding_count;
     VkDescriptorPoolSize* poolSizes = plan->poolSizes;
@@ -47,7 +88,7 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
             descriptorSetAllocateInfo.descriptorPool = h_pool;
             descriptorSetAllocateInfo.descriptorSetCount = 1;
 
-            LOG_VERBOSE("Descriptor Set Layout Handle: %d", (uint64_t)ctx->handle_manager->get_handle(indicies.queue_index, descriptor_set_layouts_handle));
+            //LOG_VERBOSE("Descriptor Set Layout Handle: %d", (uint64_t)ctx->handle_manager->get_handle(indicies.queue_index, descriptor_set_layouts_handle));
 
             descriptorSetAllocateInfo.pSetLayouts = (VkDescriptorSetLayout*)ctx->handle_manager->get_handle_pointer(indicies.queue_index, descriptor_set_layouts_handle, 0);
 
@@ -70,8 +111,10 @@ void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set) {
     uint64_t sets_handle = descriptor_set->sets_handle;
     uint64_t pools_handle = descriptor_set->pools_handle;
 
+    BarrierInfoManager* barrier_info_manager = descriptor_set->barrier_info_manager;
+
     context_submit_command(ctx, "descriptor-set-destroy", -2, NULL, RECORD_TYPE_SYNC,
-        [ctx, sets_handle, pools_handle]
+        [ctx, sets_handle, pools_handle, barrier_info_manager]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             uint64_t set_timestamp = ctx->handle_manager->get_handle_timestamp(indicies.queue_index, sets_handle);
 
@@ -87,6 +130,8 @@ void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set) {
             ctx->handle_manager->destroy_handle(indicies.queue_index, pools_handle);
 
             LOG_VERBOSE("Descriptor Set destroyed for device %d on queue %d recorder %d", indicies.device_index, indicies.queue_index, indicies.recorder_index);
+
+            barrier_info_manager->decr_ref();
         }
     );
 
@@ -110,7 +155,7 @@ void descriptor_set_write_buffer_extern(
     uint64_t sets_handle = descriptor_set->sets_handle;
     uint64_t buffers_handle = buffer->buffers_handle;
 
-    descriptor_set->buffer_barriers.push_back({buffers_handle, read_access, write_access});   
+    descriptor_set->buffer_barrier_list.push_back({buffers_handle, read_access, write_access});   
     
     context_submit_command(ctx, "descriptor-set-write-buffer", -2, NULL, RECORD_TYPE_SYNC,
         [ctx, sets_handle, buffers_handle, offset, range, binding, uniform]
@@ -153,17 +198,19 @@ void descriptor_set_write_image_extern(
     struct Context* ctx = descriptor_set->plan->ctx;
 
     uint64_t sets_handle = descriptor_set->sets_handle;
+    uint64_t image_views_handle = image->image_views_handle;
     uint64_t samplers_handle = sampler->samplers_handle;
 
     context_submit_command(ctx, "descriptor-set-write-image", -2, NULL, RECORD_TYPE_SYNC,
-        [image, ctx, sets_handle, samplers_handle, binding]
+        [ctx, sets_handle, samplers_handle, image_views_handle, binding]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
-            VkSampler sampler = (VkSampler)ctx->handle_manager->get_handle(indicies.queue_index, samplers_handle, 0);
+            VkSampler h_sampler = (VkSampler)ctx->handle_manager->get_handle(indicies.queue_index, samplers_handle, 0);
+            VkImageView h_image_view = (VkImageView)ctx->handle_manager->get_handle(indicies.queue_index, image_views_handle, 0);
 
             VkDescriptorImageInfo imageDesc;
             imageDesc.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageDesc.imageView = image->imageViews[indicies.queue_index];
-            imageDesc.sampler = sampler;
+            imageDesc.imageView = h_image_view;
+            imageDesc.sampler = h_sampler;
 
             VkWriteDescriptorSet writeDescriptor;
             memset(&writeDescriptor, 0, sizeof(VkWriteDescriptorSet));
@@ -181,3 +228,4 @@ void descriptor_set_write_image_extern(
         }
     );
 }
+
