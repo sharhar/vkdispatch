@@ -10,15 +10,27 @@ struct Image {
     uint32_t layers;
     uint32_t mip_levels;
 
-    std::vector<VkImage> images;
-    std::vector<VmaAllocation> allocations;
-    std::vector<VkImageView> imageViews;
-    std::vector<VkBuffer> stagingBuffers;
-    std::vector<VmaAllocation> stagingAllocations;
+    uint64_t images_handle;
+    uint64_t allocations_handle;
+    uint64_t image_views_handle;
+    uint64_t staging_buffers_handle;
+    uint64_t staging_allocations_handle;
+
+    uint64_t signals_pointers_handle;
+
+    //std::vector<VkImage> images;
+    //std::vector<VmaAllocation> allocations;
+    //std::vector<VkImageView> imageViews;
+    //std::vector<VkBuffer> stagingBuffers;
+    //std::vector<VmaAllocation> stagingAllocations;
     
     uint32_t block_size;
 
-    std::vector<VkImageMemoryBarrier> barriers;
+    uint64_t barriers_handle;
+
+    // VkImageMemoryBarrier** barriers;
+    
+    //std::vector<VkImageMemoryBarrier> barriers;
 };
 
 struct Sampler {

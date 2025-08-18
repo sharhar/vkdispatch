@@ -293,11 +293,12 @@ void stage_compute_record_extern(struct CommandList* command_list, struct Comput
     int buffer_barrier_count = 0;
 
     if(descriptor_set != NULL) {
-        buffer_barrier_count = descriptor_set->buffer_barriers.size();
+        buffer_barrier_count = descriptor_set->buffer_barrier_list.size();
 
-        // TODO: fix this memory leak
         buffer_barriers = (BufferBarrierInfo*)malloc(sizeof(BufferBarrierInfo) * buffer_barrier_count);
-        memcpy(buffer_barriers, descriptor_set->buffer_barriers.data(), sizeof(BufferBarrierInfo) * buffer_barrier_count);
+        memcpy(buffer_barriers, descriptor_set->buffer_barrier_list.data(), sizeof(BufferBarrierInfo) * buffer_barrier_count);
+
+        descriptor_set_add_buffer_info_list(descriptor_set, buffer_barriers);
     }
 
     command_list_record_command(command_list,
