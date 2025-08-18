@@ -121,6 +121,20 @@ class ShaderDescription:
     def make_source(self, x: int, y: int, z: int) -> str:
         layout_str = f"layout(local_size_x = {x}, local_size_y = {y}, local_size_z = {z}) in;"
         return f"{self.header}\n{layout_str}\n{self.body}"
+    
+    def __repr__(self):
+        description_string = ""
+
+        description_string += f"Shader Name: {self.name}\n"
+        description_string += f"Push Constant Size: {self.pc_size} bytes\n"
+        description_string += f"Push Constant Structure: {self.pc_structure}\n"
+        description_string += f"Uniform Structure: {self.uniform_structure}\n"
+        description_string += f"Binding Types: {self.binding_type_list}\n"
+        description_string += f"Binding Access: {self.binding_access}\n"
+        description_string += f"Execution Count Name: {self.exec_count_name}\n"
+        description_string += f"Header:\n{self.header}\n"
+        description_string += f"Body:\n{self.body}\n"
+        return description_string
 
 class ShaderVariable:
     append_func: Callable[[str], None]
@@ -1031,11 +1045,13 @@ class ShaderBuilder:
         self.binding_read_access[self.binding_count] = False
         self.binding_write_access[self.binding_count] = False
 
+        current_binding_count = self.binding_count
+
         def read_lambda():
-            self.binding_read_access[self.binding_count] = True
+            self.binding_read_access[current_binding_count] = True
 
         def write_lambda():
-            self.binding_write_access[self.binding_count] = True
+            self.binding_write_access[current_binding_count] = True
         
         return BufferVariable(
             self.append_contents, 

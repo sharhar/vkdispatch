@@ -15,6 +15,7 @@ struct Image {
     std::vector<VkImageView> imageViews;
     std::vector<VkBuffer> stagingBuffers;
     std::vector<VmaAllocation> stagingAllocations;
+    
     uint32_t block_size;
 
     std::vector<VkImageMemoryBarrier> barriers;
@@ -22,7 +23,9 @@ struct Image {
 
 struct Sampler {
     struct Context* ctx;
-    std::vector<VkSampler> samplers;
+    uint64_t samplers_handle;
+
+    //std::vector<VkSampler> samplers;
 };
 
 #endif // SRC_IMAGE_H_

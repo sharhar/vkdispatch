@@ -68,7 +68,6 @@ def test_listed_reductions():
     @vd.map_reduce(vd.SubgroupAdd)
     def sum_map(buffer: Buff[v2], buffer2: Buff[v2]) -> v2:
         ind = vc.mapping_index()
-
         return vc.sin(buffer[ind] + buffer2[ind])
 
     cmd_stream = vd.CommandStream()

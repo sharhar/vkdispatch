@@ -149,42 +149,58 @@ struct Sampler* image_create_sampler_extern(struct Context* ctx,
 
     struct Sampler* sampler = new struct Sampler();
     sampler->ctx = ctx;
-    sampler->samplers.resize(ctx->queues.size());
+    sampler->samplers_handle = ctx->handle_manager->register_queue_handle("Sampler");
 
-    VkSamplerCreateInfo samplerCreateInfo;
-    memset(&samplerCreateInfo, 0, sizeof(VkSamplerCreateInfo));
-    samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerCreateInfo.magFilter = (VkFilter)mag_filter;
-    samplerCreateInfo.minFilter = (VkFilter)mag_filter;
-    samplerCreateInfo.mipmapMode = (VkSamplerMipmapMode)mip_mode;
-    samplerCreateInfo.addressModeU = (VkSamplerAddressMode)address_mode;
-    samplerCreateInfo.addressModeV = (VkSamplerAddressMode)address_mode;
-    samplerCreateInfo.addressModeW = (VkSamplerAddressMode)address_mode;
-    samplerCreateInfo.mipLodBias = mip_lod_bias;
-    samplerCreateInfo.anisotropyEnable = VK_FALSE;
-    samplerCreateInfo.maxAnisotropy = 1.0f;
-    samplerCreateInfo.compareEnable = VK_FALSE;
-    samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-    samplerCreateInfo.minLod = min_lod;
-    samplerCreateInfo.maxLod = max_lod;
-    samplerCreateInfo.borderColor = (VkBorderColor)border_color;
-    samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+    uint64_t samplers_handle = sampler->samplers_handle;
+    
+    context_submit_command(ctx, "sampler-init", -2, NULL, RECORD_TYPE_SYNC,
+        [ctx, samplers_handle, mag_filter, mip_mode, address_mode, mip_lod_bias, min_lod, max_lod, border_color]
+        (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
+        VkSamplerCreateInfo samplerCreateInfo;
+        memset(&samplerCreateInfo, 0, sizeof(VkSamplerCreateInfo));
+        samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerCreateInfo.magFilter = (VkFilter)mag_filter;
+        samplerCreateInfo.minFilter = (VkFilter)mag_filter;
+        samplerCreateInfo.mipmapMode = (VkSamplerMipmapMode)mip_mode;
+        samplerCreateInfo.addressModeU = (VkSamplerAddressMode)address_mode;
+        samplerCreateInfo.addressModeV = (VkSamplerAddressMode)address_mode;
+        samplerCreateInfo.addressModeW = (VkSamplerAddressMode)address_mode;
+        samplerCreateInfo.mipLodBias = mip_lod_bias;
+        samplerCreateInfo.anisotropyEnable = VK_FALSE;
+        samplerCreateInfo.maxAnisotropy = 1.0f;
+        samplerCreateInfo.compareEnable = VK_FALSE;
+        samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+        samplerCreateInfo.minLod = min_lod;
+        samplerCreateInfo.maxLod = max_lod;
+        samplerCreateInfo.borderColor = (VkBorderColor)border_color;
+        samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
 
-    for (int i = 0; i < ctx->queues.size(); i++) {
-        int device_index = ctx->queues[i]->device_index;
-        VK_CALL_RETNULL(vkCreateSampler(ctx->devices[device_index], &samplerCreateInfo, NULL, &sampler->samplers[i]));
-    }
+        VkSampler sampler;
+        VK_CALL(vkCreateSampler(ctx->devices[indicies.device_index], &samplerCreateInfo, NULL, &sampler));
+        ctx->handle_manager->set_handle(indicies.queue_index, samplers_handle, (uint64_t)sampler);
+    });
 
     return sampler;
 }
 
 void image_destroy_sampler_extern(struct Sampler* sampler) {
-    //for (int i = 0; i < sampler->samplers.size(); i++) {
-    //    int device_index = sampler->ctx->queues[i]->device_index;
-    //    vkDestroySampler(sampler->ctx->devices[device_index], sampler->samplers[i], NULL);
-    //}
+    struct Context* ctx = sampler->ctx;
+    uint64_t samplers_handle = sampler->samplers_handle;
 
-    // delete sampler;
+    context_submit_command(ctx, "sampler-destroy", -2, NULL, RECORD_TYPE_SYNC,
+        [ctx, samplers_handle]
+        (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
+            uint64_t sampler_timestamp = ctx->handle_manager->get_handle_timestamp(indicies.queue_index, samplers_handle);
+            ctx->queues[indicies.queue_index]->wait_for_timestamp(sampler_timestamp);
+
+            VkSampler sampler = (VkSampler)ctx->handle_manager->get_handle(indicies.queue_index, samplers_handle, 0);
+            vkDestroySampler(ctx->devices[indicies.device_index], sampler, NULL);
+            
+            ctx->handle_manager->destroy_handle(indicies.queue_index, samplers_handle);
+        }
+    );
+
+    delete sampler;
 }
 
 unsigned int image_format_block_size_extern(unsigned int format) {
