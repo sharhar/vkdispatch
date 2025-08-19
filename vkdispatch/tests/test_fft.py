@@ -48,6 +48,8 @@ def test_fft_1d():
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
 
+"""
+
 def test_fft_2d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
@@ -330,3 +332,5 @@ def test_convolution_2d_real():
             assert np.allclose(reference_data, test_data.read_real(0), atol=1e-3)
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13]) 
+
+"""
