@@ -27,19 +27,20 @@ public:
         buffer_barrier_lists.push_back(list);
     }
 
-    void decr_ref() {
+    int decr_ref() {
         std::unique_lock lock(handle_mutex);
         ref_count--;
 
         if(ref_count > 0) {
-            return;
+            return ref_count;
         }
 
         for (BufferBarrierInfo* barrier_list : buffer_barrier_lists) {
             free(barrier_list);
         }
         buffer_barrier_lists.clear();
-        delete this;
+        
+        return 0;
     }
 };
 
@@ -131,7 +132,11 @@ void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set) {
 
             LOG_VERBOSE("Descriptor Set destroyed for device %d on queue %d recorder %d", indicies.device_index, indicies.queue_index, indicies.recorder_index);
 
-            barrier_info_manager->decr_ref();
+            int refs = barrier_info_manager->decr_ref();
+
+            if(refs == 0) {
+                delete barrier_info_manager;
+            }
         }
     );
 

@@ -3,6 +3,8 @@ import vkdispatch as vd
 import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import *
 
+vd.initialize(log_level=vd.LogLevel.VERBOSE, debug_mode=True)
+
 import numpy as np
 
 def test_1d_image_creation():
