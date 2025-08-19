@@ -137,10 +137,10 @@ struct Image* image_create_extern(struct Context* context, VkExtent3D a_extent, 
             VkImage h_image;
             VmaAllocation h_allocation;
             
-            // {
-            //     std::unique_lock lock(ctx->vma_mutex);
-            //     VK_CALL_RETNULL(vmaCreateImage(ctx->allocators[indicies.device_index], &imageCreateInfo, &vmaAllocationCreateInfo, &h_image, &h_allocation, NULL));
-            // }
+            {
+                std::unique_lock lock(ctx->vma_mutex);
+                VK_CALL(vmaCreateImage(ctx->allocators[indicies.device_index], &imageCreateInfo, &vmaAllocationCreateInfo, &h_image, &h_allocation, NULL));
+            }
 
             // VkImageViewCreateInfo imageViewCreateInfo;
             // memset(&imageViewCreateInfo, 0, sizeof(VkImageViewCreateInfo));
