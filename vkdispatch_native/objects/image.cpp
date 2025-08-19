@@ -142,55 +142,55 @@ struct Image* image_create_extern(struct Context* context, VkExtent3D a_extent, 
                 VK_CALL(vmaCreateImage(ctx->allocators[indicies.device_index], &imageCreateInfo, &vmaAllocationCreateInfo, &h_image, &h_allocation, NULL));
             }
 
-            // VkImageViewCreateInfo imageViewCreateInfo;
-            // memset(&imageViewCreateInfo, 0, sizeof(VkImageViewCreateInfo));
-            // imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-            // imageViewCreateInfo.image = h_image;
-            // imageViewCreateInfo.viewType = (VkImageViewType)view_type;
-            // imageViewCreateInfo.format = (VkFormat)format;
-            // imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            // imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-            // imageViewCreateInfo.subresourceRange.levelCount = mip_levels;
-            // imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-            // imageViewCreateInfo.subresourceRange.layerCount = layers;
+            VkImageViewCreateInfo imageViewCreateInfo;
+            memset(&imageViewCreateInfo, 0, sizeof(VkImageViewCreateInfo));
+            imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            imageViewCreateInfo.image = h_image;
+            imageViewCreateInfo.viewType = (VkImageViewType)view_type;
+            imageViewCreateInfo.format = (VkFormat)format;
+            imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+            imageViewCreateInfo.subresourceRange.levelCount = mip_levels;
+            imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+            imageViewCreateInfo.subresourceRange.layerCount = layers;
             
-            // VkImageView h_image_view;
-            // VK_CALL_RETNULL(vkCreateImageView(ctx->devices[indicies.device_index], &imageViewCreateInfo, NULL, &h_image_view));
+            VkImageView h_image_view;
+            VK_CALL(vkCreateImageView(ctx->devices[indicies.device_index], &imageViewCreateInfo, NULL, &h_image_view));
 
-            // VkBufferCreateInfo bufferCreateInfo;
-            // memset(&bufferCreateInfo, 0, sizeof(VkBufferCreateInfo));
-            // bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-            // bufferCreateInfo.size = (VkDeviceSize)layers * 
-            //                         (VkDeviceSize) extent.width * 
-            //                         (VkDeviceSize) extent.height * 
-            //                         (VkDeviceSize) extent.depth * 
-            //                         (VkDeviceSize) block_size;
-            // bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-            // bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            VkBufferCreateInfo bufferCreateInfo;
+            memset(&bufferCreateInfo, 0, sizeof(VkBufferCreateInfo));
+            bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+            bufferCreateInfo.size = (VkDeviceSize)layers * 
+                                    (VkDeviceSize) extent.width * 
+                                    (VkDeviceSize) extent.height * 
+                                    (VkDeviceSize) extent.depth * 
+                                    (VkDeviceSize) block_size;
+            bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+            bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
             
-            // vmaAllocationCreateInfo = {};
-            // vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
-            // vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+            vmaAllocationCreateInfo = {};
+            vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+            vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 
-            // VkBuffer h_staging_buffer;
-            // VmaAllocation h_staging_allocation;
+            VkBuffer h_staging_buffer;
+            VmaAllocation h_staging_allocation;
 
-            // {
-            //     std::unique_lock lock(ctx->vma_mutex);
-            //     VK_CALL_RETNULL(vmaCreateBuffer(ctx->allocators[indicies.device_index], &bufferCreateInfo, &vmaAllocationCreateInfo, &h_staging_buffer, &h_staging_allocation, NULL));
-            // }
+            {
+                std::unique_lock lock(ctx->vma_mutex);
+                VK_CALL(vmaCreateBuffer(ctx->allocators[indicies.device_index], &bufferCreateInfo, &vmaAllocationCreateInfo, &h_staging_buffer, &h_staging_allocation, NULL));
+            }
 
-            // VkImageMemoryBarrier* barrier = (VkImageMemoryBarrier*)ctx->handle_manager->get_handle(indicies.queue_index, barriers_handle, 0);
-            // barrier->image = h_image;
+            VkImageMemoryBarrier* barrier = (VkImageMemoryBarrier*)ctx->handle_manager->get_handle(indicies.queue_index, barriers_handle, 0);
+            barrier->image = h_image;
 
-            // ctx->handle_manager->set_handle(indicies.queue_index, images_handle, (uint64_t)h_image);
-            // ctx->handle_manager->set_handle(indicies.queue_index, allocations_handle, (uint64_t)h_allocation);
-            // ctx->handle_manager->set_handle(indicies.queue_index, image_views_handle, (uint64_t)h_image_view);
-            // ctx->handle_manager->set_handle(indicies.queue_index, staging_buffers_handle, (uint64_t)h_staging_buffer);
-            // ctx->handle_manager->set_handle(indicies.queue_index, staging_allocations_handle, (uint64_t)h_staging_allocation);
+            ctx->handle_manager->set_handle(indicies.queue_index, images_handle, (uint64_t)h_image);
+            ctx->handle_manager->set_handle(indicies.queue_index, allocations_handle, (uint64_t)h_allocation);
+            ctx->handle_manager->set_handle(indicies.queue_index, image_views_handle, (uint64_t)h_image_view);
+            ctx->handle_manager->set_handle(indicies.queue_index, staging_buffers_handle, (uint64_t)h_staging_buffer);
+            ctx->handle_manager->set_handle(indicies.queue_index, staging_allocations_handle, (uint64_t)h_staging_allocation);
 
-            // Signal* signal = (Signal*)ctx->handle_manager->get_handle(indicies.queue_index, signals_pointers_handle, 0);
-            // signal->notify();
+            Signal* signal = (Signal*)ctx->handle_manager->get_handle(indicies.queue_index, signals_pointers_handle, 0);
+            signal->notify();
         }
     );
     
@@ -449,84 +449,84 @@ void write_to_image(struct Context* ctx, struct Image* image, void* data, VkOffs
 }
 
 void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkExtent3D extent, unsigned int baseLayer, unsigned int layerCount, int queue_index) {
-    // LOG_INFO("Writing data to image (%p) at offset (%d, %d, %d) with extent (%d, %d, %d)", image, offset.x, offset.y, offset.z, extent.width, extent.height, extent.depth);
+    LOG_INFO("Writing data to image (%p) at offset (%d, %d, %d) with extent (%d, %d, %d)", image, offset.x, offset.y, offset.z, extent.width, extent.height, extent.depth);
 
-    // struct Context* ctx = image->ctx;
+    struct Context* ctx = image->ctx;
 
-    // if(queue_index != -1) {
-    //     write_to_image(ctx, image, data, offset, extent, baseLayer, layerCount, queue_index);
-    //     return;
-    // }
+    if(queue_index != -1) {
+        write_to_image(ctx, image, data, offset, extent, baseLayer, layerCount, queue_index);
+        return;
+    }
 
-    // for(int i = 0; i < ctx->queues.size(); i++) {
-    //     write_to_image(ctx, image, data, offset, extent, baseLayer, layerCount, i);
-    // }
+    for(int i = 0; i < ctx->queues.size(); i++) {
+        write_to_image(ctx, image, data, offset, extent, baseLayer, layerCount, i);
+    }
 }
 
 void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExtent3D extent, unsigned int baseLayer, unsigned int layerCount, int queue_index) {
-    // LOG_INFO("Reading data from image (%p) at offset (%d, %d, %d) with extent (%d, %d, %d)", image, offset.x, offset.y, offset.z, extent.width, extent.height, extent.depth);
+    LOG_INFO("Reading data from image (%p) at offset (%d, %d, %d) with extent (%d, %d, %d)", image, offset.x, offset.y, offset.z, extent.width, extent.height, extent.depth);
 
-    // struct Context* ctx = image->ctx;
+    struct Context* ctx = image->ctx;
 
-    // uint64_t signals_pointers_handle = image->signals_pointers_handle;
-    // Signal* signal = (Signal*)ctx->handle_manager->get_handle(queue_index, signals_pointers_handle, 0);
+    uint64_t signals_pointers_handle = image->signals_pointers_handle;
+    Signal* signal = (Signal*)ctx->handle_manager->get_handle(queue_index, signals_pointers_handle, 0);
 
-    // // wait for the recording thread to finish
-    // signal->wait();
-    // signal->reset();
+    // wait for the recording thread to finish
+    signal->wait();
+    signal->reset();
 
-    // uint64_t images_handle = image->images_handle;
-    // uint64_t staging_buffers_handle = image->staging_buffers_handle;
-    // uint64_t barriers_handle = image->barriers_handle;
+    uint64_t images_handle = image->images_handle;
+    uint64_t staging_buffers_handle = image->staging_buffers_handle;
+    uint64_t barriers_handle = image->barriers_handle;
 
-    // size_t data_size = extent.width * extent.height * extent.depth * layerCount * image->block_size;
+    size_t data_size = extent.width * extent.height * extent.depth * layerCount * image->block_size;
 
-    // context_submit_command(ctx, "image-read", queue_index, NULL, RECORD_TYPE_SYNC,
-    //     [ctx, offset, staging_buffers_handle, signals_pointers_handle, images_handle, barriers_handle, data_size, baseLayer, layerCount, extent]
-    //     (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
-    //         VkImageMemoryBarrier* barrier = (VkImageMemoryBarrier*)ctx->handle_manager->get_handle(indicies.queue_index, barriers_handle, 0);
+    context_submit_command(ctx, "image-read", queue_index, NULL, RECORD_TYPE_SYNC,
+        [ctx, offset, staging_buffers_handle, signals_pointers_handle, images_handle, barriers_handle, data_size, baseLayer, layerCount, extent]
+        (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
+            VkImageMemoryBarrier* barrier = (VkImageMemoryBarrier*)ctx->handle_manager->get_handle(indicies.queue_index, barriers_handle, 0);
 
-    //         VkImage h_image = (VkImage)ctx->handle_manager->get_handle(indicies.queue_index, images_handle, timestamp);
-    //         VkBuffer h_staging_buffer = (VkBuffer)ctx->handle_manager->get_handle(indicies.queue_index, staging_buffers_handle, timestamp);
+            VkImage h_image = (VkImage)ctx->handle_manager->get_handle(indicies.queue_index, images_handle, timestamp);
+            VkBuffer h_staging_buffer = (VkBuffer)ctx->handle_manager->get_handle(indicies.queue_index, staging_buffers_handle, timestamp);
             
-    //         VkBufferImageCopy bufferImageCopy;
-    //         memset(&bufferImageCopy, 0, sizeof(VkBufferImageCopy));
-    //         bufferImageCopy.bufferOffset = 0;
-    //         bufferImageCopy.bufferRowLength = 0;
-    //         bufferImageCopy.bufferImageHeight = 0;
-    //         bufferImageCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    //         bufferImageCopy.imageSubresource.baseArrayLayer = baseLayer;
-    //         bufferImageCopy.imageSubresource.layerCount = layerCount;
-    //         bufferImageCopy.imageOffset = offset;
-    //         bufferImageCopy.imageExtent = extent;
+            VkBufferImageCopy bufferImageCopy;
+            memset(&bufferImageCopy, 0, sizeof(VkBufferImageCopy));
+            bufferImageCopy.bufferOffset = 0;
+            bufferImageCopy.bufferRowLength = 0;
+            bufferImageCopy.bufferImageHeight = 0;
+            bufferImageCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            bufferImageCopy.imageSubresource.baseArrayLayer = baseLayer;
+            bufferImageCopy.imageSubresource.layerCount = layerCount;
+            bufferImageCopy.imageOffset = offset;
+            bufferImageCopy.imageExtent = extent;
 
-    //         barrier->dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-    //         barrier->newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-    //         insert_barrier(cmd_buffer, barrier, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+            barrier->dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            barrier->newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            insert_barrier(cmd_buffer, barrier, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-    //         vkCmdCopyImageToBuffer(cmd_buffer, h_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, h_staging_buffer, 1, &bufferImageCopy);
+            vkCmdCopyImageToBuffer(cmd_buffer, h_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, h_staging_buffer, 1, &bufferImageCopy);
 
-    //         barrier->dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    //         barrier->newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    //         insert_barrier(cmd_buffer, barrier, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+            barrier->dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            barrier->newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            insert_barrier(cmd_buffer, barrier, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-    //         Signal* signal = (Signal*)ctx->handle_manager->get_handle(indicies.queue_index, signals_pointers_handle, 0);
-    //         signal->notify();
-    //     }
-    // );
+            Signal* signal = (Signal*)ctx->handle_manager->get_handle(indicies.queue_index, signals_pointers_handle, 0);
+            signal->notify();
+        }
+    );
 
-    // signal->wait();
+    signal->wait();
 
-    // // wait for the staging buffer to be ready
-    // uint64_t staging_buffer_timestamp = ctx->handle_manager->get_handle_timestamp(queue_index, image->staging_buffers_handle);
-    // ctx->queues[queue_index]->wait_for_timestamp(staging_buffer_timestamp);
+    // wait for the staging buffer to be ready
+    uint64_t staging_buffer_timestamp = ctx->handle_manager->get_handle_timestamp(queue_index, image->staging_buffers_handle);
+    ctx->queues[queue_index]->wait_for_timestamp(staging_buffer_timestamp);
     
-    // int device_index = ctx->queues[queue_index]->device_index;
+    int device_index = ctx->queues[queue_index]->device_index;
 
-    // VmaAllocation staging_allocation = (VmaAllocation)ctx->handle_manager->get_handle(queue_index, image->staging_allocations_handle, 0);
+    VmaAllocation staging_allocation = (VmaAllocation)ctx->handle_manager->get_handle(queue_index, image->staging_allocations_handle, 0);
     
-    // void* mapped;
-    // VK_CALL(vmaMapMemory(ctx->allocators[device_index], staging_allocation, &mapped));
-    // memcpy(data, mapped, data_size);
-    // vmaUnmapMemory(ctx->allocators[device_index], staging_allocation);
+    void* mapped;
+    VK_CALL(vmaMapMemory(ctx->allocators[device_index], staging_allocation, &mapped));
+    memcpy(data, mapped, data_size);
+    vmaUnmapMemory(ctx->allocators[device_index], staging_allocation);
 }
