@@ -5,8 +5,10 @@ from vkdispatch.codegen.abreviations import *
 
 import numpy as np
 
+vd.initialize(log_level=vd.LogLevel.WARNING, debug_mode=True)
+vd.make_context(use_cpu=True, device_ids=[4])
+
 def test_1d_image_creation():
-    vd.set_log_level(vd.LogLevel.VERBOSE)
 
     # Create a 1D image
     signal = np.sin(np.array([i/8 for i in range(0, 50, 1)])).astype(np.float32)

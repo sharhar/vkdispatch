@@ -5,6 +5,7 @@ from vkdispatch.codegen.abreviations import *
 import numpy as np
 
 def test_basic():
+    vd.set_log_level(vd.LogLevel.VERBOSE)
 
     cmd_stream = vd.CommandStream()
 
