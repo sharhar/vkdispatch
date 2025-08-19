@@ -2,7 +2,9 @@ from typing import List
 from typing import Tuple
 from typing import Union
 from typing import Dict
+
 import atexit
+import weakref
 
 from .errors import check_for_errors
 from .init import DeviceInfo, get_devices, initialize
@@ -14,10 +16,15 @@ class Handle:
     _handle: int
     destroyed: bool
 
+    parents: Dict[int, "Handle"]
+    children_dict: weakref.WeakValueDictionary[int, "Handle"]
+
     def __init__(self):
         self.context = get_context()
         self._handle = None
         self.destroyed = False
+        self.parents = {}
+        self.children_dict = weakref.WeakValueDictionary()
 
     def register_handle(self, handle: int) -> None:
         """
@@ -25,6 +32,26 @@ class Handle:
         """
         self._handle = handle
         self.context.handles_dict[self._handle] = self
+
+    def register_parent(self, parent: "Handle") -> None:
+        """
+        Registers the parent handle.
+        """
+        if parent._handle in self.parents.keys():
+            return
+        
+        self.parents[parent._handle] = parent
+
+        parent.add_child_handle(self)
+
+    def add_child_handle(self, child: "Handle") -> None:
+        """
+        Adds a child handle to the current handle.
+        """
+        if child._handle in self.children_dict.keys():
+            raise ValueError(f"Child handle {child._handle} already exists in parent handle!")
+        
+        self.children_dict[child._handle] = child
 
     def _destroy(self) -> None:
         raise NotImplementedError("destroy is an abstract method and must be implemented by subclasses.")
@@ -35,13 +62,24 @@ class Handle:
         """
         if self.destroyed:
             return
+
+        child_list = list(self.children_dict.values())
+
+        for child in child_list:
+            child.destroy()
+
+        assert len(self.children_dict) == 0, "Not all children were destroyed!"
         
+        self._destroy()
+        check_for_errors()
+        
+        for parent in self.parents.values():
+            parent.children_dict.pop(self._handle)
+
         if self._handle in self.context.handles_dict.keys():
             self.context.handles_dict.pop(self._handle)
         
         self.destroyed = True
-        self._destroy()
-        check_for_errors()
 
 class Context:
     """
@@ -72,7 +110,7 @@ class Context:
     max_workgroup_count: Tuple[int, int, int]
     uniform_buffer_alignment: int
     max_shared_memory: int
-    handles_dict: Dict[int, Handle]
+    handles_dict: weakref.WeakValueDictionary[int, Handle]
 
     def __init__(
         self,
@@ -83,7 +121,7 @@ class Context:
         self.device_infos = [get_devices()[dev] for dev in devices]
         self.queue_families = queue_families
         self.queue_count = sum([len(i) for i in queue_families])
-        self.handles_dict = {}
+        self.handles_dict = weakref.WeakValueDictionary()
         self._handle = vkdispatch_native.context_create(devices, queue_families)
         check_for_errors()
         

@@ -41,8 +41,12 @@ def sanitize_input_tuple(input: Tuple) -> Tuple:
 
 __fft_plans: Dict[FFTConfig, VkFFTPlan] = {}
 
-def reset_fft_plans():
+def clear_plan_cache():
     global __fft_plans
+
+    for plan in __fft_plans.values():
+        plan.destroy()
+
     __fft_plans = {}
 
 def execute_fft_plan(

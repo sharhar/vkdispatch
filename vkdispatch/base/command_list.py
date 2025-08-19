@@ -1,14 +1,9 @@
-from typing import Any
-from typing import Callable
-from typing import List
-from typing import Dict
-from typing import Union
 from typing import Tuple
 from typing import Optional
 
 import vkdispatch_native
 
-from .context import Context, get_context, Handle
+from .context import Handle
 from .errors import check_for_errors
 
 from .compute_plan import ComputePlan

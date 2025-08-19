@@ -7,9 +7,9 @@ import vkdispatch as vd
 from typing import List
 from typing import Tuple
 
-from ..base.context import get_context, Context
+from ..base.context import get_context, Context, Handle
 
-class VkFFTPlan:
+class VkFFTPlan(Handle):
     context: Context
 
     def __init__(self, 
@@ -28,6 +28,8 @@ class VkFFTPlan:
                  num_batches: int = 1,
                  single_kernel_multiple_batches: bool = False,
                  keep_shader_code: bool = False):
+        super().__init__()
+
         assert len(shape) > 0 and len(shape) < 4, "shape must be 1D, 2D, or 3D"
 
         self.shape = shape
@@ -63,9 +65,7 @@ class VkFFTPlan:
 
             input_size = np.prod(input_shape) * input_buffer_type.itemsize
 
-        self.context = get_context()
-
-        self._handle = vkdispatch_native.stage_fft_plan_create(
+        handle = vkdispatch_native.stage_fft_plan_create(
             self.context._handle, 
             list(reversed(self.shape)), 
             [axis for axis in flipped_axes if axis >= 0 and axis < 3], 
@@ -86,9 +86,14 @@ class VkFFTPlan:
         )
         vd.check_for_errors()
 
-    def __del__(self):
+        self.register_handle(handle)
+
+    def _destroy(self):
         vkdispatch_native.stage_fft_plan_destroy(self._handle)
         vd.check_for_errors()
+
+    def __del__(self):
+        self.destroy()
 
     def record(self, command_list: vd.CommandList, buffer: vd.Buffer, inverse: bool = False, kernel: vd.Buffer = None, input: vd.Buffer = None):
         vkdispatch_native.stage_fft_record(
