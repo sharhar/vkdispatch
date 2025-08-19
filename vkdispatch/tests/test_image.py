@@ -8,9 +8,6 @@ import numpy as np
 vd.initialize(log_level=vd.LogLevel.WARNING, debug_mode=True)
 
 def test_1d_image_creation():
-
-    print("Testing 1D image creation...")
-
     # Create a 1D image
     signal = np.sin(np.array([i/8 for i in range(0, 50, 1)])).astype(np.float32)
 
@@ -18,8 +15,6 @@ def test_1d_image_creation():
     test_line.write(signal)
 
     assert np.allclose(test_line.read(0), signal)
-
-    vd.set_log_level(vd.LogLevel.WARNING)
 
 def test_2d_image_creation():
     # Create a 2D image
