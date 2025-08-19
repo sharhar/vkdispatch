@@ -55,9 +55,10 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
             VkBuffer h_buffer;
             VmaAllocation h_allocation;
 
-            ctx->vma_mutex.lock();
-            VK_CALL(vmaCreateBuffer(ctx->allocators[indicies.device_index], &bufferCreateInfo, &vmaAllocationCreateInfo, &h_buffer, &h_allocation, NULL));
-            ctx->vma_mutex.unlock();
+            {
+                std::unique_lock lock(ctx->vma_mutex);
+                VK_CALL(vmaCreateBuffer(ctx->allocators[indicies.device_index], &bufferCreateInfo, &vmaAllocationCreateInfo, &h_buffer, &h_allocation, NULL));
+            }
 
             VkBufferCreateInfo stagingBufferCreateInfo;
             memset(&stagingBufferCreateInfo, 0, sizeof(VkBufferCreateInfo));
@@ -72,9 +73,10 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
             VkBuffer h_staging_buffer;
             VmaAllocation h_staging_allocation;
 
-            ctx->vma_mutex.lock();
-            VK_CALL(vmaCreateBuffer(ctx->allocators[indicies.device_index], &stagingBufferCreateInfo, &vmaAllocationCreateInfo, &h_staging_buffer, &h_staging_allocation, NULL));
-            ctx->vma_mutex.unlock();
+            {
+                std::unique_lock lock(ctx->vma_mutex);
+                VK_CALL(vmaCreateBuffer(ctx->allocators[indicies.device_index], &stagingBufferCreateInfo, &vmaAllocationCreateInfo, &h_staging_buffer, &h_staging_allocation, NULL));
+            }
 
             ctx->handle_manager->set_handle(indicies.queue_index, buffers_handle, (uint64_t)h_buffer);
             ctx->handle_manager->set_handle(indicies.queue_index, allocations_handle, (uint64_t)h_allocation);
@@ -118,17 +120,17 @@ void buffer_destroy_extern(struct Buffer* buffer) {
             VmaAllocation allocation = (VmaAllocation)ctx->handle_manager->get_handle(indicies.queue_index, allocations_handle, 0);
             VkBuffer stagingBuffer = (VkBuffer)ctx->handle_manager->get_handle(indicies.queue_index, staging_buffers_handle, 0);
             VmaAllocation stagingAllocation = (VmaAllocation)ctx->handle_manager->get_handle(indicies.queue_index, staging_allocations_handle, 0);
+            
+            {
+                std::unique_lock lock(ctx->vma_mutex);
 
-            ctx->vma_mutex.lock();
-
-            if (buffer != VK_NULL_HANDLE) {
-                vmaDestroyBuffer(ctx->allocators[indicies.device_index], buffer, allocation);
+                if (buffer != VK_NULL_HANDLE) {
+                    vmaDestroyBuffer(ctx->allocators[indicies.device_index], buffer, allocation);
+                }
+                if (stagingBuffer != VK_NULL_HANDLE) {
+                    vmaDestroyBuffer(ctx->allocators[indicies.device_index], stagingBuffer, stagingAllocation);
+                }
             }
-            if (stagingBuffer != VK_NULL_HANDLE) {
-                vmaDestroyBuffer(ctx->allocators[indicies.device_index], stagingBuffer, stagingAllocation);
-            }
-
-            ctx->vma_mutex.unlock();
 
             ctx->handle_manager->destroy_handle(indicies.queue_index, buffers_handle);
             ctx->handle_manager->destroy_handle(indicies.queue_index, allocations_handle);
