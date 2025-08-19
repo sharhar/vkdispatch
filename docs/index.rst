@@ -8,12 +8,16 @@ Welcome to vkdispatch's documentation!
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: User Guide:
 
-..   python_api
-   cpp_api
+   getting_started
+   public_api/index
 
+.. toctree::
+   :maxdepth: 2
+   :caption: Full Internal Documentation:
 
+   internal_api
 
 .. include:: ../README.md
 
