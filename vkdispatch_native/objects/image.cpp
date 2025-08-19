@@ -88,12 +88,13 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
                             | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-            // volatile uint64_t canary = 0xDEADBEEFCAFEBABEull;
 
-            // LOG_INFO("image-init ENTER: cmd=%p qi=%d di=%d pc=%p bm=%p ts=%llu",
-            //         (void*)cmd_buffer, indicies.queue_index, indicies.device_index,
-            //         pc_data, (void*)barrier_manager, (unsigned long long)timestamp);
-            // LOG_INFO("Creating image %p for queue %d", images_handle, indicies.queue_index);
+            LOG_INFO("Creating image with extent (%d, %d, %d), layers %d, format %s, type %s, view_type %s, generate_mips %d",
+                extent.width, extent.height, extent.depth, layers,
+                string_VkFormat((VkFormat)format),
+                string_VkImageType((VkImageType)type),
+                string_VkImageViewType((VkImageViewType)view_type),
+                mip_levels);
 
             VkImageCreateInfo imageCreateInfo;
             memset(&imageCreateInfo, 0, sizeof(VkImageCreateInfo));
@@ -167,8 +168,6 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
             barrier->subresourceRange.levelCount = mip_levels;
             barrier->subresourceRange.baseArrayLayer = 0;
             barrier->subresourceRange.layerCount = layers;
-            
-            // LOG_INFO("Creating image handle=0x%llx for queue %d", (unsigned long long)images_handle, indicies.queue_index);
 
             ctx->handle_manager->set_handle(indicies.queue_index, images_handle, (uint64_t)h_image);
             ctx->handle_manager->set_handle(indicies.queue_index, allocations_handle, (uint64_t)h_allocation);
@@ -178,8 +177,8 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
             ctx->handle_manager->set_handle(indicies.queue_index, barriers_handle, (uint64_t)barrier);
 
             Signal* signal = (Signal*)ctx->handle_manager->get_handle(indicies.queue_index, signals_pointers_handle, 0);
-
-            LOG_INFO("Signal %p for image with handle %p for queue %d", signal, images_handle, indicies.queue_index);
+            
+            LOG_INFO("Image created with handle %p for queue %d signal %p", h_image, indicies.queue_index, signal);
 
             signal->notify();
         }
@@ -316,7 +315,7 @@ void write_to_image(struct Context* ctx, struct Image* image, void* data, VkOffs
     uint64_t signals_pointers_handle = image->signals_pointers_handle;
     Signal* signal = (Signal*)ctx->handle_manager->get_handle(queue_index, signals_pointers_handle, 0);
 
-    LOG_INFO("waiting for recording thread to finish for image %p", image);
+    LOG_INFO("waiting for recording thread to finish for image %p signal %p queue %d", image, signal, queue_index);
     
     // wait for the recording thread to finish
     signal->wait();
