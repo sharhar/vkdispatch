@@ -6,6 +6,7 @@ import sys
 import vkdispatch as vd
 
 vd.initialize(debug_mode=True)
+#vd.make_context(device_ids=[0])
 
 data_size = 16 * 1024 * 1024 # 16 MB
 

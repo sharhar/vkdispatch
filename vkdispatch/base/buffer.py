@@ -5,7 +5,7 @@ from typing import Union
 import numpy as np
 
 from .dtype import dtype
-from .context import get_context, get_context_handle, Context, Handle
+from .context import Handle
 from .errors import check_for_errors
 
 from .dtype import to_numpy_dtype, from_numpy_dtype, complex64
@@ -24,8 +24,6 @@ class Buffer(Handle, typing.Generic[_ArgType]):
     size: int
     mem_size: int
 
-    child_handles: Dict[int, Handle]
-
     def __init__(self, shape: Tuple[int, ...], var_type: dtype) -> None:
         super().__init__()
 
@@ -35,9 +33,7 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         self.var_type: dtype = var_type
         self.shape: Tuple[int] = shape
         self.size: int = int(np.prod(shape))
-        self.child_handles = {}
         self.mem_size: int = self.size * self.var_type.item_size
-        self.ctx = get_context()
 
         if self.size > 2 ** 30:
             raise ValueError("Cannot allocate buffers larger than 2^30 elements!")
@@ -58,20 +54,8 @@ class Buffer(Handle, typing.Generic[_ArgType]):
 
         self.register_handle(handle)
 
-    def add_child_handle(self, child: Handle) -> None:
-        """Add a child handle to the buffer."""
-        if child._handle in self.child_handles.keys():
-            raise ValueError(f"Child handle {child._handle} already exists in buffer!")
-
-        self.child_handles[child._handle] = child
-
     def _destroy(self) -> None:
         """Destroy the buffer and all child handles."""
-        child_list = list(self.child_handles.values())
-
-        for child in child_list:
-            child.destroy()
-
         vkdispatch_native.buffer_destroy(self._handle)
 
     def __del__(self) -> None:
@@ -139,9 +123,9 @@ class Buffer(Handle, typing.Generic[_ArgType]):
 
             check_for_errors()
         else:
-            result = np.zeros((self.ctx.queue_count,) + self.shape + self.var_type.true_numpy_shape, dtype=to_numpy_dtype(true_scalar))
+            result = np.zeros((self.context.queue_count,) + self.shape + self.var_type.true_numpy_shape, dtype=to_numpy_dtype(true_scalar))
 
-            for i in range(self.ctx.queue_count):
+            for i in range(self.context.queue_count):
                 result[i] = self.read(i)
 
         return result

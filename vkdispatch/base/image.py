@@ -6,7 +6,7 @@ import numpy as np
 import vkdispatch_native
 
 from . import dtype as vdt
-from .context import get_context, Context
+from .context import Handle
 
 __MAPPING__ = {
     (np.uint8, 1),
@@ -202,9 +202,9 @@ class BorderColor(Enum):
     FLOAT_OPAQUE_WHITE = 4
     INT_OPAQUE_WHITE = 5
 
-class Sampler:
+class Sampler(Handle):
     image: "Image"
-    context: Context
+    
     def __init__(self,
                     image: "Image",
                     mag_filter: Filter = Filter.LINEAR,
@@ -216,10 +216,11 @@ class Sampler:
                     max_lod: float = 0.0,
                     border_color: BorderColor = BorderColor.FLOAT_OPAQUE_WHITE
                 ) -> None:
+        super().__init__()
+
         self.image = image
-        self.context = get_context()
         
-        self._handle = vkdispatch_native.image_create_sampler(
+        handle = vkdispatch_native.image_create_sampler(
             self.context._handle,
             mag_filter.value,
             min_filter.value,
@@ -230,14 +231,17 @@ class Sampler:
             max_lod,
             border_color.value
         )
+
+        self.register_handle(handle)
+        self.register_parent(image)
+
+    def _destroy(self):
+        vkdispatch_native.image_destroy_sampler(self._handle)
     
     def __del__(self) -> None:
-        vkdispatch_native.image_destroy_sampler(self._handle)
+        self.destroy()
 
-class Image:
-    context: Context
-    _handle: int
-
+class Image(Handle):
     def __init__(
         self,
         shape: typing.Tuple[int, ...],
@@ -247,6 +251,8 @@ class Image:
         view_type: image_view_type,
         enable_mipmaps: bool = False,
     ) -> None:
+        super().__init__()
+
         assert len(shape) == 1 or len(shape) == 2 or len(shape) == 3, "Shape must be 2D or 3D!"
 
         assert type(shape[0]) == int, "Shape must be a tuple of integers!"
@@ -298,9 +304,7 @@ class Image:
 
         self.mem_size: int = np.prod(self.shape) * self.block_size
 
-        self.context = get_context()
-
-        self._handle: int = vkdispatch_native.image_create(
+        handle: int = vkdispatch_native.image_create(
             self.context._handle,
             self.extent,
             self.layers,
@@ -310,8 +314,13 @@ class Image:
             1 if enable_mipmaps else 0,
         )
 
-    def __del__(self) -> None:
+        self.register_handle(handle)
+
+    def _destroy(self) -> None:
         vkdispatch_native.image_destroy(self._handle)
+
+    def __del__(self) -> None:
+        self.destroy()
 
     def write(self, data: np.ndarray, device_index: int = -1) -> None:
         if data.size * np.dtype(data.dtype).itemsize != self.mem_size:

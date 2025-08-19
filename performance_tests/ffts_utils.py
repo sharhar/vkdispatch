@@ -69,6 +69,14 @@ def run_vkdispatch(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batc
 
     elapsed_time = time.perf_counter() - start_time
 
+    buffer.destroy()
+    output_buffer.destroy()
+    cmd_stream.destroy()
+
+    vd.queue_wait_idle()
+
+    del buffer, output_buffer, cmd_stream
+
     return iter_count * gb_byte_count / elapsed_time
 
 def run_vkfft(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batch: int, warmup: int) -> float:
@@ -97,6 +105,12 @@ def run_vkfft(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batch: in
 
     for _ in range(iter_count // iter_batch):
         cmd_stream.submit(iter_batch)
+
+    vd.queue_wait_idle()
+
+    buffer.destroy()
+    output_buffer.destroy()
+    cmd_stream.destroy()
 
     vd.queue_wait_idle()
 

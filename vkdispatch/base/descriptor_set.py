@@ -1,28 +1,22 @@
 import vkdispatch_native
 
-from typing import List, Union
-
 from .errors import check_for_errors
 
-from .context import get_context, Handle
+from .context import Handle
 from .compute_plan import ComputePlan
 from .buffer import Buffer
 from .image import Sampler
 
 class DescriptorSet(Handle):
     """TODO: Docstring"""
-
-    _compute_plan: ComputePlan
-    _bound_resources: List[Union[Buffer, Sampler]]
-
     def __init__(self, compute_plan: ComputePlan) -> None:
         super().__init__()
 
         self._bound_resources = []
-        self._compute_plan = compute_plan
         handle = vkdispatch_native.descriptor_set_create(compute_plan._handle)
         check_for_errors()
         self.register_handle(handle)
+        self.register_parent(compute_plan)
     
     def _destroy(self) -> None:
         vkdispatch_native.descriptor_set_destroy(self._handle)
@@ -32,8 +26,8 @@ class DescriptorSet(Handle):
         self.destroy()
 
     def bind_buffer(self, buffer: Buffer, binding: int, offset: int = 0, range: int = 0, uniform: bool = False, read_access: bool = True, write_access: bool = True) -> None:
-        self._bound_resources.append(buffer)
-        
+        self.register_parent(buffer)
+
         vkdispatch_native.descriptor_set_write_buffer(
             self._handle,
             binding,
@@ -47,7 +41,7 @@ class DescriptorSet(Handle):
         check_for_errors()
 
     def bind_sampler(self, sampler: Sampler, binding: int, read_access: bool = True, write_access: bool = True) -> None:
-        self._bound_resources.append(sampler)
+        self.register_parent(sampler)
 
         vkdispatch_native.descriptor_set_write_image(
             self._handle,
