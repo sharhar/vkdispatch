@@ -5,9 +5,6 @@ from vkdispatch.codegen.abreviations import *
 
 import numpy as np
 
-vd.initialize(log_level=vd.LogLevel.WARNING, debug_mode=True)
-vd.make_context(use_cpu=True, device_ids=[4])
-
 def test_1d_image_creation():
 
     # Create a 1D image

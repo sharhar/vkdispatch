@@ -9,26 +9,9 @@ from typing import Any
 from typing import Dict
 from typing import Tuple
 
-# import faulthandler
-# import signal
-# import os
-
-# # Enable faulthandler to dump tracebacks on fatal errors.
-# faulthandler.enable()
-
-# # Register a signal handler for SIGQUIT (Ctrl+\) to dump all threads.
-# # On Windows, SIGBREAK can be used.
-# if hasattr(signal, "SIGQUIT"):
-#     faulthandler.register(signal.SIGQUIT)
-#     print(
-#         f"faulthandler registered. Press Ctrl+\\ to dump all thread stacks."
-#     )
-#     print(f"Run 'kill -QUIT {os.getpid()}' from another terminal.")
+vd.make_context(use_cpu=True)
 
 import numpy as np
-
-vd.initialize(log_level=vd.LogLevel.WARNING, debug_mode=True)
-vd.make_context(use_cpu=True, device_ids=[4])
 
 class CommandType(enum.Enum):
     ADD_VALUE = 0
