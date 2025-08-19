@@ -109,12 +109,12 @@ struct Image* image_create_extern(struct Context* context, VkExtent3D a_extent, 
             VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
                             | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-            LOG_INFO("Creating image with extent (%d, %d, %d), layers %d, format %s, type %s, view_type %s, generate_mips %d",
-                extent.width, extent.height, extent.depth, layers,
-                string_VkFormat((VkFormat)format),
-                string_VkImageType((VkImageType)type),
-                string_VkImageViewType((VkImageViewType)view_type),
-                mip_levels);
+            // LOG_INFO("Creating image with extent (%d, %d, %d), layers %d, format %s, type %s, view_type %s, generate_mips %d",
+            //     extent.width, extent.height, extent.depth, layers,
+            //     string_VkFormat((VkFormat)format),
+            //     string_VkImageType((VkImageType)type),
+            //     string_VkImageViewType((VkImageViewType)view_type),
+            //     mip_levels);
 
             VkImageCreateInfo imageCreateInfo;
             memset(&imageCreateInfo, 0, sizeof(VkImageCreateInfo));
