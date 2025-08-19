@@ -33,7 +33,11 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
     image->signals_pointers_handle = ctx->handle_manager->register_queue_handle("Image Signals");
 
     for(int queue_index = 0; queue_index < ctx->queues.size(); queue_index++) {
-        ctx->handle_manager->set_handle(queue_index, image->signals_pointers_handle, (uint64_t)new Signal());
+        Signal* signal = new Signal();
+
+        LOG_INFO("Creating signal for image with handle %p for queue %d", signal, queue_index);
+
+        ctx->handle_manager->set_handle(queue_index, image->signals_pointers_handle, (uint64_t)signal);
     }
     
     image->block_size = image_format_block_size_extern(format);
@@ -174,16 +178,12 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
             ctx->handle_manager->set_handle(indicies.queue_index, barriers_handle, (uint64_t)barrier);
 
             Signal* signal = (Signal*)ctx->handle_manager->get_handle(indicies.queue_index, signals_pointers_handle, 0);
+
+            LOG_INFO("Signal %p for image with handle %p for queue %d", signal, images_handle, indicies.queue_index);
+
             signal->notify();
-
-            // LOG_INFO("Image %p created with allocation %p, view %p, staging buffer %p, staging allocation %p",
-            //     h_image, h_allocation, h_image_view, h_staging_buffer, h_staging_allocation);
-
-            // LOG_INFO("image-init EXIT   canary=%llx", (unsigned long long)canary);
         }
     );
-
-    //image_write_extern(image, NULL, {0, 0, 0}, extent, 0, 0, -1);
     
     return image;
 }
