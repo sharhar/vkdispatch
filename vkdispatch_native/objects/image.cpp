@@ -40,7 +40,6 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
         ctx->handle_manager->set_handle(queue_index, image->signals_pointers_handle, (uint64_t)signal);
 
         VkImageMemoryBarrier* barrier = new VkImageMemoryBarrier();
-        memset(barrier, 0, sizeof(VkImageMemoryBarrier));
         barrier->sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         barrier->pNext = NULL;
         barrier->srcAccessMask = 0;
@@ -49,10 +48,9 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
         barrier->newLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         barrier->srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier->dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        //barrier->image = h_image;
         barrier->subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         barrier->subresourceRange.baseMipLevel = 0;
-        //barrier->subresourceRange.levelCount = mip_levels;
+        barrier->subresourceRange.levelCount = image->mip_levels;
         barrier->subresourceRange.baseArrayLayer = 0;
         barrier->subresourceRange.layerCount = layers;
 
@@ -171,12 +169,14 @@ struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsign
             VmaAllocation h_staging_allocation;
             VK_CALL_RETNULL(vmaCreateBuffer(ctx->allocators[indicies.device_index], &bufferCreateInfo, &vmaAllocationCreateInfo, &h_staging_buffer, &h_staging_allocation, NULL));
 
+            VkImageMemoryBarrier* barrier = (VkImageMemoryBarrier*)ctx->handle_manager->get_handle(indicies.queue_index, barriers_handle, 0);
+            barrier->image = h_image;
+
             ctx->handle_manager->set_handle(indicies.queue_index, images_handle, (uint64_t)h_image);
             ctx->handle_manager->set_handle(indicies.queue_index, allocations_handle, (uint64_t)h_allocation);
             ctx->handle_manager->set_handle(indicies.queue_index, image_views_handle, (uint64_t)h_image_view);
             ctx->handle_manager->set_handle(indicies.queue_index, staging_buffers_handle, (uint64_t)h_staging_buffer);
             ctx->handle_manager->set_handle(indicies.queue_index, staging_allocations_handle, (uint64_t)h_staging_allocation);
-            //ctx->handle_manager->set_handle(indicies.queue_index, barriers_handle, (uint64_t)barrier);
 
             Signal* signal = (Signal*)ctx->handle_manager->get_handle(indicies.queue_index, signals_pointers_handle, 0);
             
