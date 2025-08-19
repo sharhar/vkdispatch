@@ -1,4 +1,11 @@
-#include "../internal.hh"
+#include "stage_compute.hh"
+#include "stages_extern.hh"
+
+#include "../context/context.hh"
+#include "../objects/descriptor_set.hh"
+#include "../objects/command_list.hh"
+#include "../objects/objects_extern.hh"
+
 
 #include <chrono>
 #include <thread>
@@ -141,15 +148,12 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
     VkDescriptorSetLayoutBinding* bindings = plan->bindings;
     unsigned int binding_count = plan->binding_count;
 
-    command_list_record_command(ctx->command_list, 
-        "compute-init",
-        0,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
+    context_submit_command(ctx, "compute-destroy", -2, NULL, RECORD_TYPE_SYNC,
         [ctx, code, code_size, pc_size, descriptor_set_layouts_handle, pipeline_layouts_handle, pipelines_handle, bindings, binding_count]
-        (VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
-            ctx->handle_manager->set_handle_per_device(device_index, descriptor_set_layouts_handle, 
-            [ctx, bindings, binding_count, stream_index, recorder_index](int device_index) {
-                LOG_VERBOSE("Creating Descriptor Set Layout for device %d on stream %d recorder %d", device_index, stream_index, recorder_index);
+        (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
+            ctx->handle_manager->set_handle_per_device(indicies.device_index, descriptor_set_layouts_handle, 
+            [ctx, bindings, binding_count, indicies](int device_index) {
+                LOG_VERBOSE("Creating Descriptor Set Layout for device %d on queue %d recorder %d", device_index, indicies.queue_index, indicies.recorder_index);
 
                 VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
                 descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -164,9 +168,9 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
                 return (uint64_t)descriptorSetLayout;
             });
 
-            ctx->handle_manager->set_handle_per_device(device_index, pipeline_layouts_handle,
-            [ctx, descriptor_set_layouts_handle, pc_size, stream_index, recorder_index](int device_index) {
-                LOG_VERBOSE("Creating Pipeline Layout for device %d on stream %d recorder %d", device_index, stream_index, recorder_index);
+            ctx->handle_manager->set_handle_per_device(indicies.device_index, pipeline_layouts_handle,
+            [ctx, descriptor_set_layouts_handle, pc_size, indicies](int device_index) {
+                LOG_VERBOSE("Creating Pipeline Layout for device %d on queue %d recorder %d", device_index, indicies.queue_index, indicies.recorder_index);
 
                 VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
                 pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -176,7 +180,7 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
 
                 LOG_VERBOSE("Descriptor Set Layout Handle: %d", descriptor_set_layouts_handle);
 
-                pipelineLayoutCreateInfo.pSetLayouts = (VkDescriptorSetLayout*)ctx->handle_manager->get_handle_pointer_no_lock(stream_index, descriptor_set_layouts_handle);
+                pipelineLayoutCreateInfo.pSetLayouts = (VkDescriptorSetLayout*)ctx->handle_manager->get_handle_pointer_no_lock(indicies.queue_index, descriptor_set_layouts_handle);
                 pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
                 pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
 
@@ -191,7 +195,7 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
                     pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
                 }
 
-                LOG_VERBOSE("Creating Pipeline Layout for device %d on stream %d", device_index, stream_index);
+                LOG_VERBOSE("Creating Pipeline Layout for device %d on queue %d", device_index, indicies.queue_index);
 
                 VkPipelineLayout pipelineLayout;
                 VK_CALL_RETURN(vkCreatePipelineLayout(ctx->devices[device_index], &pipelineLayoutCreateInfo, NULL, &pipelineLayout), (uint64_t)0);
@@ -201,15 +205,15 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
                 return (uint64_t)pipelineLayout;
             });
 
-            ctx->handle_manager->set_handle_per_device(device_index, pipelines_handle,
-            [ctx, code, code_size, pipeline_layouts_handle, stream_index](int device_index) {
-                LOG_VERBOSE("Creating Pipeline for device %d on stream %d", device_index, stream_index);
+            ctx->handle_manager->set_handle_per_device(indicies.device_index, pipelines_handle,
+            [ctx, code, code_size, pipeline_layouts_handle, indicies](int device_index) {
+                LOG_VERBOSE("Creating Pipeline for device %d on queue %d", device_index, indicies.queue_index);
 
                 VkComputePipelineCreateInfo pipelineCreateInfo = {};
                 pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
                 pipelineCreateInfo.pNext = nullptr;
                 pipelineCreateInfo.flags = 0;
-                pipelineCreateInfo.layout = (VkPipelineLayout)ctx->handle_manager->get_handle_no_lock(stream_index, pipeline_layouts_handle);
+                pipelineCreateInfo.layout = (VkPipelineLayout)ctx->handle_manager->get_handle_no_lock(indicies.queue_index, pipeline_layouts_handle);
                 pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
                 pipelineCreateInfo.basePipelineIndex = -1;
 
@@ -241,12 +245,36 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
         }
     );
 
-    int submit_index = -2;
-    command_list_submit_extern(ctx->command_list, NULL, 1, &submit_index, 1, NULL, RECORD_TYPE_SYNC);
-    command_list_reset_extern(ctx->command_list);
-    RETURN_ON_ERROR(NULL)
-
     return plan;
+}
+
+void stage_compute_plan_destroy_extern(ComputePlan* plan) {
+    struct Context* ctx = plan->ctx;
+
+    uint64_t descriptor_set_layouts_handle = plan->descriptorSetLayouts_handle;
+    uint64_t pipeline_layouts_handle = plan->pipelineLayouts_handle;
+    uint64_t pipelines_handle = plan->pipelines_handle;
+
+    context_submit_command(ctx, "compute-init", -2, NULL, RECORD_TYPE_SYNC,
+        [ctx, descriptor_set_layouts_handle, pipeline_layouts_handle, pipelines_handle]
+        (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
+            VkDevice device = ctx->devices[indicies.device_index];
+
+            ctx->handle_manager->destroy_handle_per_device(indicies.device_index, pipelines_handle, true,
+            [device] (uint64_t h_pipeline) {
+                vkDestroyPipeline(device, (VkPipeline)h_pipeline, NULL);
+            });
+
+            ctx->handle_manager->destroy_handle_per_device(indicies.device_index, pipeline_layouts_handle, false,
+            [device] (uint64_t h_pipeline_layout) {
+                vkDestroyPipelineLayout(device, (VkPipelineLayout)h_pipeline_layout, NULL);
+            });
+
+            ctx->handle_manager->destroy_handle_per_device(indicies.device_index, descriptor_set_layouts_handle, false,
+            [device] (uint64_t h_descriptor_set_layout) {
+                vkDestroyDescriptorSetLayout(device, (VkDescriptorSetLayout)h_descriptor_set_layout, NULL);
+            });
+    });
 }
 
 void stage_compute_record_extern(struct CommandList* command_list, struct ComputePlan* plan, struct DescriptorSet* descriptor_set, unsigned int blocks_x, unsigned int blocks_y, unsigned int blocks_z) {
@@ -261,23 +289,38 @@ void stage_compute_record_extern(struct CommandList* command_list, struct Comput
 
     size_t pc_size = plan->pc_size;
 
+    BufferBarrierInfo* buffer_barriers = NULL;
+    int buffer_barrier_count = 0;
+
+    if(descriptor_set != NULL) {
+        buffer_barrier_count = descriptor_set->buffer_barrier_list.size();
+
+        buffer_barriers = (BufferBarrierInfo*)malloc(sizeof(BufferBarrierInfo) * buffer_barrier_count);
+        memcpy(buffer_barriers, descriptor_set->buffer_barrier_list.data(), sizeof(BufferBarrierInfo) * buffer_barrier_count);
+
+        descriptor_set_add_buffer_info_list(descriptor_set, buffer_barriers);
+    }
+
     command_list_record_command(command_list,
         "compute-stage",
         pc_size,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        [ctx, pipelineLayouts_handle, pipelines_handle, sets_handle, pc_size, blocks_x, blocks_y, blocks_z](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
-            vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, (VkPipeline)ctx->handle_manager->get_handle(stream_index, pipelines_handle));
+        [ctx, pipelineLayouts_handle, pipelines_handle, sets_handle, pc_size, blocks_x, blocks_y, blocks_z, buffer_barriers, buffer_barrier_count]
+        (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
+            vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, (VkPipeline)ctx->handle_manager->get_handle(indicies.queue_index, pipelines_handle, timestamp));
 
-            VkPipelineLayout pipelineLayout = (VkPipelineLayout)ctx->handle_manager->get_handle(stream_index, pipelineLayouts_handle);
+            VkPipelineLayout pipelineLayout = (VkPipelineLayout)ctx->handle_manager->get_handle(indicies.queue_index, pipelineLayouts_handle, 0);
 
             if(sets_handle != 0) {
+                barrier_manager->record_barriers(cmd_buffer, buffer_barriers, buffer_barrier_count, indicies.queue_index);
+
                 vkCmdBindDescriptorSets(
                     cmd_buffer,
                     VK_PIPELINE_BIND_POINT_COMPUTE,
                     pipelineLayout,
                     0,
                     1,
-                    (VkDescriptorSet*)ctx->handle_manager->get_handle_pointer(stream_index, sets_handle),
+                    (VkDescriptorSet*)ctx->handle_manager->get_handle_pointer(indicies.queue_index, sets_handle, timestamp),
                     0,
                     NULL
                 );

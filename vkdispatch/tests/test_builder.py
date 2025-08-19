@@ -26,7 +26,7 @@ def test_builder_basic():
 
     compute_plan = vd.ComputePlan(source, shader_description.binding_type_list, shader_description.pc_size, shader_description.name)
 
-    descriptor_set = vd.DescriptorSet(compute_plan._handle)
+    descriptor_set = vd.DescriptorSet(compute_plan)
 
     descriptor_set.bind_buffer(uniform_buffer, 0, uniform=True)
     descriptor_set.bind_buffer(buff, var_buff.binding)
@@ -86,7 +86,7 @@ void main() {
 
     compute_plan = vd.ComputePlan(source, [3, 1, 1], 0, "my_shader")
 
-    descriptor_set = vd.DescriptorSet(compute_plan._handle)
+    descriptor_set = vd.DescriptorSet(compute_plan)
 
     descriptor_set.bind_buffer(uniform_buffer, 0, uniform=True)
     descriptor_set.bind_buffer(buff, 1)

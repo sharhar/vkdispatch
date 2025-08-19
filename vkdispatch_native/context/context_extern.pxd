@@ -1,8 +1,9 @@
 # distutils: language=c++
+from libc.stdlib cimport malloc, free
 from libcpp cimport bool
 import sys
 
-cdef extern from "context/init.hh":
+cdef extern from "context/context_extern.hh":
     enum LogLevel:
         LOG_LEVEL_VERBOSE = 0
         LOG_LEVEL_INFO = 1
@@ -70,7 +71,14 @@ cdef extern from "context/init.hh":
     PhysicalDeviceDetails* get_devices_extern(int* count)
     void log_extern(LogLevel log_level, const char* text, const char* file_str, int line_str)
     void set_log_level_extern(LogLevel log_level)
-    
+
+    struct Context
+
+    Context* context_create_extern(int* device_indicies, int* queue_counts, int* queue_families, int device_count)
+    void context_queue_wait_idle_extern(Context* context, int queue_index);
+    void context_destroy_extern(Context* device_context);
+
+    const char* get_error_string_extern()
 
 cpdef inline init(bool debug, int log_level):
     init_extern(debug, <LogLevel>(log_level))
@@ -133,3 +141,49 @@ cpdef inline get_devices():
         device_list.append(device_info)
 
     return device_list
+
+cpdef inline context_create(list[int] device_indicies, list[list[int]] queue_families):
+    assert len(device_indicies) == len(queue_families)
+
+    cdef int len_device_indicies = len(device_indicies)
+    cdef int* device_indicies_c = <int*>malloc(len_device_indicies * sizeof(int))
+    cdef int* queue_counts_c    = <int*>malloc(len_device_indicies * sizeof(int))
+
+    cdef int total_queue_count = 0
+
+    for i in range(len_device_indicies):
+        device_indicies_c[i] = device_indicies[i]
+        queue_counts_c[i] = len(queue_families[i]) #submission_thread_counts[i]
+        total_queue_count += queue_counts_c[i]
+
+    cdef int* queue_families_c = <int*>malloc(total_queue_count * sizeof(int))
+
+    cdef int current_index = 0
+    
+    for i in range(len_device_indicies):
+        for j in range(queue_counts_c[i]):
+            queue_families_c[current_index] = queue_families[i][j]
+            current_index += 1
+    
+    assert current_index == total_queue_count
+
+    cdef unsigned long long result = <unsigned long long>context_create_extern(device_indicies_c, queue_counts_c, queue_families_c, len_device_indicies)
+
+    free(device_indicies_c)
+    free(queue_counts_c)
+    free(queue_families_c)
+
+    return result
+
+cpdef inline void context_queue_wait_idle(unsigned long long context, int queue_index):
+    context_queue_wait_idle_extern(<Context*>context, queue_index)
+
+cpdef inline context_destroy(unsigned long long context):
+    context_destroy_extern(<Context*>context)
+
+cpdef inline get_error_string():
+    cdef const char* error_string = get_error_string_extern()
+    if error_string is NULL:
+        return 0
+    else:
+        return error_string.decode('utf-8')

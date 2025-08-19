@@ -37,7 +37,7 @@ platform_extra_link_args = []
 platform_extra_compile_args = (
     ["/W3", "/GL", "/DNDEBUG", "/MD", "/EHsc", "/std:c++17"]
     if system == "Windows"
-    else ["-g", "-std=c++17"]
+    else ["-O0", "-g", "-std=c++17"]
 )
 
 include_directories = [
@@ -48,6 +48,8 @@ include_directories = [
 
 if os.name == "posix":
     platform_extra_link_args.append("-g")
+    platform_extra_link_args.append("-O0")
+    platform_extra_link_args.append("-fno-omit-frame-pointer")
     platform_link_libraries.extend(["dl", "pthread"])
 
 
@@ -116,23 +118,23 @@ append_to_sources("vkdispatch_native/", [
     "context/init.cpp",
     "context/context.cpp",
     "context/errors.cpp",
+    "context/handles.cpp",
 
     "objects/buffer.cpp",
     "objects/image.cpp",
     "objects/command_list.cpp",
     "objects/descriptor_set.cpp",
-    "objects/handles.cpp",
 
-    "stages/stage_transfer.cpp",
     "stages/stage_fft.cpp",
     "stages/stage_compute.cpp",
 
-    "stream/stream.cpp",
-    "stream/signal.cpp",
-    "stream/work_queue.cpp",
+    "queue/queue.cpp",
+    "queue/signal.cpp",
+    "queue/work_queue.cpp",
+    "queue/barrier_manager.cpp",
     
-    "lib_impls/VMAImpl.cpp",
-    "lib_impls/VolkImpl.cpp"
+    "libs/VMAImpl.cpp",
+    "libs/VolkImpl.cpp"
 ])
 
 if vulkan_sdk_root is None:

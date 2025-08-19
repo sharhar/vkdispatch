@@ -2,49 +2,42 @@
 #define SRC_IMAGE_H_
 
 #include "../base.hh"
+#include "../libs/VMA.hh"
 
-struct ImageWriteInfo {
-    struct Image* image;
-    VkOffset3D offset;
+struct Image {
+    struct Context* ctx;
     VkExtent3D extent;
-    unsigned int baseLayer;
-    unsigned int layerCount;
+    uint32_t layers;
+    uint32_t mip_levels;
+
+    uint64_t images_handle;
+    uint64_t allocations_handle;
+    uint64_t image_views_handle;
+    uint64_t staging_buffers_handle;
+    uint64_t staging_allocations_handle;
+
+    uint64_t signals_pointers_handle;
+
+    //std::vector<VkImage> images;
+    //std::vector<VmaAllocation> allocations;
+    //std::vector<VkImageView> imageViews;
+    //std::vector<VkBuffer> stagingBuffers;
+    //std::vector<VmaAllocation> stagingAllocations;
+    
+    uint32_t block_size;
+
+    uint64_t barriers_handle;
+
+    // VkImageMemoryBarrier** barriers;
+    
+    //std::vector<VkImageMemoryBarrier> barriers;
 };
 
-struct ImageMipMapInfo {
-    struct Image* image;
-    unsigned int mip_count;   
+struct Sampler {
+    struct Context* ctx;
+    uint64_t samplers_handle;
+
+    //std::vector<VkSampler> samplers;
 };
-
-struct ImageReadInfo {
-    struct Image* image;
-    VkOffset3D offset;
-    VkExtent3D extent;
-    unsigned int baseLayer;
-    unsigned int layerCount;
-};
-
-struct Image* image_create_extern(struct Context* context, VkExtent3D extent, unsigned int layers, unsigned int format, unsigned int type, unsigned int view_type, unsigned int generate_mips);
-void image_destroy_extern(struct Image* image);
-
-struct Sampler* image_create_sampler_extern(struct Context* context, 
-    unsigned int mag_filter, 
-    unsigned int min_filter, 
-    unsigned int mip_mode, 
-    unsigned int address_mode,
-    float mip_lod_bias, 
-    float min_lod, 
-    float max_lod,
-    unsigned int border_color);
-void image_destroy_sampler_extern(struct Sampler* sampler);
-
-unsigned int image_format_block_size_extern(unsigned int format);
-
-void image_write_extern(struct Image* image, void* data, VkOffset3D offset, VkExtent3D extent, unsigned int baseLayer, unsigned int layerCount, int device_index);
-void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExtent3D extent, unsigned int baseLayer, unsigned int layerCount, int device_index);
-
-//void image_copy_extern(struct Image* src, struct Image* dst, VkOffset3D src_offset, unsigned int src_baseLayer, unsigned int src_layerCount, 
-//                                                             VkOffset3D dst_offset, unsigned int dst_baseLayer, unsigned int dst_layerCount, VkExtent3D extent, int device_index);
-
 
 #endif // SRC_IMAGE_H_

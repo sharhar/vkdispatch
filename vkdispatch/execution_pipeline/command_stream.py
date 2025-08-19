@@ -16,6 +16,25 @@ import vkdispatch.codegen as vc
 from .buffer_builder import BufferUsage
 from .buffer_builder import BufferBuilder
 
+import dataclasses
+
+@dataclasses.dataclass
+class BufferBindInfo:
+    """A dataclass to hold information about a buffer binding."""
+    buffer: vd.Buffer
+    binding: int
+    shape_name: str
+    read_access: bool
+    write_access: bool
+
+@dataclasses.dataclass
+class ImageBindInfo:
+    """A dataclass to hold information about an image binding."""
+    sampler: vd.Sampler
+    binding: int
+    read_access: bool
+    write_access: bool
+
 class CommandStream(vd.CommandList):
     """TODO: Docstring"""
 
@@ -84,9 +103,6 @@ class CommandStream(vd.CommandList):
         super().reset()
     
     def bind_var(self, name: str):
-        #if name in self.name_to_pc_key_dict.keys():
-        #    raise ValueError("Variable already bound!")
-        
         def register_var(key: Tuple[str, str]):
             if not name in self.name_to_pc_key_dict.keys():
                 self.name_to_pc_key_dict[name] = []
@@ -107,13 +123,13 @@ class CommandStream(vd.CommandList):
                       shader_description: vc.ShaderDescription, 
                       exec_limits: Tuple[int, int, int], 
                       blocks: Tuple[int, int, int],
-                      bound_buffers: List[Tuple[vd.Buffer, int, str]],
-                      bound_samplers: List[Tuple[vd.Sampler, int]],
+                      bound_buffers: List[BufferBindInfo],
+                      bound_samplers: List[ImageBindInfo],
                       uniform_values: Dict[str, Any] = {},
                       pc_values: Dict[str, Any] = {},
                       shader_uuid: str = None
                     ) -> None:
-        descriptor_set = vd.DescriptorSet(plan._handle)
+        descriptor_set = vd.DescriptorSet(plan)
 
         if shader_uuid is None:
             shader_uuid = shader_description.name + "_" + str(uuid.uuid4())
@@ -127,12 +143,23 @@ class CommandStream(vd.CommandList):
 
         self.uniform_values[(shader_uuid, shader_description.exec_count_name)] = [exec_limits[0], exec_limits[1], exec_limits[2], 0]
 
-        for buffer, binding, shape_name in bound_buffers:
-            descriptor_set.bind_buffer(buffer, binding)
-            self.uniform_values[(shader_uuid, shape_name)] = buffer.shader_shape
+        for buffer_bind_info in bound_buffers:
+            descriptor_set.bind_buffer(
+                buffer=buffer_bind_info.buffer,
+                binding=buffer_bind_info.binding,
+                read_access=buffer_bind_info.read_access,
+                write_access=buffer_bind_info.write_access,
+            )
+            
+            self.uniform_values[(shader_uuid, buffer_bind_info.shape_name)] = buffer_bind_info.buffer.shader_shape
         
-        for sampler, binding in bound_samplers:
-            descriptor_set.bind_sampler(sampler, binding)
+        for sampler_bind_info in bound_samplers:
+            descriptor_set.bind_sampler(
+                sampler_bind_info.sampler,
+                sampler_bind_info.binding,
+                read_access=sampler_bind_info.read_access,
+                write_access=sampler_bind_info.write_access
+            )
 
         for key, value in uniform_values.items():
             self.uniform_values[(shader_uuid, key)] = value
@@ -177,7 +204,7 @@ class CommandStream(vd.CommandList):
                 self.uniform_builder[key] = value
             
             for descriptor_set, offset, size in self.uniform_descriptors:
-                descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, True)
+                descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, True, write_access=False)
 
             self.uniform_constants_buffer.write(self.uniform_builder.tobytes())
 

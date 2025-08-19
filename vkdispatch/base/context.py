@@ -17,17 +17,20 @@ class Context:
         devices (`List[int]`): A list of device indicies to use for the context.
         device_infos (`List[DeviceInfo]`): A list of device info objects.
         queue_families (`List[List[int]]`): A list of queue family indicies to use for the context.
-        stream_count (`int`): The number of submission threads to use.
+        queue_count (`int`): The number of queues in the context.
         subgroup_size (`int`): The subgroup size of the devices.
         max_workgroup_size (`Tuple[int]`): The maximum workgroup size of the devices.
+        max_workgroup_invocations (`int`): The maximum number of workgroup invocations.
+        max_workgroup_count (`Tuple[int, int, int]`): The maximum workgroup count of the devices.
         uniform_buffer_alignment (`int`): The uniform buffer alignment of the devices.
+        max_shared_memory (`int`): The maximum shared memory size of the devices.
     """
 
     _handle: int
     devices: List[int]
     device_infos: List[DeviceInfo]
     queue_families: List[List[int]]
-    stream_count: int
+    queue_count: int
     subgroup_size: int
     max_workgroup_size: Tuple[int]
     max_workgroup_invocations: int
@@ -43,7 +46,7 @@ class Context:
         self.devices = devices
         self.device_infos = [get_devices()[dev] for dev in devices]
         self.queue_families = queue_families
-        self.stream_count = sum([len(i) for i in queue_families])
+        self.queue_count = sum([len(i) for i in queue_families])
         self._handle = vkdispatch_native.context_create(devices, queue_families)
         check_for_errors()
         
@@ -93,13 +96,13 @@ class Context:
         self.max_shared_memory = min(max_shared_memory)
 
     def __del__(self) -> None:
+        print(f"Destroying context {self._handle} with devices {self.devices} and queue families {self.queue_families}")
         pass # vkdispatch_native.context_destroy(self._handle)
-
 
 def get_compute_queue_family_index(device: DeviceInfo, device_index: int) -> int:
     # First check if we have a pure compute queue family with (sparse) transfer capabilities
     for i, queue_family in enumerate(device.queue_properties):
-        if queue_family[1] == 6 or queue_family == 14:
+        if queue_family[1] == 6 or queue_family[1] == 14:
             return i
 
     # If not, check if we have a compute queue family without graphics capabilities
@@ -132,22 +135,12 @@ def get_graphics_queue_family_index(device: DeviceInfo, device_index: int) -> in
 
     raise ValueError(f"Device {device_index} does not have a compute queue family!")
 
-def get_device_queues(device_index: int,  all_queues) -> List[int]:
-    device = get_devices()[device_index]
-
-    compute_queue_family = get_compute_queue_family_index(device, device_index)
-    graphics_queue_family = get_graphics_queue_family_index(device, device_index)
-    
-    if all_queues and compute_queue_family != graphics_queue_family:
-        if "NVIDIA" in device.device_name:
-            return [compute_queue_family, compute_queue_family, graphics_queue_family]
-
-        return [compute_queue_family, graphics_queue_family]
-
-    return [compute_queue_family]
-
-def select_devices(use_cpu: bool, all_devices) -> List[int]:
+def select_devices(use_cpu: bool, device_count) -> List[int]:
     device_infos = get_devices()
+
+    if device_count is not None:
+        if device_count < 0 or device_count > len(device_infos):
+            raise ValueError(f"Device count must be between 0 and {len(device_infos)}")
 
     result = []
 
@@ -172,56 +165,101 @@ def select_devices(use_cpu: bool, all_devices) -> List[int]:
             if device_info.device_type == 4:
                 result.append(i)
     
-    if all_devices:
-        return result
-    
-    return [result[0]]
+    return result[:device_count] if device_count is not None else result
 
 __context = None
 
+def select_queue_families(device_index: int, queue_count: int = None) -> List[int]:
+    device = get_devices()[device_index]
+
+    compute_queue_family = get_compute_queue_family_index(device, device_index)
+    graphics_queue_family = get_graphics_queue_family_index(device, device_index)
+
+    if queue_count is None:
+        queue_count = 2
+
+        if device.is_nvidia():
+            queue_count = 3
+
+        if compute_queue_family == graphics_queue_family:
+            queue_count = 1
+    
+    queue_families = []
+
+    for i in range(queue_count):
+        # For NVIDIA, it's better to just have one graphics queue family
+        # and mulitple compute queues
+        if device.is_nvidia() and i != 1:
+            queue_families.append(compute_queue_family)
+            continue
+
+        if i % 2 == 0:
+            queue_families.append(compute_queue_family)
+        else:
+            queue_families.append(graphics_queue_family)
+
+    return queue_families
+
 def make_context(
-    devices: Union[int, List[int], None] = None,
+    device_ids: Union[int, List[int], None] = None,
+    device_count: Union[int, None] = None,
+    queue_counts: Union[int, List[int], None] = None,
     queue_families: Union[List[List[int]], None] = None,
     use_cpu: bool = False,
-    max_streams: bool = False,
-    all_devices: bool = False,
-    all_queues: bool = False
+    multi_device: bool = False,
+    multi_queue: bool = False,
 ) -> Context:
     global __context
-
-    device_list = [devices]
     
     if __context is None:
         initialize()
         
-        if device_list[0] is None:
-            device_list[0] = select_devices(use_cpu, all_devices or max_streams)
+        if device_ids is None:
+            if device_count is None:
+                device_count = None if multi_device else 1
+
+            device_ids = select_devices(use_cpu, device_count)
             
             if not queue_families is None:
                 raise ValueError("If queue_families is provided, devices must also be provided!")
 
-
-        if isinstance(device_list[0], int):
-            device_list[0] = [device_list[0]]
-
+        if isinstance(device_ids, int):
+            device_ids = [device_ids]
+        
         if queue_families is None:
-            queue_families = [get_device_queues(dev_index, max_streams or all_queues) for dev_index in device_list[0]]
+            queue_families = []
+
+            for ii, dev_index in enumerate(device_ids):
+                queue_family_count = None if multi_queue else 1
+
+                if queue_counts is not None:
+                    if isinstance(queue_counts, int):
+                        queue_family_count = queue_counts
+                    else:
+                        queue_family_count = queue_counts[ii]
+
+                queue_families.append(
+                    select_queue_families(dev_index, queue_family_count)
+                )
 
         total_devices = len(get_devices())
 
         # Do type checking before passing to native code
-        assert len(device_list[0]) == len(
+        assert len(device_ids) == len(
             queue_families
         ), "Device and submission thread count lists must be the same length!"
-        # assert all([isinstance(dev, int) for dev in devices])
+        
         assert all(
-            [type(dev) == int for dev in device_list[0]]
+            [type(dev) == int for dev in device_ids]
         ), "Device list must be a list of integers!"
+
         assert all(
-            [dev >= 0 and dev < total_devices for dev in device_list[0]]
+            [dev >= 0 and dev < total_devices for dev in device_ids]
         ), f"All device indicies must between 0 and {total_devices}"
 
-        __context = Context(device_list[0], queue_families)
+        print(f"Creating context with devices {device_ids} and queue families {queue_families}")
+
+        __context = Context(device_ids, queue_families)
 
     return __context
 
@@ -234,3 +272,18 @@ def get_context() -> Context:
 
 def get_context_handle() -> int:
     return get_context()._handle
+
+def queue_wait_idle(queue_index: int = None) -> None:
+    """
+    Wait for the specified queue to finish processing. For all queues, leave queue_index as None.
+    
+    Args:
+        queue_index (int): The index of the queue.
+    """
+
+    assert queue_index is None or isinstance(queue_index, int), "queue_index must be an integer or None."
+    assert queue_index is None or queue_index >= -1, "queue_index must be a non-negative integer or -1 (for all queues)."
+    assert queue_index is None or queue_index < get_context().queue_count, f"Queue index {queue_index} is out of bounds for context with {get_context().queue_count} queues."
+
+    vkdispatch_native.context_queue_wait_idle(get_context_handle(), queue_index if queue_index is not None else -1)
+    check_for_errors()

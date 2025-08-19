@@ -68,16 +68,16 @@ def test_listed_reductions():
     @vd.map_reduce(vd.SubgroupAdd)
     def sum_map(buffer: Buff[v2], buffer2: Buff[v2]) -> v2:
         ind = vc.mapping_index()
-
         return vc.sin(buffer[ind] + buffer2[ind])
-
-    print(sum_map)
 
     cmd_stream = vd.CommandStream()
 
     old_list = vd.set_global_cmd_stream(cmd_stream)
 
     res_buf = sum_map(buf, buf2, cmd_stream=cmd_stream)
+    
+    #print(sum_map.stage1)
+    #print(sum_map.stage1.shader_description)
 
     vd.set_global_cmd_stream(old_list)
 

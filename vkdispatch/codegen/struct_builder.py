@@ -19,6 +19,9 @@ class StructElement:
     dtype: dtype.dtype
     count: int
 
+    def __repr__(self):
+        return f"{self.name}: {self.dtype.name} x {self.count} ({self.dtype.item_size * self.count} bytes)"
+
 class StructBuilder:
     """
     A class for describing a struct in shader code (includes both the memory layout and code generation).

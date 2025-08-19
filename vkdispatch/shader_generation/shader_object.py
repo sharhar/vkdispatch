@@ -181,11 +181,13 @@ class ShaderObject:
         self.build()
         return self.make_repr()
     
-    def make_repr(self) -> str:
+    def make_repr(self, line_numbers: bool = True) -> str:
         result = ""
 
         for ii, line in enumerate(self.source.split("\n")):
-            result += f"{ii + 1:4d}: {line}\n"
+            line_prefix = f"{ii + 1:4d}: " if line_numbers else ""
+            
+            result += f"{line_prefix}{line}\n"
 
         return result
 
@@ -234,13 +236,24 @@ class ShaderObject:
                 if not isinstance(arg, vd.Buffer):
                     raise ValueError(f"Expected a buffer for argument '{shader_arg.name}'!")
                 
-                bound_buffers.append((arg, shader_arg.binding, shader_arg.shader_shape_name))
+                bound_buffers.append(vd.BufferBindInfo(
+                    buffer=arg,
+                    binding=shader_arg.binding,
+                    shape_name=shader_arg.shader_shape_name,
+                    read_access=self.shader_description.binding_access[shader_arg.binding][0],
+                    write_access=self.shader_description.binding_access[shader_arg.binding][1]
+                ))
 
             elif shader_arg.arg_type == vd.ShaderArgumentType.IMAGE:
                 if not isinstance(arg, vd.Sampler):
                     raise ValueError(f"Expected an image for argument '{shader_arg.name}'!")
                 
-                bound_samplers.append((arg, shader_arg.binding))
+                bound_samplers.append(vd.ImageBindInfo(
+                    sampler=arg,
+                    binding=shader_arg.binding,
+                    read_access=self.shader_description.binding_access[shader_arg.binding][0],
+                    write_access=self.shader_description.binding_access[shader_arg.binding][1]
+                ))
             
             elif shader_arg.arg_type == vd.ShaderArgumentType.CONSTANT:
                 if callable(arg):

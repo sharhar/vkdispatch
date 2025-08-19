@@ -38,7 +38,7 @@ class ShaderArgument:
 
 class ShaderSignature:
     arguments: List[ShaderArgument]
-    variables: List[vc.BaseVariable]
+    variables: List[vc.ShaderVariable]
 
     def __init__(self):
         raise NotImplementedError("This class is not meant to be instantiated")
@@ -159,7 +159,7 @@ class ShaderSignature:
     
         return instance
     
-    def get_variables(self) -> List[vc.BaseVariable]:
+    def get_variables(self) -> List[vc.ShaderVariable]:
         return self.variables
 
     def get_names_and_defaults(self) -> List[Tuple[str, Any]]:

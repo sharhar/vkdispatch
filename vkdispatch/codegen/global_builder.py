@@ -1,7 +1,6 @@
 import vkdispatch as vd
 
-from .variables import ShaderVariable
-from .builder import ShaderBuilder
+from .builder import ShaderBuilder, ShaderVariable
 
 import contextlib
 
@@ -19,7 +18,12 @@ def set_global_builder(builder: ShaderBuilder):
     return old_value
 
 @contextlib.contextmanager
-def builder_context(enable_subgroup_ops: bool = True, enable_atomic_float_ops: bool = True, enable_printf: bool = True, enable_exec_bounds: bool = True):
+def builder_context(
+    enable_subgroup_ops: bool = True,
+    enable_atomic_float_ops: bool = True,
+    enable_printf: bool = True,
+    enable_exec_bounds: bool = True):
+
     builder = ShaderBuilder(
         enable_atomic_float_ops=enable_atomic_float_ops,
         enable_subgroup_ops=enable_subgroup_ops,

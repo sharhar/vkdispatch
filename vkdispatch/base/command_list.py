@@ -31,7 +31,7 @@ class CommandList:
         check_for_errors()
 
     def __del__(self) -> None:
-        pass  # vkdispatch_native.command_list_destroy(self._handle)
+        vkdispatch_native.command_list_destroy(self._handle)
 
     def get_instance_size(self) -> int:
         """Get the total size of the command list in bytes."""
@@ -89,6 +89,6 @@ class CommandList:
             assert self.get_instance_size() * instance_count == len(data), "Data length must be the product of the instance size and instance count!"
 
         vkdispatch_native.command_list_submit(
-            self._handle, data, instance_count, [stream_index]
+            self._handle, data, instance_count, stream_index
         )
         check_for_errors()
