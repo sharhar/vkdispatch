@@ -70,7 +70,9 @@ def test_listed_reductions():
         ind = vc.mapping_index()
 
         return vc.sin(buffer[ind] + buffer2[ind])
-    
+
+    print(sum_map)
+
     cmd_stream = vd.CommandStream()
 
     old_list = vd.set_global_cmd_stream(cmd_stream)
