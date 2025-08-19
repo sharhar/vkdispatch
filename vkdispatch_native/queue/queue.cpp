@@ -72,6 +72,7 @@ Queue::Queue(
     VK_CALL(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &timeline_semaphore));
     
     recording_results.resize(inflight_cmd_buffer_count);
+    waitStages.resize(inflight_cmd_buffer_count);
 
     LOG_INFO("Creating %d fences and semaphores", inflight_cmd_buffer_count);
 
@@ -172,6 +173,8 @@ void ingest_work_item(
     work_item.signal = work_header->signal;
     work_item.recording_result = &queue->recording_results[current_index % queue->inflight_cmd_buffer_count];
     work_item.recording_result->state = &queue->commandBufferStates[current_index % queue->inflight_cmd_buffer_count];
+    work_item.waitStage = &queue->waitStages[current_index % queue->inflight_cmd_buffer_count];
+    //work_item.waitStage = 0;
 }
 
 void Queue::ingest_worker() {
@@ -183,7 +186,7 @@ void Queue::ingest_worker() {
 
     while(this->run_queue.load()) {
         struct WorkQueueItem work_item;
-        
+
         ingest_work_item(work_item, this, work_queue, work_header, current_index);
         current_index++;
 
@@ -225,7 +228,7 @@ int record_work_item(
 
     VK_CALL_RETURN(vkBeginCommandBuffer(cmd_buffer, &beginInfo), cmd_buffer_index);
 
-    work_item.waitStage = 0;
+    work_item.waitStage[0] = 0;
 
     std::shared_ptr<std::vector<struct CommandInfo>> command_buffer = work_item.work_header->commands;
 
@@ -243,7 +246,7 @@ int record_work_item(
             command_buffer->operator[](i).func->operator()(cmd_buffer, exec_indices, current_instance_data, &barrier_manager, work_item.current_index + 1);
             current_instance_data += command_buffer->operator[](i).pc_size;
 
-            work_item.waitStage |= command_buffer->operator[](i).pipeline_stage;
+            work_item.waitStage[0] |= command_buffer->operator[](i).pipeline_stage;
 
             LOG_VERBOSE("Command %d executed", i);
         }
@@ -356,8 +359,8 @@ void submit_work_item(
     timeline_submit_info.signalSemaphoreValueCount = 1;
     timeline_submit_info.pSignalSemaphoreValues    = &signalValue;
 
-    if (work_item.waitStage == 0) {
-        work_item.waitStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    if (work_item.waitStage[0] == 0) {
+        work_item.waitStage[0] = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     }
 
     VkSubmitInfo submit_info = { };
@@ -365,7 +368,7 @@ void submit_work_item(
     submit_info.pNext = &timeline_submit_info;
     submit_info.waitSemaphoreCount   = 1;
     submit_info.pWaitSemaphores      = &queue->timeline_semaphore;
-    submit_info.pWaitDstStageMask    = &work_item.waitStage;
+    submit_info.pWaitDstStageMask    = &work_item.waitStage[0];
     submit_info.commandBufferCount   = 1;
     submit_info.pCommandBuffers      = &work_item.recording_result->commandBuffer;
     submit_info.signalSemaphoreCount = 1;
