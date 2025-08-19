@@ -3,11 +3,11 @@ import vkdispatch as vd
 import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import *
 
-vd.initialize(log_level=vd.LogLevel.VERBOSE, debug_mode=True)
-
 import numpy as np
 
 def test_1d_image_creation():
+    vd.set_log_level(vd.LogLevel.VERBOSE)
+
     # Create a 1D image
     signal = np.sin(np.array([i/8 for i in range(0, 50, 1)])).astype(np.float32)
 
@@ -15,6 +15,8 @@ def test_1d_image_creation():
     test_line.write(signal)
 
     assert np.allclose(test_line.read(0), signal)
+
+    vd.set_log_level(vd.LogLevel.WARNING)
 
 def test_2d_image_creation():
     # Create a 2D image
