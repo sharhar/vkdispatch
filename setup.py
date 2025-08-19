@@ -41,8 +41,8 @@ platform_extra_compile_args = (
         "-O0",
         "-g",
         "-std=c++17",
-        "-fsanitize=address",
-        "-fsanitize-address-use-after-scope",
+        #"-fsanitize=address",
+        #"-fsanitize-address-use-after-scope",
     ]
 )
 
@@ -56,8 +56,8 @@ if os.name == "posix":
     platform_extra_link_args.append("-g")
     platform_extra_link_args.append("-O0")
     platform_extra_link_args.append("-fno-omit-frame-pointer")
-    platform_extra_link_args.append("-fsanitize=address")
-    platform_extra_link_args.append("-fsanitize-address-use-after-scope")
+    #platform_extra_link_args.append("-fsanitize=address")
+    #platform_extra_link_args.append("-fsanitize-address-use-after-scope")
     platform_link_libraries.extend(["dl", "pthread"])
 
 
