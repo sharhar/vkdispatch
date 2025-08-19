@@ -1,5 +1,4 @@
 .DS_Store
-libs
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -8,6 +7,9 @@ __pycache__/
 .vscode/
 data/
 deps/
+
+*.png
+*.csv
 
 # C extensions
 *.so

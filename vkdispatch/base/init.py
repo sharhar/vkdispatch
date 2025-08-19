@@ -216,6 +216,15 @@ class DeviceInfo:
 
         self.queue_properties = queue_properties
 
+    def is_nvidia(self) -> bool:
+        """
+        A method which checks if the device is an NVIDIA device.
+
+        Returns:
+            `bool`: A flag indicating whether the device is an NVIDIA device.
+        """
+        return "NVIDIA" in self.device_name
+
     def get_info_string(self, verbose: bool = False) -> str:
         """
         A method which returns a string representation of the device information.

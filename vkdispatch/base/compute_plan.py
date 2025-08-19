@@ -26,3 +26,6 @@ class ComputePlan:
             get_context_handle(), shader_source.encode(), self.binding_list, pc_size, shader_name.encode()
         )
         check_for_compute_stage_errors()
+    
+    def __del__(self) -> None:
+        vkdispatch_native.stage_compute_plan_destroy(self._handle)

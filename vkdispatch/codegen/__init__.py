@@ -4,12 +4,13 @@ from .arguments import Buffer, Image1D, Image2D, Image3D
 
 from .arguments import _ArgType
 from .struct_builder import StructBuilder, StructElement
-from .variables import BaseVariable, ShaderVariable
-from .variables import BoundVariable, BufferVariable, ImageVariable
+#from .variables import ShaderVariable # BaseVariable, ShaderVariable
+#from .variables import BoundVariable, BufferVariable, ImageVariable
 
 from .builder import ShaderBinding
 from .builder import ShaderDescription
 from .builder import ShaderBuilder
+from .builder import ShaderVariable, BufferVariable, ImageVariable
 
 from .global_builder import inf_f32, ninf_f32, set_global_builder, comment
 from .global_builder import global_invocation, local_invocation, workgroup

@@ -1,0 +1,4 @@
+This file is to keep track of all the features and fixed that need to be implemented before the paper is published:
+
+ - Implement dynamic local size through specialization constants
+ - Add proper memory cleanup

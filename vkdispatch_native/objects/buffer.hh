@@ -3,22 +3,28 @@
 
 #include "../base.hh"
 
-struct BufferWriteInfo {
-    struct Buffer* buffer;
-    unsigned long long offset;
-    unsigned long long size;
+#include "../libs/VMA.hh"
+
+#include "../queue/signal.hh"
+
+#include <vector>
+#include <functional>
+
+struct Buffer {
+    struct Context* ctx;
+    uint64_t size;
+
+    uint64_t signals_pointers_handle;
+
+    uint64_t buffers_handle;
+    uint64_t allocations_handle;
+    uint64_t staging_buffers_handle;
+    uint64_t staging_allocations_handle;
+
+    //std::vector<VkBuffer> buffers;
+    //std::vector<VmaAllocation> allocations;
+    //std::vector<VkBuffer> stagingBuffers;
+    //std::vector<VmaAllocation> stagingAllocations;
 };
-
-struct BufferReadInfo {
-    struct Buffer* buffer;
-    unsigned long long offset;
-    unsigned long long size;
-};
-
-struct Buffer* buffer_create_extern(struct Context* context, unsigned long long size, int per_device);
-void buffer_destroy_extern(struct Buffer* buffer);
-
-void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int device_index);
-void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int device_index);
 
 #endif // SRC_BUFFER_H_

@@ -1,6 +1,9 @@
 #ifndef _SIGNAL_SRC_SIGNAL_H
 #define _SIGNAL_SRC_SIGNAL_H
 
+#include "../base.hh"
+
+#include <atomic>
 #include <mutex>
 #include <condition_variable>
 
@@ -13,12 +16,12 @@
 class Signal {
 public:
     /**
-     * @brief Creates a new signal. Must be called from the main thread!!
+     * @brief Creates a new signal.
      */
     Signal();
 
     /**
-     * @brief Notifies the signal. Must be called from a stream thread!!
+     * @brief Notifies the signal.
      *
      * This function sets the state of the signal to true, indicating that the condition has occurred.
      * It wakes up any waiting threads.
@@ -26,7 +29,15 @@ public:
     void notify();
 
     /**
-     * @brief Waits for the signal. Must be called from the main thread!!
+     * @brief Resets the signal to the initial state.
+     *
+     * This function sets the state of the signal to false, indicating that the condition has not occurred.
+     * It allows threads to wait for the signal again.
+     */
+    void reset();
+
+    /**
+     * @brief Waits for the signal.
      *
      * This function blocks the calling thread until the signal is notified.
      * If the signal is already in the notified state, the function returns immediately.
@@ -35,7 +46,7 @@ public:
     
     std::mutex mutex;
     std::condition_variable cv;
-    bool state;
+    std::atomic<bool> state;
 };
 
 

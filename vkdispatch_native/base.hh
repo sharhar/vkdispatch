@@ -11,12 +11,12 @@
 
 #endif
 
-enum LogLevel {
-    LOG_LEVEL_VERBOSE = 0,
-    LOG_LEVEL_INFO = 1,
-    LOG_LEVEL_WARNING = 2,
-    LOG_LEVEL_ERROR = 3
-};
+#include <stdio.h>
+#include <cstring>
+#include <vector>
+
+#include "log.hh"
+#include "errors.hh"
 
 enum RecordType {
     RECORD_TYPE_ASYNC = 0,

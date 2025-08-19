@@ -1,13 +1,24 @@
-#include "../internal.hh"
+#include "context.hh"
 #include <vector>
 #include <algorithm>
 #include <unordered_map>
 #include <utility>
+#include <string.h>
 
 #include <climits>
 
 #include <glslang_c_interface.h>
 #include <glslang/Public/resource_limits_c.h>
+
+#include "init.hh"
+
+#include "../queue/signal.hh"
+#include "../queue/queue.hh"
+
+#include "../objects/command_list.hh"
+#include "../objects/objects_extern.hh"
+
+//#include "../internal.hh"
 
 void inplace_min(int* a, int b) {
     if(b < *a) {
@@ -22,8 +33,8 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     ctx->deviceCount = device_count;
     ctx->physicalDevices.resize(device_count);
     ctx->devices.resize(device_count);
-    //ctx->streams.resize(device_count);
-    ctx->stream_index_map.resize(device_count);
+    //ctx->queues.resize(device_count);
+    ctx->queue_index_map.resize(device_count);
     ctx->allocators.resize(device_count);
     ctx->glslang_resource_limits = new glslang_resource_t();
     memcpy(ctx->glslang_resource_limits, glslang_default_resource(), sizeof(glslang_resource_t));
@@ -60,11 +71,6 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
         ctx->physicalDevices[i] = _instance.physicalDevices[device_indicies[i]];
 
-        //if(!_instance.atomicFloatFeatures[device_indicies[i]].shaderBufferFloat32AtomicAdd) {
-        //    set_error("Device does not support shaderBufferFloat32AtomicAdd");
-        //    return nullptr;
-        //}
-
         LOG_INFO("Creating physical device %p...", static_cast<VkPhysicalDevice>(ctx->physicalDevices[i]));
 
         std::vector<const char*> desiredExtensions =  {
@@ -95,14 +101,6 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
                 LOG_WARNING("Extension '%s' is not supported", desiredExtension);
             }
         }
-
-        //VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomicFloatFeaturesEnableStruct = {};
-        //atomicFloatFeaturesEnableStruct.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT;
-        //atomicFloatFeaturesEnableStruct.shaderBufferFloat32AtomicAdd = VK_TRUE;
-
-        //VkPhysicalDeviceFeatures2 features2EnableStruct = {};
-        //features2EnableStruct.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-        //features2EnableStruct.pNext = &atomicFloatFeaturesEnableStruct;
 
         float* queue_priorities = (float*)malloc(sizeof(float) * queue_counts[i]);
         for(int j = 0; j < queue_counts[i]; j++) {
@@ -166,7 +164,7 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
         LOG_INFO("Created allocator %p", ctx->allocators[i]);
 
-        ctx->stream_index_map[i] = {};
+        ctx->queue_index_map[i] = {};
 
         for(int j = 0; j < queueCreateInfos.size(); j++) {
             LOG_INFO("Creating %d queues for family %d", queueCreateInfos[j].queueCount, queueCreateInfos[j].queueFamilyIndex);
@@ -175,8 +173,17 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
                 vkGetDeviceQueue(ctx->devices[i], queueCreateInfos[j].queueFamilyIndex, k, &queue);
                 LOG_INFO("Creating queue %d with handle %p", k, queue);
 
-                ctx->stream_index_map[i].push_back(ctx->streams.size());
-                ctx->streams.push_back(new Stream(ctx, ctx->devices[i], queue, queueCreateInfos[j].queueFamilyIndex, i, ctx->streams.size()));
+                ctx->queue_index_map[i].push_back(ctx->queues.size());
+                ctx->queues.push_back(new Queue(
+                    ctx,
+                    ctx->devices[i],
+                    queue,
+                    queueCreateInfos[j].queueFamilyIndex,
+                    i,
+                    ctx->queues.size(),
+                    4, // recording_thread_count
+                    4  // inflight_cmd_buffer_count
+                ));
             }            
         }
 
@@ -189,36 +196,77 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
     LOG_INFO("Created context at %p with %d devices", ctx, device_count);
 
-    for(int i = 0; i < ctx->streams.size(); i++) {
-        command_list_record_command(ctx->command_list, 
-            "noop-on-init",
-            0,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            [](VkCommandBuffer cmd_buffer, int device_index, int stream_index, int recorder_index, void* pc_data) {
-                // Do nothing
-            }
-        );
-
-        Signal signal;
-        command_list_submit_extern(ctx->command_list, NULL, 1, &i, 1, &signal, RECORD_TYPE_SYNC);
-        command_list_reset_extern(ctx->command_list);
-        RETURN_ON_ERROR(NULL)
-
-        signal.wait();
-    }
+    context_queue_wait_idle_extern(ctx, -1);
 
     ctx->handle_manager = new HandleManager(ctx);
 
     return ctx;
 }
 
-void context_destroy_extern(struct Context* context) {
-    for(int i = 0; i < context->streams.size(); i++) {
-        context->streams[i]->destroy();
-        delete context->streams[i];
+void context_queue_wait_idle_extern(struct Context* context, int queue_index) {
+    command_list_record_command(context->command_list, 
+        "noop-on-init",
+        0,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        [](VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
+            // Do nothing
+        }
+    );
+
+    if(queue_index == -1) {
+        Signal* signals = new Signal[context->queues.size()];
+
+        for(int i = 0; i < context->queues.size(); i++) {
+            command_list_submit_extern(
+                context->command_list,
+                NULL,
+                1, i,
+                &signals[i],
+                RECORD_TYPE_SYNC);
+        }
+
+        for(int i = 0; i < context->queues.size(); i++) {
+            signals[i].wait();
+        }
+
+        delete[] signals;
+    } else {
+        Signal signal;
+        command_list_submit_extern(
+            context->command_list,
+            NULL,
+            1, queue_index,
+            &signal,
+            RECORD_TYPE_SYNC);
+        signal.wait();
     }
 
-    context->streams.clear();
+    command_list_reset_extern(context->command_list);
+    RETURN_ON_ERROR()
+}
+
+void context_submit_command(
+    Context* context, 
+    const char* name,
+    int queue_index,
+    Signal* signal,
+    RecordType record_type,
+    std::function<void(VkCommandBuffer, struct ExecIndicies, void*, BarrierManager*, uint64_t)> func
+) {
+    command_list_record_command(context->command_list, name, 0, VK_PIPELINE_STAGE_TRANSFER_BIT, func);
+
+    command_list_submit_extern(context->command_list, NULL, 1, queue_index, signal, record_type);
+    command_list_reset_extern(context->command_list);
+    RETURN_ON_ERROR(;)
+}
+
+void context_destroy_extern(struct Context* context) {
+    for(int i = 0; i < context->queues.size(); i++) {
+        context->queues[i]->destroy();
+        delete context->queues[i];
+    }
+
+    context->queues.clear();
 
     for(int i = 0; i < context->deviceCount; i++) {
         vmaDestroyAllocator(context->allocators[i]);

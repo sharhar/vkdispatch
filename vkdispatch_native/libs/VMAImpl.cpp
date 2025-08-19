@@ -1,2 +1,2 @@
 #define VMA_IMPLEMENTATION
-#include "../internal.hh"
+#include "VMA.hh"
