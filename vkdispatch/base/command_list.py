@@ -8,7 +8,7 @@ from typing import Optional
 
 import vkdispatch_native
 
-from .context import Context, get_context
+from .context import Context, get_context, Handle
 from .errors import check_for_errors
 
 from .compute_plan import ComputePlan
@@ -16,7 +16,7 @@ from .descriptor_set import DescriptorSet
 
 import numpy as np
 
-class CommandList:
+class CommandList(Handle):
     """
     A class for recording and submitting command lists to the device.
 
@@ -24,16 +24,20 @@ class CommandList:
         _handle (int): The handle to the command list.
     """
 
-    context: Context
-    _handle: int
 
     def __init__(self) -> None:
-        self.context = get_context()
-        self._handle = vkdispatch_native.command_list_create(self.context._handle)
+        super().__init__()
+
+        handle = vkdispatch_native.command_list_create(self.context._handle)
+        self.register_handle(handle)
+        check_for_errors()
+
+    def _destroy(self) -> None:
+        vkdispatch_native.command_list_destroy(self._handle)
         check_for_errors()
 
     def __del__(self) -> None:
-        vkdispatch_native.command_list_destroy(self._handle)
+        self.destroy()
 
     def get_instance_size(self) -> int:
         """Get the total size of the command list in bytes."""

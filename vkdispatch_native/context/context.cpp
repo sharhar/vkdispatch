@@ -261,8 +261,13 @@ void context_submit_command(
 }
 
 void context_destroy_extern(struct Context* context) {
+    LOG_INFO("Destroying context %p with %d devices...", context, context->deviceCount);
+    LOG_INFO("Waiting for all queues to finish...");
     context_queue_wait_idle_extern(context, -1);
 
+    context->work_queue->stop();
+
+    LOG_INFO("Destroying queues...");
     for(int i = 0; i < context->queues.size(); i++) {
         context->queues[i]->destroy();
         delete context->queues[i];
@@ -270,10 +275,26 @@ void context_destroy_extern(struct Context* context) {
 
     context->queues.clear();
 
+    LOG_INFO("Destroying allocators and devices...");
     for(int i = 0; i < context->deviceCount; i++) {
         vmaDestroyAllocator(context->allocators[i]);
         vkDestroyDevice(context->devices[i], nullptr);
     }
 
+    LOG_INFO("Freeing context...");
     delete context;
+
+    if(_instance.debug) {
+        LOG_INFO("Destroying Vulkan Debug Messenger...");
+        vkDestroyDebugUtilsMessengerEXT(_instance.instance, _instance.debug_messenger, nullptr);
+    }
+
+    LOG_INFO("Destroying Vulkan Instance...");
+    vkDestroyInstance(_instance.instance, nullptr);
+
+    #ifdef VKDISPATCH_USE_VOLK
+    volkFinalize();
+    #endif
+
+    glslang_finalize_process();
 }

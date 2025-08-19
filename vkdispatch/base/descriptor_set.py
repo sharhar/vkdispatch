@@ -4,29 +4,32 @@ from typing import List, Union
 
 from .errors import check_for_errors
 
-from .context import get_context, Context
+from .context import get_context, Handle
 from .compute_plan import ComputePlan
 from .buffer import Buffer
 from .image import Sampler
 
-class DescriptorSet:
+class DescriptorSet(Handle):
     """TODO: Docstring"""
 
-    context: Context
-    _handle: int
     _compute_plan: ComputePlan
     _bound_resources: List[Union[Buffer, Sampler]]
 
     def __init__(self, compute_plan: ComputePlan) -> None:
+        super().__init__()
+
         self._bound_resources = []
         self._compute_plan = compute_plan
-        self.context = get_context()
-
-        self._handle = vkdispatch_native.descriptor_set_create(compute_plan._handle)
+        handle = vkdispatch_native.descriptor_set_create(compute_plan._handle)
+        check_for_errors()
+        self.register_handle(handle)
+    
+    def _destroy(self) -> None:
+        vkdispatch_native.descriptor_set_destroy(self._handle)
         check_for_errors()
 
     def __del__(self) -> None:
-        vkdispatch_native.descriptor_set_destroy(self._handle)
+        self.destroy()
 
     def bind_buffer(self, buffer: Buffer, binding: int, offset: int = 0, range: int = 0, uniform: bool = False, read_access: bool = True, write_access: bool = True) -> None:
         self._bound_resources.append(buffer)

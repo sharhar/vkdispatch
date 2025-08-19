@@ -1,12 +1,47 @@
 from typing import List
 from typing import Tuple
 from typing import Union
-from typing import Callable
+from typing import Dict
+import atexit
 
 from .errors import check_for_errors
 from .init import DeviceInfo, get_devices, initialize
 
 import vkdispatch_native
+
+class Handle:
+    context: "Context"
+    _handle: int
+    destroyed: bool
+
+    def __init__(self):
+        self.context = get_context()
+        self._handle = None
+        self.destroyed = False
+
+    def register_handle(self, handle: int) -> None:
+        """
+        Registers the handle in the context's handles dictionary.
+        """
+        self._handle = handle
+        self.context.handles_dict[self._handle] = self
+
+    def _destroy(self) -> None:
+        raise NotImplementedError("destroy is an abstract method and must be implemented by subclasses.")
+    
+    def destroy(self) -> None:
+        """
+        Destroys the context handle and cleans up resources.
+        """
+        if self.destroyed:
+            return
+        
+        if self._handle in self.context.handles_dict.keys():
+            self.context.handles_dict.pop(self._handle)
+        
+        self.destroyed = True
+        self._destroy()
+        check_for_errors()
 
 class Context:
     """
@@ -37,6 +72,7 @@ class Context:
     max_workgroup_count: Tuple[int, int, int]
     uniform_buffer_alignment: int
     max_shared_memory: int
+    handles_dict: Dict[int, Handle]
 
     def __init__(
         self,
@@ -47,6 +83,7 @@ class Context:
         self.device_infos = [get_devices()[dev] for dev in devices]
         self.queue_families = queue_families
         self.queue_count = sum([len(i) for i in queue_families])
+        self.handles_dict = {}
         self._handle = vkdispatch_native.context_create(devices, queue_families)
         check_for_errors()
         
@@ -94,10 +131,6 @@ class Context:
 
         self.uniform_buffer_alignment = max(uniform_buffer_alignments)
         self.max_shared_memory = min(max_shared_memory)
-
-    def __del__(self) -> None:
-        print(f"Destroying context {self._handle} with devices {self.devices} and queue families {self.queue_families}")
-        pass # vkdispatch_native.context_destroy(self._handle)
 
 def get_compute_queue_family_index(device: DeviceInfo, device_index: int) -> int:
     # First check if we have a pure compute queue family with (sparse) transfer capabilities
@@ -287,3 +320,23 @@ def queue_wait_idle(queue_index: int = None) -> None:
 
     vkdispatch_native.context_queue_wait_idle(get_context_handle(), queue_index if queue_index is not None else -1)
     check_for_errors()
+
+
+def destroy_context() -> None:
+    """
+    Destroys the current context and cleans up resources.
+    """
+    global __context
+
+    if __context is not None:
+        handles_list = list(__context.handles_dict.values())
+
+        for handle in handles_list:
+            handle.destroy()
+
+        assert len(__context.handles_dict) == 0, "Not all handles were destroyed!"
+
+        vkdispatch_native.context_destroy(__context._handle)
+        __context = None
+
+atexit.register(destroy_context)

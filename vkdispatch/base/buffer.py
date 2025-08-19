@@ -1,11 +1,11 @@
 from typing import Tuple
-from typing import List
+from typing import Dict
 from typing import Union
 
 import numpy as np
 
 from .dtype import dtype
-from .context import get_context, get_context_handle, Context
+from .context import get_context, get_context_handle, Context, Handle
 from .errors import check_for_errors
 
 from .dtype import to_numpy_dtype, from_numpy_dtype, complex64
@@ -16,23 +16,26 @@ import typing
 
 _ArgType = typing.TypeVar('_ArgType', bound=dtype)
 
-class Buffer(typing.Generic[_ArgType]):
+class Buffer(Handle, typing.Generic[_ArgType]):
     """TODO: Docstring"""
 
-    context: Context
-    _handle: int
     var_type: dtype
     shape: Tuple[int]
     size: int
     mem_size: int
 
+    child_handles: Dict[int, Handle]
+
     def __init__(self, shape: Tuple[int, ...], var_type: dtype) -> None:
+        super().__init__()
+
         if len(shape) > 3:
             raise ValueError("Buffer shape must be 1, 2, or 3 dimensions!")
 
         self.var_type: dtype = var_type
         self.shape: Tuple[int] = shape
         self.size: int = int(np.prod(shape))
+        self.child_handles = {}
         self.mem_size: int = self.size * self.var_type.item_size
         self.ctx = get_context()
 
@@ -48,14 +51,31 @@ class Buffer(typing.Generic[_ArgType]):
 
         self.shader_shape = tuple(shader_shape_internal)
 
-        self.context = get_context()
-        self._handle: int = vkdispatch_native.buffer_create(
+        handle = vkdispatch_native.buffer_create(
             self.context._handle, self.mem_size, 0
         )
         check_for_errors()
 
-    def __del__(self) -> None:
+        self.register_handle(handle)
+
+    def add_child_handle(self, child: Handle) -> None:
+        """Add a child handle to the buffer."""
+        if child._handle in self.child_handles.keys():
+            raise ValueError(f"Child handle {child._handle} already exists in buffer!")
+
+        self.child_handles[child._handle] = child
+
+    def _destroy(self) -> None:
+        """Destroy the buffer and all child handles."""
+        child_list = list(self.child_handles.values())
+
+        for child in child_list:
+            child.destroy()
+
         vkdispatch_native.buffer_destroy(self._handle)
+
+    def __del__(self) -> None:
+        self.destroy()
 
     def write(self, data: Union[bytes, np.ndarray], index: int = -1) -> None:
         """Given data in some numpy array, write that data to the buffer at the
