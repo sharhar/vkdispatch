@@ -5,7 +5,7 @@ from typing import Union
 import numpy as np
 
 from .dtype import dtype
-from .context import get_context, get_context_handle
+from .context import get_context, get_context_handle, Context
 from .errors import check_for_errors
 
 from .dtype import to_numpy_dtype, from_numpy_dtype, complex64
@@ -19,6 +19,7 @@ _ArgType = typing.TypeVar('_ArgType', bound=dtype)
 class Buffer(typing.Generic[_ArgType]):
     """TODO: Docstring"""
 
+    context: Context
     _handle: int
     var_type: dtype
     shape: Tuple[int]
@@ -47,8 +48,9 @@ class Buffer(typing.Generic[_ArgType]):
 
         self.shader_shape = tuple(shader_shape_internal)
 
+        self.context = get_context()
         self._handle: int = vkdispatch_native.buffer_create(
-            get_context_handle(), self.mem_size, 0
+            self.context._handle, self.mem_size, 0
         )
         check_for_errors()
 

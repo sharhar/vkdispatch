@@ -97,6 +97,8 @@ void buffer_destroy_extern(struct Buffer* buffer) {
         signal->wait();
 
         ctx->handle_manager->destroy_handle(queue_index, buffer->signals_pointers_handle);
+
+        delete signal;
     }
 
     uint64_t buffers_handle = buffer->buffers_handle;
@@ -115,12 +117,8 @@ void buffer_destroy_extern(struct Buffer* buffer) {
             VkBuffer stagingBuffer = (VkBuffer)ctx->handle_manager->get_handle(indicies.queue_index, staging_buffers_handle, 0);
             VmaAllocation stagingAllocation = (VmaAllocation)ctx->handle_manager->get_handle(indicies.queue_index, staging_allocations_handle, 0);
             
-            if (buffer != VK_NULL_HANDLE) {
-                vmaDestroyBuffer(ctx->allocators[indicies.device_index], buffer, allocation);
-            }
-            if (stagingBuffer != VK_NULL_HANDLE) {
-                vmaDestroyBuffer(ctx->allocators[indicies.device_index], stagingBuffer, stagingAllocation);
-            }
+            vmaDestroyBuffer(ctx->allocators[indicies.device_index], buffer, allocation);
+            vmaDestroyBuffer(ctx->allocators[indicies.device_index], stagingBuffer, stagingAllocation);
 
             ctx->handle_manager->destroy_handle(indicies.queue_index, buffers_handle);
             ctx->handle_manager->destroy_handle(indicies.queue_index, allocations_handle);

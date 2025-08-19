@@ -6,7 +6,7 @@ import numpy as np
 import vkdispatch_native
 
 from . import dtype as vdt
-from .context import get_context_handle
+from .context import get_context, Context
 
 __MAPPING__ = {
     (np.uint8, 1),
@@ -203,6 +203,8 @@ class BorderColor(Enum):
     INT_OPAQUE_WHITE = 5
 
 class Sampler:
+    image: "Image"
+    context: Context
     def __init__(self,
                     image: "Image",
                     mag_filter: Filter = Filter.LINEAR,
@@ -215,9 +217,10 @@ class Sampler:
                     border_color: BorderColor = BorderColor.FLOAT_OPAQUE_WHITE
                 ) -> None:
         self.image = image
+        self.context = get_context()
         
         self._handle = vkdispatch_native.image_create_sampler(
-            get_context_handle(),
+            self.context._handle,
             mag_filter.value,
             min_filter.value,
             mip_filter.value,
@@ -232,6 +235,9 @@ class Sampler:
         vkdispatch_native.image_destroy_sampler(self._handle)
 
 class Image:
+    context: Context
+    _handle: int
+
     def __init__(
         self,
         shape: typing.Tuple[int, ...],
@@ -292,8 +298,10 @@ class Image:
 
         self.mem_size: int = np.prod(self.shape) * self.block_size
 
+        self.context = get_context()
+
         self._handle: int = vkdispatch_native.image_create(
-            get_context_handle(),
+            self.context._handle,
             self.extent,
             self.layers,
             self.format.value,
