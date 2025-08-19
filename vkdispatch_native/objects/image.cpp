@@ -36,28 +36,7 @@ struct Image* image_create_extern(struct Context* context, VkExtent3D a_extent, 
     image->signals_pointers_handle = ctx->handle_manager->register_queue_handle("Image Signals");
 
     for(int queue_index = 0; queue_index < ctx->queues.size(); queue_index++) {
-        Signal* signal = new Signal();
-
-        LOG_INFO("Creating signal for image with handle %p for queue %d", signal, queue_index);
-
-        ctx->handle_manager->set_handle(queue_index, image->signals_pointers_handle, (uint64_t)signal);
-
-        VkImageMemoryBarrier* barrier = new VkImageMemoryBarrier();
-        barrier->sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrier->pNext = NULL;
-        barrier->srcAccessMask = 0;
-        barrier->dstAccessMask = 0;
-        barrier->oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        barrier->newLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        barrier->srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier->dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier->subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        barrier->subresourceRange.baseMipLevel = 0;
-        barrier->subresourceRange.levelCount = image->mip_levels;
-        barrier->subresourceRange.baseArrayLayer = 0;
-        barrier->subresourceRange.layerCount = layers;
-
-        ctx->handle_manager->set_handle(queue_index, image->barriers_handle, (uint64_t)barrier);
+        ctx->handle_manager->set_handle(queue_index, image->signals_pointers_handle, (uint64_t)new Signal());
     }
     
     image->block_size = image_format_block_size_extern(format);
@@ -172,8 +151,22 @@ struct Image* image_create_extern(struct Context* context, VkExtent3D a_extent, 
             VmaAllocation h_staging_allocation;
             VK_CALL(vmaCreateBuffer(ctx->allocators[indicies.device_index], &bufferCreateInfo, &vmaAllocationCreateInfo, &h_staging_buffer, &h_staging_allocation, NULL));
 
-            VkImageMemoryBarrier* barrier = (VkImageMemoryBarrier*)ctx->handle_manager->get_handle(indicies.queue_index, barriers_handle, 0);
+            VkImageMemoryBarrier* barrier = (VkImageMemoryBarrier*)malloc(sizeof(VkImageMemoryBarrier));
+            barrier->sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barrier->pNext = NULL;
+            barrier->srcAccessMask = 0;
+            barrier->dstAccessMask = 0;
+            barrier->oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            barrier->newLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            barrier->srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier->dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
             barrier->image = h_image;
+            barrier->subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            barrier->subresourceRange.baseMipLevel = 0;
+            barrier->subresourceRange.levelCount = mip_levels;
+            barrier->subresourceRange.baseArrayLayer = 0;
+            barrier->subresourceRange.layerCount = layers;
+            ctx->handle_manager->set_handle(indicies.queue_index, barriers_handle, (uint64_t)barrier);
 
             ctx->handle_manager->set_handle(indicies.queue_index, images_handle, (uint64_t)h_image);
             ctx->handle_manager->set_handle(indicies.queue_index, allocations_handle, (uint64_t)h_allocation);
@@ -193,42 +186,54 @@ void image_destroy_extern(struct Image* image) {
 
     struct Context* ctx = image->ctx;
 
-    //uint64_t fences_handle = plan->fences_handle;
-    //uint64_t vkfft_applications_handle = plan->vkfft_applications_handle;
+    for(int queue_index = 0; queue_index < ctx->queues.size(); queue_index++) {
+        Signal* signal = (Signal*)ctx->handle_manager->get_handle(queue_index, image->signals_pointers_handle, 0);
 
-    // context_submit_command(ctx, "image-destroy", -2, NULL, RECORD_TYPE_SYNC,
-    //     [ctx]
-    //     (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
-    //         //int app_index = indicies.queue_index * recorder_count + j;
+        // wait for the recording thread to finish
+        signal->wait();
 
-    //         //uint64_t vkfft_timestamp = ctx->handle_manager->get_handle_timestamp(app_index, vkfft_applications_handle);
-    //         //ctx->queues[indicies.queue_index]->wait_for_timestamp(vkfft_timestamp);
+        ctx->handle_manager->destroy_handle(queue_index, image->signals_pointers_handle);
 
-    //         //VkFence fence = (VkFence)ctx->handle_manager->get_handle(app_index, fences_handle, 0);
-    //         //vkDestroyFence(ctx->devices[indicies.device_index], fence, NULL);
+        delete signal;
+    }
 
-    //         //VkFFTApplication* application = (VkFFTApplication*)ctx->handle_manager->get_handle(app_index, vkfft_applications_handle, 0);
-    //         //deleteVkFFT(application);
+    uint64_t images_handle = image->images_handle;
+    uint64_t allocations_handle = image->allocations_handle;
+    uint64_t image_views_handle = image->image_views_handle;
+    uint64_t staging_buffers_handle = image->staging_buffers_handle;
+    uint64_t staging_allocations_handle = image->staging_allocations_handle;
+    uint64_t barriers_handle = image->barriers_handle;
 
+    context_submit_command(ctx, "image-destroy", -2, NULL, RECORD_TYPE_SYNC,
+        [ctx, images_handle, allocations_handle, image_views_handle,
+            staging_buffers_handle, staging_allocations_handle, barriers_handle]
+        (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
+            uint64_t image_timestamp = ctx->handle_manager->get_handle_timestamp(indicies.queue_index, images_handle);
+            ctx->queues[indicies.queue_index]->wait_for_timestamp(image_timestamp);
 
-    //         //ctx->handle_manager->destroy_handle(app_index, fences_handle);
-    //         //ctx->handle_manager->destroy_handle(app_index, vkfft_applications_handle);
-    //     }
-    // );
+            VkImage h_image = (VkImage)ctx->handle_manager->get_handle(indicies.queue_index, images_handle, 0);
+            VmaAllocation h_allocation = (VmaAllocation)ctx->handle_manager->get_handle(indicies.queue_index, allocations_handle, 0);
+            VkImageView h_image_view = (VkImageView)ctx->handle_manager->get_handle(indicies.queue_index, image_views_handle, 0);
+            VkBuffer h_staging_buffer = (VkBuffer)ctx->handle_manager->get_handle(indicies.queue_index, staging_buffers_handle, 0);
+            VmaAllocation h_staging_allocation = (VmaAllocation)ctx->handle_manager->get_handle(indicies.queue_index, staging_allocations_handle, 0);
+            VkImageMemoryBarrier* barrier = (VkImageMemoryBarrier*)ctx->handle_manager->get_handle(indicies.queue_index, barriers_handle, 0);
 
-    //delete image;
+            vkDestroyImageView(ctx->devices[indicies.device_index], h_image_view, NULL);
+            vmaDestroyImage(ctx->allocators[indicies.device_index], h_image, h_allocation);
+            vmaDestroyBuffer(ctx->allocators[indicies.device_index], h_staging_buffer, h_staging_allocation);
+            
+            free(barrier);
 
-    // LOG_WARNING("Destroying image with handle %p", image);
-    
-    // for (int i = 0; i < image->images.size(); i++) {
-    //     int device_index = image->ctx->queues[i]->device_index;
+            ctx->handle_manager->destroy_handle(indicies.queue_index, images_handle);
+            ctx->handle_manager->destroy_handle(indicies.queue_index, allocations_handle);
+            ctx->handle_manager->destroy_handle(indicies.queue_index, image_views_handle);
+            ctx->handle_manager->destroy_handle(indicies.queue_index, staging_buffers_handle);
+            ctx->handle_manager->destroy_handle(indicies.queue_index, staging_allocations_handle);
+            ctx->handle_manager->destroy_handle(indicies.queue_index, barriers_handle);
+        }
+    );
 
-    //     vkDestroyImageView(image->ctx->devices[device_index], image->imageViews[i], NULL);
-    //     vmaDestroyImage(image->ctx->allocators[device_index], image->images[i], image->allocations[i]);
-    //     vmaDestroyBuffer(image->ctx->allocators[device_index], image->stagingBuffers[i], image->stagingAllocations[i]);
-    // }
-
-    // delete image;
+    delete image;
 }
 
 struct Sampler* image_create_sampler_extern(struct Context* ctx, 

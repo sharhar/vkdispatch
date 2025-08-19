@@ -205,7 +205,7 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
 void context_queue_wait_idle_extern(struct Context* context, int queue_index) {
     command_list_record_command(context->command_list, 
-        "noop-on-init",
+        "noop",
         0,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
         [](VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
@@ -261,6 +261,8 @@ void context_submit_command(
 }
 
 void context_destroy_extern(struct Context* context) {
+    context_queue_wait_idle_extern(context, -1);
+
     for(int i = 0; i < context->queues.size(); i++) {
         context->queues[i]->destroy();
         delete context->queues[i];

@@ -8,7 +8,7 @@ from typing import Optional
 
 import vkdispatch_native
 
-from .context import get_context_handle
+from .context import Context, get_context
 from .errors import check_for_errors
 
 from .compute_plan import ComputePlan
@@ -24,10 +24,12 @@ class CommandList:
         _handle (int): The handle to the command list.
     """
 
+    context: Context
     _handle: int
 
     def __init__(self) -> None:
-        self._handle = vkdispatch_native.command_list_create(get_context_handle())
+        self.context = get_context()
+        self._handle = vkdispatch_native.command_list_create(self.context._handle)
         check_for_errors()
 
     def __del__(self) -> None:

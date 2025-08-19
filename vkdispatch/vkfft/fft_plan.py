@@ -7,7 +7,11 @@ import vkdispatch as vd
 from typing import List
 from typing import Tuple
 
+from ..base.context import get_context, Context
+
 class VkFFTPlan:
+    context: Context
+
     def __init__(self, 
                  shape: Tuple[int, ...], 
                  do_r2c: bool = False, 
@@ -59,8 +63,10 @@ class VkFFTPlan:
 
             input_size = np.prod(input_shape) * input_buffer_type.itemsize
 
+        self.context = get_context()
+
         self._handle = vkdispatch_native.stage_fft_plan_create(
-            vd.get_context_handle(), 
+            self.context._handle, 
             list(reversed(self.shape)), 
             [axis for axis in flipped_axes if axis >= 0 and axis < 3], 
             self.mem_size, 
