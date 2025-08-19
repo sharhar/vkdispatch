@@ -136,11 +136,7 @@ struct Image* image_create_extern(struct Context* context, VkExtent3D a_extent, 
             
             VkImage h_image;
             VmaAllocation h_allocation;
-            
-            {
-                std::unique_lock lock(ctx->vma_mutex);
-                VK_CALL(vmaCreateImage(ctx->allocators[indicies.device_index], &imageCreateInfo, &vmaAllocationCreateInfo, &h_image, &h_allocation, NULL));
-            }
+            VK_CALL(vmaCreateImage(ctx->allocators[indicies.device_index], &imageCreateInfo, &vmaAllocationCreateInfo, &h_image, &h_allocation, NULL));
 
             VkImageViewCreateInfo imageViewCreateInfo;
             memset(&imageViewCreateInfo, 0, sizeof(VkImageViewCreateInfo));
@@ -174,11 +170,7 @@ struct Image* image_create_extern(struct Context* context, VkExtent3D a_extent, 
 
             VkBuffer h_staging_buffer;
             VmaAllocation h_staging_allocation;
-
-            {
-                std::unique_lock lock(ctx->vma_mutex);
-                VK_CALL(vmaCreateBuffer(ctx->allocators[indicies.device_index], &bufferCreateInfo, &vmaAllocationCreateInfo, &h_staging_buffer, &h_staging_allocation, NULL));
-            }
+            VK_CALL(vmaCreateBuffer(ctx->allocators[indicies.device_index], &bufferCreateInfo, &vmaAllocationCreateInfo, &h_staging_buffer, &h_staging_allocation, NULL));
 
             VkImageMemoryBarrier* barrier = (VkImageMemoryBarrier*)ctx->handle_manager->get_handle(indicies.queue_index, barriers_handle, 0);
             barrier->image = h_image;
