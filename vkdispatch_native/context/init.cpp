@@ -197,6 +197,8 @@ void init_extern(bool debug, LogLevel log_level) {
     volkLoadInstance(_instance.instance);
     #endif
 
+    _instance.debug = debug;
+
     if(debug) {
         LOG_INFO("Initializing Vulkan Debug Messenger...");
 

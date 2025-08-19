@@ -93,10 +93,12 @@ Queue::Queue(
 }
 
 void Queue::destroy() {
+    LOG_INFO("Destroying queue with handle %p and ID %d", this, this->queue_index);
     this->run_queue.store(false);
     this->record_queue_cv.notify_all();
     this->submit_queue_cv.notify_all();
 
+    LOG_INFO("Waiting for all threads to finish...");
     if(this->recording_thread_count > 1) {
         ingest_thread.join();
         
@@ -107,7 +109,11 @@ void Queue::destroy() {
         delete[] record_threads;
     }
 
+    LOG_INFO("Waiting for submit thread to finish...");
+
     submit_thread.join();
+
+    LOG_INFO("Destroying semaphore and command pools...");
 
     vkDestroySemaphore(device, timeline_semaphore, nullptr);
 
@@ -119,22 +125,39 @@ void Queue::destroy() {
         vkDestroyCommandPool(device, commandPools[i], nullptr);
     }
 
+    LOG_INFO("Freeing command pools and command buffers...");
+
     delete[] commandBufferStates;
 
     recording_results.clear();
-
 }
 
 void Queue::wait_for_timestamp(uint64_t timestamp) {
     uint64_t last_completed = 0;
     VK_CALL(vkGetSemaphoreCounterValue(device, timeline_semaphore, &last_completed));
-    if (last_completed < timestamp) {
-        VkSemaphoreWaitInfo wi{};
+    if (last_completed >= timestamp) {
+        return;
+    }
+
+    while(last_completed < timestamp) {
+        VkSemaphoreWaitInfo wi = {};
         wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
         wi.semaphoreCount = 1;
         wi.pSemaphores = &timeline_semaphore;
         wi.pValues     = &timestamp;
-        VK_CALL(vkWaitSemaphores(device, &wi, UINT64_MAX));
+        VkResult result = vkWaitSemaphores(device, &wi, 1000000000);
+        if (result != VK_TIMEOUT) {
+            if(result != VK_SUCCESS) {
+                LOG_ERROR("Failed to wait for semaphore: %d", result);
+            }
+            return;
+        }
+
+        if(!this->run_queue.load()) {
+            return;
+        }
+
+        VK_CALL(vkGetSemaphoreCounterValue(device, timeline_semaphore, &last_completed));
     }
 }
 
@@ -164,7 +187,7 @@ void ingest_work_item(
         
     if(!work_queue->pop(&work_header, queue->queue_index)) {
         LOG_INFO("Thread worker for device %d, queue %d has no more work", queue->device_index, queue->queue_index);
-        queue->run_queue = false;
+        queue->run_queue.store(false);
         return;
     }
 

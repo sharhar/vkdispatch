@@ -40,6 +40,8 @@ typedef struct {
     std::vector<struct PhysicalDeviceDetails> device_details;
     std::vector<std::vector<VkQueueFamilyProperties>> queue_family_properties;
     std::vector<VkPhysicalDeviceTimelineSemaphoreFeatures> timeline_semaphore_features;
+
+    bool debug;
 } Instance;
 
 /**

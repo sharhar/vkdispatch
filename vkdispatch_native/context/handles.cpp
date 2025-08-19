@@ -193,43 +193,44 @@ void HandleManager::destroy_handle_per_device(int device_index, uint64_t handle,
         return;
     }
 
-    if(found_all && found_any) {
-        return;
-    }
+    bool already_destroyed = found_all && found_any;
 
-    uint64_t handle_value = 0;
-    uint64_t handle_timestamp = 0;
+    if(!already_destroyed) {
+        uint64_t handle_value = 0;
+        uint64_t handle_timestamp = 0;
 
-    for (int i = 0; i < queue_count; i++) {
-        if (queue_to_device_map[i] == device_index) {
-            
-            if (handle_value == 0) {
-                handle_value = handles[handle].data[i];
-            } else if (handles[handle].data[i] != handle_value){
-                LOG_ERROR("Handle value mismatch for handle %s (%d) at index %d: expected %llu, got %llu", handles[handle].name, handle, i, handle_value, handles[handle].data[i]);
-                return;
+        for (int i = 0; i < queue_count; i++) {
+            if (queue_to_device_map[i] == device_index) {
+                
+                if (handle_value == 0) {
+                    handle_value = handles[handle].data[i];
+                } else if (handles[handle].data[i] != handle_value){
+                    LOG_ERROR("Handle value mismatch for handle %s (%d) at index %d: expected %llu, got %llu", handles[handle].name, handle, i, handle_value, handles[handle].data[i]);
+                    return;
+                }
+
+                if(wait_for_timestamp) {
+                    uint64_t current_timestamp = handles[handle].timestamps[i].load(std::memory_order_relaxed);
+                    ctx->queues[i]->wait_for_timestamp(current_timestamp);
+                }
             }
+        }
 
-            if(wait_for_timestamp) {
-                uint64_t current_timestamp = handles[handle].timestamps[i].load(std::memory_order_relaxed);
-                ctx->queues[i]->wait_for_timestamp(current_timestamp);
+        if (handle_value == 0) {
+            LOG_ERROR("Handle value is 0 for handle %s (%d)", handles[handle].name, handle);
+            return;
+        }
+
+        destroy_func(handle_value);
+
+        for (int i = 0; i < queue_count; i++) {
+            if (queue_to_device_map[i] == device_index) {
+                handles[handle].data[i] = 0;
             }
         }
     }
 
-    if (handle_value == 0) {
-        LOG_ERROR("Handle value is 0 for handle %s (%d)", handles[handle].name, handle);
-        return;
-    }
-
-    destroy_func(handle_value);
-
-    for (int i = 0; i < queue_count; i++) {
-        if (queue_to_device_map[i] == device_index) {
-            handles[handle].data[i] = 0;
-            handles[handle].delete_count++;   
-        }
-    }
+    handles[handle].delete_count++;
 
     if (handles[handle].delete_count >= handles[handle].count) {
         delete[] handles[handle].data;
