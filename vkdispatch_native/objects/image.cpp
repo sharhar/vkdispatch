@@ -106,86 +106,86 @@ struct Image* image_create_extern(struct Context* context, VkExtent3D a_extent, 
             image_views_handle, staging_buffers_handle, staging_allocations_handle,
             barriers_handle, signals_pointers_handle]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
-            VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
-                            | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+            // VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
+            //                 | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-            LOG_INFO("Creating image with extent (%d, %d, %d), layers %d, format %s, type %s, view_type %s, generate_mips %d",
-                extent.width, extent.height, extent.depth, layers,
-                string_VkFormat((VkFormat)format),
-                string_VkImageType((VkImageType)type),
-                string_VkImageViewType((VkImageViewType)view_type),
-                mip_levels);
+            // LOG_INFO("Creating image with extent (%d, %d, %d), layers %d, format %s, type %s, view_type %s, generate_mips %d",
+            //     extent.width, extent.height, extent.depth, layers,
+            //     string_VkFormat((VkFormat)format),
+            //     string_VkImageType((VkImageType)type),
+            //     string_VkImageViewType((VkImageViewType)view_type),
+            //     mip_levels);
 
-            VkImageCreateInfo imageCreateInfo;
-            memset(&imageCreateInfo, 0, sizeof(VkImageCreateInfo));
-            imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-            imageCreateInfo.imageType = (VkImageType)type;
-            imageCreateInfo.extent = extent;
-            imageCreateInfo.mipLevels = mip_levels;
-            imageCreateInfo.arrayLayers = layers;
-            imageCreateInfo.format = (VkFormat)format;
-            imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-            imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-            imageCreateInfo.usage = usage;
-            imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-            imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            // VkImageCreateInfo imageCreateInfo;
+            // memset(&imageCreateInfo, 0, sizeof(VkImageCreateInfo));
+            // imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+            // imageCreateInfo.imageType = (VkImageType)type;
+            // imageCreateInfo.extent = extent;
+            // imageCreateInfo.mipLevels = mip_levels;
+            // imageCreateInfo.arrayLayers = layers;
+            // imageCreateInfo.format = (VkFormat)format;
+            // imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+            // imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            // imageCreateInfo.usage = usage;
+            // imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+            // imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-            VmaAllocationCreateInfo vmaAllocationCreateInfo = {};
-            vmaAllocationCreateInfo.flags = 0;
-            vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+            // VmaAllocationCreateInfo vmaAllocationCreateInfo = {};
+            // vmaAllocationCreateInfo.flags = 0;
+            // vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
             
-            VkImage h_image;
-            VmaAllocation h_allocation;
-            VK_CALL_RETNULL(vmaCreateImage(ctx->allocators[indicies.device_index], &imageCreateInfo, &vmaAllocationCreateInfo, &h_image, &h_allocation, NULL));
+            // VkImage h_image;
+            // VmaAllocation h_allocation;
+            // VK_CALL_RETNULL(vmaCreateImage(ctx->allocators[indicies.device_index], &imageCreateInfo, &vmaAllocationCreateInfo, &h_image, &h_allocation, NULL));
 
-            VkImageViewCreateInfo imageViewCreateInfo;
-            memset(&imageViewCreateInfo, 0, sizeof(VkImageViewCreateInfo));
-            imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-            imageViewCreateInfo.image = h_image;
-            imageViewCreateInfo.viewType = (VkImageViewType)view_type;
-            imageViewCreateInfo.format = (VkFormat)format;
-            imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-            imageViewCreateInfo.subresourceRange.levelCount = mip_levels;
-            imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-            imageViewCreateInfo.subresourceRange.layerCount = layers;
+            // VkImageViewCreateInfo imageViewCreateInfo;
+            // memset(&imageViewCreateInfo, 0, sizeof(VkImageViewCreateInfo));
+            // imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            // imageViewCreateInfo.image = h_image;
+            // imageViewCreateInfo.viewType = (VkImageViewType)view_type;
+            // imageViewCreateInfo.format = (VkFormat)format;
+            // imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            // imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+            // imageViewCreateInfo.subresourceRange.levelCount = mip_levels;
+            // imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+            // imageViewCreateInfo.subresourceRange.layerCount = layers;
             
-            VkImageView h_image_view;
-            VK_CALL_RETNULL(vkCreateImageView(ctx->devices[indicies.device_index], &imageViewCreateInfo, NULL, &h_image_view));
+            // VkImageView h_image_view;
+            // VK_CALL_RETNULL(vkCreateImageView(ctx->devices[indicies.device_index], &imageViewCreateInfo, NULL, &h_image_view));
 
-            VkBufferCreateInfo bufferCreateInfo;
-            memset(&bufferCreateInfo, 0, sizeof(VkBufferCreateInfo));
-            bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-            bufferCreateInfo.size = (VkDeviceSize)layers * 
-                                    (VkDeviceSize) extent.width * 
-                                    (VkDeviceSize) extent.height * 
-                                    (VkDeviceSize) extent.depth * 
-                                    (VkDeviceSize) block_size;
-            bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-            bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            // VkBufferCreateInfo bufferCreateInfo;
+            // memset(&bufferCreateInfo, 0, sizeof(VkBufferCreateInfo));
+            // bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+            // bufferCreateInfo.size = (VkDeviceSize)layers * 
+            //                         (VkDeviceSize) extent.width * 
+            //                         (VkDeviceSize) extent.height * 
+            //                         (VkDeviceSize) extent.depth * 
+            //                         (VkDeviceSize) block_size;
+            // bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+            // bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
             
-            vmaAllocationCreateInfo = {};
-            vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
-            vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+            // vmaAllocationCreateInfo = {};
+            // vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+            // vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 
-            VkBuffer h_staging_buffer;
-            VmaAllocation h_staging_allocation;
-            VK_CALL_RETNULL(vmaCreateBuffer(ctx->allocators[indicies.device_index], &bufferCreateInfo, &vmaAllocationCreateInfo, &h_staging_buffer, &h_staging_allocation, NULL));
+            // VkBuffer h_staging_buffer;
+            // VmaAllocation h_staging_allocation;
+            // VK_CALL_RETNULL(vmaCreateBuffer(ctx->allocators[indicies.device_index], &bufferCreateInfo, &vmaAllocationCreateInfo, &h_staging_buffer, &h_staging_allocation, NULL));
 
-            VkImageMemoryBarrier* barrier = (VkImageMemoryBarrier*)ctx->handle_manager->get_handle(indicies.queue_index, barriers_handle, 0);
-            barrier->image = h_image;
+            // VkImageMemoryBarrier* barrier = (VkImageMemoryBarrier*)ctx->handle_manager->get_handle(indicies.queue_index, barriers_handle, 0);
+            // barrier->image = h_image;
 
-            ctx->handle_manager->set_handle(indicies.queue_index, images_handle, (uint64_t)h_image);
-            ctx->handle_manager->set_handle(indicies.queue_index, allocations_handle, (uint64_t)h_allocation);
-            ctx->handle_manager->set_handle(indicies.queue_index, image_views_handle, (uint64_t)h_image_view);
-            ctx->handle_manager->set_handle(indicies.queue_index, staging_buffers_handle, (uint64_t)h_staging_buffer);
-            ctx->handle_manager->set_handle(indicies.queue_index, staging_allocations_handle, (uint64_t)h_staging_allocation);
+            // ctx->handle_manager->set_handle(indicies.queue_index, images_handle, (uint64_t)h_image);
+            // ctx->handle_manager->set_handle(indicies.queue_index, allocations_handle, (uint64_t)h_allocation);
+            // ctx->handle_manager->set_handle(indicies.queue_index, image_views_handle, (uint64_t)h_image_view);
+            // ctx->handle_manager->set_handle(indicies.queue_index, staging_buffers_handle, (uint64_t)h_staging_buffer);
+            // ctx->handle_manager->set_handle(indicies.queue_index, staging_allocations_handle, (uint64_t)h_staging_allocation);
 
-            Signal* signal = (Signal*)ctx->handle_manager->get_handle(indicies.queue_index, signals_pointers_handle, 0);
+            // Signal* signal = (Signal*)ctx->handle_manager->get_handle(indicies.queue_index, signals_pointers_handle, 0);
             
-            LOG_INFO("Image created with handle %p for queue %d signal %p", h_image, indicies.queue_index, signal);
+            // LOG_INFO("Image created with handle %p for queue %d signal %p", h_image, indicies.queue_index, signal);
 
-            signal->notify();
+            // signal->notify();
         }
     );
     
