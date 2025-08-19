@@ -116,26 +116,26 @@ struct Image* image_create_extern(struct Context* context, VkExtent3D a_extent, 
                 string_VkImageViewType((VkImageViewType)view_type),
                 mip_levels);
 
-            // VkImageCreateInfo imageCreateInfo;
-            // memset(&imageCreateInfo, 0, sizeof(VkImageCreateInfo));
-            // imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-            // imageCreateInfo.imageType = (VkImageType)type;
-            // imageCreateInfo.extent = extent;
-            // imageCreateInfo.mipLevels = mip_levels;
-            // imageCreateInfo.arrayLayers = layers;
-            // imageCreateInfo.format = (VkFormat)format;
-            // imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-            // imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-            // imageCreateInfo.usage = usage;
-            // imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-            // imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            VkImageCreateInfo imageCreateInfo;
+            memset(&imageCreateInfo, 0, sizeof(VkImageCreateInfo));
+            imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+            imageCreateInfo.imageType = (VkImageType)type;
+            imageCreateInfo.extent = extent;
+            imageCreateInfo.mipLevels = mip_levels;
+            imageCreateInfo.arrayLayers = layers;
+            imageCreateInfo.format = (VkFormat)format;
+            imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+            imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            imageCreateInfo.usage = usage;
+            imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+            imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-            // VmaAllocationCreateInfo vmaAllocationCreateInfo = {};
-            // vmaAllocationCreateInfo.flags = 0;
-            // vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+            VmaAllocationCreateInfo vmaAllocationCreateInfo = {};
+            vmaAllocationCreateInfo.flags = 0;
+            vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
             
-            // VkImage h_image;
-            // VmaAllocation h_allocation;
+            VkImage h_image;
+            VmaAllocation h_allocation;
             // VK_CALL_RETNULL(vmaCreateImage(ctx->allocators[indicies.device_index], &imageCreateInfo, &vmaAllocationCreateInfo, &h_image, &h_allocation, NULL));
 
             // VkImageViewCreateInfo imageViewCreateInfo;
