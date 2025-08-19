@@ -28,7 +28,7 @@ from typing import Tuple
 import numpy as np
 
 vd.initialize(log_level=vd.LogLevel.WARNING, debug_mode=True)
-vd.make_context(use_cpu=True)
+vd.make_context(use_cpu=True, device_ids=[4])
 
 class CommandType(enum.Enum):
     ADD_VALUE = 0
