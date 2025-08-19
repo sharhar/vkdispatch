@@ -19,7 +19,7 @@ struct WorkQueueItem {
     struct WorkHeader* work_header;
     Signal* signal;
     RecordingResultData* recording_result;
-    VkPipelineStageFlags waitStage;
+    VkPipelineStageFlags* waitStage;
 };
 
 class Queue {
@@ -62,6 +62,7 @@ public:
     uint64_t last_completed = 0;
     
     std::vector<struct RecordingResultData> recording_results;
+    std::vector<VkPipelineStageFlags> waitStages;
 
     std::thread ingest_thread;
     std::thread* record_threads;

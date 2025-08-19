@@ -9,14 +9,17 @@
 
 #include <math.h>
 
-struct Image* image_create_extern(struct Context* ctx, VkExtent3D extent, unsigned int layers, unsigned int format, unsigned int type, unsigned int view_type, unsigned int generate_mips) {
-    
+struct Image* image_create_extern(struct Context* context, VkExtent3D a_extent, unsigned int layers, unsigned int format, unsigned int type, unsigned int view_type, unsigned int generate_mips) {
+    struct Context* ctx = context;
+    VkExtent3D extent = a_extent;
+
     LOG_INFO("Creating image with extent (%d, %d, %d), layers %d, format %s, type %s, view_type %s, generate_mips %d",
         extent.width, extent.height, extent.depth, layers,
         string_VkFormat((VkFormat)format),
         string_VkImageType((VkImageType)type),
         string_VkImageViewType((VkImageViewType)view_type),
         generate_mips);
+    
     
     struct Image* image = new struct Image();
     image->ctx = ctx;
