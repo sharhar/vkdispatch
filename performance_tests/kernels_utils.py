@@ -131,13 +131,13 @@ def do_benchmark_vkdispatch(kernel, params_host, kernel_type, batch_size, iter_c
 
     do_streaming = kernel_type == "param_stream"
 
-    cmd_stream = vd.CommandStream()
+    graph = vd.CommandGraph()
     
     kernel(
         out_buff,
-        cmd_stream.bind_var("mat1") if do_streaming else identity_matrix,
-        cmd_stream.bind_var("mat2") if do_streaming else identity_matrix,
-        cmd_stream=cmd_stream
+        graph.bind_var("mat1") if do_streaming else identity_matrix,
+        graph.bind_var("mat2") if do_streaming else identity_matrix,
+        graph=graph
     )
 
     assert iter_count % batch_size == 0, "iter_count must be a multiple of batch_size"
@@ -149,12 +149,12 @@ def do_benchmark_vkdispatch(kernel, params_host, kernel_type, batch_size, iter_c
     start_time = time.perf_counter()
     for i in range(num_graph_launches):
         if kernel_type == "param_stream":
-            cmd_stream.set_var("mat1", params_host[2*i*batch_size:2*(i+1)*batch_size:2])
-            cmd_stream.set_var("mat2", params_host[2*i*batch_size+1:2*(i+1)*batch_size:2])
+            graph.set_var("mat1", params_host[2*i*batch_size:2*(i+1)*batch_size:2])
+            graph.set_var("mat2", params_host[2*i*batch_size+1:2*(i+1)*batch_size:2])
 
         raw_stream_index = i % total_streams
         raw_stream_index = raw_stream_index + (stream_count - streams_per_device) * raw_stream_index // streams_per_device
-        cmd_stream.submit(instance_count=batch_size, stream_index=raw_stream_index)
+        graph.submit(instance_count=batch_size, stream_index=raw_stream_index)
 
     vd.queue_wait_idle()   
     end_time = time.perf_counter()
