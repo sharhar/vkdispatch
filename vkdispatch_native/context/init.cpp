@@ -21,6 +21,12 @@ const char* prefixes[] = {
     "ERROR"
 };
 
+// Thread-id registry (definitions)
+std::mutex __tid_mutex;
+std::atomic<uint32_t> __next_tid{0};
+//thread_local uint32_t __thread_tid = UINT32_MAX;
+std::unordered_map<std::thread::id, uint32_t> __tid_map;
+
 void set_log_level_extern(LogLevel log_level) {
     //__log_level_mutex.lock();
     __log_level_limit = log_level;
@@ -84,6 +90,8 @@ static VkBool32 VKAPI_PTR vulkan_custom_debug_callback(
 
 void init_extern(bool debug, LogLevel log_level) {
     __log_level_limit = log_level;
+    
+    LOG_INIT_MAIN_THREAD();
 
     #ifndef VKDISPATCH_USE_VOLK
     setenv("MVK_CONFIG_LOG_LEVEL", "2", 0);

@@ -117,9 +117,13 @@ void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set) {
     context_submit_command(ctx, "descriptor-set-destroy", -2, NULL, RECORD_TYPE_SYNC,
         [ctx, sets_handle, pools_handle, barrier_info_manager]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
+            LOG_VERBOSE("Destroying Descriptor Set for device %d on queue %d recorder %d", indicies.device_index, indicies.queue_index, indicies.recorder_index);
+
             uint64_t set_timestamp = ctx->handle_manager->get_handle_timestamp(indicies.queue_index, sets_handle);
 
             ctx->queues[indicies.queue_index]->wait_for_timestamp(set_timestamp);
+
+            LOG_VERBOSE("Waiting for timestamp %llu for descriptor set handle %llu", set_timestamp, sets_handle);
 
             VkDescriptorPool pool = (VkDescriptorPool)ctx->handle_manager->get_handle(indicies.queue_index, pools_handle, 0);
 

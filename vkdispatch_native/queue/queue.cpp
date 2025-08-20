@@ -92,12 +92,18 @@ Queue::Queue(
     }
 }
 
-void Queue::destroy() {
-    LOG_INFO("Destroying queue with handle %p and ID %d", this, this->queue_index);
+void Queue::signal_stop() {
+    LOG_INFO("Signaling stop for queue %d", this->queue_index);
     this->run_queue.store(false);
     this->record_queue_cv.notify_all();
     this->submit_queue_cv.notify_all();
+}
 
+void Queue::destroy() {
+    signal_stop();
+
+    LOG_INFO("Destroying queue with handle %p and ID %d", this, this->queue_index);
+    
     LOG_INFO("Waiting for all threads to finish...");
     if(this->recording_thread_count > 1) {
         ingest_thread.join();
@@ -168,21 +174,10 @@ void ingest_work_item(
     struct WorkHeader* work_header,
     uint64_t current_index) {
 
+    LOG_VERBOSE("Ingesting work item for queue %d, current index %llu", queue->queue_index, current_index);
+
     if (current_index + 1 > queue->inflight_cmd_buffer_count) {
         queue->wait_for_timestamp(current_index + 1 - queue->inflight_cmd_buffer_count);
-        
-        //uint64_t wait_value = current_index + 1 - queue->inflight_cmd_buffer_count;
-
-        // uint64_t last_completed = 0;
-        // VK_CALL(vkGetSemaphoreCounterValue(queue->device, queue->timeline_semaphore, &last_completed));
-        // if (last_completed < wait_value) {
-        //     VkSemaphoreWaitInfo wi{};
-        //     wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-        //     wi.semaphoreCount = 1;
-        //     wi.pSemaphores = &queue->timeline_semaphore;
-        //     wi.pValues     = &wait_value;
-        //     VK_CALL(vkWaitSemaphores(queue->device, &wi, UINT64_MAX));
-        // }
     }
         
     if(!work_queue->pop(&work_header, queue->queue_index)) {
@@ -197,7 +192,6 @@ void ingest_work_item(
     work_item.recording_result = &queue->recording_results[current_index % queue->inflight_cmd_buffer_count];
     work_item.recording_result->state = &queue->commandBufferStates[current_index % queue->inflight_cmd_buffer_count];
     work_item.waitStage = &queue->waitStages[current_index % queue->inflight_cmd_buffer_count];
-    //work_item.waitStage = 0;
 }
 
 void Queue::ingest_worker() {
@@ -260,18 +254,17 @@ int record_work_item(
     exec_indices.queue_index = queue->queue_index;
     exec_indices.recorder_index = worker_id;
 
+    LOG_INFO("Recording work item %p on queue %d, worker %d, instance count %d", work_item.work_header, queue->queue_index, worker_id, work_item.work_header->instance_count);
+
     char* current_instance_data = (char*)&work_item.work_header[1];
     for(size_t instance = 0; instance < work_item.work_header->instance_count; instance++) {
         for (size_t i = 0; i < command_buffer->size(); i++) {
             LOG_VERBOSE("Recording command %d of type %s on worker %d", i, command_buffer->operator[](i).name, worker_id);
 
-            LOG_VERBOSE("Executing command %d", i);
             command_buffer->operator[](i).func->operator()(cmd_buffer, exec_indices, current_instance_data, &barrier_manager, work_item.current_index + 1);
             current_instance_data += command_buffer->operator[](i).pc_size;
 
-            work_item.waitStage[0] |= command_buffer->operator[](i).pipeline_stage;
-
-            LOG_VERBOSE("Command %d executed", i);
+            work_item.waitStage[0] |= command_buffer->operator[](i).pipeline_stage; 
         }
     }
     
@@ -453,11 +446,16 @@ void Queue::fused_worker() {
 
     while(this->run_queue.load()) {
         struct WorkQueueItem work_item;
-        
+
+        LOG_INFO("Fused Worker waiting for work");
+
         ingest_work_item(work_item, this, work_queue, work_header, current_index);
         current_index++;
 
+        LOG_INFO("Fused Worker has work %p of index (%d)", work_item.work_header, work_item.current_index);
         cmd_buffer_index = record_work_item(work_item, this, barrier_manager, cmd_buffer_index, 0);
+        
+        LOG_INFO("Fused Worker recorded work %p of index (%d)", work_item.work_header, work_item.current_index);
         submit_work_item(work_item, this);
     }
 }

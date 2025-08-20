@@ -150,7 +150,10 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
 bool WorkQueue::pop(struct WorkHeader** header, int queue_index) {
     std::unique_lock<std::mutex> lock(this->mutex);
 
+    LOG_VERBOSE("Waiting for work item for queue %d", queue_index);
+
     this->cv_push.wait(lock, [this, queue_index, header] () {
+        LOG_VERBOSE("IN CV: running = %d, work_info_count = %d, program_info_count = %d", running, work_info_count, program_info_count);
         if(!running) {
             return true;
         }
@@ -170,12 +173,16 @@ bool WorkQueue::pop(struct WorkHeader** header, int queue_index) {
             }
         }
 
+        LOG_VERBOSE("Selected index: %d", selected_index);
+
         if(selected_index == -1) {
             return false;
         }
 
         *header = this->work_infos[selected_index].header;
         this->work_infos[selected_index].state = WORK_STATE_ACTIVE;
+
+        LOG_VERBOSE("Returning work header %p for queue %d", *header, queue_index);
 
         return true;
     });

@@ -15,6 +15,9 @@ struct CommandList* command_list_create_extern(struct Context* context) {
 }
 
 void command_list_destroy_extern(struct CommandList* command_list) {
+    command_list->commands.clear();
+    command_list->compute_instance_size = 0;
+
     delete command_list;
 }
 

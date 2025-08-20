@@ -7,6 +7,8 @@ from typing import MutableMapping
 import atexit
 import weakref
 
+import os, signal
+
 from .errors import check_for_errors
 from .init import DeviceInfo, get_devices, initialize
 
@@ -26,6 +28,8 @@ class Handle:
         self.destroyed = False
         self.parents = {}
         self.children_dict = weakref.WeakValueDictionary()
+
+        self.canary = False
 
     def register_handle(self, handle: int) -> None:
         """
@@ -89,15 +93,18 @@ class Handle:
 
         assert len(self.children_dict) == 0, "Not all children were destroyed!"
         
+        assert not self.canary, "Handle was already destroyed!"
         self._destroy()
+        self.canary = True
         check_for_errors()
-        
+                
         self.clear_parents()
 
         if self._handle in self.context.handles_dict.keys():
             self.context.handles_dict.pop(self._handle)
         
         self.destroyed = True
+        
 
 class Context:
     """
@@ -396,3 +403,30 @@ def destroy_context() -> None:
         __context = None
 
 atexit.register(destroy_context)
+
+
+def stop_threads() -> None:
+    """
+    Stops all threads in the context.
+    """
+    vkdispatch_native.context_stop_threads(get_context_handle())
+    check_for_errors()
+
+_shutdown_once = False
+
+def _sig_handler(signum, frame):
+    print("Ctrl-C received, stopping threads...")
+
+    global _shutdown_once
+    if not _shutdown_once:
+        _shutdown_once = True
+        # Flip the C++ atomic and notify all sleepers
+        stop_threads()
+        return
+    # Second Ctrl-C → default behavior (fast exit with right code)
+    signal.signal(signum, signal.SIG_DFL)
+    os.kill(os.getpid(), signum)
+
+# Install from the main thread
+signal.signal(signal.SIGINT, _sig_handler)
+signal.signal(signal.SIGTERM, _sig_handler)
