@@ -48,7 +48,7 @@ void command_list_destroy_extern(struct CommandList* command_list);
 unsigned long long command_list_get_instance_size_extern(struct CommandList* command_list);
 
 void command_list_reset_extern(struct CommandList* command_list);
-void command_list_submit_extern(struct CommandList* command_list, void* instance_buffer, unsigned int instanceCount, int index, void* signal, int recordType);
+void command_list_submit_extern(struct CommandList* command_list, void* instance_buffer, unsigned int instanceCount, int index, int recordType);
 
 struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan);
 void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set);

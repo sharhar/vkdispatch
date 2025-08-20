@@ -55,21 +55,16 @@ void command_list_reset_extern(struct CommandList* command_list) {
     LOG_INFO("Command list reset");
 }
 
-void command_list_submit_extern(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int index, void* signal, int recordType) {
+void command_list_submit_extern(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int index, int recordType) {
     struct Context* ctx = command_list->ctx;
     
     LOG_INFO("Submitting command list with handle %p to queue %d", command_list, index);
 
     if(index == -2) {
-        if(signal != NULL) {
-            set_error("Signal is not supported for all queues");
-            return;
-        }
-
         for(int i = 0; i < ctx->queues.size(); i++) {
-            ctx->work_queue->push(command_list, instance_buffer, instance_count, i, reinterpret_cast<Signal*>(signal), recordType);
+            ctx->work_queue->push(command_list, instance_buffer, instance_count, i, recordType);
         }
     } else {
-        ctx->work_queue->push(command_list, instance_buffer, instance_count, index, reinterpret_cast<Signal*>(signal), recordType);
+        ctx->work_queue->push(command_list, instance_buffer, instance_count, index, recordType);
     }
 }

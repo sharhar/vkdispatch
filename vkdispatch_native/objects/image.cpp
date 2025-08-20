@@ -79,7 +79,7 @@ struct Image* image_create_extern(struct Context* context, VkExtent3D a_extent, 
     uint64_t barriers_handle = image->barriers_handle;
     uint64_t signals_pointers_handle = image->signals_pointers_handle;
     
-    context_submit_command(ctx, "image-init", -2, NULL, RECORD_TYPE_SYNC,
+    context_submit_command(ctx, "image-init", -2, RECORD_TYPE_SYNC,
         [ctx, extent, mip_levels, block_size, layers,
             format, type, view_type, images_handle, allocations_handle,
             image_views_handle, staging_buffers_handle, staging_allocations_handle,
@@ -204,7 +204,7 @@ void image_destroy_extern(struct Image* image) {
     uint64_t staging_allocations_handle = image->staging_allocations_handle;
     uint64_t barriers_handle = image->barriers_handle;
 
-    context_submit_command(ctx, "image-destroy", -2, NULL, RECORD_TYPE_SYNC,
+    context_submit_command(ctx, "image-destroy", -2, RECORD_TYPE_SYNC,
         [ctx, images_handle, allocations_handle, image_views_handle,
             staging_buffers_handle, staging_allocations_handle, barriers_handle]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
@@ -252,7 +252,7 @@ struct Sampler* image_create_sampler_extern(struct Context* ctx,
 
     uint64_t samplers_handle = sampler->samplers_handle;
     
-    context_submit_command(ctx, "sampler-init", -2, NULL, RECORD_TYPE_SYNC,
+    context_submit_command(ctx, "sampler-init", -2, RECORD_TYPE_SYNC,
         [ctx, samplers_handle, mag_filter, mip_mode, address_mode, mip_lod_bias, min_lod, max_lod, border_color]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
         VkSamplerCreateInfo samplerCreateInfo;
@@ -286,7 +286,7 @@ void image_destroy_sampler_extern(struct Sampler* sampler) {
     struct Context* ctx = sampler->ctx;
     uint64_t samplers_handle = sampler->samplers_handle;
 
-    context_submit_command(ctx, "sampler-destroy", -2, NULL, RECORD_TYPE_SYNC,
+    context_submit_command(ctx, "sampler-destroy", -2, RECORD_TYPE_SYNC,
         [ctx, samplers_handle]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             uint64_t sampler_timestamp = ctx->handle_manager->get_handle_timestamp(indicies.queue_index, samplers_handle);
@@ -357,7 +357,7 @@ void write_to_image(struct Context* ctx, struct Image* image, void* data, VkOffs
     uint32_t mip_levels = image->mip_levels;
     uint32_t layers = image->layers;
 
-    context_submit_command(ctx, "image-write", queue_index, NULL, RECORD_TYPE_SYNC,
+    context_submit_command(ctx, "image-write", queue_index, RECORD_TYPE_SYNC,
         [ctx, images_handle, staging_buffers_handle, barriers_handle, offset, extent, baseLayer, layerCount, mip_levels, layers, signals_pointers_handle]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             LOG_INFO(
@@ -478,7 +478,7 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
 
     size_t data_size = extent.width * extent.height * extent.depth * layerCount * image->block_size;
 
-    context_submit_command(ctx, "image-read", queue_index, NULL, RECORD_TYPE_SYNC,
+    context_submit_command(ctx, "image-read", queue_index, RECORD_TYPE_SYNC,
         [ctx, offset, staging_buffers_handle, signals_pointers_handle, images_handle, barriers_handle, data_size, baseLayer, layerCount, extent]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             VkImageMemoryBarrier* barrier = (VkImageMemoryBarrier*)ctx->handle_manager->get_handle(indicies.queue_index, barriers_handle, 0);

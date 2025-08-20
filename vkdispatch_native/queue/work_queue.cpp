@@ -34,7 +34,7 @@ void WorkQueue::stop() {
     this->cv_push.notify_all();
 }
 
-void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int queue_index, Signal* signal, int record_type) {
+void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int queue_index, int record_type) {
     std::unique_lock<std::mutex> lock(this->mutex);
     
     auto start = std::chrono::high_resolution_clock::now();
@@ -134,7 +134,6 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
 
     work_header->instance_count = instance_count;
     work_header->instance_size = command_list_get_instance_size_extern(command_list);
-    work_header->signal = signal;
     work_header->commands = this->program_infos[found_indicies[0]].commands;
     work_header->program_info_index = found_indicies[0];
     work_header->record_type = (RecordType)record_type; 

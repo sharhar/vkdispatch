@@ -54,7 +54,7 @@ vd.make_context(device_ids=device_ids, queue_families=vkdispatch_queue_families)
 
 datas = {platform: {kernel_type: [] for kernel_type in kernel_types} for platform in platforms}
 
-iter_count = 16 *  1024  # Total number of iterations for the benchmark
+iter_count = 1024 *  1024  # Total number of iterations for the benchmark
 run_count = 3 # Number of times to run each benchmark
 
 identity_matrix = np.diag(np.ones(shape=(4,), dtype=np.float32))
@@ -85,7 +85,6 @@ for streams in stream_counts:
 
         datas[platform][kernel_type].append(rates)
 
-vd.set_log_level(vd.LogLevel.VERBOSE)
 
 # ----------- Print results ------------------------------------------------
 

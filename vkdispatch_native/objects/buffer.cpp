@@ -39,7 +39,7 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
     uint64_t staging_buffers_handle = buffer->staging_buffers_handle;
     uint64_t staging_allocations_handle = buffer->staging_allocations_handle;
 
-    context_submit_command(ctx, "buffer-init", -2, NULL, RECORD_TYPE_SYNC,
+    context_submit_command(ctx, "buffer-init", -2, RECORD_TYPE_SYNC,
         [ctx, size, buffers_handle, allocations_handle, staging_buffers_handle, staging_allocations_handle, signals_pointers_handle]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             VkBufferCreateInfo bufferCreateInfo;
@@ -108,7 +108,7 @@ void buffer_destroy_extern(struct Buffer* buffer) {
     uint64_t staging_buffers_handle = buffer->staging_buffers_handle;
     uint64_t staging_allocations_handle = buffer->staging_allocations_handle;
 
-    context_submit_command(ctx, "buffer-destroy", -2, NULL, RECORD_TYPE_SYNC,
+    context_submit_command(ctx, "buffer-destroy", -2, RECORD_TYPE_SYNC,
         [ctx, buffers_handle, allocations_handle, staging_buffers_handle, staging_allocations_handle]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             uint64_t buffer_timestamp = ctx->handle_manager->get_handle_timestamp(indicies.queue_index, buffers_handle);
@@ -160,7 +160,7 @@ void write_to_buffer(Context* ctx, struct Buffer* buffer, void* data, unsigned l
     uint64_t buffers_handle = buffer->buffers_handle;
     uint64_t staging_buffers_handle = buffer->staging_buffers_handle;
 
-    context_submit_command(ctx, "buffer-write", queue_index, NULL, RECORD_TYPE_SYNC,
+    context_submit_command(ctx, "buffer-write", queue_index, RECORD_TYPE_SYNC,
         [ctx, offset, size, buffers_handle, staging_buffers_handle, signals_pointers_handle]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             VkBufferCopy bufferCopy;
@@ -223,7 +223,7 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
     uint64_t buffers_handle = buffer->buffers_handle;
     uint64_t staging_buffers_handle = buffer->staging_buffers_handle;
 
-    context_submit_command(ctx, "buffer-read", queue_index, NULL, RECORD_TYPE_SYNC,
+    context_submit_command(ctx, "buffer-read", queue_index, RECORD_TYPE_SYNC,
         [ctx, offset, size, buffers_handle, staging_buffers_handle, signals_pointers_handle]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             VkBuffer stagingBuffer = (VkBuffer)ctx->handle_manager->get_handle(indicies.queue_index, staging_buffers_handle, timestamp);

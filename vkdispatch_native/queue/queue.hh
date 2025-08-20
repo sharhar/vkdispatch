@@ -17,7 +17,7 @@ struct RecordingResultData {
 struct WorkQueueItem {
     uint64_t current_index;
     struct WorkHeader* work_header;
-    Signal* signal;
+    //Signal* signal;
     RecordingResultData* recording_result;
     VkPipelineStageFlags* waitStage;
 };

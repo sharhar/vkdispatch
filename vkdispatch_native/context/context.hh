@@ -36,7 +36,6 @@ void context_submit_command(
     Context* context, 
     const char* name,
     int queue_index,
-    Signal* signal,
     RecordType record_type,
     std::function<void(VkCommandBuffer, struct ExecIndicies, void*, BarrierManager*, uint64_t)> func
 );

@@ -203,60 +203,61 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     return ctx;
 }
 
-void context_queue_wait_idle_extern(struct Context* context, int queue_index) {
-    command_list_record_command(context->command_list, 
-        "noop",
-        0,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        [](VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
-            // Do nothing
+void wait_for_queue(struct Context* ctx, int queue_index) {
+    LOG_INFO("Waiting for queue %d to finish execution...", queue_index);
+
+    uint64_t* p_timestamp = new uint64_t();
+    Signal* signal = new Signal();
+
+    *p_timestamp = 0;
+
+    context_submit_command(ctx, "queue-wait-idle", queue_index, RECORD_TYPE_SYNC,
+        [ctx, signal, p_timestamp](VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp){
+            LOG_VERBOSE("Waiting for queue %d to finish execution...", indicies.queue_index);
+            *p_timestamp = timestamp;
+            signal->notify();
+            LOG_VERBOSE("Queue %d finished execution at timestamp %llu", indicies.queue_index, *p_timestamp);
         }
     );
 
-    if(queue_index == -1) {
-        Signal* signals = new Signal[context->queues.size()];
+    LOG_VERBOSE("Waiting for signal to be notified...");
+    signal->wait();
+    LOG_VERBOSE("Signal notified, checking timestamp...");
 
-        for(int i = 0; i < context->queues.size(); i++) {
-            command_list_submit_extern(
-                context->command_list,
-                NULL,
-                1, i,
-                &signals[i],
-                RECORD_TYPE_SYNC);
-        }
-
-        for(int i = 0; i < context->queues.size(); i++) {
-            signals[i].wait();
-        }
-
-        delete[] signals;
+    if(*p_timestamp == 0) {
+        LOG_ERROR("Queue %d did not finish execution", queue_index);
     } else {
-        Signal signal;
-        command_list_submit_extern(
-            context->command_list,
-            NULL,
-            1, queue_index,
-            &signal,
-            RECORD_TYPE_SYNC);
-        signal.wait();
+        LOG_INFO("Queue %d finished execution at timestamp %llu", queue_index, *p_timestamp);
     }
 
-    command_list_reset_extern(context->command_list);
-    RETURN_ON_ERROR()
+    ctx->queues[queue_index]->wait_for_timestamp(*p_timestamp);
+
+    LOG_INFO("Queue %d finished execution", queue_index);
+
+    delete signal;
+}
+
+void context_queue_wait_idle_extern(struct Context* context, int queue_index) {
+    if(queue_index == -1) {
+        for(int i = 0; i < context->queues.size(); i++) {
+            wait_for_queue(context, i);
+        }
+    } else {
+        wait_for_queue(context, queue_index);
+    }
 }
 
 void context_submit_command(
     Context* context, 
     const char* name,
     int queue_index,
-    Signal* signal,
     RecordType record_type,
     std::function<void(VkCommandBuffer, struct ExecIndicies, void*, BarrierManager*, uint64_t)> func
 ) {
     LOG_INFO("Submitting command '%s' to queue %d", name, queue_index);
     command_list_record_command(context->command_list, name, 0, VK_PIPELINE_STAGE_TRANSFER_BIT, func);
 
-    command_list_submit_extern(context->command_list, NULL, 1, queue_index, signal, record_type);
+    command_list_submit_extern(context->command_list, NULL, 1, queue_index, record_type);
     command_list_reset_extern(context->command_list);
     RETURN_ON_ERROR(;)
 }
