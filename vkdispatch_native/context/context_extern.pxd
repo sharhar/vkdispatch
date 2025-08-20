@@ -80,6 +80,8 @@ cdef extern from "context/context_extern.hh":
 
     const char* get_error_string_extern()
 
+    void context_stop_threads_extern(Context* context)
+
 cpdef inline init(bool debug, int log_level):
     init_extern(debug, <LogLevel>(log_level))
 
@@ -187,3 +189,6 @@ cpdef inline get_error_string():
         return 0
     else:
         return error_string.decode('utf-8')
+
+cpdef inline context_stop_threads(unsigned long long context):
+    context_stop_threads_extern(<Context*>context)

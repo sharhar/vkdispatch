@@ -55,22 +55,24 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
             VkBuffer h_buffer;
             VmaAllocation h_allocation;
 
-            VK_CALL(vmaCreateBuffer(ctx->allocators[indicies.device_index], &bufferCreateInfo, &vmaAllocationCreateInfo, &h_buffer, &h_allocation, NULL));
-
             VkBufferCreateInfo stagingBufferCreateInfo;
             memset(&stagingBufferCreateInfo, 0, sizeof(VkBufferCreateInfo));
             stagingBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
             stagingBufferCreateInfo.size = size;
             stagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
-            vmaAllocationCreateInfo = {};
-            vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
-            vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+            VmaAllocationCreateInfo vmaStagingAllocationCreateInfo = {};
+            vmaStagingAllocationCreateInfo = {};
+            vmaStagingAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+            vmaStagingAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 
             VkBuffer h_staging_buffer;
             VmaAllocation h_staging_allocation;
 
-            VK_CALL(vmaCreateBuffer(ctx->allocators[indicies.device_index], &stagingBufferCreateInfo, &vmaAllocationCreateInfo, &h_staging_buffer, &h_staging_allocation, NULL));
+            ctx->vma_mutex.lock();
+            VK_CALL(vmaCreateBuffer(ctx->allocators[indicies.device_index], &bufferCreateInfo, &vmaAllocationCreateInfo, &h_buffer, &h_allocation, NULL));
+            VK_CALL(vmaCreateBuffer(ctx->allocators[indicies.device_index], &stagingBufferCreateInfo, &vmaStagingAllocationCreateInfo, &h_staging_buffer, &h_staging_allocation, NULL));
+            ctx->vma_mutex.unlock();
 
             ctx->handle_manager->set_handle(indicies.queue_index, buffers_handle, (uint64_t)h_buffer);
             ctx->handle_manager->set_handle(indicies.queue_index, allocations_handle, (uint64_t)h_allocation);
@@ -117,8 +119,10 @@ void buffer_destroy_extern(struct Buffer* buffer) {
             VkBuffer stagingBuffer = (VkBuffer)ctx->handle_manager->get_handle(indicies.queue_index, staging_buffers_handle, 0);
             VmaAllocation stagingAllocation = (VmaAllocation)ctx->handle_manager->get_handle(indicies.queue_index, staging_allocations_handle, 0);
             
+            ctx->vma_mutex.lock();
             vmaDestroyBuffer(ctx->allocators[indicies.device_index], buffer, allocation);
             vmaDestroyBuffer(ctx->allocators[indicies.device_index], stagingBuffer, stagingAllocation);
+            ctx->vma_mutex.unlock();
 
             ctx->handle_manager->destroy_handle(indicies.queue_index, buffers_handle);
             ctx->handle_manager->destroy_handle(indicies.queue_index, allocations_handle);

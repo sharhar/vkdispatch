@@ -146,6 +146,8 @@ def do_benchmark_vkdispatch(kernel, params_host, kernel_type, batch_size, iter_c
 
     total_streams = streams_per_device * len(device_ids)
 
+    vd.queue_wait_idle()   
+    
     start_time = time.perf_counter()
     for i in range(num_graph_launches):
         if kernel_type == "param_stream":
@@ -154,10 +156,15 @@ def do_benchmark_vkdispatch(kernel, params_host, kernel_type, batch_size, iter_c
 
         raw_stream_index = i % total_streams
         raw_stream_index = raw_stream_index + (stream_count - streams_per_device) * raw_stream_index // streams_per_device
-        graph.submit(instance_count=batch_size, stream_index=raw_stream_index)
+        graph.submit(instance_count=batch_size, queue_index=raw_stream_index)
 
     vd.queue_wait_idle()   
     end_time = time.perf_counter()
+
+    out_buff.destroy()
+    graph.destroy()
+
+    vd.queue_wait_idle()
 
     return end_time - start_time
 

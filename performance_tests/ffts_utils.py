@@ -3,47 +3,66 @@ from scipy import fft
 import time
 import torch
 import numpy as np
+import warp as wp
+import cupy as cp
 
 import os
 
 from typing import Tuple
 
+reference_list = []
+
+def register_object(obj):
+    reference_list.append(obj)
+
 def run_torch(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batch: int, warmup: int) -> float:
     # At the top of your script
     torch.backends.cuda.cufft_plan_cache.max_size = 1024  # Increase cache size
 
-    buffer = torch.empty(
-        shape,
-        dtype=torch.complex64,
-        device='cuda'
-    )
+    # buffer = torch.empty(
+    #     shape,
+    #     dtype=torch.complex64,
+    #     device='cuda'
+    # )
 
-    output_buffer = torch.empty_like(buffer)
+    buffer = cp.zeros(shape, dtype=np.complex64)
+
+    # with wp.ScopedCapture(device=wp.get_device("cuda:0")) as capture:
+    #     cp.fft.fft(buffer, axis=axis)
+
+    #graph = capture.graph
     
     for _ in range(warmup):
-        output_buffer = torch.fft.fft(buffer, axis=axis)
+        cp.fft.fft(buffer, axis=axis)
 
-    torch.cuda.synchronize()
+    cp.cuda.Stream.null.synchronize()  # Ensure all operations are complete
+    #torch.cuda.synchronize()
 
     gb_byte_count = 2 * np.prod(shape) * 8 / (1024 * 1024 * 1024)
     
     start_time = time.perf_counter()
 
     for _ in range(iter_count):
-        output_buffer = torch.fft.fft(buffer, axis=axis)
+        cp.fft.fft(buffer, axis=axis)
 
-    torch.cuda.synchronize()
+    cp.cuda.Stream.null.synchronize()  # Ensure all operations are complete
 
     elapsed_time = time.perf_counter() - start_time
 
     return iter_count * gb_byte_count / elapsed_time
+
 
 def run_vkdispatch(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batch: int, warmup: int) -> float:
     buffer = vd.Buffer(shape, var_type=vd.complex64)
     output_buffer = vd.Buffer(shape, var_type=vd.complex64)
     buffer_shape = buffer.shape
 
+    register_object(buffer)
+    register_object(output_buffer)
+
     graph = vd.CommandGraph()
+
+    register_object(graph)
 
     vd.fft.fft(
         output_buffer,
@@ -69,13 +88,13 @@ def run_vkdispatch(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batc
 
     elapsed_time = time.perf_counter() - start_time
 
-    buffer.destroy()
-    output_buffer.destroy()
-    graph.destroy()
+    #buffer.destroy()
+    #output_buffer.destroy()
+    #graph.destroy()
 
-    vd.queue_wait_idle()
+    #vd.queue_wait_idle()
 
-    del buffer, output_buffer, graph
+    # del buffer, output_buffer, graph
 
     return iter_count * gb_byte_count / elapsed_time
 
@@ -85,6 +104,10 @@ def run_vkfft(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batch: in
     buffer_shape = buffer.shape
 
     graph = vd.CommandGraph()
+
+    register_object(buffer)
+    register_object(output_buffer)
+    register_object(graph)
 
     vd.vkfft.fft(
         output_buffer,
@@ -105,13 +128,6 @@ def run_vkfft(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batch: in
 
     for _ in range(iter_count // iter_batch):
         graph.submit(iter_batch)
-
-    vd.queue_wait_idle()
-
-    buffer.destroy()
-    output_buffer.destroy()
-    graph.destroy()
-    vd.vkfft.clear_plan_cache()
 
     vd.queue_wait_idle()
 

@@ -5,12 +5,12 @@ import sys
 
 import vkdispatch as vd
 
-vd.initialize(debug_mode=True)
+vd.initialize(log_level=vd.LogLevel.ERROR)
 #vd.make_context(device_ids=[0])
 
 data_size = 16 * 1024 * 1024 # 16 MB
 
-test_backends = ['torch', 'vkdispatch', 'vkfft', 'scipy']
+test_backends = ['vkdispatch', 'vkfft']
 
 axis = int(sys.argv[1])
 iter_count = 1000

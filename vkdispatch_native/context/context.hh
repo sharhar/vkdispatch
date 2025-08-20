@@ -24,6 +24,7 @@ struct Context {
     HandleManager* handle_manager;
 
     std::mutex glslang_mutex;
+    std::mutex vma_mutex;
 
     void* glslang_resource_limits;
 

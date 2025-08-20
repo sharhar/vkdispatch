@@ -73,4 +73,6 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 void context_queue_wait_idle_extern(struct Context* context, int queue_index);
 void context_destroy_extern(struct Context* context);
 
+void context_stop_threads_extern(struct Context* context);
+
 #endif  // SRC_DEVICE_CONTEXT_H_

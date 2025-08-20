@@ -181,7 +181,7 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
                     queueCreateInfos[j].queueFamilyIndex,
                     i,
                     ctx->queues.size(),
-                    4, // recording_thread_count
+                    1, // recording_thread_count
                     4  // inflight_cmd_buffer_count
                 ));
             }            
@@ -298,4 +298,12 @@ void context_destroy_extern(struct Context* context) {
     #endif
 
     glslang_finalize_process();
+}
+
+void context_stop_threads_extern(struct Context* context) {
+    context->work_queue->stop();
+
+    for(int i = 0; i < context->queues.size(); i++) {
+        context->queues[i]->signal_stop();
+    }
 }

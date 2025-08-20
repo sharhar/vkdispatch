@@ -148,7 +148,7 @@ struct ComputePlan* stage_compute_plan_create_extern(struct Context* ctx, struct
     VkDescriptorSetLayoutBinding* bindings = plan->bindings;
     unsigned int binding_count = plan->binding_count;
 
-    context_submit_command(ctx, "compute-destroy", -2, NULL, RECORD_TYPE_SYNC,
+    context_submit_command(ctx, "compute-init", -2, NULL, RECORD_TYPE_SYNC,
         [ctx, code, code_size, pc_size, descriptor_set_layouts_handle, pipeline_layouts_handle, pipelines_handle, bindings, binding_count]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             ctx->handle_manager->set_handle_per_device(indicies.device_index, descriptor_set_layouts_handle, 
@@ -255,7 +255,7 @@ void stage_compute_plan_destroy_extern(ComputePlan* plan) {
     uint64_t pipeline_layouts_handle = plan->pipelineLayouts_handle;
     uint64_t pipelines_handle = plan->pipelines_handle;
 
-    context_submit_command(ctx, "compute-init", -2, NULL, RECORD_TYPE_SYNC,
+    context_submit_command(ctx, "compute-destroy", -2, NULL, RECORD_TYPE_SYNC,
         [ctx, descriptor_set_layouts_handle, pipeline_layouts_handle, pipelines_handle]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             VkDevice device = ctx->devices[indicies.device_index];

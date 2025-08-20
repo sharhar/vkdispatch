@@ -34,6 +34,7 @@ public:
         int recording_thread_count,
         int inflight_cmd_buffer_count);
 
+    void signal_stop();
     void destroy();
 
     void ingest_worker();
