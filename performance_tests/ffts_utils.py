@@ -16,36 +16,30 @@ def register_object(obj):
     reference_list.append(obj)
 
 def run_torch(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batch: int, warmup: int) -> float:
-    # At the top of your script
-    torch.backends.cuda.cufft_plan_cache.max_size = 1024  # Increase cache size
 
-    # buffer = torch.empty(
-    #     shape,
-    #     dtype=torch.complex64,
-    #     device='cuda'
-    # )
+    buffer = torch.empty(
+        shape,
+        dtype=torch.complex64,
+        device='cuda'
+    )
 
-    buffer = cp.zeros(shape, dtype=np.complex64)
+    output_buffer = torch.empty_like(buffer)
 
-    # with wp.ScopedCapture(device=wp.get_device("cuda:0")) as capture:
-    #     cp.fft.fft(buffer, axis=axis)
+    register_object(buffer)
 
-    #graph = capture.graph
-    
     for _ in range(warmup):
-        cp.fft.fft(buffer, axis=axis)
+        output_buffer = torch.fft.fft(buffer, dim=axis)
 
-    cp.cuda.Stream.null.synchronize()  # Ensure all operations are complete
-    #torch.cuda.synchronize()
+    torch.cuda.synchronize()
 
     gb_byte_count = 2 * np.prod(shape) * 8 / (1024 * 1024 * 1024)
     
     start_time = time.perf_counter()
 
     for _ in range(iter_count):
-        cp.fft.fft(buffer, axis=axis)
+        output_buffer = torch.fft.fft(buffer, dim=axis)
 
-    cp.cuda.Stream.null.synchronize()  # Ensure all operations are complete
+    torch.cuda.synchronize()
 
     elapsed_time = time.perf_counter() - start_time
 

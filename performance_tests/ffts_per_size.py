@@ -10,7 +10,7 @@ vd.initialize(log_level=vd.LogLevel.ERROR)
 
 data_size = 16 * 1024 * 1024 # 16 MB
 
-test_backends = ['vkdispatch', 'vkfft']
+test_backends = ['torch', 'vkdispatch', 'vkfft', 'scipy']
 
 axis = int(sys.argv[1])
 iter_count = 1000
