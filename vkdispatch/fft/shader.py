@@ -134,15 +134,6 @@ def make_fft_shader(
 
         return shader_object, resources.exec_size
 
-def get_cache_info():
-    return make_fft_shader.cache_info()
-
-def print_cache_info():
-    print(get_cache_info())
-
-def cache_clear():
-    return make_fft_shader.cache_clear()
-
 @lru_cache(maxsize=None)
 def make_convolution_shader(
         buffer_shape: Tuple,
@@ -244,11 +235,16 @@ def make_convolution_shader(
 
         return shader_object, resources.exec_size
 
+def get_cache_info():
+    return make_fft_shader.cache_info()
+
 def get_convoliution_cache_info():
     return make_convolution_shader.cache_info()
 
-def print_convoliution_cache_info():
+def print_cache_info():
     print(get_cache_info())
+    print(get_convoliution_cache_info())
 
-def convolution_cache_clear():
-    return make_convolution_shader.cache_clear()
+def cache_clear():
+    make_convolution_shader.cache_clear()
+    make_fft_shader.cache_clear()

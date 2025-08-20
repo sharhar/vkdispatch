@@ -2,6 +2,7 @@ from typing import List
 from typing import Tuple
 from typing import Union
 from typing import Dict
+from typing import MutableMapping
 
 import atexit
 import weakref
@@ -17,7 +18,7 @@ class Handle:
     destroyed: bool
 
     parents: Dict[int, "Handle"]
-    children_dict: weakref.WeakValueDictionary[int, "Handle"]
+    children_dict: MutableMapping[int, "Handle"]
 
     def __init__(self):
         self.context = get_context()
@@ -43,6 +44,15 @@ class Handle:
         self.parents[parent._handle] = parent
 
         parent.add_child_handle(self)
+    
+    def clear_parents(self) -> None:
+        """
+        Clears the parent handles.
+        """
+        for parent in self.parents.values():
+            parent.remove_child_handle(self)
+
+        self.parents.clear()
 
     def add_child_handle(self, child: "Handle") -> None:
         """
@@ -52,6 +62,15 @@ class Handle:
             raise ValueError(f"Child handle {child._handle} already exists in parent handle!")
         
         self.children_dict[child._handle] = child
+
+    def remove_child_handle(self, child: "Handle") -> None:
+        """
+        Removes a child handle from the current handle.
+        """
+        if child._handle not in self.children_dict.keys():
+            raise ValueError(f"Child handle {child._handle} does not exist in parent handle!")
+        
+        self.children_dict.pop(child._handle)
 
     def _destroy(self) -> None:
         raise NotImplementedError("destroy is an abstract method and must be implemented by subclasses.")
@@ -73,8 +92,7 @@ class Handle:
         self._destroy()
         check_for_errors()
         
-        for parent in self.parents.values():
-            parent.children_dict.pop(self._handle)
+        self.clear_parents()
 
         if self._handle in self.context.handles_dict.keys():
             self.context.handles_dict.pop(self._handle)
@@ -110,7 +128,7 @@ class Context:
     max_workgroup_count: Tuple[int, int, int]
     uniform_buffer_alignment: int
     max_shared_memory: int
-    handles_dict: weakref.WeakValueDictionary[int, Handle]
+    handles_dict: MutableMapping[int, Handle]
 
     def __init__(
         self,

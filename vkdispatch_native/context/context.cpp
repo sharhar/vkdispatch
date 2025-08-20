@@ -253,6 +253,7 @@ void context_submit_command(
     RecordType record_type,
     std::function<void(VkCommandBuffer, struct ExecIndicies, void*, BarrierManager*, uint64_t)> func
 ) {
+    LOG_INFO("Submitting command '%s' to queue %d", name, queue_index);
     command_list_record_command(context->command_list, name, 0, VK_PIPELINE_STAGE_TRANSFER_BIT, func);
 
     command_list_submit_extern(context->command_list, NULL, 1, queue_index, signal, record_type);

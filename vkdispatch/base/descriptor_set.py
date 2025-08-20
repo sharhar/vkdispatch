@@ -7,6 +7,8 @@ from .compute_plan import ComputePlan
 from .buffer import Buffer
 from .image import Sampler
 
+from .init import log_info
+
 class DescriptorSet(Handle):
     """TODO: Docstring"""
     def __init__(self, compute_plan: ComputePlan) -> None:
@@ -19,6 +21,8 @@ class DescriptorSet(Handle):
         self.register_parent(compute_plan)
     
     def _destroy(self) -> None:
+        log_info(f"Destroying descriptor set {self._handle}")
+
         vkdispatch_native.descriptor_set_destroy(self._handle)
         check_for_errors()
 
