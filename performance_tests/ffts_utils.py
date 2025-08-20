@@ -43,18 +43,18 @@ def run_vkdispatch(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batc
     output_buffer = vd.Buffer(shape, var_type=vd.complex64)
     buffer_shape = buffer.shape
 
-    cmd_stream = vd.CommandStream()
+    graph = vd.CommandGraph()
 
     vd.fft.fft(
         output_buffer,
         buffer,
         buffer_shape=buffer_shape,
-        cmd_stream=cmd_stream,
+        graph=graph,
         axis=axis,
     )
 
     for _ in range(warmup):
-        cmd_stream.submit(iter_batch)
+        graph.submit(iter_batch)
 
     vd.queue_wait_idle()
 
@@ -63,7 +63,7 @@ def run_vkdispatch(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batc
     start_time = time.perf_counter()
 
     for _ in range(iter_count // iter_batch):
-        cmd_stream.submit(iter_batch)
+        graph.submit(iter_batch)
 
     vd.queue_wait_idle()
 
@@ -71,11 +71,11 @@ def run_vkdispatch(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batc
 
     buffer.destroy()
     output_buffer.destroy()
-    cmd_stream.destroy()
+    graph.destroy()
 
     vd.queue_wait_idle()
 
-    del buffer, output_buffer, cmd_stream
+    del buffer, output_buffer, graph
 
     return iter_count * gb_byte_count / elapsed_time
 
@@ -84,18 +84,18 @@ def run_vkfft(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batch: in
     output_buffer = vd.Buffer(shape, var_type=vd.complex64)
     buffer_shape = buffer.shape
 
-    cmd_stream = vd.CommandStream()
+    graph = vd.CommandGraph()
 
     vd.vkfft.fft(
         output_buffer,
         buffer,
         buffer_shape=buffer_shape,
-        cmd_stream=cmd_stream,
+        graph=graph,
         axis=axis,
     )
 
     for _ in range(warmup):
-        cmd_stream.submit(iter_batch)
+        graph.submit(iter_batch)
 
     vd.queue_wait_idle()
 
@@ -104,13 +104,14 @@ def run_vkfft(shape: Tuple[int, ...], axis: int, iter_count: int, iter_batch: in
     start_time = time.perf_counter()
 
     for _ in range(iter_count // iter_batch):
-        cmd_stream.submit(iter_batch)
+        graph.submit(iter_batch)
 
     vd.queue_wait_idle()
 
     buffer.destroy()
     output_buffer.destroy()
-    cmd_stream.destroy()
+    graph.destroy()
+    vd.vkfft.clear_plan_cache()
 
     vd.queue_wait_idle()
 
