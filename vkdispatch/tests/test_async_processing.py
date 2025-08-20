@@ -290,3 +290,5 @@ def test_async_commands():
             vkbuffer = get_buffer(i, config).read(0)
 
             assert np.allclose(vkbuffer, numpy_buffer, atol=0.00005)
+    
+    clear_caches()

@@ -235,7 +235,7 @@ void stage_fft_plan_destroy_extern(FFTPlan* plan) {
     uint64_t fences_handle = plan->fences_handle;
     uint64_t vkfft_applications_handle = plan->vkfft_applications_handle;
 
-    context_submit_command(ctx, "compute-destroy", -2, NULL, RECORD_TYPE_SYNC,
+    context_submit_command(ctx, "fft-destroy", -2, NULL, RECORD_TYPE_SYNC,
         [ctx, recorder_count, vkfft_applications_handle, fences_handle]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             for(int j = 0; j < recorder_count; j++) {

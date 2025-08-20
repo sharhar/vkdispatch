@@ -40,6 +40,8 @@ def test_fft_1d():
                 assert np.allclose(np.fft.fft(data, axis=axis), test_data.read(0), atol=1e-3)
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
+    
+    vd.vkfft.clear_plan_cache()
 
 def test_fft_2d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
@@ -61,6 +63,8 @@ def test_fft_2d():
             assert np.allclose(np.fft.fft2(data), test_data.read(0), atol=1e-2)
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
+    
+    vd.vkfft.clear_plan_cache()
 
 def test_fft_3d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
@@ -82,6 +86,8 @@ def test_fft_3d():
             assert np.allclose(np.fft.fftn(data), test_data.read(0), atol=5e-2)
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
+    
+    vd.vkfft.clear_plan_cache()
 
 def test_ifft_1d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
@@ -105,6 +111,8 @@ def test_ifft_1d():
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
 
+    vd.vkfft.clear_plan_cache()
+
 def test_ifft_2d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
@@ -125,6 +133,8 @@ def test_ifft_2d():
             assert np.allclose(np.fft.ifft2(data), test_data.read(0), atol=1e-2)
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
+    
+    vd.vkfft.clear_plan_cache()
 
 def test_ifft_3d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
@@ -146,6 +156,8 @@ def test_ifft_3d():
             assert np.allclose(np.fft.ifftn(data), test_data.read(0), atol=5e-2)
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
+    
+    vd.vkfft.clear_plan_cache()
 
 def test_rfft_1d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
@@ -168,6 +180,8 @@ def test_rfft_1d():
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
 
+    vd.vkfft.clear_plan_cache()
+
 def test_rfft_2d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
@@ -188,6 +202,8 @@ def test_rfft_2d():
             assert np.allclose(np.fft.rfft2(data), test_data.read_fourier(0), atol=1e-2)
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
+    
+    vd.vkfft.clear_plan_cache()
 
 def test_rfft_3d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
@@ -209,6 +225,8 @@ def test_rfft_3d():
             assert np.allclose(np.fft.rfftn(data), test_data.read_fourier(0), atol=5e-2)
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
+    
+    vd.vkfft.clear_plan_cache()
 
 def test_irfft_1d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
@@ -230,10 +248,10 @@ def test_irfft_1d():
             assert np.allclose(data, test_data.read_real(0), atol=1e-3)
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
+    
+    vd.vkfft.clear_plan_cache()
 
 def test_irfft_2d():
-    #vd.set_log_level(vd.LogLevel.INFO)
-
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
@@ -253,6 +271,8 @@ def test_irfft_2d():
             assert np.allclose(data, test_data.read_real(0), atol=1e-3)
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
+    
+    vd.vkfft.clear_plan_cache()
 
 def test_irfft_3d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
@@ -274,3 +294,5 @@ def test_irfft_3d():
             assert np.allclose(data, test_data.read_real(0), atol=1e-3)
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
+    
+    vd.vkfft.clear_plan_cache()

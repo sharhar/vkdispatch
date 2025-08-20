@@ -19,7 +19,6 @@ class CommandList(Handle):
         _handle (int): The handle to the command list.
     """
 
-
     def __init__(self) -> None:
         super().__init__()
 
@@ -52,6 +51,8 @@ class CommandList(Handle):
             descriptor_set (DescriptorSet): The descriptor set to bind to the compute plan.
             blocks (Tuple[int, int, int]): The number of blocks to run the compute shader in.
         """
+        self.register_parent(plan)
+        self.register_parent(descriptor_set)
 
         vkdispatch_native.stage_compute_record(
             self._handle,
@@ -68,6 +69,8 @@ class CommandList(Handle):
         """
         vkdispatch_native.command_list_reset(self._handle)
         check_for_errors()
+
+        self.clear_parents()
 
     def submit(self, data: Optional[bytes] = None, stream_index: int = -2, instance_count: Optional[int] = None) -> None:
         """

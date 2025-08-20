@@ -79,14 +79,10 @@ class CommandStream(vd.CommandList):
         self.uniform_constants_size = 0
         self.uniform_constants_buffer = vd.Buffer(shape=(4096,), var_type=vd.uint32) # Create a base static constants buffer at size 4k bytes
 
-    def __del__(self) -> None:
-        pass  # vkdispatch_native.command_list_destroy(self._handle)
-
     def reset(self) -> None:
         """Reset the command stream by clearing the push constant buffer and descriptor
         set lists.
         """
-
         super().reset()
 
         self.pc_builder.reset()
@@ -99,8 +95,6 @@ class CommandStream(vd.CommandList):
 
         self.uniform_descriptors = []
         self.buffers_valid = False
-
-        super().reset()
     
     def bind_var(self, name: str):
         def register_var(key: Tuple[str, str]):
