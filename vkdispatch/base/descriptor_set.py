@@ -21,8 +21,6 @@ class DescriptorSet(Handle):
         self.register_parent(compute_plan)
     
     def _destroy(self) -> None:
-        log_info(f"Destroying descriptor set {self._handle}")
-
         vkdispatch_native.descriptor_set_destroy(self._handle)
         check_for_errors()
 

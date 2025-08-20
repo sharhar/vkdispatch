@@ -7,6 +7,11 @@ import vkdispatch.codegen as vc
 import matplotlib.colors as mcolors
 import colorsys
 
+reference_list = []
+
+def register_object(obj):
+    reference_list.append(obj)
+
 # ----------- Define kernels for measuring launch overheads ---------------
 
 @wp.kernel
@@ -140,6 +145,9 @@ def do_benchmark_vkdispatch(kernel, params_host, kernel_type, batch_size, iter_c
         graph=graph
     )
 
+    register_object(out_buff)
+    register_object(graph)
+
     assert iter_count % batch_size == 0, "iter_count must be a multiple of batch_size"
 
     num_graph_launches = iter_count // batch_size
@@ -161,10 +169,7 @@ def do_benchmark_vkdispatch(kernel, params_host, kernel_type, batch_size, iter_c
     vd.queue_wait_idle()   
     end_time = time.perf_counter()
 
-    out_buff.destroy()
-    graph.destroy()
-
-    vd.queue_wait_idle()
+    gc.collect()
 
     return end_time - start_time
 

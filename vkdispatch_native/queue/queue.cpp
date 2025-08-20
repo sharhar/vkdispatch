@@ -188,7 +188,6 @@ void ingest_work_item(
 
     work_item.current_index = current_index;
     work_item.work_header = work_header;
-    work_item.signal = work_header->signal;
     work_item.recording_result = &queue->recording_results[current_index % queue->inflight_cmd_buffer_count];
     work_item.recording_result->state = &queue->commandBufferStates[current_index % queue->inflight_cmd_buffer_count];
     work_item.waitStage = &queue->waitStages[current_index % queue->inflight_cmd_buffer_count];
@@ -273,6 +272,8 @@ int record_work_item(
     barrier_manager.reset();
 
     queue->ctx->work_queue->finish(work_item.work_header);
+
+    LOG_INFO("Finished recording work item %p on queue %d, worker %d, instance count %d", work_item.work_header, queue->queue_index, worker_id, work_item.work_header->instance_count);
 
     return cmd_buffer_index;
 }
@@ -366,6 +367,8 @@ void submit_work_item(
     struct WorkQueueItem& work_item,
     Queue* queue) {
 
+    LOG_INFO("Submitting work item %p of index (%llu) to queue %d", work_item.work_header, work_item.current_index, queue->queue_index);
+
     const uint64_t signalValue = work_item.current_index + 1;
 
     VkTimelineSemaphoreSubmitInfo timeline_submit_info = { };
@@ -390,17 +393,11 @@ void submit_work_item(
     submit_info.signalSemaphoreCount = 1;
     submit_info.pSignalSemaphores    = &queue->timeline_semaphore;
 
+    LOG_INFO("Submitting command buffer %p with signal value %llu to queue %d", work_item.recording_result->commandBuffer, signalValue, queue->queue_index);
+
     VK_CALL(vkQueueSubmit(queue->queue, 1, &submit_info, VK_NULL_HANDLE));
 
-    if (work_item.signal != nullptr) {
-        VkSemaphoreWaitInfo wait_info = { };
-        wait_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-        wait_info.semaphoreCount = 1;
-        wait_info.pSemaphores = &queue->timeline_semaphore;
-        wait_info.pValues     = &signalValue;
-        VK_CALL(vkWaitSemaphores(queue->device, &wait_info, UINT64_MAX));
-        work_item.signal->notify();
-    }
+    LOG_INFO("Submitted command buffer %p with signal value %llu to queue %d", work_item.recording_result->commandBuffer, signalValue, queue->queue_index);
 }
 
 void Queue::submit_worker() {
@@ -451,6 +448,10 @@ void Queue::fused_worker() {
 
         ingest_work_item(work_item, this, work_queue, work_header, current_index);
         current_index++;
+
+        if(!this->run_queue.load()) {
+            break;
+        }
 
         LOG_INFO("Fused Worker has work %p of index (%d)", work_item.work_header, work_item.current_index);
         cmd_buffer_index = record_work_item(work_item, this, barrier_manager, cmd_buffer_index, 0);

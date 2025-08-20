@@ -66,7 +66,7 @@ struct DescriptorSet* descriptor_set_create_extern(struct ComputePlan* plan) {
     unsigned int binding_count = plan->binding_count;
     VkDescriptorPoolSize* poolSizes = plan->poolSizes;
 
-    context_submit_command(ctx, "descriptor-set-init", -2, NULL, RECORD_TYPE_SYNC,
+    context_submit_command(ctx, "descriptor-set-init", -2, RECORD_TYPE_SYNC,
         [ctx, descriptor_set_layouts_handle, sets_handle, pools_handle, binding_count, poolSizes]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             LOG_VERBOSE("Creating Descriptor Set for device %d on queue %d recorder %d", indicies.device_index, indicies.queue_index, indicies.recorder_index);
@@ -114,7 +114,7 @@ void descriptor_set_destroy_extern(struct DescriptorSet* descriptor_set) {
 
     BarrierInfoManager* barrier_info_manager = descriptor_set->barrier_info_manager;
 
-    context_submit_command(ctx, "descriptor-set-destroy", -2, NULL, RECORD_TYPE_SYNC,
+    context_submit_command(ctx, "descriptor-set-destroy", -2, RECORD_TYPE_SYNC,
         [ctx, sets_handle, pools_handle, barrier_info_manager]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             LOG_VERBOSE("Destroying Descriptor Set for device %d on queue %d recorder %d", indicies.device_index, indicies.queue_index, indicies.recorder_index);
@@ -166,7 +166,7 @@ void descriptor_set_write_buffer_extern(
 
     descriptor_set->buffer_barrier_list.push_back({buffers_handle, read_access, write_access});   
     
-    context_submit_command(ctx, "descriptor-set-write-buffer", -2, NULL, RECORD_TYPE_SYNC,
+    context_submit_command(ctx, "descriptor-set-write-buffer", -2, RECORD_TYPE_SYNC,
         [ctx, sets_handle, buffers_handle, offset, range, binding, uniform]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             VkDescriptorBufferInfo buffDesc;
@@ -210,7 +210,7 @@ void descriptor_set_write_image_extern(
     uint64_t image_views_handle = image->image_views_handle;
     uint64_t samplers_handle = sampler->samplers_handle;
 
-    context_submit_command(ctx, "descriptor-set-write-image", -2, NULL, RECORD_TYPE_SYNC,
+    context_submit_command(ctx, "descriptor-set-write-image", -2, RECORD_TYPE_SYNC,
         [ctx, sets_handle, samplers_handle, image_views_handle, binding]
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             VkSampler h_sampler = (VkSampler)ctx->handle_manager->get_handle(indicies.queue_index, samplers_handle, 0);
