@@ -55,9 +55,9 @@ def execute_fft_plan(
         config: FFTConfig,
         kernel: vd.Buffer = None,
         input: vd.Buffer = None,
-        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None):
-    if cmd_stream is None:
-        cmd_stream = vd.global_cmd_stream()
+        graph: Union[vd.CommandList, vd.CommandGraph, None] = None):
+    if graph is None:
+        graph = vd.global_graph()
     
     if config not in __fft_plans:
         __fft_plans[config] = VkFFTPlan(
@@ -78,123 +78,11 @@ def execute_fft_plan(
         )
     
     plan = __fft_plans[config]
-    plan.record(cmd_stream, buffer, inverse, kernel, input)
+    plan.record(graph, buffer, inverse, kernel, input)
 
-    if isinstance(cmd_stream, vd.CommandStream):
-        if cmd_stream.submit_on_record:
-            cmd_stream.submit()
-
-def fft_old(
-        buffer: vd.Buffer,
-        input: vd.Buffer = None,
-        axes: List[int] = None,
-        padding: List[Tuple[int, int]] = None, 
-        pad_frequency_domain: bool = False,
-        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None,
-        keep_shader_code: bool = False):
-    
-    execute_fft_plan(
-        buffer,
-        False,
-        cmd_stream = cmd_stream,
-        config = FFTConfig(
-            buffer_handle=buffer._handle,
-            shape=sanitize_input_tuple(buffer.shape),
-            axes=sanitize_input_tuple(axes),
-            padding=sanitize_input_tuple(padding),
-            pad_freq_domain=pad_frequency_domain,
-            input_shape=sanitize_input_tuple(input.shape if input is not None else None),
-            input_type=input.var_type if input is not None else None,
-            keep_shader_code=keep_shader_code
-        ),
-        input=input
-    )
-
-def ifft_old(
-        buffer: vd.Buffer, 
-        input: vd.Buffer = None,
-        axes: List[int] = None, 
-        normalize: bool = False,
-        padding: List[Tuple[int, int]] = None, 
-        pad_frequency_domain: bool = False,
-        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None,\
-        keep_shader_code: bool = False):
-
-    execute_fft_plan(
-        buffer,
-        True,
-        cmd_stream = cmd_stream,
-        config = FFTConfig(
-            buffer_handle=buffer._handle,
-            shape=sanitize_input_tuple(buffer.shape),
-            axes=sanitize_input_tuple(axes),
-            normalize=normalize,
-            padding=sanitize_input_tuple(padding),
-            pad_freq_domain=pad_frequency_domain,
-            input_shape=sanitize_input_tuple(input.shape if input is not None else None),
-            input_type=input.var_type if input is not None else None,
-            keep_shader_code=keep_shader_code
-        ),
-        input=input
-        )
-
-def rfft_old(
-        buffer: vd.RFFTBuffer,
-        input: vd.Buffer = None,
-        axes: List[int] = None,
-        padding: List[Tuple[int, int]] = None, 
-        pad_frequency_domain: bool = False,
-        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None,
-        keep_shader_code: bool = False):
-    assert buffer.shape[-1] > 2, "Buffer shape must have at least 3 elements in the last dimension"
-
-    execute_fft_plan(
-        buffer,
-        False,
-        cmd_stream = cmd_stream,
-        config = FFTConfig(
-            buffer_handle=buffer._handle,
-            shape=sanitize_input_tuple(buffer.real_shape),
-            do_r2c=True,
-            axes=sanitize_input_tuple(axes),
-            padding=sanitize_input_tuple(padding),
-            pad_freq_domain=pad_frequency_domain,
-            input_shape=sanitize_input_tuple(input.shape if input is not None else None),
-            input_type=input.var_type if input is not None else None,
-            keep_shader_code=keep_shader_code
-        ),
-        input=input
-    )
-
-def irfft_old(
-        buffer: vd.RFFTBuffer,
-        input: vd.Buffer = None,
-        axes: List[int] = None, 
-        normalize: bool = False,
-        padding: List[Tuple[int, int]] = None, 
-        pad_frequency_domain: bool = False,
-        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None,
-        keep_shader_code: bool = False):
-    assert buffer.shape[-1] > 2, "Buffer shape must have at least 3 elements in the last dimension"
-
-    execute_fft_plan(
-        buffer,
-        True,
-        cmd_stream = cmd_stream,
-        config = FFTConfig(
-            buffer_handle=buffer._handle,
-            shape=sanitize_input_tuple(buffer.real_shape),
-            do_r2c=True,
-            axes=sanitize_input_tuple(axes),
-            normalize=normalize,
-            padding=sanitize_input_tuple(padding),
-            pad_freq_domain=pad_frequency_domain,
-            input_shape=sanitize_input_tuple(input.shape if input is not None else None),
-            input_type=input.var_type if input is not None else None,
-            keep_shader_code=keep_shader_code
-        ),
-        input=input
-    )
+    if isinstance(graph, vd.CommandGraph):
+        if graph.submit_on_record:
+            graph.submit()
 
 def sanitize_2d_convolution_buffer_shape(in_shape: vd.Buffer):
     if in_shape is None:
@@ -215,7 +103,7 @@ def convolve_2Dreal(
         input: Union[vd.Buffer[vd.float32], vd.RFFTBuffer] = None,
         normalize: bool = False,
         conjugate_kernel: bool = False,
-        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None,
+        graph: Union[vd.CommandList, vd.CommandGraph, None] = None,
         keep_shader_code: bool = False):
 
     buffer_shape = sanitize_2d_convolution_buffer_shape(buffer)
@@ -238,7 +126,7 @@ def convolve_2Dreal(
     execute_fft_plan(
         buffer,
         False,
-        cmd_stream = cmd_stream,
+        graph = graph,
         config = FFTConfig(
             buffer_handle=buffer._handle,
             shape=sanitize_input_tuple(buffer.real_shape),
@@ -259,7 +147,7 @@ def create_kernel_2Dreal(
         kernel: vd.RFFTBuffer,
         shape: Tuple[int, ...] = None,
         feature_count: int = 1,
-        cmd_stream: Union[vd.CommandList, vd.CommandStream, None] = None,
+        graph: Union[vd.CommandList, vd.CommandGraph, None] = None,
         keep_shader_code: bool = False) -> vd.RFFTBuffer:
     
     if shape is None:
@@ -272,7 +160,7 @@ def create_kernel_2Dreal(
     execute_fft_plan(
         kernel,
         False,
-        cmd_stream = cmd_stream,
+        graph = graph,
         config = FFTConfig(
             buffer_handle=kernel._handle,
             shape=sanitize_input_tuple(kernel.real_shape),
@@ -291,7 +179,7 @@ def fft(
         buffer: vd.Buffer,
         input_buffer: vd.Buffer = None,
         buffer_shape: Tuple = None,
-        cmd_stream: vd.CommandStream = None,
+        graph: vd.CommandGraph = None,
         print_shader: bool = False,
         axis: int = None,
         inverse: bool = False,
@@ -323,68 +211,68 @@ def fft(
     execute_fft_plan(
         buffer,
         inverse=inverse,
-        cmd_stream=cmd_stream,
+        graph=graph,
         input=input_buffer,
         config=config
     )
 
-def fft2(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+def fft2(buffer: vd.Buffer, graph: vd.CommandGraph = None, print_shader: bool = False):
     assert len(buffer.shape) == 2 or len(buffer.shape) == 3, 'Buffer must have 2 or 3 dimensions'
 
     axes = (len(buffer.shape) - 2, len(buffer.shape) - 1)
 
-    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=axes)
+    fft(buffer, graph=graph, print_shader=print_shader, axis=axes)
 
-def fft3(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+def fft3(buffer: vd.Buffer, graph: vd.CommandGraph = None, print_shader: bool = False):
     assert len(buffer.shape) == 3, 'Buffer must have 3 dimensions'
 
-    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=(0, 1, 2))
+    fft(buffer, graph=graph, print_shader=print_shader, axis=(0, 1, 2))
 
 def ifft(
         buffer: vd.Buffer,
-        cmd_stream: vd.CommandStream = None,
+        graph: vd.CommandGraph = None,
         print_shader: bool = False,
         axis: int = None,
         normalize: bool = True):
-    fft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=axis, inverse=True, normalize_inverse=normalize)
+    fft(buffer, graph=graph, print_shader=print_shader, axis=axis, inverse=True, normalize_inverse=normalize)
 
-def ifft2(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+def ifft2(buffer: vd.Buffer, graph: vd.CommandGraph = None, print_shader: bool = False):
     assert len(buffer.shape) == 2 or len(buffer.shape) == 3, 'Buffer must have 2 or 3 dimensions'
 
     axes = (len(buffer.shape) - 2, len(buffer.shape) - 1)
 
-    ifft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=axes)
+    ifft(buffer, graph=graph, print_shader=print_shader, axis=axes)
 
-def ifft3(buffer: vd.Buffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+def ifft3(buffer: vd.Buffer, graph: vd.CommandGraph = None, print_shader: bool = False):
     assert len(buffer.shape) == 3, 'Buffer must have 3 dimensions'
 
-    ifft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=(0, 1, 2))
+    ifft(buffer, graph=graph, print_shader=print_shader, axis=(0, 1, 2))
 
 
-def rfft(buffer: vd.RFFTBuffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False, axis: int = None):
-    fft(buffer, buffer_shape=buffer.real_shape, cmd_stream=cmd_stream, print_shader=print_shader, r2c=True, axis=axis)
+def rfft(buffer: vd.RFFTBuffer, graph: vd.CommandGraph = None, print_shader: bool = False, axis: int = None):
+    fft(buffer, buffer_shape=buffer.real_shape, graph=graph, print_shader=print_shader, r2c=True, axis=axis)
 
-def rfft2(buffer: vd.RFFTBuffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+def rfft2(buffer: vd.RFFTBuffer, graph: vd.CommandGraph = None, print_shader: bool = False):
     assert len(buffer.real_shape) == 2 or len(buffer.real_shape) == 3, 'Buffer must have 2 or 3 dimensions'
 
     axes = (len(buffer.shape) - 2, len(buffer.shape) - 1)
-    rfft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=axes)
+    rfft(buffer, graph=graph, print_shader=print_shader, axis=axes)
 
-def rfft3(buffer: vd.RFFTBuffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+def rfft3(buffer: vd.RFFTBuffer, graph: vd.CommandGraph = None, print_shader: bool = False):
     assert len(buffer.real_shape) == 3, 'Buffer must have 3 dimensions'
 
-    rfft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=(0, 1, 2))
+    rfft(buffer, graph=graph, print_shader=print_shader, axis=(0, 1, 2))
 
-def irfft(buffer: vd.RFFTBuffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False, normalize: bool = True, axis: int = None):
-    fft(buffer, buffer_shape=buffer.real_shape, cmd_stream=cmd_stream, print_shader=print_shader, inverse=True, normalize_inverse=normalize, r2c=True, axis=axis)
+def irfft(buffer: vd.RFFTBuffer, graph: vd.CommandGraph = None, print_shader: bool = False, normalize: bool = True, axis: int = None):
+    fft(buffer, buffer_shape=buffer.real_shape, graph=graph, print_shader=print_shader, inverse=True, normalize_inverse=normalize, r2c=True, axis=axis)
 
-def irfft2(buffer: vd.RFFTBuffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+def irfft2(buffer: vd.RFFTBuffer, graph: vd.CommandGraph = None, print_shader: bool = False):
     assert len(buffer.real_shape) == 2 or len(buffer.real_shape) == 3, 'Buffer must have 2 or 3 dimensions'
 
     axes = (len(buffer.shape) - 2, len(buffer.shape) - 1)
-    irfft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=axes)
+    irfft(buffer, graph=graph, print_shader=print_shader, axis=axes)
 
-def irfft3(buffer: vd.RFFTBuffer, cmd_stream: vd.CommandStream = None, print_shader: bool = False):
+def irfft3(buffer: vd.RFFTBuffer, graph: vd.CommandGraph = None, print_shader: bool = False):
     assert len(buffer.real_shape) == 3, 'Buffer must have 3 dimensions'
 
-    irfft(buffer, cmd_stream=cmd_stream, print_shader=print_shader, axis=(0, 1, 2))
+    irfft(buffer, graph=graph, print_shader=print_shader, axis=(0, 1, 2))

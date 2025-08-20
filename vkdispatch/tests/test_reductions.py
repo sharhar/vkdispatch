@@ -70,18 +70,13 @@ def test_listed_reductions():
         ind = vc.mapping_index()
         return vc.sin(buffer[ind] + buffer2[ind])
 
-    cmd_stream = vd.CommandStream()
+    graph = vd.CommandGraph()
 
-    old_list = vd.set_global_cmd_stream(cmd_stream)
+    old_graph = vd.set_global_graph(graph)
+    res_buf = sum_map(buf, buf2, graph=graph)
+    vd.set_global_graph(old_graph)
 
-    res_buf = sum_map(buf, buf2, cmd_stream=cmd_stream)
-    
-    #print(sum_map.stage1)
-    #print(sum_map.stage1.shader_description)
-
-    vd.set_global_cmd_stream(old_list)
-
-    cmd_stream.submit()
+    graph.submit()
 
     # Read the data from the buffer
     read_data = res_buf.read(0)

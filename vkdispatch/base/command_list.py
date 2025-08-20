@@ -72,7 +72,7 @@ class CommandList(Handle):
 
         self.clear_parents()
 
-    def submit(self, data: Optional[bytes] = None, stream_index: int = -2, instance_count: Optional[int] = None) -> None:
+    def submit(self, data: Optional[bytes] = None, queue_index: int = -2, instance_count: Optional[int] = None) -> None:
         """
         Submit the command list to the specified device with additional data to
         """
@@ -93,6 +93,6 @@ class CommandList(Handle):
             assert self.get_instance_size() * instance_count == len(data), "Data length must be the product of the instance size and instance count!"
 
         vkdispatch_native.command_list_submit(
-            self._handle, data, instance_count, stream_index
+            self._handle, data, instance_count, queue_index
         )
         check_for_errors()

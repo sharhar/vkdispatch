@@ -46,8 +46,8 @@ from .base.command_list import CommandList
 
 from .execution_pipeline.buffer_builder import BufferUsage, BufferedStructEntry, BufferBuilder
 
-from .execution_pipeline.command_stream import CommandStream, BufferBindInfo, ImageBindInfo
-from .execution_pipeline.command_stream import global_cmd_stream, set_global_cmd_stream, default_cmd_stream
+from .execution_pipeline.command_graph import CommandGraph, BufferBindInfo, ImageBindInfo
+from .execution_pipeline.command_graph import global_graph, set_global_graph, default_graph
 
 from .shader_generation.signature import ShaderArgumentType
 from .shader_generation.signature import ShaderArgument

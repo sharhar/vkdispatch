@@ -1,4 +1,5 @@
-This file is to keep track of all the features and fixed that need to be implemented before the paper is published:
+This file is to keep track of all the features that I hope to implement eventually:
 
  - Implement dynamic local size through specialization constants
- - Add proper memory cleanup
+ - proper device ordering to match CUDA
+ - CUDA/Vulkan memory bridging

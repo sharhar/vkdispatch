@@ -58,7 +58,7 @@ class ReductionObject:
     def __call__(self, *args, **kwargs) -> vd.Buffer:
         self.make_stages()
 
-        my_cmd_stream = kwargs.get("cmd_stream", vd.global_cmd_stream())
+        my_graph = kwargs.get("graph", vd.global_graph())
 
         input_size = 1
         input_stride = 1
@@ -127,7 +127,7 @@ class ReductionObject:
 
         stage1_exec_size = (workgroups_x * self.group_size, batch_count)
 
-        self.stage1(reduction_buffer, *args, stage1_params, exec_size=stage1_exec_size, cmd_stream=my_cmd_stream)
+        self.stage1(reduction_buffer, *args, stage1_params, exec_size=stage1_exec_size, graph=my_graph)
 
         stage2_params = vd.ReductionParams(
             input_offset=batch_count,
@@ -143,6 +143,6 @@ class ReductionObject:
 
         stage2_exec_size = (self.group_size, batch_count)
 
-        self.stage2(reduction_buffer, stage2_params, exec_size=stage2_exec_size, cmd_stream=my_cmd_stream)
+        self.stage2(reduction_buffer, stage2_params, exec_size=stage2_exec_size, graph=my_graph)
 
         return reduction_buffer
