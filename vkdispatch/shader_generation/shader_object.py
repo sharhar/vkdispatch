@@ -200,16 +200,16 @@ class ShaderObject:
 
         my_blocks, my_limits = self.bounds.get_blocks_and_limits(args, kwargs)
 
-        my_cmd_stream: vd.CommandStream = None
+        my_graph: vd.CommandGraph = None
 
-        if "cmd_stream" in kwargs and kwargs["cmd_stream"] is not None:
-            if not isinstance(kwargs["cmd_stream"], vd.CommandStream):
-                raise ValueError("Expected a CommandStream object for 'cmd_stream'!")
+        if "graph" in kwargs and kwargs["graph"] is not None:
+            if not isinstance(kwargs["graph"], vd.CommandGraph):
+                raise ValueError("Expected a CommandGraph object for 'graph'!")
 
-            my_cmd_stream = kwargs["cmd_stream"]
+            my_graph = kwargs["graph"]
         
-        if my_cmd_stream is None:
-            my_cmd_stream = vd.global_cmd_stream()
+        if my_graph is None:
+            my_graph = vd.global_graph()
         
         bound_buffers = []
         bound_samplers = []
@@ -273,7 +273,7 @@ class ShaderObject:
                     raise ValueError("Something went wrong with push constants!!")
 
                 if callable(arg):
-                    if my_cmd_stream.submit_on_record:
+                    if my_graph.submit_on_record:
                         raise ValueError("Cannot bind Variables for default cmd list!")
                     
                     arg((shader_uuid, shader_arg.shader_name))
@@ -282,7 +282,7 @@ class ShaderObject:
             else:
                 raise ValueError(f"Something very wrong happened!")
         
-        my_cmd_stream.record_shader(
+        my_graph.record_shader(
             self.plan, 
             self.shader_description, 
             my_limits, 

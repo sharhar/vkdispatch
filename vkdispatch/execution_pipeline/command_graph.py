@@ -35,7 +35,7 @@ class ImageBindInfo:
     read_access: bool
     write_access: bool
 
-class CommandStream(vd.CommandList):
+class CommandGraph(vd.CommandList):
     """TODO: Docstring"""
 
     _reset_on_submit: bool
@@ -80,7 +80,7 @@ class CommandStream(vd.CommandList):
         self.uniform_constants_buffer = vd.Buffer(shape=(4096,), var_type=vd.uint32) # Create a base static constants buffer at size 4k bytes
 
     def reset(self) -> None:
-        """Reset the command stream by clearing the push constant buffer and descriptor
+        """Reset the command graph by clearing the push constant buffer and descriptor
         set lists.
         """
         super().reset()
@@ -168,7 +168,7 @@ class CommandStream(vd.CommandList):
         if self.submit_on_record:
             self.submit()
 
-    def submit(self, instance_count: int = None, stream_index: int = -2) -> None:
+    def submit(self, instance_count: int = None, queue_index: int = -2) -> None:
         """Submit the command list to the specified device with additional data to
         append to the front of the command list.
         
@@ -213,35 +213,35 @@ class CommandStream(vd.CommandList):
         if len(self.pc_builder.element_map) > 0:
             my_data = self.pc_builder.tobytes()
 
-        super().submit(data=my_data, stream_index=stream_index, instance_count=instance_count)
+        super().submit(data=my_data, queue_index=queue_index, instance_count=instance_count)
 
         if self._reset_on_submit:
             self.reset()
     
     def submit_any(self, instance_count: int = None) -> None:
-        self.submit(instance_count=instance_count, stream_index=-1)
+        self.submit(instance_count=instance_count, queue_index=-1)
 
-__default_cmd_stream = None
-__custom_stream = None
+__default_graph = None
+__custom_graph = None
 
-def default_cmd_stream() -> CommandStream:
-    global __default_cmd_stream
+def default_graph() -> CommandGraph:
+    global __default_graph
 
-    if __default_cmd_stream is None:
-        __default_cmd_stream = CommandStream(reset_on_submit=True, submit_on_record=True)
+    if __default_graph is None:
+        __default_graph = CommandGraph(reset_on_submit=True, submit_on_record=True)
 
-    return __default_cmd_stream
+    return __default_graph
 
-def global_cmd_stream() -> CommandStream:
-    global __custom_stream
+def global_graph() -> CommandGraph:
+    global __custom_graph
 
-    if __custom_stream is not None:
-        return __custom_stream
+    if __custom_graph is not None:
+        return __custom_graph
 
-    return default_cmd_stream()
+    return default_graph()
 
-def set_global_cmd_stream(cmd_list: CommandStream = None) -> CommandStream:
-    global __custom_stream
-    old_value = __custom_stream
-    __custom_stream = cmd_list 
+def set_global_graph(graph: CommandGraph = None) -> CommandGraph:
+    global __custom_graph
+    old_value = __custom_graph
+    __custom_graph = graph 
     return old_value
