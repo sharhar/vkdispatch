@@ -42,6 +42,10 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
     int found_indicies[2] = {-1, -1};
 
     this->cv_pop.wait(lock, [this, start, command_list, &found_indicies] () {
+        if(!running) {
+            return true;
+        }
+
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         
@@ -90,6 +94,10 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
 
         return true;
     });
+
+    if(!running) {
+        return;
+    }
 
     RETURN_ON_ERROR(;)
 

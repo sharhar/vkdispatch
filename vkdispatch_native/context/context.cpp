@@ -30,6 +30,7 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     LOG_INFO("Creating context with %d devices", device_count);
 
     struct Context* ctx = new struct Context();
+    ctx->running.store(true);
     ctx->deviceCount = device_count;
     ctx->physicalDevices.resize(device_count);
     ctx->devices.resize(device_count);
@@ -207,7 +208,7 @@ void wait_for_queue(struct Context* ctx, int queue_index) {
     LOG_INFO("Waiting for queue %d to finish execution...", queue_index);
 
     uint64_t* p_timestamp = new uint64_t();
-    Signal* signal = new Signal();
+    Signal* signal = new Signal(ctx);
 
     *p_timestamp = 0;
 
@@ -216,23 +217,19 @@ void wait_for_queue(struct Context* ctx, int queue_index) {
             LOG_VERBOSE("Waiting for queue %d to finish execution...", indicies.queue_index);
             *p_timestamp = timestamp;
             signal->notify();
-            LOG_VERBOSE("Queue %d finished execution at timestamp %llu", indicies.queue_index, *p_timestamp);
         }
     );
 
-    LOG_VERBOSE("Waiting for signal to be notified...");
     signal->wait();
-    LOG_VERBOSE("Signal notified, checking timestamp...");
 
     if(*p_timestamp == 0) {
-        LOG_ERROR("Queue %d did not finish execution", queue_index);
+        if (ctx->running.load(std::memory_order_acquire))
+            LOG_WARNING("Queue %d did not finish execution", queue_index);
     } else {
         LOG_INFO("Queue %d finished execution at timestamp %llu", queue_index, *p_timestamp);
     }
 
     ctx->queues[queue_index]->wait_for_timestamp(*p_timestamp);
-
-    LOG_INFO("Queue %d finished execution", queue_index);
 
     delete signal;
 }
@@ -302,6 +299,8 @@ void context_destroy_extern(struct Context* context) {
 }
 
 void context_stop_threads_extern(struct Context* context) {
+    context->running.store(false);
+
     context->work_queue->stop();
 
     for(int i = 0; i < context->queues.size(); i++) {

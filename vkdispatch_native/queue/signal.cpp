@@ -1,8 +1,11 @@
 #include "../base.hh"
 #include "signal.hh"
 
-Signal::Signal() : state(false) {
-    
+
+#include "../context/context.hh"
+
+Signal::Signal(struct Context* context) : state(false) {
+    this->ctx = context;
 }
 
 /*
@@ -32,6 +35,11 @@ void Signal::wait() {
     }
 
     std::unique_lock<std::mutex> lock(mutex);
+
+    if(ctx->running.load(std::memory_order_acquire) == false) {
+        set_error("Context is not running, cannot wait for signal");
+        return;
+    }
     
     auto start = std::chrono::high_resolution_clock::now();
     

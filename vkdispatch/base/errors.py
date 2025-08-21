@@ -1,13 +1,25 @@
 import vkdispatch_native
 
+running = True
+
+def set_running(value: bool) -> None:
+    """
+    Set the running state of the context.
+    
+    Args:
+        value (bool): True to set the context as running, False otherwise.
+    """
+    global running
+    running = value
+
 def check_for_errors():
     """
     Check for errors in the vkdispatch_native library and raise a RuntimeError if found.
     """
-
+    global running
     error = vkdispatch_native.get_error_string()
 
-    if error == 0:
+    if error == 0 or not running:
         return
     
     if isinstance(error, str):

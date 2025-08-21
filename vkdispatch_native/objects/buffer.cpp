@@ -25,7 +25,7 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
     buffer->signals_pointers_handle = ctx->handle_manager->register_queue_handle("Buffer Signals");
 
     for(int queue_index = 0; ctx->queues.size() > queue_index; queue_index++) {
-        ctx->handle_manager->set_handle(queue_index, buffer->signals_pointers_handle, (uint64_t)new Signal());
+        ctx->handle_manager->set_handle(queue_index, buffer->signals_pointers_handle, (uint64_t)new Signal(ctx));
     }
 
     buffer->buffers_handle = ctx->handle_manager->register_queue_handle("Buffer");

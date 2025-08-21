@@ -11,6 +11,7 @@
 
 #include "handles.hh"
 
+#include <atomic>
 #include <functional>
 
 struct Context {
@@ -28,6 +29,7 @@ struct Context {
 
     void* glslang_resource_limits;
 
+    std::atomic<bool> running;
     struct CommandList* command_list;
     WorkQueue* work_queue;
 };

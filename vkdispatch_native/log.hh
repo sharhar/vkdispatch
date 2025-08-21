@@ -89,10 +89,10 @@ inline void log_message(LogLevel log_level, const char* postfix, const char* fil
         level_str = prefixes[log_level];
     }
 
-    const uint32_t tid = get_thread_tid();
+    // const uint32_t tid = get_thread_tid();
 
     if(file_str != NULL) {
-        printf("[%s T%u %s:%d] ", level_str, tid, file_str, line_str);
+        printf("[%s %s:%d] ", level_str, file_str, line_str);
     } else {
         printf("[%s] ", level_str);
     }
