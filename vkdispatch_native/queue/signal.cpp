@@ -35,16 +35,15 @@ void Signal::wait() {
     }
 
     std::unique_lock<std::mutex> lock(mutex);
-
-    if(ctx->running.load(std::memory_order_acquire) == false) {
-        set_error("Context is not running, cannot wait for signal");
-        return;
-    }
-    
     auto start = std::chrono::high_resolution_clock::now();
     
     cv.wait(lock, [this, start] {
         LOG_VERBOSE("Checking signal");
+
+        if(ctx->running.load(std::memory_order_acquire) == false) {
+            set_error("Context is not running, cannot wait for signal");
+            return true;
+        }
 
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
