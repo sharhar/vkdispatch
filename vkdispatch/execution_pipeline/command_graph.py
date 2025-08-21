@@ -79,10 +79,6 @@ class CommandGraph(vd.CommandList):
         self.uniform_constants_size = 0
         self.uniform_constants_buffer = vd.Buffer(shape=(4096,), var_type=vd.uint32) # Create a base static constants buffer at size 4k bytes
 
-    # def destroy(self):
-    #     super().destroy()
-    #     self.uniform_constants_buffer.destroy()
-
     def reset(self) -> None:
         """Reset the command graph by clearing the push constant buffer and descriptor
         set lists.

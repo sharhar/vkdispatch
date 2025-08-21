@@ -9,8 +9,8 @@ import weakref
 
 import os, signal
 
-from .errors import check_for_errors
-from .init import DeviceInfo, get_devices, initialize
+from .errors import check_for_errors, set_running
+from .init import DeviceInfo, get_devices, initialize, set_log_level, LogLevel
 
 import vkdispatch_native
 
@@ -384,12 +384,12 @@ def queue_wait_idle(queue_index: int = None) -> None:
     vkdispatch_native.context_queue_wait_idle(get_context_handle(), queue_index if queue_index is not None else -1)
     check_for_errors()
 
-
 def destroy_context() -> None:
     """
     Destroys the current context and cleans up resources.
     """
     global __context
+    set_running(False)
 
     if __context is not None:
         handles_list = list(__context.handles_dict.values())
@@ -404,13 +404,11 @@ def destroy_context() -> None:
 
 atexit.register(destroy_context)
 
-
 def stop_threads() -> None:
     """
     Stops all threads in the context.
     """
     vkdispatch_native.context_stop_threads(get_context_handle())
-    check_for_errors()
 
 _shutdown_once = False
 
@@ -418,6 +416,7 @@ def _sig_handler(signum, frame):
     print("Ctrl-C received, stopping threads...")
 
     global _shutdown_once
+    set_running(False)
     if not _shutdown_once:
         _shutdown_once = True
         # Flip the C++ atomic and notify all sleepers

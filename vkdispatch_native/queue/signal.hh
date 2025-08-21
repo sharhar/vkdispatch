@@ -18,7 +18,7 @@ public:
     /**
      * @brief Creates a new signal.
      */
-    Signal();
+    Signal(struct Context* context);
 
     /**
      * @brief Notifies the signal.
@@ -43,7 +43,8 @@ public:
      * If the signal is already in the notified state, the function returns immediately.
      */
     void wait();
-    
+
+    struct Context* ctx;
     std::mutex mutex;
     std::condition_variable cv;
     std::atomic<bool> state;

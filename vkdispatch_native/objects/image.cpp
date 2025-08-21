@@ -36,7 +36,7 @@ struct Image* image_create_extern(struct Context* context, VkExtent3D a_extent, 
     image->signals_pointers_handle = ctx->handle_manager->register_queue_handle("Image Signals");
 
     for(int queue_index = 0; queue_index < ctx->queues.size(); queue_index++) {
-        ctx->handle_manager->set_handle(queue_index, image->signals_pointers_handle, (uint64_t)new Signal());
+        ctx->handle_manager->set_handle(queue_index, image->signals_pointers_handle, (uint64_t)new Signal(ctx));
     }
     
     image->block_size = image_format_block_size_extern(format);
