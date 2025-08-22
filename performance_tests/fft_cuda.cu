@@ -19,6 +19,16 @@
 #include <vector>
 #include <cmath>
 
+__global__ void fill_randomish(cufftComplex* a, long long n){
+    long long i = blockIdx.x * 1LL * blockDim.x + threadIdx.x;
+    if(i<n){
+        float x = __sinf(i * 0.00173f);
+        float y = __cosf(i * 0.00091f);
+        a[i] = make_float2(x, y);
+    }
+}
+
+
 static inline void checkCuda(cudaError_t err, const char* what) {
     if (err != cudaSuccess) {
         std::cerr << "[CUDA] " << what << " failed: " << cudaGetErrorString(err) << "\n";
@@ -97,73 +107,58 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
     // Optionally zero-fill
     checkCuda(cudaMemset(d_data, 0, total_elems * sizeof(cufftComplex)), "cudaMemset d_data");
 
-    // cuFFT plan: 1D transforms along 'axis', batched over the other dimension
+    {
+        int t = 256, b = int((total_elems + t - 1) / t);
+        fill_randomish<<<b,t>>>(d_data, total_elems);
+        checkCuda(cudaGetLastError(), "fill launch");
+        checkCuda(cudaDeviceSynchronize(), "fill sync");
+    }
+
+    // --- single non-blocking stream ---
+    cudaStream_t stream;
+    checkCuda(cudaStreamCreate(&stream), "stream create");
+
+    // --- plan bound to the stream ---
     cufftHandle plan;
     checkCuFFT(cufftCreate(&plan), "cufftCreate");
-
-    int n[1] = { fft_size }; // 1D length
-
-    // Strides and distances depend on axis in row-major layout:
-    // Layout: index (i0, i1) -> offset = i0*dim1 + i1
-    int istride, ostride, idist, odist, batch;
-    int inembed[1] = {0};  // not used when rank=1 unless advanced layouts; set 0
-    int onembed[1] = {0};
+    checkCuFFT(cufftSetStream(plan, stream), "cufftSetStream");
 
     if (cfg.axis == 1) {
-        // Transform along contiguous last dimension (dim1)
-        // Each transform is a row of length dim1; there are dim0 batches.
-        istride = 1;
-        ostride = 1;
-        idist   = static_cast<int>(dim1);
-        odist   = static_cast<int>(dim1);
-        batch   = static_cast<int>(dim0);
+        // contiguous last dim: each row length = dim1, batch = dim0
+        checkCuFFT(cufftPlan1d(&plan, int(dim1), CUFFT_C2C, int(dim0)), "plan1d axis=1");
     } else {
-        // Transform along first dimension (dim0)
-        // Elements of a single transform are separated by dim1
-        istride = static_cast<int>(dim1);
-        ostride = static_cast<int>(dim1);
-        idist   = 1;
-        odist   = 1;
-        batch   = static_cast<int>(dim1);
+        // axis=0: stride by dim1, batch over columns; out-of-place enables better kernels
+        int n[1] = { int(dim0) };
+        int istride = int(dim1), ostride = int(dim1);
+        int idist   = 1,         odist   = 1;
+        int batch   = int(dim1);
+        int inembed[1] = { 0 }, onembed[1] = { 0 };
+        checkCuFFT(cufftPlanMany(&plan, 1, n,
+                                 inembed,  istride, idist,
+                                 onembed,  ostride, odist,
+                                 CUFFT_C2C, batch),
+                   "planMany axis=0");
     }
 
-    // Create plan (complex-to-complex, single-precision)
-    checkCuFFT(
-        cufftPlanMany(&plan,
-                      /*rank*/ 1,
-                      n,
-                      inembed,  istride, idist,
-                      onembed,  ostride, odist,
-                      CUFFT_C2C,
-                      batch),
-        "cufftPlanMany"
-    );
+    // --- warmup on the stream ---
+    for (int i = 0; i < cfg.warmup; ++i)
+        checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_FORWARD), "warmup");
+    
+    //checkCuda(cudaDeviceSynchronize(), "warmup sync");
+    checkCuda(cudaStreamSynchronize(stream), "warmup sync");
 
-    // Warmup
-    for (int i = 0; i < cfg.warmup; ++i) {
-        checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_FORWARD), "cufftExecC2C warmup");
-    }
-    checkCuda(cudaDeviceSynchronize(), "cudaDeviceSynchronize (after warmup)");
-
-    // Time iter_count * iter_batch executions
-    cudaEvent_t ev_start, ev_stop;
-    checkCuda(cudaEventCreate(&ev_start), "cudaEventCreate start");
-    checkCuda(cudaEventCreate(&ev_stop),  "cudaEventCreate stop");
-    checkCuda(cudaEventRecord(ev_start),  "cudaEventRecord start");
-
-    for (int it = 0; it < cfg.iter_count; ++it) {
-        checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_FORWARD), "cufftExecC2C timed");
-    }
-
-    checkCuda(cudaEventRecord(ev_stop), "cudaEventRecord stop");
-    checkCuda(cudaEventSynchronize(ev_stop), "cudaEventSynchronize stop");
-
-    float ms = 0.0f;
-    checkCuda(cudaEventElapsedTime(&ms, ev_start, ev_stop), "cudaEventElapsedTime");
-
-    // Cleanup events (keep data around until after sync)
-    cudaEventDestroy(ev_start);
-    cudaEventDestroy(ev_stop);
+    // === OPTION A: plain single-stream timing (simple & robust) ===
+    cudaEvent_t evA, evB;
+    checkCuda(cudaEventCreate(&evA), "evA");
+    checkCuda(cudaEventCreate(&evB), "evB");
+    checkCuda(cudaEventRecord(evA, stream), "record A");
+    for (int it = 0; it < cfg.iter_count; ++it)
+        checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_FORWARD), "exec");
+    checkCuda(cudaEventRecord(evB, stream), "record B");
+    checkCuda(cudaEventSynchronize(evB), "sync B");
+    float ms = 0.f; checkCuda(cudaEventElapsedTime(&ms, evA, evB), "elapsed");
+    checkCuda(cudaEventDestroy(evA), "dA");
+    checkCuda(cudaEventDestroy(evB), "dB");
 
     // Convert elapsed to seconds
     const double seconds = static_cast<double>(ms) / 1000.0;

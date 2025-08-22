@@ -49,10 +49,11 @@ if __name__ == "__main__":
     print(f"FFT sizes found: {sorted(fft_sizes)}")
     print(f"Total entries: {sum(len(v) for v in merged.values())}")
 
+    sorted_backends = sorted(backends)
     sorted_fft_sizes = sorted(fft_sizes)
 
     plt.figure(figsize=(10, 6))
-    for backend_name in backends:
+    for backend_name in sorted_backends:
         means = [
             merged[backend_name][i][0]
             for i in sorted_fft_sizes

@@ -6,19 +6,18 @@ import numpy as np
 
 def run_vkfft(config: fu.Config, fft_size: int) -> float:
     shape = config.make_shape(fft_size)
+    random_data = config.make_random_data(fft_size)
 
     buffer = vd.Buffer(shape, var_type=vd.complex64)
-    output_buffer = vd.Buffer(shape, var_type=vd.complex64)
+    buffer.write(random_data)
     buffer_shape = buffer.shape
 
     graph = vd.CommandGraph()
 
     fu.register_object(buffer)
-    fu.register_object(output_buffer)
     fu.register_object(graph)
 
     vd.vkfft.fft(
-        output_buffer,
         buffer,
         buffer_shape=buffer_shape,
         graph=graph,
@@ -30,7 +29,7 @@ def run_vkfft(config: fu.Config, fft_size: int) -> float:
 
     vd.queue_wait_idle()
 
-    gb_byte_count = 2 * 8 * output_buffer.size / (1024 * 1024 * 1024)
+    gb_byte_count = 2 * 8 * buffer.size / (1024 * 1024 * 1024)
     
     start_time = time.perf_counter()
 
