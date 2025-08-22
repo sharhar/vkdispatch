@@ -1,12 +1,12 @@
 import csv
 import time
 import ffts_utils as fu
-import vkdispatch as vd
 import numpy as np
 import torch
 
 def run_torch(config: fu.Config, fft_size: int) -> float:
     shape = config.make_shape(fft_size)
+    random_data = config.make_random_data(fft_size)
 
     buffer = torch.empty(
         shape,
@@ -14,25 +14,41 @@ def run_torch(config: fu.Config, fft_size: int) -> float:
         device='cuda'
     )
 
+    buffer.copy_(torch.from_numpy(random_data).to('cuda'))
+
     output_buffer = torch.empty_like(buffer)
 
     fu.register_object(buffer)
     fu.register_object(output_buffer)
 
-    for _ in range(config.warmup):
-        output_buffer = torch.fft.fft(buffer, dim=config.axis)
+    stream = torch.cuda.Stream()
+
+    torch.cuda.synchronize()
+    
+    with torch.cuda.stream(stream):
+        for _ in range(config.warmup):
+            tmp = torch.fft.fft(buffer, dim=config.axis)
 
     torch.cuda.synchronize()
 
     gb_byte_count = 2 * np.prod(shape) * 8 / (1024 * 1024 * 1024)
     
-    start_time = time.perf_counter()
+    g = torch.cuda.CUDAGraph()
 
-    for _ in range(config.iter_count):
-        output_buffer = torch.fft.fft(buffer, dim=config.axis)
+    # We capture either 1 or K FFTs back-to-back. All on the same stream.
+    with torch.cuda.graph(g, stream=stream):
+        for _ in range(max(1, config.iter_batch)):
+            buffer = torch.fft.fft(buffer, dim=config.axis)   # creates a tensor once during capture
+
 
     torch.cuda.synchronize()
+    start_time = time.perf_counter()
 
+    for _ in range(config.iter_count // max(1, config.iter_batch)):
+        g.replay()
+        #output_buffer = torch.fft.fft(buffer, dim=config.axis)
+
+    torch.cuda.synchronize()
     elapsed_time = time.perf_counter() - start_time
 
     return config.iter_count * gb_byte_count / elapsed_time

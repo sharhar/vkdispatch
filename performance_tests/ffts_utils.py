@@ -2,6 +2,8 @@ import sys
 from typing import Tuple
 import dataclasses
 
+import numpy as np
+
 @dataclasses.dataclass
 class Config:
     data_size: int
@@ -20,6 +22,10 @@ class Config:
         shape[batched_axis] = self.data_size // fft_size
 
         return tuple(shape)
+    
+    def make_random_data(self, fft_size: int):
+        shape = self.make_shape(fft_size)
+        return np.random.rand(*shape).astype(np.complex64)
 
 def parse_args() -> Config:
     if len(sys.argv) != 6:
@@ -37,7 +43,7 @@ def parse_args() -> Config:
 def get_fft_sizes():
     return [2**i for i in range(6, 13)]  # FFT sizes from 64 to 4096 (inclusive)
 
-reference_list = []
+#reference_list = []
 
 def register_object(obj):
-    reference_list.append(obj)
+    pass # reference_list.append(obj)

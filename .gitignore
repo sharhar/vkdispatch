@@ -10,6 +10,7 @@ deps/
 
 *.png
 *.csv
+*.exec
 
 # C extensions
 *.so
