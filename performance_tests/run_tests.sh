@@ -6,9 +6,9 @@ cd test_results
 
 DATA_SIZE=134217728 #16777216
 AXIS=$1
-ITER_COUNT=250
-BATCH_SIZE=10
-REPEATS=5
+ITER_COUNT=2500
+BATCH_SIZE=25
+REPEATS=20
 
 #nvcc ../fft_cuda.cu -o fft_cuda.exec -lcufft
 
@@ -20,13 +20,13 @@ echo "Batch Size: $BATCH_SIZE"
 echo "Repeats: $REPEATS"
 
 echo "Running PyTorch FFT..."
-#python3 ../fft_torch.py $DATA_SIZE $AXIS $ITER_COUNT $BATCH_SIZE $REPEATS
+python3 ../fft_torch.py $DATA_SIZE $AXIS $ITER_COUNT $BATCH_SIZE $REPEATS
 
 echo "Running Vkdispatch FFT..."
-#python3 ../fft_vkdispatch.py $DATA_SIZE $AXIS $ITER_COUNT $BATCH_SIZE $REPEATS
+python3 ../fft_vkdispatch.py $DATA_SIZE $AXIS $ITER_COUNT $BATCH_SIZE $REPEATS
 
 echo "Running VKFFT FFT..."
-#python3 ../fft_vkfft.py $DATA_SIZE $AXIS $ITER_COUNT $BATCH_SIZE $REPEATS
+python3 ../fft_vkfft.py $DATA_SIZE $AXIS $ITER_COUNT $BATCH_SIZE $REPEATS
 
 echo "Running ZipFFT FFT..."
 python3 ../fft_zipfft.py $DATA_SIZE $AXIS $ITER_COUNT $BATCH_SIZE $REPEATS
