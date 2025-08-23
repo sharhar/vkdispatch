@@ -40,6 +40,14 @@ def run_vkfft(config: fu.Config, fft_size: int) -> float:
 
     elapsed_time = time.perf_counter() - start_time
 
+    buffer.destroy()
+    graph.destroy()
+    vd.vkfft.clear_plan_cache()
+
+    time.sleep(1)
+
+    vd.queue_wait_idle()
+
     return config.iter_count * gb_byte_count / elapsed_time
 
 if __name__ == "__main__":
