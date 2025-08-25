@@ -87,6 +87,6 @@ if __name__ == "__main__":
     sorted_fft_sizes = sorted(fft_sizes)
 
     save_graph(sorted_backends, sorted_fft_sizes, merged)
-    save_graph(sorted_backends, sorted_fft_sizes, merged, min_fft_size=256)
+    #save_graph(sorted_backends, sorted_fft_sizes, merged, min_fft_size=256)
 
     

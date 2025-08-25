@@ -19,6 +19,11 @@
 #include <vector>
 #include <cmath>
 
+struct CallbackParams {
+    cufftComplex* filter;         // device pointer, length = NX * NY
+    size_t    elemsPerImage;  // NX * NY
+};
+
 __global__ void fill_randomish(cufftComplex* a, long long n){
     long long i = blockIdx.x * 1LL * blockDim.x + threadIdx.x;
     if(i<n){
@@ -28,6 +33,25 @@ __global__ void fill_randomish(cufftComplex* a, long long n){
     }
 }
 
+__device__ __noinline__ void store_mul_cb(void* dataOut,
+                             size_t offset,
+                             cufftComplex element,
+                             void* callerInfo,
+                             void* /*sharedPtr*/)
+{
+    const CallbackParams* p = static_cast<const CallbackParams*>(callerInfo);
+    const size_t idxInImage = offset % p->elemsPerImage;
+
+    // Multiply element by filter[idxInImage]
+    const cufftComplex h = p->filter[idxInImage];
+    cufftComplex y;
+    y.x = element.x * h.x - element.y * h.y;
+    y.y = element.x * h.y + element.y * h.x;
+
+    static_cast<cufftComplex*>(dataOut)[offset] = y;
+}
+
+__device__ cufftCallbackStoreC d_store_cb_ptr = store_mul_cb;
 
 static inline void checkCuda(cudaError_t err, const char* what) {
     if (err != cudaSuccess) {
@@ -74,7 +98,7 @@ static std::vector<int> get_fft_sizes() {
 // Compute GB processed per single FFT execution (read + write) for shape (dim0, dim1)
 static double gb_per_exec(long long dim0, long long dim1, long long dim2) {
     // complex64 = 8 bytes; count both read and write -> *2
-    const double bytes = 2.0 * static_cast<double>(dim0) * static_cast<double>(dim1) * static_cast<double>(dim2) * 8.0;
+    const double bytes = static_cast<double>(dim0) * static_cast<double>(dim1) * static_cast<double>(dim2) * 8.0;
     return bytes / (1024.0 * 1024.0 * 1024.0);
 }
 
@@ -92,16 +116,32 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
     // Optionally zero-fill
     checkCuda(cudaMemset(d_data, 0, total_elems * sizeof(cufftComplex)), "cudaMemset d_data");
 
+    cufftComplex* d_kernel = nullptr;
+    checkCuda(cudaMalloc(&d_kernel, (dim1 * dim2) * sizeof(cufftComplex)), "cudaMalloc d_kernel");
+    // Optionally zero-fill
+    checkCuda(cudaMemset(d_kernel, 0, (dim1 * dim2) * sizeof(cufftComplex)), "cudaMemset d_kernel");
+
     {
         int t = 256, b = int((total_elems + t - 1) / t);
         fill_randomish<<<b,t>>>(d_data, total_elems);
         checkCuda(cudaGetLastError(), "fill launch");
         checkCuda(cudaDeviceSynchronize(), "fill sync");
+
+        int kt = 256, kb = int((dim1 * dim2 + kt - 1) / kt);
+        fill_randomish<<<kb,kt>>>(d_kernel, dim1 * dim2);
+        checkCuda(cudaGetLastError(), "fill kernel launch");
+        checkCuda(cudaDeviceSynchronize(), "fill kernel sync");
     }
 
+    CallbackParams h_params{ d_kernel, size_t(dim1) * size_t(dim2) };
+    CallbackParams* d_params = nullptr;
+    checkCuda(cudaMalloc(&d_params, sizeof(CallbackParams)), "cudaMalloc params");
+    checkCuda(cudaMemcpy(d_params, &h_params, sizeof(CallbackParams), cudaMemcpyHostToDevice), "cudaMemcpy params");
+
     // --- plan bound to the stream ---
-    cufftHandle plan;
-    checkCuFFT(cufftCreate(&plan), "cufftCreate");
+    cufftHandle plans[2];
+    checkCuFFT(cufftCreate(&plans[0]), "cufftCreate");
+    checkCuFFT(cufftCreate(&plans[1]), "cufftCreate");
 
     int n[2] = { int(dim1), int(dim2) };
     int inembed[2] = { int(dim1), int(dim2) };        // physical layout (same as n for tight pack)
@@ -111,14 +151,28 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
     int idist      = int(dim1)* int(dim2);           // distance between images
     int odist      = int(dim1)* int(dim2);
 
-    checkCuFFT(cufftPlanMany(&plan, 2, n,
+    checkCuFFT(cufftPlanMany(&plans[0], 2, n,
+                                  inembed,  istride, idist,
+                                  onembed,  ostride, odist,
+                                  CUFFT_C2C, int(dim0)), "plan2d");
+    
+    checkCuFFT(cufftPlanMany(&plans[1], 2, n,
                                   inembed,  istride, idist,
                                   onembed,  ostride, odist,
                                   CUFFT_C2C, int(dim0)), "plan2d");
 
+    cufftCallbackStoreC h_store_cb_ptr;
+    checkCuda(cudaMemcpyFromSymbol(&h_store_cb_ptr, d_store_cb_ptr, sizeof(h_store_cb_ptr)), "memcpy from symbol");
+
+    void* cb_ptrs[1] = { (void*)h_store_cb_ptr };
+    void* cb_data[1] = { (void*)d_params };  // single pointer: our params struct
+    checkCuFFT(cufftXtSetCallback(plans[0], cb_ptrs, CUFFT_CB_ST_COMPLEX, cb_data), "set callback");
+
     // --- warmup on the stream ---
-    for (int i = 0; i < cfg.warmup; ++i)
-        checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_FORWARD), "warmup");
+    for (int i = 0; i < cfg.warmup; ++i) {
+        checkCuFFT(cufftExecC2C(plans[0], d_data, d_data, CUFFT_FORWARD), "warmup");
+        checkCuFFT(cufftExecC2C(plans[1], d_data, d_data, CUFFT_INVERSE), "warmup");
+    }
     
     checkCuda(cudaDeviceSynchronize(), "warmup sync");
 
@@ -127,8 +181,10 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
     checkCuda(cudaEventCreate(&evA), "evA");
     checkCuda(cudaEventCreate(&evB), "evB");
     checkCuda(cudaEventRecord(evA), "record A");
-    for (int it = 0; it < cfg.iter_count; ++it)
-        checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_FORWARD), "exec");
+    for (int it = 0; it < cfg.iter_count; ++it) {
+        checkCuFFT(cufftExecC2C(plans[0], d_data, d_data, CUFFT_FORWARD), "exec");
+        checkCuFFT(cufftExecC2C(plans[1], d_data, d_data, CUFFT_INVERSE), "exec");
+    }
     checkCuda(cudaEventRecord(evB), "record B");
     checkCuda(cudaEventSynchronize(evB), "sync B");
     checkCuda(cudaDeviceSynchronize(), "warmup sync");
@@ -140,13 +196,15 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
     const double seconds = static_cast<double>(ms) / 1000.0;
 
     // Compute throughput in GB/s (same accounting as Torch: 2 * elems * 8 bytes per exec)
-    const double gb_per_exec_once = 2 * gb_per_exec(dim0, dim1, dim2);
+    const double gb_per_exec_once = 11 * gb_per_exec(dim0, dim1, dim2);
     const double total_execs = static_cast<double>(cfg.iter_count); // * static_cast<double>(cfg.iter_batch);
     const double gb_per_second = (total_execs * gb_per_exec_once) / seconds;
 
     // Cleanup
-    cufftDestroy(plan);
+    cufftDestroy(plans[0]);
+    cufftDestroy(plans[1]);
     cudaFree(d_data);
+    cudaFree(d_kernel);
 
     return gb_per_second;
 }
@@ -155,7 +213,7 @@ int main(int argc, char** argv) {
     const Config cfg = parse_args(argc, argv);
     const auto sizes = get_fft_sizes();
 
-    const std::string output_name = "fft_cuda.csv";
+    const std::string output_name = "conv_cuda.csv";
     std::ofstream out(output_name);
     if (!out) {
         std::cerr << "Failed to open output file: " << output_name << "\n";
