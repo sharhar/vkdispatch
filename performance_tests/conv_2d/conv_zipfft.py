@@ -1,6 +1,6 @@
 import csv
 import time
-import ffts_utils as fu
+import performance_tests.conv_2d.conv_utils as fu
 import numpy as np
 import torch
 
@@ -22,8 +22,6 @@ def run_zipfft(config: fu.Config, fft_size: int) -> float:
 
     buffer.copy_(torch.from_numpy(random_data).to('cuda'))
 
-    fu.register_object(buffer)
-
     #for _ in range(config.warmup):
     #    cfft1d.fft(buffer)
 
@@ -37,7 +35,7 @@ def run_zipfft(config: fu.Config, fft_size: int) -> float:
 
     torch.cuda.synchronize()
 
-    gb_byte_count = 2 * np.prod(shape) * 8 / (1024 * 1024 * 1024)
+    gb_byte_count = 11 * np.prod(shape) * 8 / (1024 * 1024 * 1024)
     
     g = torch.cuda.CUDAGraph()
 
@@ -72,7 +70,7 @@ if __name__ == "__main__":
         print("zipfft currently only supports axis=1. Please set axis to 1.")
         exit(0)
 
-    output_name = f"fft_zipfft_{config.axis}_axis.csv"
+    output_name = f"conv_zipfft_{config.axis}_axis.csv"
     with open(output_name, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(['Backend', 'FFT Size'] + [f'Run {i + 1} (GB/s)' for i in range(config.run_count)] + ['Mean', 'Std Dev'])

@@ -10,26 +10,17 @@ def run_vkdispatch(config: fu.Config, fft_size: int) -> float:
 
     buffer = vd.Buffer(shape, var_type=vd.complex64)
     buffer.write(random_data)
-    buffer_shape = buffer.shape
 
     graph = vd.CommandGraph()
     
-    fu.register_object(buffer)
-    fu.register_object(graph)
-
-    vd.fft.fft(
-        buffer,
-        buffer_shape=buffer_shape,
-        graph=graph,
-        axis=config.axis,
-    )
+    vd.fft.fft2(buffer, graph=graph)
 
     for _ in range(config.warmup):
         graph.submit(config.iter_batch)
 
     vd.queue_wait_idle()
 
-    gb_byte_count = 2 * 8 * buffer.size / (1024 * 1024 * 1024)
+    gb_byte_count = 4 * 8 * buffer.size / (1024 * 1024 * 1024)
     
     start_time = time.perf_counter()
 
@@ -54,7 +45,7 @@ if __name__ == "__main__":
     config = fu.parse_args()
     fft_sizes = fu.get_fft_sizes()
 
-    output_name = f"fft_vkdispatch_{config.axis}_axis.csv"
+    output_name = f"fft_vkdispatch.csv"
     with open(output_name, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(['Backend', 'FFT Size'] + [f'Run {i + 1} (GB/s)' for i in range(config.run_count)] + ['Mean', 'Std Dev'])
