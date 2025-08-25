@@ -9,8 +9,8 @@ import sys
 # merged[backend][fft_size] = (mean, std)
 MergedType = Dict[str, Dict[int, Tuple[float, float]]]
 
-def read_bench_csvs(number: int) -> Tuple[MergedType, Set[str], Set[int]]:
-    pattern = f"fft_*_{number}_axis.csv"
+def read_bench_csvs() -> Tuple[MergedType, Set[str], Set[int]]:
+    pattern = f"fft_*.csv"
     files = glob.glob(pattern)
 
     merged: MergedType = {}
@@ -38,33 +38,26 @@ def read_bench_csvs(number: int) -> Tuple[MergedType, Set[str], Set[int]]:
 
     return merged, backends, fft_sizes
 
-if __name__ == "__main__":
-    axis = int(sys.argv[1])
-
-    # Example usage (change the number as needed)
-    merged, backends, fft_sizes = read_bench_csvs(axis)
-
-    print("\nSummary:")
-    print(f"Backends found: {sorted(backends)}")
-    print(f"FFT sizes found: {sorted(fft_sizes)}")
-    print(f"Total entries: {sum(len(v) for v in merged.values())}")
-
-    sorted_backends = sorted(backends)
-    sorted_fft_sizes = sorted(fft_sizes)
-
+def save_graph(backends: Set[str], fft_sizes: Set[int], merged: MergedType, min_fft_size: int = None):
     plt.figure(figsize=(10, 6))
-    for backend_name in sorted_backends:
+
+    if min_fft_size is not None:
+        used_fft_sizes = [size for size in fft_sizes if size >= min_fft_size]
+    else:
+        used_fft_sizes = fft_sizes
+
+    for backend_name in backends:
         means = [
             merged[backend_name][i][0]
-            for i in sorted_fft_sizes
+            for i in used_fft_sizes
         ]
         stds = [
             merged[backend_name][i][1]
-            for i in sorted_fft_sizes
+            for i in used_fft_sizes
         ]
         
         plt.errorbar(
-            sorted_fft_sizes,
+            used_fft_sizes,
             means,
             yerr=stds,
             label=backend_name,
@@ -76,4 +69,24 @@ if __name__ == "__main__":
     plt.title('FFT Performance Comparison')
     plt.legend()
     plt.grid(True)
-    plt.savefig(f"fft_graph_axis_{axis}.png")
+    if min_fft_size is not None:
+        plt.savefig(f"fft_graph_min_size{min_fft_size}.png")
+        return
+    plt.savefig(f"fft_graph.png")
+
+if __name__ == "__main__":
+    # Example usage (change the number as needed)
+    merged, backends, fft_sizes = read_bench_csvs()
+
+    print("\nSummary:")
+    print(f"Backends found: {sorted(backends)}")
+    print(f"FFT sizes found: {sorted(fft_sizes)}")
+    print(f"Total entries: {sum(len(v) for v in merged.values())}")
+
+    sorted_backends = sorted(backends)
+    sorted_fft_sizes = sorted(fft_sizes)
+
+    save_graph(sorted_backends, sorted_fft_sizes, merged)
+    save_graph(sorted_backends, sorted_fft_sizes, merged, min_fft_size=256)
+
+    

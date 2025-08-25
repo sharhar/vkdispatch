@@ -45,7 +45,6 @@ static inline void checkCuFFT(cufftResult err, const char* what) {
 
 struct Config {
     long long data_size;
-    int axis;          // 0 or 1
     int iter_count;
     int iter_batch;
     int run_count;
@@ -53,21 +52,16 @@ struct Config {
 };
 
 static Config parse_args(int argc, char** argv) {
-    if (argc != 6) {
+    if (argc != 5) {
         std::cerr << "Usage: " << argv[0]
-                  << " <data_size> <axis> <iter_count> <iter_batch> <run_count>\n";
+                  << " <data_size> <iter_count> <iter_batch> <run_count>\n";
         std::exit(1);
     }
     Config c;
     c.data_size  = std::stoll(argv[1]);
-    c.axis       = std::stoi(argv[2]);
-    c.iter_count = std::stoi(argv[3]);
-    c.iter_batch = std::stoi(argv[4]);
-    c.run_count  = std::stoi(argv[5]);
-    if (c.axis != 0 && c.axis != 1) {
-        std::cerr << "axis must be 0 or 1\n";
-        std::exit(1);
-    }
+    c.iter_count = std::stoi(argv[2]);
+    c.iter_batch = std::stoi(argv[3]);
+    c.run_count  = std::stoi(argv[4]);
     return c;
 }
 
@@ -78,28 +72,19 @@ static std::vector<int> get_fft_sizes() {
 }
 
 // Compute GB processed per single FFT execution (read + write) for shape (dim0, dim1)
-static double gb_per_exec(long long dim0, long long dim1) {
+static double gb_per_exec(long long dim0, long long dim1, long long dim2) {
     // complex64 = 8 bytes; count both read and write -> *2
-    const double bytes = 2.0 * static_cast<double>(dim0) * static_cast<double>(dim1) * 8.0;
+    const double bytes = 2.0 * static_cast<double>(dim0) * static_cast<double>(dim1) * static_cast<double>(dim2) * 8.0;
     return bytes / (1024.0 * 1024.0 * 1024.0);
 }
 
 static double run_cufft_case(const Config& cfg, int fft_size) {
-    // Shape has two dims; size along 'axis' is fft_size, the other is data_size / fft_size
-    const int batched_axis = (cfg.axis + 1) % 2;
+    const long long total_fft_area = fft_size * fft_size;
 
-    long long dims[2] = {0, 0};
-    dims[cfg.axis] = fft_size;
-    dims[batched_axis] = cfg.data_size / fft_size;
-
-    if (dims[batched_axis] <= 0) {
-        // Nothing to do (mismatch), return 0
-        return 0.0;
-    }
-
-    const long long dim0 = dims[0];
-    const long long dim1 = dims[1];
-    const long long total_elems = dim0 * dim1;
+    const long long dim0 = cfg.data_size / total_fft_area;
+    const long long dim1 = fft_size;
+    const long long dim2 = fft_size;
+    const long long total_elems = dim0 * dim1 * dim2;
 
     // Device buffers (in-place transform will overwrite input)
     cufftComplex* d_data = nullptr;
@@ -114,48 +99,39 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
         checkCuda(cudaDeviceSynchronize(), "fill sync");
     }
 
-    // --- single non-blocking stream ---
-    cudaStream_t stream;
-    checkCuda(cudaStreamCreate(&stream), "stream create");
-
     // --- plan bound to the stream ---
     cufftHandle plan;
     checkCuFFT(cufftCreate(&plan), "cufftCreate");
-    checkCuFFT(cufftSetStream(plan, stream), "cufftSetStream");
 
-    if (cfg.axis == 1) {
-        // contiguous last dim: each row length = dim1, batch = dim0
-        checkCuFFT(cufftPlan1d(&plan, int(dim1), CUFFT_C2C, int(dim0)), "plan1d axis=1");
-    } else {
-        // axis=0: stride by dim1, batch over columns; out-of-place enables better kernels
-        int n[1] = { int(dim0) };
-        int istride = int(dim1), ostride = int(dim1);
-        int idist   = 1,         odist   = 1;
-        int batch   = int(dim1);
-        int inembed[1] = { 0 }, onembed[1] = { 0 };
-        checkCuFFT(cufftPlanMany(&plan, 1, n,
-                                 inembed,  istride, idist,
-                                 onembed,  ostride, odist,
-                                 CUFFT_C2C, batch),
-                   "planMany axis=0");
-    }
+    int n[2] = { int(dim1), int(dim2) };
+    int inembed[2] = { int(dim1), int(dim2) };        // physical layout (same as n for tight pack)
+    int onembed[2] = { int(dim1), int(dim2) };
+    int istride    = 1;               // contiguous within each 2D image
+    int ostride    = 1;
+    int idist      = int(dim1)* int(dim2);           // distance between images
+    int odist      = int(dim1)* int(dim2);
+
+    checkCuFFT(cufftPlanMany(&plan, 2, n,
+                                  inembed,  istride, idist,
+                                  onembed,  ostride, odist,
+                                  CUFFT_C2C, int(dim0)), "plan2d");
 
     // --- warmup on the stream ---
     for (int i = 0; i < cfg.warmup; ++i)
         checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_FORWARD), "warmup");
     
-    //checkCuda(cudaDeviceSynchronize(), "warmup sync");
-    checkCuda(cudaStreamSynchronize(stream), "warmup sync");
+    checkCuda(cudaDeviceSynchronize(), "warmup sync");
 
     // === OPTION A: plain single-stream timing (simple & robust) ===
     cudaEvent_t evA, evB;
     checkCuda(cudaEventCreate(&evA), "evA");
     checkCuda(cudaEventCreate(&evB), "evB");
-    checkCuda(cudaEventRecord(evA, stream), "record A");
+    checkCuda(cudaEventRecord(evA), "record A");
     for (int it = 0; it < cfg.iter_count; ++it)
         checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_FORWARD), "exec");
-    checkCuda(cudaEventRecord(evB, stream), "record B");
+    checkCuda(cudaEventRecord(evB), "record B");
     checkCuda(cudaEventSynchronize(evB), "sync B");
+    checkCuda(cudaDeviceSynchronize(), "warmup sync");
     float ms = 0.f; checkCuda(cudaEventElapsedTime(&ms, evA, evB), "elapsed");
     checkCuda(cudaEventDestroy(evA), "dA");
     checkCuda(cudaEventDestroy(evB), "dB");
@@ -164,7 +140,7 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
     const double seconds = static_cast<double>(ms) / 1000.0;
 
     // Compute throughput in GB/s (same accounting as Torch: 2 * elems * 8 bytes per exec)
-    const double gb_per_exec_once = gb_per_exec(dim0, dim1);
+    const double gb_per_exec_once = 2 * gb_per_exec(dim0, dim1, dim2);
     const double total_execs = static_cast<double>(cfg.iter_count); // * static_cast<double>(cfg.iter_batch);
     const double gb_per_second = (total_execs * gb_per_exec_once) / seconds;
 
@@ -179,7 +155,7 @@ int main(int argc, char** argv) {
     const Config cfg = parse_args(argc, argv);
     const auto sizes = get_fft_sizes();
 
-    const std::string output_name = "fft_cuda_" + std::to_string(cfg.axis) + "_axis.csv";
+    const std::string output_name = "fft_cuda.csv";
     std::ofstream out(output_name);
     if (!out) {
         std::cerr << "Failed to open output file: " << output_name << "\n";
@@ -187,7 +163,6 @@ int main(int argc, char** argv) {
     }
 
     std::cout << "Running cuFFT tests with data size " << cfg.data_size
-              << ", axis " << cfg.axis
               << ", iter_count " << cfg.iter_count
               << ", iter_batch " << cfg.iter_batch
               << ", run_count " << cfg.run_count << "\n";

@@ -1,35 +1,26 @@
 import csv
 import time
-import ffts_utils as fu
+import performance_tests.conv_2d.conv_utils as fu
 import vkdispatch as vd
 import numpy as np
 
-def run_vkfft(config: fu.Config, fft_size: int) -> float:
+def run_vkdispatch(config: fu.Config, fft_size: int) -> float:
     shape = config.make_shape(fft_size)
     random_data = config.make_random_data(fft_size)
 
     buffer = vd.Buffer(shape, var_type=vd.complex64)
     buffer.write(random_data)
-    buffer_shape = buffer.shape
 
     graph = vd.CommandGraph()
-
-    fu.register_object(buffer)
-    fu.register_object(graph)
-
-    vd.vkfft.fft(
-        buffer,
-        buffer_shape=buffer_shape,
-        graph=graph,
-        axis=config.axis,
-    )
+    
+    vd.fft.fft2(buffer, graph=graph)
 
     for _ in range(config.warmup):
         graph.submit(config.iter_batch)
 
     vd.queue_wait_idle()
 
-    gb_byte_count = 2 * 8 * buffer.size / (1024 * 1024 * 1024)
+    gb_byte_count = 11 * 8 * buffer.size / (1024 * 1024 * 1024)
     
     start_time = time.perf_counter()
 
@@ -42,11 +33,11 @@ def run_vkfft(config: fu.Config, fft_size: int) -> float:
 
     buffer.destroy()
     graph.destroy()
-    vd.vkfft.clear_plan_cache()
+    vd.fft.cache_clear()
 
     time.sleep(1)
 
-    vd.queue_wait_idle()
+    vd.queue_wait_idle()    
 
     return config.iter_count * gb_byte_count / elapsed_time
 
@@ -54,7 +45,7 @@ if __name__ == "__main__":
     config = fu.parse_args()
     fft_sizes = fu.get_fft_sizes()
 
-    output_name = f"fft_vkfft_{config.axis}_axis.csv"
+    output_name = f"conv_vkdispatch.csv"
     with open(output_name, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(['Backend', 'FFT Size'] + [f'Run {i + 1} (GB/s)' for i in range(config.run_count)] + ['Mean', 'Std Dev'])
@@ -63,7 +54,7 @@ if __name__ == "__main__":
             rates = []
 
             for _ in range(config.run_count):
-                gb_per_second = run_vkfft(config, fft_size)
+                gb_per_second = run_vkdispatch(config, fft_size)
                 print(f"FFT Size: {fft_size}, Throughput: {gb_per_second:.2f} GB/s")
                 rates.append(gb_per_second)
 
@@ -71,6 +62,9 @@ if __name__ == "__main__":
             rounded_mean = round(np.mean(rates), 2)
             rounded_std = round(np.std(rates), 2)
 
-            writer.writerow(["vkfft", fft_size] + rounded_data + [rounded_mean, rounded_std])
+            writer.writerow(["vkdispatch", fft_size] + rounded_data + [rounded_mean, rounded_std])
         
     print(f"Results saved to {output_name}.csv")
+
+
+    
