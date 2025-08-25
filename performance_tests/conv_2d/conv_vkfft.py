@@ -1,18 +1,23 @@
 import csv
 import time
-import performance_tests.conv_2d.conv_utils as fu
+import conv_utils as fu
 import vkdispatch as vd
 import numpy as np
 
 def run_vkfft(config: fu.Config, fft_size: int) -> float:
     shape = config.make_shape(fft_size)
     random_data = config.make_random_data(fft_size)
+    random_data_2 = config.make_random_data(fft_size)
 
     buffer = vd.Buffer(shape, var_type=vd.complex64)
     buffer.write(random_data)
+
+    kernel = vd.Buffer(shape[1:], var_type=vd.complex64)
+    kernel.write(random_data_2[0])
+
     graph = vd.CommandGraph()
 
-    vd.vkfft.fft2(buffer, graph=graph)
+    vd.vkfft.convolve_2D(buffer, kernel, graph=graph)
 
     for _ in range(config.warmup):
         graph.submit(config.iter_batch)

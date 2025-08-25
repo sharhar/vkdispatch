@@ -175,6 +175,44 @@ def create_kernel_2Dreal(
     return kernel
 
 
+def convolve_2D(
+        buffer: vd.Buffer,
+        kernel: Union[vd.Buffer[vd.float32], vd.Buffer],
+        normalize: bool = False,
+        conjugate_kernel: bool = False,
+        graph: Union[vd.CommandList, vd.CommandGraph, None] = None,
+        keep_shader_code: bool = False):
+
+    buffer_shape = sanitize_2d_convolution_buffer_shape(buffer)
+    kernel_shape = sanitize_2d_convolution_buffer_shape(kernel)
+    
+    # assert buffer_shape == kernel_shape, f"Buffer ({buffer_shape}) and Kernel ({kernel_shape}) shapes must match!"
+
+    kernel_count = kernel.shape[0] if len(kernel.shape) == 3 else 1
+    feature_count = 1
+
+    if kernel_count > 1:
+        feature_count = buffer.shape[0]
+
+    in_shape = sanitize_input_tuple(buffer.shape)
+
+    execute_fft_plan(
+        buffer,
+        False,
+        graph = graph,
+        config = FFTConfig(
+            buffer_handle=buffer._handle,
+            shape=in_shape[1:] if kernel_count == 1 else in_shape,
+            normalize=normalize,
+            kernel_count=kernel_count,
+            conjugate_convolution=conjugate_kernel,
+            convolution_features=feature_count,
+            keep_shader_code=keep_shader_code,
+            num_batches=buffer.shape[0] if kernel_count == 1 else 1
+        ),
+        kernel=kernel
+    )
+
 def fft(
         buffer: vd.Buffer,
         input_buffer: vd.Buffer = None,
