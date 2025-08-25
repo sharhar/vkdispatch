@@ -151,9 +151,18 @@ def convolve2D(
 
     assert len(buffer.shape) == 2 or len(buffer.shape) == 3, 'Buffer must have 2 or 3 dimensions'
 
-    fft(buffer, graph=graph, print_shader=print_shader, input_map=input_map)
+    input_buffers = [buffer]
+
+    if input_map is not None:
+        input_buffers.append(buffer)
+
+    output_buffers = [buffer]
+    if output_map is not None:
+        output_buffers.append(buffer)
+
+    fft(*input_buffers, graph=graph, print_shader=print_shader, input_map=input_map)
     convolve(buffer, kernel, kernel_map=kernel_map, buffer_shape=buffer_shape, graph=graph, print_shader=print_shader, axis=len(buffer.shape) - 2, normalize=normalize)
-    ifft(buffer, graph=graph, print_shader=print_shader, normalize=normalize, output_map=output_map)
+    ifft(*output_buffers, graph=graph, print_shader=print_shader, normalize=normalize, output_map=output_map)
 
 def convolve2DR(
         buffer: vd.RFFTBuffer,

@@ -181,7 +181,8 @@ def convolve_2D(
         normalize: bool = False,
         conjugate_kernel: bool = False,
         graph: Union[vd.CommandList, vd.CommandGraph, None] = None,
-        keep_shader_code: bool = False):
+        keep_shader_code: bool = False,
+        padding: Tuple[Tuple[int, int]] = None):
 
     buffer_shape = sanitize_2d_convolution_buffer_shape(buffer)
     kernel_shape = sanitize_2d_convolution_buffer_shape(kernel)
@@ -208,7 +209,8 @@ def convolve_2D(
             conjugate_convolution=conjugate_kernel,
             convolution_features=feature_count,
             keep_shader_code=keep_shader_code,
-            num_batches=buffer.shape[0] if kernel_count == 1 else 1
+            num_batches=buffer.shape[0] if kernel_count == 1 else 1,
+            padding=padding
         ),
         kernel=kernel
     )
