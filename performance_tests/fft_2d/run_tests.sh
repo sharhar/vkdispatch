@@ -9,7 +9,7 @@ ITER_COUNT=250
 BATCH_SIZE=10
 REPEATS=5
 
-/usr/local/cuda/bin/nvcc ../fft_cuda.cu -o fft_cuda.exec -lcufft
+/usr/local/cuda/bin/nvcc ../fft_cufft.cu -o fft_cufft.exec -lcufft
 
 echo "Running performance tests with the following parameters:"
 echo "Data Size: $DATA_SIZE"
@@ -18,7 +18,7 @@ echo "Batch Size: $BATCH_SIZE"
 echo "Repeats: $REPEATS"
 
 echo "Running cuFFT FFT..."
-./fft_cuda.exec $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
+./fft_cufft.exec $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
 
 echo "Running Vkdispatch FFT..."
 python3 ../fft_vkdispatch.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
