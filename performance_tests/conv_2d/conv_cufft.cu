@@ -19,13 +19,6 @@
 #include <vector>
 #include <cmath>
 
-struct CallbackParams {
-    cufftComplex* filter;         // device pointer, length = NX * NY
-    size_t    NX; 
-    size_t    NY;
-    size_t    signal_factor; // = NX * NY
-};
-
 __global__ void fill_randomish(cufftComplex* a, long long n){
     long long i = blockIdx.x * 1LL * blockDim.x + threadIdx.x;
     if(i<n){
@@ -35,45 +28,18 @@ __global__ void fill_randomish(cufftComplex* a, long long n){
     }
 }
 
-__device__ __noinline__ void store_mul_cb(void* dataOut,
-                             size_t offset,
-                             cufftComplex element,
-                             void* callerInfo,
-                             void* /*sharedPtr*/)
-{
-    const CallbackParams* p = static_cast<const CallbackParams*>(callerInfo);
-    const size_t idxInImage = offset % (p->NX * p->NY);
-
-    // Multiply element by filter[idxInImage]
-    const cufftComplex h = p->filter[idxInImage];
-    cufftComplex y;
-    y.x = element.x * h.x - element.y * h.y;
-    y.y = element.x * h.y + element.y * h.x;
-
-    static_cast<cufftComplex*>(dataOut)[offset] = y;
-}
-
-__device__ cufftCallbackStoreC d_store_cb_ptr = store_mul_cb;
-
-__device__ __noinline__ cufftComplex load_cb(void* dataOut,
-                             size_t offset,
-                             void* callerInfo,
-                             void* /*sharedPtr*/)
-{
-    const CallbackParams* p = static_cast<const CallbackParams*>(callerInfo);
-    const size_t idxInImage = offset;
-
-    const size_t signal_size = p->NX / p->signal_factor;
-
-    if (offset % p->NY >= signal_size || (offset / p->NY) % p->NX >= signal_size) {
-        return make_float2(0.f, 0.f);
-
+__global__ void convolve_arrays(cufftComplex* data, cufftComplex* kernel, long long kernel_size, long long total_elems) {
+    long long i = blockIdx.x * 1LL * blockDim.x + threadIdx.x;
+    if (i < total_elems) {
+        const size_t idx_in_image = i % kernel_size;
+        const cufftComplex d = data[i];
+        const cufftComplex k = kernel[idx_in_image];
+        // Complex multiply: (a+bi)(c+di) = (ac-bd) + (ad+bc)i
+        const float real = d.x * k.x - d.y * k.y;
+        const float imag = d.x * k.y + d.y * k.x;
+        data[i] = make_float2(real, imag);
     }
-
-    return static_cast<cufftComplex*>(dataOut)[offset];
 }
-
-__device__ cufftCallbackLoadC d_load_ptr = load_cb;
 
 static inline void checkCuda(cudaError_t err, const char* what) {
     if (err != cudaSuccess) {
@@ -91,7 +57,6 @@ static inline void checkCuFFT(cufftResult err, const char* what) {
 
 struct Config {
     long long data_size;
-    long long signal_factor;
     int iter_count;
     int iter_batch;
     int run_count;
@@ -99,17 +64,16 @@ struct Config {
 };
 
 static Config parse_args(int argc, char** argv) {
-    if (argc != 6) {
+    if (argc != 5) {
         std::cerr << "Usage: " << argv[0]
-                  << " <data_size> <signal_factor> <iter_count> <iter_batch> <run_count>\n";
+                  << " <data_size> <iter_count> <iter_batch> <run_count>\n";
         std::exit(1);
     }
     Config c;
     c.data_size  = std::stoll(argv[1]);
-    c.signal_factor = std::stoll(argv[2]);
-    c.iter_count = std::stoi(argv[3]);
-    c.iter_batch = std::stoi(argv[4]);
-    c.run_count  = std::stoi(argv[5]);
+    c.iter_count = std::stoi(argv[2]);
+    c.iter_batch = std::stoi(argv[3]);
+    c.run_count  = std::stoi(argv[4]);
     return c;
 }
 
@@ -157,15 +121,9 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
         checkCuda(cudaDeviceSynchronize(), "fill kernel sync");
     }
 
-    CallbackParams h_params{ d_kernel, size_t(dim1), size_t(dim2), cfg.signal_factor };
-    CallbackParams* d_params = nullptr;
-    checkCuda(cudaMalloc(&d_params, sizeof(CallbackParams)), "cudaMalloc params");
-    checkCuda(cudaMemcpy(d_params, &h_params, sizeof(CallbackParams), cudaMemcpyHostToDevice), "cudaMemcpy params");
-
     // --- plan bound to the stream ---
-    cufftHandle plans[2];
-    checkCuFFT(cufftCreate(&plans[0]), "cufftCreate");
-    checkCuFFT(cufftCreate(&plans[1]), "cufftCreate");
+    cufftHandle plan;
+    checkCuFFT(cufftCreate(&plan), "cufftCreate");
 
     int n[2] = { int(dim1), int(dim2) };
     int inembed[2] = { int(dim1), int(dim2) };        // physical layout (same as n for tight pack)
@@ -175,34 +133,16 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
     int idist      = int(dim1)* int(dim2);           // distance between images
     int odist      = int(dim1)* int(dim2);
 
-    checkCuFFT(cufftPlanMany(&plans[0], 2, n,
+    checkCuFFT(cufftPlanMany(&plan, 2, n,
                                   inembed,  istride, idist,
                                   onembed,  ostride, odist,
                                   CUFFT_C2C, int(dim0)), "plan2d");
-    
-    checkCuFFT(cufftPlanMany(&plans[1], 2, n,
-                                  inembed,  istride, idist,
-                                  onembed,  ostride, odist,
-                                  CUFFT_C2C, int(dim0)), "plan2d");
-
-    cufftCallbackStoreC h_store_cb_ptr;
-    checkCuda(cudaMemcpyFromSymbol(&h_store_cb_ptr, d_store_cb_ptr, sizeof(h_store_cb_ptr)), "memcpy from symbol");
-
-    cufftCallbackLoadC h_load_ptr;
-    checkCuda(cudaMemcpyFromSymbol(&h_load_ptr, d_load_ptr, sizeof(h_load_ptr)), "memcpy from symbol");
-
-    void* cb_ptrs[1] = { (void*)h_store_cb_ptr };
-    void* cb_data[1] = { (void*)d_params };  // single pointer: our params struct
-    checkCuFFT(cufftXtSetCallback(plans[0], cb_ptrs, CUFFT_CB_ST_COMPLEX, cb_data), "set callback");
-
-    void* cb_ptrs_ld[1] = { (void*)h_load_ptr };
-    void* cb_data_ld[1] = { (void*)d_params };  // single pointer: our params struct
-    checkCuFFT(cufftXtSetCallback(plans[0], cb_ptrs_ld, CUFFT_CB_LD_COMPLEX, cb_data_ld), "load callback");
 
     // --- warmup on the stream ---
     for (int i = 0; i < cfg.warmup; ++i) {
-        checkCuFFT(cufftExecC2C(plans[0], d_data, d_data, CUFFT_FORWARD), "warmup");
-        checkCuFFT(cufftExecC2C(plans[1], d_data, d_data, CUFFT_INVERSE), "warmup");
+        checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_FORWARD), "warmup");
+        convolve_arrays<<<(total_elems+255)/256,256>>>(d_data, d_kernel, dim1*dim2, total_elems);
+        checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_INVERSE), "warmup");
     }
     
     checkCuda(cudaDeviceSynchronize(), "warmup sync");
@@ -213,8 +153,9 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
     checkCuda(cudaEventCreate(&evB), "evB");
     checkCuda(cudaEventRecord(evA), "record A");
     for (int it = 0; it < cfg.iter_count; ++it) {
-        checkCuFFT(cufftExecC2C(plans[0], d_data, d_data, CUFFT_FORWARD), "exec");
-        checkCuFFT(cufftExecC2C(plans[1], d_data, d_data, CUFFT_INVERSE), "exec");
+        checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_FORWARD), "exec");
+        convolve_arrays<<<(total_elems+255)/256,256>>>(d_data, d_kernel, dim1*dim2, total_elems);
+        checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_INVERSE), "exec");
     }
     checkCuda(cudaEventRecord(evB), "record B");
     checkCuda(cudaEventSynchronize(evB), "sync B");
@@ -232,8 +173,7 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
     const double gb_per_second = (total_execs * gb_per_exec_once) / seconds;
 
     // Cleanup
-    cufftDestroy(plans[0]);
-    cufftDestroy(plans[1]);
+    cufftDestroy(plan);
     cudaFree(d_data);
     cudaFree(d_kernel);
 
@@ -244,7 +184,7 @@ int main(int argc, char** argv) {
     const Config cfg = parse_args(argc, argv);
     const auto sizes = get_fft_sizes();
 
-    const std::string output_name = "conv_padded_cuda.csv";
+    const std::string output_name = "conv_cufft.csv";
     std::ofstream out(output_name);
     if (!out) {
         std::cerr << "Failed to open output file: " << output_name << "\n";
@@ -286,7 +226,7 @@ int main(int argc, char** argv) {
         const double stdev = std::sqrt(var);
 
         // Round to 2 decimals like your Torch script
-        out << "cuda," << fft_size;
+        out << "cufft," << fft_size;
         out << std::fixed << std::setprecision(2);
         for (double v : rates) out << "," << v;
         out << "," << mean << "," << stdev << "\n";

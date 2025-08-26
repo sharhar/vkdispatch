@@ -66,7 +66,7 @@ def save_graph(backends: Set[str], fft_sizes: Set[int], merged: MergedType, min_
     plt.xscale('log', base=2)
     plt.xlabel('Convolution Size')
     plt.ylabel('GB/s')
-    plt.title('Convolution Performance Comparison')
+    plt.title('Padded Convolution Performance Comparison')
     plt.legend()
     plt.grid(True)
     if min_fft_size is not None:

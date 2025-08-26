@@ -213,7 +213,7 @@ int main(int argc, char** argv) {
     const Config cfg = parse_args(argc, argv);
     const auto sizes = get_fft_sizes();
 
-    const std::string output_name = "conv_cuda.csv";
+    const std::string output_name = "conv_cufft_callback.csv";
     std::ofstream out(output_name);
     if (!out) {
         std::cerr << "Failed to open output file: " << output_name << "\n";
@@ -255,7 +255,7 @@ int main(int argc, char** argv) {
         const double stdev = std::sqrt(var);
 
         // Round to 2 decimals like your Torch script
-        out << "cuda," << fft_size;
+        out << "cufft_callback," << fft_size;
         out << std::fixed << std::setprecision(2);
         for (double v : rates) out << "," << v;
         out << "," << mean << "," << stdev << "\n";
