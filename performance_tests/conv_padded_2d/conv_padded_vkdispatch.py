@@ -5,6 +5,74 @@ import vkdispatch as vd
 import vkdispatch.codegen as vc
 import numpy as np
 
+def padded_cross_correlation(
+        buffer: vd.Buffer,
+        kernel: vd.Buffer,
+        signal_shape: tuple,
+        graph: vd.CommandGraph):
+
+
+    # Fill input buffer with zeros where needed
+    @vd.map_registers([vc.c64])
+    def initial_input_mapping(input_buffer: vc.Buffer[vc.c64]):
+        vc.if_statement(vc.mapping_index() % buffer.shape[2] < signal_shape[1])
+
+        in_layer_index = vc.mapping_index() % (signal_shape[1] * buffer.shape[2])
+        out_layer_index = vc.mapping_index() / (signal_shape[1] * buffer.shape[2])
+        actual_index = in_layer_index + out_layer_index * (buffer.shape[1] * buffer.shape[2])
+
+        vc.mapping_registers()[0][:] = input_buffer[actual_index]
+        vc.else_statement()
+        vc.mapping_registers()[0][:] = "vec2(0)"
+        vc.end()
+
+    # Remap output indicies to match the actual buffer shape
+    @vd.map_registers([vc.c64])
+    def initial_output_mapping(output_buffer: vc.Buffer[vc.c64]):
+        in_layer_index = vc.mapping_index() % (signal_shape[1] * buffer.shape[2])
+        out_layer_index = vc.mapping_index() / (signal_shape[1] * buffer.shape[2])
+        actual_index = in_layer_index + out_layer_index * (buffer.shape[1] * buffer.shape[2])
+        output_buffer[actual_index] = vc.mapping_registers()[0]
+
+    # Do the first FFT on the correlation buffer accross the first axis
+    vd.fft.fft(
+        buffer,
+        buffer,
+        buffer_shape=(
+            buffer.shape[0],
+            signal_shape[1],
+            buffer.shape[2]
+        ),
+        input_map=initial_input_mapping,
+        output_map=initial_output_mapping,
+        graph=graph
+    )
+
+    # Again, we skip reading the zero-padded values from the input
+    @vd.map_registers([vc.c64])
+    def input_mapping(input_buffer: vc.Buffer[vc.c64]):
+        in_layer_index = vc.mapping_index() % (
+            buffer.shape[1] * buffer.shape[2]
+        )
+
+        vc.if_statement(in_layer_index / buffer.shape[2] < signal_shape[1])
+        vc.mapping_registers()[0][:] = input_buffer[vc.mapping_index()]
+        vc.else_statement()
+        vc.mapping_registers()[0][:] = "vec2(0)"
+        vc.end()
+
+    vd.fft.convolve(
+        buffer,
+        buffer,
+        kernel,
+        input_map=input_mapping,
+        axis=1,
+        graph=graph
+    )
+
+    vd.fft.ifft(buffer, graph=graph)
+
+
 def run_vkdispatch(config: fu.Config, fft_size: int) -> float:
     shape = config.make_shape(fft_size)
     random_data = config.make_random_data(fft_size)
@@ -20,18 +88,7 @@ def run_vkdispatch(config: fu.Config, fft_size: int) -> float:
 
     signal_size = fft_size // config.signal_factor
 
-    @vd.map_registers([vc.c64])
-    def pad_zeros(buff: vc.Buff[vc.c64]):
-        vc.if_all(
-            vc.mapping_index() % buffer.shape[2] < signal_size,
-            (vc.mapping_index() / buffer.shape[2]) % buffer.shape[1] < signal_size)
-
-        vc.mapping_registers()[0][:] = buff[vc.mapping_index()]
-        vc.else_statement()
-        vc.mapping_registers()[0][:] = "vec2(0)"
-        vc.end()
-    
-    vd.fft.convolve2D(buffer, kernel, graph=graph, input_map=pad_zeros)
+    padded_cross_correlation(buffer, kernel, (signal_size, signal_size), graph)
 
     for _ in range(config.warmup):
         graph.submit(config.iter_batch)
