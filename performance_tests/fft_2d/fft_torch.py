@@ -16,8 +16,6 @@ def run_torch(config: fu.Config, fft_size: int) -> float:
 
     buffer.copy_(torch.from_numpy(random_data).to('cuda'))
 
-    output_buffer = torch.empty_like(buffer)
-
     stream = torch.cuda.Stream()
 
     torch.cuda.synchronize()

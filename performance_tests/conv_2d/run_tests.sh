@@ -4,9 +4,9 @@ mkdir -p test_results
 
 cd test_results
 
-#DATA_SIZE=33554432 #134217728
-DATA_SIZE=134217728
-ITER_COUNT=200
+DATA_SIZE=33554432 #134217728
+#DATA_SIZE=134217728
+ITER_COUNT=100
 BATCH_SIZE=10
 REPEATS=5
 
@@ -31,11 +31,10 @@ python3 ../conv_vkfft.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
 echo "Running Vkdispatch FFT..."
 python3 ../conv_vkdispatch.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
 
-
 echo "Running PyTorch FFT..."
 python3 ../conv_torch.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
 
-#echo "Running ZipFFT FFT..."
-#python3 ../conv_zipfft.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
+echo "Running ZipFFT FFT..."
+python3 ../conv_zipfft.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
 
 python3 ../conv_make_graph.py

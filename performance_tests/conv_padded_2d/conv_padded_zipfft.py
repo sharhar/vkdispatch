@@ -6,6 +6,7 @@ import torch
 
 try:
     from zipfft import cfft1d
+    from zipfft import cfft1d_strided
 except ImportError:
     print("zipfft is not installed. Please install it via 'pip install zipfft'.")
     exit(0)
@@ -21,9 +22,6 @@ def run_zipfft(config: fu.Config, fft_size: int) -> float:
     )
 
     buffer.copy_(torch.from_numpy(random_data).to('cuda'))
-
-    #for _ in range(config.warmup):
-    #    cfft1d.fft(buffer)
 
     stream = torch.cuda.Stream()
 
@@ -52,9 +50,6 @@ def run_zipfft(config: fu.Config, fft_size: int) -> float:
 
     for _ in range(config.iter_count // max(1, config.iter_batch)):
         g.replay()
-    
-    #for _ in range(config.iter_count):
-    #    cfft1d.fft(buffer)
 
     torch.cuda.synchronize()
 
