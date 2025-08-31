@@ -6,6 +6,7 @@ import torch
 
 try:
     from zipfft import cfft1d
+    from zipfft import cfft1d_strided
 except ImportError:
     print("zipfft is not installed. Please install it via 'pip install zipfft'.")
     exit(0)
@@ -22,39 +23,33 @@ def run_zipfft(config: fu.Config, fft_size: int) -> float:
 
     buffer.copy_(torch.from_numpy(random_data).to('cuda'))
 
-    #for _ in range(config.warmup):
-    #    cfft1d.fft(buffer)
-
     stream = torch.cuda.Stream()
 
     torch.cuda.synchronize()
     
     with torch.cuda.stream(stream):
         for _ in range(config.warmup):
-            cfft1d.fft(buffer)
+            cfft1d.fft(buffer.view(-1, buffer.size(2)))
+            cfft1d_strided.fft(buffer)
 
     torch.cuda.synchronize()
-
-    gb_byte_count = 4 * np.prod(shape) * 8 / (1024 * 1024 * 1024)
     
     g = torch.cuda.CUDAGraph()
 
     # We capture either 1 or K FFTs back-to-back. All on the same stream.
     with torch.cuda.graph(g, stream=stream):
         for _ in range(max(1, config.iter_batch)):
-            cfft1d.fft(buffer)
+            cfft1d.fft(buffer.view(-1, buffer.size(2)))
+            cfft1d_strided.fft(buffer)
 
     torch.cuda.synchronize()
 
-    gb_byte_count = 2 * np.prod(shape) * 8 / (1024 * 1024 * 1024)
+    gb_byte_count = 4 * np.prod(shape) * 8 / (1024 * 1024 * 1024)
     
     start_time = time.perf_counter()
 
     for _ in range(config.iter_count // max(1, config.iter_batch)):
         g.replay()
-    
-    #for _ in range(config.iter_count):
-    #    cfft1d.fft(buffer)
 
     torch.cuda.synchronize()
 
@@ -66,11 +61,7 @@ if __name__ == "__main__":
     config = fu.parse_args()
     fft_sizes = fu.get_fft_sizes()
 
-    if config.axis != 1:
-        print("zipfft currently only supports axis=1. Please set axis to 1.")
-        exit(0)
-
-    output_name = f"fft_zipfft_{config.axis}_axis.csv"
+    output_name = f"fft_zipfft.csv"
     with open(output_name, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(['Backend', 'FFT Size'] + [f'Run {i + 1} (GB/s)' for i in range(config.run_count)] + ['Mean', 'Std Dev'])

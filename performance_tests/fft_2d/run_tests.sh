@@ -5,7 +5,8 @@ mkdir -p test_results
 cd test_results
 
 DATA_SIZE=134217728
-ITER_COUNT=250
+#DATA_SIZE=33554432
+ITER_COUNT=500
 BATCH_SIZE=10
 REPEATS=5
 
@@ -29,7 +30,7 @@ python3 ../fft_vkfft.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
 echo "Running PyTorch FFT..."
 python3 ../fft_torch.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
 
-#echo "Running ZipFFT FFT..."
-#python3 ../fft_zipfft.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
+echo "Running ZipFFT FFT..."
+python3 ../fft_zipfft.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
 
 python3 ../fft_make_graph.py
