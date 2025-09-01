@@ -203,13 +203,13 @@ def convolve_2D(
         graph = graph,
         config = FFTConfig(
             buffer_handle=buffer._handle,
-            shape=in_shape[1:] if kernel_count == 1 else in_shape,
+            shape=in_shape[1:], # if kernel_count == 1 else in_shape,
             normalize=normalize,
-            kernel_count=kernel_count,
+            kernel_count=1, #kernel_count,
             conjugate_convolution=conjugate_kernel,
-            convolution_features=feature_count,
+            convolution_features=1, #feature_count,
             keep_shader_code=keep_shader_code,
-            num_batches=buffer.shape[0] if kernel_count == 1 else 1,
+            num_batches=buffer.shape[0], # if kernel_count == 1 else 1,
             padding=padding
         ),
         kernel=kernel
