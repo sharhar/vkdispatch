@@ -1,4 +1,6 @@
 #include "../base.hh"
+#include "context_extern.hh"
+#include "init.hh"
 
 std::mutex __error_mutex = {};
 const char* __error_string = NULL;
@@ -12,6 +14,9 @@ const char* get_error_string_extern() {
 }
 
 void set_error(const char* format, ...) {
+    if(_instance.context)
+     context_stop_threads_extern(_instance.context);
+
     __error_mutex.lock();
     
     va_list args;
