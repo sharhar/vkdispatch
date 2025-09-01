@@ -42,7 +42,7 @@ __device__ __noinline__ void store_mul_cb(void* dataOut,
                              void* /*sharedPtr*/)
 {
     const CallbackParams* p = static_cast<const CallbackParams*>(callerInfo);
-    const size_t idxInImage = offset % (p->NX * p->NY);
+    const size_t idxInImage = offset;// % (p->NX * p->NY);
 
     // Multiply element by filter[idxInImage]
     const cufftComplex h = p->filter[idxInImage];
@@ -61,7 +61,7 @@ __device__ __noinline__ cufftComplex load_cb(void* dataOut,
                              void* /*sharedPtr*/)
 {
     const CallbackParams* p = static_cast<const CallbackParams*>(callerInfo);
-    const size_t idxInImage = offset;
+    //const size_t idxInImage = offset;
 
     const size_t signal_size = p->NX / p->signal_factor;
 
@@ -127,12 +127,12 @@ static double gb_per_exec(long long dim0, long long dim1, long long dim2) {
 }
 
 static double run_cufft_case(const Config& cfg, int fft_size) {
-    const long long total_fft_area = fft_size * fft_size;
+    const size_t total_fft_area = fft_size * fft_size;
 
-    const long long dim0 = cfg.data_size / total_fft_area;
-    const long long dim1 = fft_size;
-    const long long dim2 = fft_size;
-    const long long total_elems = dim0 * dim1 * dim2;
+    const size_t dim0 = cfg.data_size / total_fft_area;
+    const size_t dim1 = fft_size;
+    const size_t dim2 = fft_size;
+    const size_t total_elems = dim0 * dim1 * dim2;
 
     // Device buffers (in-place transform will overwrite input)
     cufftComplex* d_data = nullptr;
@@ -141,9 +141,9 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
     checkCuda(cudaMemset(d_data, 0, total_elems * sizeof(cufftComplex)), "cudaMemset d_data");
 
     cufftComplex* d_kernel = nullptr;
-    checkCuda(cudaMalloc(&d_kernel, (dim1 * dim2) * sizeof(cufftComplex)), "cudaMalloc d_kernel");
+    checkCuda(cudaMalloc(&d_kernel, (total_elems) * sizeof(cufftComplex)), "cudaMalloc d_kernel");
     // Optionally zero-fill
-    checkCuda(cudaMemset(d_kernel, 0, (dim1 * dim2) * sizeof(cufftComplex)), "cudaMemset d_kernel");
+    checkCuda(cudaMemset(d_kernel, 0, (total_elems) * sizeof(cufftComplex)), "cudaMemset d_kernel");
 
     {
         int t = 256, b = int((total_elems + t - 1) / t);
@@ -151,8 +151,8 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
         checkCuda(cudaGetLastError(), "fill launch");
         checkCuda(cudaDeviceSynchronize(), "fill sync");
 
-        int kt = 256, kb = int((dim1 * dim2 + kt - 1) / kt);
-        fill_randomish<<<kb,kt>>>(d_kernel, dim1 * dim2);
+        int kt = 256, kb = int((total_elems + kt - 1) / kt);
+        fill_randomish<<<kb,kt>>>(d_kernel, total_elems);
         checkCuda(cudaGetLastError(), "fill kernel launch");
         checkCuda(cudaDeviceSynchronize(), "fill kernel sync");
     }

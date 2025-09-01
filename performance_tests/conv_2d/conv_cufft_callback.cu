@@ -40,7 +40,7 @@ __device__ __noinline__ void store_mul_cb(void* dataOut,
                              void* /*sharedPtr*/)
 {
     const CallbackParams* p = static_cast<const CallbackParams*>(callerInfo);
-    const size_t idxInImage = offset % p->elemsPerImage;
+    const size_t idxInImage = offset; // % p->elemsPerImage;
 
     // Multiply element by filter[idxInImage]
     const cufftComplex h = p->filter[idxInImage];
@@ -117,9 +117,9 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
     checkCuda(cudaMemset(d_data, 0, total_elems * sizeof(cufftComplex)), "cudaMemset d_data");
 
     cufftComplex* d_kernel = nullptr;
-    checkCuda(cudaMalloc(&d_kernel, (dim1 * dim2) * sizeof(cufftComplex)), "cudaMalloc d_kernel");
+    checkCuda(cudaMalloc(&d_kernel, (total_elems) * sizeof(cufftComplex)), "cudaMalloc d_kernel");
     // Optionally zero-fill
-    checkCuda(cudaMemset(d_kernel, 0, (dim1 * dim2) * sizeof(cufftComplex)), "cudaMemset d_kernel");
+    checkCuda(cudaMemset(d_kernel, 0, (total_elems) * sizeof(cufftComplex)), "cudaMemset d_kernel");
 
     {
         int t = 256, b = int((total_elems + t - 1) / t);
@@ -127,8 +127,8 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
         checkCuda(cudaGetLastError(), "fill launch");
         checkCuda(cudaDeviceSynchronize(), "fill sync");
 
-        int kt = 256, kb = int((dim1 * dim2 + kt - 1) / kt);
-        fill_randomish<<<kb,kt>>>(d_kernel, dim1 * dim2);
+        int kt = 256, kb = int((total_elems + kt - 1) / kt);
+        fill_randomish<<<kb,kt>>>(d_kernel, total_elems);
         checkCuda(cudaGetLastError(), "fill kernel launch");
         checkCuda(cudaDeviceSynchronize(), "fill kernel sync");
     }
