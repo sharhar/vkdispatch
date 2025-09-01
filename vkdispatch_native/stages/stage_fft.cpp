@@ -191,6 +191,7 @@ struct FFTPlan* stage_fft_plan_create_extern(
             config.physicalDevice = &ctx->physicalDevices[indicies.device_index];
             config.device = &ctx->devices[indicies.device_index];
             config.queue = &ctx->queues[indicies.queue_index]->queue;
+            config.maxCodeLength = 10000000;
 
             print_vkfft_config(&config);
             

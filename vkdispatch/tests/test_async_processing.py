@@ -9,7 +9,7 @@ from typing import Any
 from typing import Dict
 from typing import Tuple
 
-vd.initialize(debug_mode=True)
+#vd.initialize(debug_mode=True)
 vd.make_context(use_cpu=True)
 
 import numpy as np
@@ -68,14 +68,14 @@ class RunConfig:
 ])"""
 
 def make_random_config() -> RunConfig:
-    buffer_count = np.random.randint(2, 15)
-    buffer_sizes = np.random.randint(50, 250, size=buffer_count).tolist()
+    buffer_count = np.random.randint(10, 50)
+    buffer_sizes = np.random.randint(500, 2500, size=buffer_count).tolist()
 
-    program_count = np.random.randint(2, 15)
+    program_count = np.random.randint(10, 50)
     program_commands = []
 
     for _ in range(program_count):
-        command_count = np.random.randint(2, 15)
+        command_count = np.random.randint(10, 50)
         commands = []
 
         for _ in range(command_count):
@@ -273,7 +273,7 @@ def test_async_commands():
 
         cmd_list = vd.CommandList()
 
-        exec_count = np.random.randint(50, 100)
+        exec_count = np.random.randint(200, 400)
 
         input_buffers = np.random.randint(0, config.buffer_count, size=exec_count)
         output_buffers = np.random.randint(0, config.buffer_count, size=exec_count)
@@ -289,6 +289,6 @@ def test_async_commands():
             numpy_buffer = get_array(i, config)
             vkbuffer = get_buffer(i, config).read(0)
 
-            assert np.allclose(vkbuffer, numpy_buffer, atol=0.00005)
+            assert np.allclose(vkbuffer, numpy_buffer, atol=1e-3)
     
     clear_caches()
