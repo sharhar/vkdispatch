@@ -72,7 +72,6 @@ def padded_cross_correlation(
 
     vd.fft.ifft(buffer, graph=graph)
 
-
 def run_vkdispatch(config: fu.Config, fft_size: int) -> float:
     shape = config.make_shape(fft_size)
     random_data = config.make_random_data(fft_size)
@@ -81,8 +80,8 @@ def run_vkdispatch(config: fu.Config, fft_size: int) -> float:
     buffer = vd.Buffer(shape, var_type=vd.complex64)
     buffer.write(random_data)
 
-    kernel = vd.Buffer(shape[1:], var_type=vd.complex64)
-    kernel.write(random_data_2[0])
+    kernel = vd.Buffer(shape, var_type=vd.complex64)
+    kernel.write(random_data_2)
 
     graph = vd.CommandGraph()
 

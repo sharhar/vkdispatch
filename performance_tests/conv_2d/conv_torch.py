@@ -16,13 +16,13 @@ def run_torch(config: fu.Config, fft_size: int) -> float:
     )
 
     kernel = torch.empty(
-        shape[1:],
+        shape,
         dtype=torch.complex64,
         device='cuda'
     )
 
     buffer.copy_(torch.from_numpy(random_data).to('cuda'))
-    kernel.copy_(torch.from_numpy(random_data_kernel[0]).to('cuda'))
+    kernel.copy_(torch.from_numpy(random_data_kernel).to('cuda'))
 
     stream = torch.cuda.Stream()
 
@@ -30,7 +30,7 @@ def run_torch(config: fu.Config, fft_size: int) -> float:
     
     with torch.cuda.stream(stream):
         for _ in range(config.warmup):
-            buffer = torch.fft.ifft2(torch.fft.fft2(buffer)  * kernel.unsqueeze(0))
+            buffer = torch.fft.ifft2(torch.fft.fft2(buffer)  * kernel)
 
     torch.cuda.synchronize()
 
@@ -41,7 +41,7 @@ def run_torch(config: fu.Config, fft_size: int) -> float:
     # We capture either 1 or K FFTs back-to-back. All on the same stream.
     with torch.cuda.graph(g, stream=stream):
         for _ in range(max(1, config.iter_batch)):
-            buffer = torch.fft.ifft2(torch.fft.fft2(buffer)  * kernel.unsqueeze(0))
+            buffer = torch.fft.ifft2(torch.fft.fft2(buffer)  * kernel)
 
     torch.cuda.synchronize()
     start_time = time.perf_counter()

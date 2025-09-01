@@ -31,7 +31,7 @@ __global__ void fill_randomish(cufftComplex* a, long long n){
 __global__ void convolve_arrays(cufftComplex* data, cufftComplex* kernel, long long kernel_size, long long total_elems) {
     long long i = blockIdx.x * 1LL * blockDim.x + threadIdx.x;
     if (i < total_elems) {
-        const size_t idx_in_image = i % kernel_size;
+        const size_t idx_in_image = i; // % kernel_size;
         const cufftComplex d = data[i];
         const cufftComplex k = kernel[idx_in_image];
         // Complex multiply: (a+bi)(c+di) = (ac-bd) + (ad+bc)i
@@ -105,9 +105,9 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
     checkCuda(cudaMemset(d_data, 0, total_elems * sizeof(cufftComplex)), "cudaMemset d_data");
 
     cufftComplex* d_kernel = nullptr;
-    checkCuda(cudaMalloc(&d_kernel, (dim1 * dim2) * sizeof(cufftComplex)), "cudaMalloc d_kernel");
+    checkCuda(cudaMalloc(&d_kernel, (total_elems) * sizeof(cufftComplex)), "cudaMalloc d_kernel");
     // Optionally zero-fill
-    checkCuda(cudaMemset(d_kernel, 0, (dim1 * dim2) * sizeof(cufftComplex)), "cudaMemset d_kernel");
+    checkCuda(cudaMemset(d_kernel, 0, (total_elems) * sizeof(cufftComplex)), "cudaMemset d_kernel");
 
     {
         int t = 256, b = int((total_elems + t - 1) / t);
@@ -115,8 +115,8 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
         checkCuda(cudaGetLastError(), "fill launch");
         checkCuda(cudaDeviceSynchronize(), "fill sync");
 
-        int kt = 256, kb = int((dim1 * dim2 + kt - 1) / kt);
-        fill_randomish<<<kb,kt>>>(d_kernel, dim1 * dim2);
+        int kt = 256, kb = int((total_elems + kt - 1) / kt);
+        fill_randomish<<<kb,kt>>>(d_kernel, total_elems);
         checkCuda(cudaGetLastError(), "fill kernel launch");
         checkCuda(cudaDeviceSynchronize(), "fill kernel sync");
     }
@@ -141,7 +141,7 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
     // --- warmup on the stream ---
     for (int i = 0; i < cfg.warmup; ++i) {
         checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_FORWARD), "warmup");
-        convolve_arrays<<<(total_elems+255)/256,256>>>(d_data, d_kernel, dim1*dim2, total_elems);
+        convolve_arrays<<<(total_elems+255)/256,256>>>(d_data, d_kernel, total_elems);
         checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_INVERSE), "warmup");
     }
     
@@ -154,7 +154,7 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
     checkCuda(cudaEventRecord(evA), "record A");
     for (int it = 0; it < cfg.iter_count; ++it) {
         checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_FORWARD), "exec");
-        convolve_arrays<<<(total_elems+255)/256,256>>>(d_data, d_kernel, dim1*dim2, total_elems);
+        convolve_arrays<<<(total_elems+255)/256,256>>>(d_data, d_kernel, total_elems);
         checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_INVERSE), "exec");
     }
     checkCuda(cudaEventRecord(evB), "record B");

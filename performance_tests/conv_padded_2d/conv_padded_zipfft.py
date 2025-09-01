@@ -1,12 +1,13 @@
 import csv
 import time
-import performance_tests.conv_2d.conv_utils as fu
+import conv_padded_utils as fu
 import numpy as np
 import torch
 
 try:
     from zipfft import cfft1d
-    from zipfft import cfft1d_strided
+    from zipfft import conv1d_strided_padded
+    from zipfft import padded_fft1d
 except ImportError:
     print("zipfft is not installed. Please install it via 'pip install zipfft'.")
     exit(0)
@@ -21,30 +22,43 @@ def run_zipfft(config: fu.Config, fft_size: int) -> float:
         device='cuda'
     )
 
+
+    kernel = torch.empty(
+        shape,
+        dtype=torch.complex64,
+        device='cuda'
+    )
+
     buffer.copy_(torch.from_numpy(random_data).to('cuda'))
+    kernel.copy_(torch.from_numpy(random_data).to('cuda'))
 
     stream = torch.cuda.Stream()
+
+    signal_size = fft_size // config.signal_factor
 
     torch.cuda.synchronize()
     
     with torch.cuda.stream(stream):
         for _ in range(config.warmup):
-            cfft1d.fft(buffer)
+            padded_fft1d.pfft_layered(buffer, signal_size, signal_size)
+            conv1d_strided_padded.conv(buffer, kernel, signal_size)
+            cfft1d.ifft(buffer.view(-1, buffer.size(2)))
+
 
     torch.cuda.synchronize()
-
-    gb_byte_count = 11 * np.prod(shape) * 8 / (1024 * 1024 * 1024)
     
     g = torch.cuda.CUDAGraph()
 
     # We capture either 1 or K FFTs back-to-back. All on the same stream.
     with torch.cuda.graph(g, stream=stream):
         for _ in range(max(1, config.iter_batch)):
-            cfft1d.fft(buffer)
+            padded_fft1d.pfft_layered(buffer, signal_size, signal_size)
+            conv1d_strided_padded.conv(buffer, kernel, signal_size)
+            cfft1d.ifft(buffer.view(-1, buffer.size(2)))
 
     torch.cuda.synchronize()
 
-    gb_byte_count = 2 * np.prod(shape) * 8 / (1024 * 1024 * 1024)
+    gb_byte_count = 11 * np.prod(shape) * 8 / (1024 * 1024 * 1024)
     
     start_time = time.perf_counter()
 
@@ -61,11 +75,7 @@ if __name__ == "__main__":
     config = fu.parse_args()
     fft_sizes = fu.get_fft_sizes()
 
-    if config.axis != 1:
-        print("zipfft currently only supports axis=1. Please set axis to 1.")
-        exit(0)
-
-    output_name = f"conv_padded_zipfft_{config.axis}_axis.csv"
+    output_name = f"conv_padded_zipfft.csv"
     with open(output_name, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(['Backend', 'FFT Size'] + [f'Run {i + 1} (GB/s)' for i in range(config.run_count)] + ['Mean', 'Std Dev'])
