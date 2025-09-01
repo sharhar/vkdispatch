@@ -201,6 +201,8 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
     ctx->handle_manager = new HandleManager(ctx);
 
+    _instance.context = ctx;
+
     return ctx;
 }
 

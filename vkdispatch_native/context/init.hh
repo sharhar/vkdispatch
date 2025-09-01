@@ -42,6 +42,8 @@ typedef struct {
     std::vector<VkPhysicalDeviceTimelineSemaphoreFeatures> timeline_semaphore_features;
 
     bool debug;
+
+    Context* context;
 } Instance;
 
 /**

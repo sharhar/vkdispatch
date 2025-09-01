@@ -206,6 +206,7 @@ void init_extern(bool debug, LogLevel log_level) {
     #endif
 
     _instance.debug = debug;
+    _instance.context = nullptr;
 
     if(debug) {
         LOG_INFO("Initializing Vulkan Debug Messenger...");
