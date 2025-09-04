@@ -15,7 +15,7 @@ const char* get_error_string_extern() {
 
 void set_error(const char* format, ...) {
     if(_instance.context)
-     context_stop_threads_extern(_instance.context);
+        context_stop_threads_extern(_instance.context);
 
     __error_mutex.lock();
     

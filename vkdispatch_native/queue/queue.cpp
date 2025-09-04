@@ -154,7 +154,7 @@ void Queue::wait_for_timestamp(uint64_t timestamp) {
         VkResult result = vkWaitSemaphores(device, &wi, 1000000000);
         if (result != VK_TIMEOUT) {
             if(result != VK_SUCCESS) {
-                LOG_ERROR("Failed to wait for semaphore: %d", result);
+                set_error("Failed to wait for semaphore: %d", result);
             }
             return;
         }

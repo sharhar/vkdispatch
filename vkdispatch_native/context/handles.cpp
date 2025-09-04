@@ -35,7 +35,7 @@ uint64_t HandleManager::register_handle(const char* name, size_t count, bool per
     std::unique_lock lock(handle_mutex);
 
     if(per_device && count != queue_count) {
-        LOG_ERROR("Per device handle count does not match queue count");
+        set_error("Per device handle count does not match queue count");
         return 0;
     }
     
@@ -68,12 +68,12 @@ void HandleManager::set_handle(int64_t index, uint64_t handle, uint64_t value) {
     std::unique_lock lock(handle_mutex);
 
     if(handles[handle].per_device) {
-        LOG_ERROR("Handle is per device");
+        set_error("Handle is per device");
         return;
     }
 
     if(index >= handles[handle].count || index < 0) {
-        LOG_ERROR("Index %d out of bounds for handle %s (%d)", index, handles[handle].name, handle);
+        set_error("Index %d out of bounds for handle %s (%d)", index, handles[handle].name, handle);
         return;
     }
 
@@ -84,7 +84,7 @@ void HandleManager::set_handle_per_device(int device_index, uint64_t handle, std
     std::unique_lock lock(handle_mutex);
 
     if(!handles[handle].per_device) {
-        LOG_ERROR("Handle is not per device");
+        set_error("Handle is not per device");
         return;
     }
 
@@ -99,12 +99,12 @@ void HandleManager::set_handle_per_device(int device_index, uint64_t handle, std
     }
 
     if(found_any && !found_all) {
-        LOG_ERROR("Handle already set for some queues but not all");
+        set_error("Handle already set for some queues but not all");
         return;
     }
 
     if(!found_any && found_all) {
-        LOG_ERROR("Some weird stuff is going on");
+        set_error("Some weird stuff is going on");
         return;
     }
 
@@ -169,7 +169,7 @@ void HandleManager::destroy_handle_per_device(int device_index, uint64_t handle,
     std::unique_lock lock(handle_mutex);
 
     if(!handles[handle].per_device) {
-        LOG_ERROR("Handle is not per device");
+        set_error("Handle is not per device");
         return;
     }
 
@@ -184,12 +184,12 @@ void HandleManager::destroy_handle_per_device(int device_index, uint64_t handle,
     }
 
     if(found_any && !found_all) {
-        LOG_ERROR("Handle already set for some queues but not all");
+        set_error("Handle already set for some queues but not all");
         return;
     }
 
     if(!found_any && found_all) {
-        LOG_ERROR("Some weird stuff is going on");
+        set_error("Some weird stuff is going on");
         return;
     }
 
@@ -205,7 +205,7 @@ void HandleManager::destroy_handle_per_device(int device_index, uint64_t handle,
                 if (handle_value == 0) {
                     handle_value = handles[handle].data[i];
                 } else if (handles[handle].data[i] != handle_value){
-                    LOG_ERROR("Handle value mismatch for handle %s (%d) at index %d: expected %llu, got %llu", handles[handle].name, handle, i, handle_value, handles[handle].data[i]);
+                    set_error("Handle value mismatch for handle %s (%d) at index %d: expected %llu, got %llu", handles[handle].name, handle, i, handle_value, handles[handle].data[i]);
                     return;
                 }
 
@@ -217,7 +217,7 @@ void HandleManager::destroy_handle_per_device(int device_index, uint64_t handle,
         }
 
         if (handle_value == 0) {
-            LOG_ERROR("Handle value is 0 for handle %s (%d)", handles[handle].name, handle);
+            set_error("Handle value is 0 for handle %s (%d)", handles[handle].name, handle);
             return;
         }
 
