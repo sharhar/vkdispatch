@@ -303,7 +303,7 @@ void stage_fft_record_extern(
             VkFFTResult fftRes = VkFFTAppend(application, inverse, &launchParams);
 
             if (fftRes != VKFFT_SUCCESS) {
-                LOG_ERROR("(VkFFTResult is %d) VkFFTAppend inside '%s' at %s:%d\n", fftRes, __FUNCTION__, __FILE__, __LINE__);
+                set_error("(VkFFTResult is %d) VkFFTAppend inside '%s' at %s:%d\n", fftRes, __FUNCTION__, __FILE__, __LINE__);
             }
         }
     );
