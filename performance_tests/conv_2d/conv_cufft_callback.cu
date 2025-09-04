@@ -40,7 +40,7 @@ __device__ __noinline__ void store_mul_cb(void* dataOut,
                              void* /*sharedPtr*/)
 {
     const CallbackParams* p = static_cast<const CallbackParams*>(callerInfo);
-    const size_t idxInImage = offset; // % p->elemsPerImage;
+    const size_t idxInImage = offset;
 
     // Multiply element by filter[idxInImage]
     const cufftComplex h = p->filter[idxInImage];

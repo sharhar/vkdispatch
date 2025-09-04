@@ -28,10 +28,10 @@ __global__ void fill_randomish(cufftComplex* a, long long n){
     }
 }
 
-__global__ void convolve_arrays(cufftComplex* data, cufftComplex* kernel, long long kernel_size, long long total_elems) {
+__global__ void convolve_arrays(cufftComplex* data, cufftComplex* kernel, long long total_elems) {
     long long i = blockIdx.x * 1LL * blockDim.x + threadIdx.x;
     if (i < total_elems) {
-        const size_t idx_in_image = i; // % kernel_size;
+        const size_t idx_in_image = i;
         const cufftComplex d = data[i];
         const cufftComplex k = kernel[idx_in_image];
         // Complex multiply: (a+bi)(c+di) = (ac-bd) + (ad+bc)i
