@@ -6,8 +6,6 @@
 #include "../objects/command_list.hh"
 #include "../objects/objects_extern.hh"
 
-
-#include <chrono>
 #include <thread>
 
 #include <glslang_c_interface.h>
