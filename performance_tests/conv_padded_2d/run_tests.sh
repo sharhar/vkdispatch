@@ -21,22 +21,19 @@ echo "Iteration Count: $ITER_COUNT"
 echo "Batch Size: $BATCH_SIZE"
 echo "Repeats: $REPEATS"
 
-# echo "Running Vkdispatch FFT..."
-# python3 ../conv_padded_vkdispatch.py $DATA_SIZE $SIGNAL_FACTOR $ITER_COUNT $BATCH_SIZE $REPEATS
+echo "Running Vkdispatch FFT..."
+python3 ../conv_padded_vkdispatch.py $DATA_SIZE $SIGNAL_FACTOR $ITER_COUNT $BATCH_SIZE $REPEATS
 
-# echo "Running cuFFT FFT..."
-# ./conv_padded_cufft.exec $DATA_SIZE $SIGNAL_FACTOR $ITER_COUNT $BATCH_SIZE $REPEATS
+echo "Running cuFFT FFT..."
+./conv_padded_cufft.exec $DATA_SIZE $SIGNAL_FACTOR $ITER_COUNT $BATCH_SIZE $REPEATS
 
-# echo "Running cuFFT callback FFT..."
-# ./conv_padded_cufft_callback.exec $DATA_SIZE $SIGNAL_FACTOR $ITER_COUNT $BATCH_SIZE $REPEATS
+echo "Running cuFFT callback FFT..."
+./conv_padded_cufft_callback.exec $DATA_SIZE $SIGNAL_FACTOR $ITER_COUNT $BATCH_SIZE $REPEATS
 
-echo "Running VKFFT FFT..."
-python3 ../conv_padded_vkfft.py $DATA_SIZE $SIGNAL_FACTOR $ITER_COUNT $BATCH_SIZE $REPEATS
+echo "Running PyTorch FFT..."
+python3 ../conv_padded_torch.py $DATA_SIZE $SIGNAL_FACTOR $ITER_COUNT $BATCH_SIZE $REPEATS
 
-# echo "Running PyTorch FFT..."
-# python3 ../conv_padded_torch.py $DATA_SIZE $SIGNAL_FACTOR $ITER_COUNT $BATCH_SIZE $REPEATS
-
-# echo "Running ZipFFT FFT..."
-# python3 ../conv_padded_zipfft.py $DATA_SIZE $SIGNAL_FACTOR $ITER_COUNT $BATCH_SIZE $REPEATS
+echo "Running ZipFFT FFT..."
+python3 ../conv_padded_zipfft.py $DATA_SIZE $SIGNAL_FACTOR $ITER_COUNT $BATCH_SIZE $REPEATS
 
 python3 ../conv_padded_make_graph.py
