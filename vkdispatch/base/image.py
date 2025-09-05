@@ -172,29 +172,77 @@ def select_image_format(dtype: vdt.dtype, channels: int) -> image_format:
 
 
 class image_type(Enum):
+    """
+    Defines the type of an image.
+
+    Attributes:
+        TYPE_1D (int): A 1-dimensional image.
+        TYPE_2D (int): A 2-dimensional image.
+        TYPE_3D (int): A 3-dimensional image.
+    """
     TYPE_1D = (0,)
     TYPE_2D = (1,)
     TYPE_3D = (2,)
 
 
 class image_view_type(Enum):
+    """
+    Defines the type of an image view.
+
+    Attributes:
+        VIEW_TYPE_1D (int): A 1-dimensional image view.
+        VIEW_TYPE_2D (int): A 2-dimensional image view.
+        VIEW_TYPE_3D (int): A 3-dimensional image view.
+        VIEW_TYPE_2D_ARRAY (int): A 2D array of images.
+    """
     VIEW_TYPE_1D = (0,)
     VIEW_TYPE_2D = (1,)
     VIEW_TYPE_3D = (2,)
     VIEW_TYPE_2D_ARRAY = (5,)
 
+
 class Filter(Enum):
+    """
+    Defines the filter used for image sampling.
+
+    Attributes:
+        NEAREST (int): Nearest neighbor filtering.
+        LINEAR (int): Linear interpolation filtering.
+    """
     NEAREST = 0
     LINEAR = 1
 
+
 class AddressMode(Enum):
+    """
+    Defines how to handle out-of-bounds addresses when accessing an image.
+
+    Attributes:
+        REPEAT (int): Repeat the image data when accessing out-of-bounds addresses.
+        MIRRORED_REPEAT (int): Mirror and repeat the image data when accessing out-of-bounds addresses.
+        CLAMP_TO_EDGE (int): Clamp out-of-bounds addresses to the edge of the image.
+        CLAMP_TO_BORDER (int): Clamp out-of-bounds addresses to a specific border color.
+        MIRROR_CLAMP_TO_EDGE (int): Mirror the image and clamp out-of-bounds addresses to the edge of the image.
+    """
     REPEAT = 0
     MIRRORED_REPEAT = 1
     CLAMP_TO_EDGE = 2
     CLAMP_TO_BORDER = 3
     MIRROR_CLAMP_TO_EDGE = 4
 
+
 class BorderColor(Enum):
+    """
+    Defines the border color used when clamping out-of-bounds addresses.
+
+    Attributes:
+        FLOAT_TRANSPARENT_BLACK (int): A fully transparent black border.
+        INT_TRANSPARENT_BLACK (int): A fully transparent black border.
+        FLOAT_OPAQUE_BLACK (int): An opaque black border with a specific alpha value.
+        INT_OPAQUE_BLACK (int): An opaque black border with a specific alpha value.
+        FLOAT_OPAQUE_WHITE (int): An opaque white border with a specific alpha value.
+        INT_OPAQUE_WHITE (int): An opaque white border with a specific alpha value.
+    """
     FLOAT_TRANSPARENT_BLACK = 0
     INT_TRANSPARENT_BLACK = 1
     FLOAT_OPAQUE_BLACK = 2

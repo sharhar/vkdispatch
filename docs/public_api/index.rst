@@ -6,8 +6,8 @@ The essential API for most users.
 .. toctree::
    :maxdepth: 2
 
-   core_functions
-   buffer_management
+   context_system
+   buffer_tutorial
 ..   compute_operations
    shader_system
    utilities
