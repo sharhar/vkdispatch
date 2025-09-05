@@ -1,4 +1,4 @@
-Buffer Management
+Buffer Tutorial
 =================
 
 The Buffer system is the heart of vkdispatch. All GPU memory operations
@@ -12,16 +12,20 @@ Buffer Class
 ------------
 
 .. autoclass:: vkdispatch.Buffer
-   :members: upload, download, size, resize, clear
+   :members: __init__, _destroy, write, read
    :show-inheritance:
+
+   **Location:** vkdispatch.base.Buffer
 
    **Example Usage:**
    
    .. code-block:: python
    
-      buffer = BufferBuilder().size(1024).build()
-      buffer.upload(my_data)
-      result = buffer.download()
+      buffer = vd.Buffer((1000000,), vd.float32)
+      buffer.write(my_data)
+      result = buffer.read()
+
+
 
 Buffer Builder
 --------------

@@ -30,26 +30,12 @@ Verifying Your Installation
 To ensure `vkdispatch` is installed correctly and can detect your GPU,
 run this simple Python script:
 
-.. code-block:: python
+.. code-block:: bash
+   # Run the example script to verify installation
+   vdlist
 
-   import vkdispatch
-
-   # Initialize the vkdispatch context
-   vkdispatch.initialize()
-
-   # Get information about available GPU devices
-   devices = vkdispatch.get_devices()
-
-   if devices:
-       print("vkdispatch successfully initialized!")
-       print(f"Found {len(devices)} Vulkan-compatible GPUs:")
-       for i, dev_info in enumerate(devices):
-           print(f"  Device {i}: {dev_info.name} (Type: {dev_info.device_type})")
-   else:
-       print("No Vulkan-compatible GPUs found or vkdispatch failed to initialize.")
-
-   # Clean up the context
-   vkdispatch.get_context().deinitialize()
+   # If the above command fails, you can try this alternative
+   python3 -m vkdispatch
 
 If the installation was successful, you should see output listing your GPU(s).
 
@@ -68,7 +54,7 @@ Let's create a simple GPU buffer and fill it with data.
 .. code-block:: text
 
       # Expected Output:
-      # Data uploaded to GPU: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15]
+      # Original CPU data: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15]
       # Data downloaded from GPU: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15]
    
 

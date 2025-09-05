@@ -7,6 +7,25 @@ from .prime_utils import prime_factors, group_primes, default_register_limit, de
 
 @dataclasses.dataclass
 class FFTRegisterStageConfig:
+    """
+    Configuration for an FFT register stage.
+
+    Attributes:
+
+        primes (Tuple[int]): The prime numbers used for factorization.
+        fft_length (int): The length of each FFT stage.
+        instance_count (int): The number of instances required to achieve the desired level of parallelism.
+        registers_used (int): The total number of registers used by the FFT stage.
+        remainder (int): The remainder of `N` divided by `registers_used`.
+        remainder_offset (int): A flag indicating whether the remainder is non-zero.
+        extra_ffts (int): The additional number of FFT stages required to process the remainder.
+        thread_count (int): The total number of threads used in the computation.
+        sdata_size (int): The size of the shared memory buffer used to store intermediate results.
+        sdata_width (int): The width of each element in the shared memory buffer.
+        sdata_width_padded (int): The padded width of each element in the shared memory buffer.
+
+    """
+
     primes: Tuple[int]
     fft_length: int
     instance_count: int
@@ -20,6 +39,16 @@ class FFTRegisterStageConfig:
     sdata_width_padded: int
 
     def __init__(self, primes: List[int], max_register_count: int, N: int):
+        """
+        Initializes the FFTRegisterStageConfig object.
+
+        Parameters:
+
+            primes (List[int]): The prime numbers to use for factorization.
+            max_register_count (int): The maximum number of registers allowed per thread.
+            N (int): The length of the input data.
+
+        """
         self.primes = tuple(primes)
         self.fft_length = int(np.round(np.prod(primes)))
         instance_primes = prime_factors(N // self.fft_length)
@@ -61,6 +90,10 @@ class FFTRegisterStageConfig:
             self.sdata_size = self.sdata_width_padded * int(np.prod(threads_primes))
 
     def __str__(self):
+        """
+        Returns a string representation of the FFTRegisterStageConfig object.
+
+        """
         return f"""
 FFT Stage Config:
     primes: {self.primes}
@@ -76,6 +109,10 @@ FFT Stage Config:
     sdata_width_padded: {self.sdata_width_padded}"""
     
     def __repr__(self):
+        """
+        Returns a string representation of the FFTRegisterStageConfig object.
+
+        """
         return str(self)
 
 @dataclasses.dataclass
