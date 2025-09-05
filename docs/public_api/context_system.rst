@@ -38,7 +38,7 @@ to a vkdispatch API, a few examples are provided below:
     vd.initialize(log_level=vd.LogLevel.INFO)
 
 .. note::
-   The debug_mode flag enables the `VK_EXT_debug_utils <https://registry.khronos.org/vulkan/specs/latest/man/html/VK_EXT_debug_utils.html>`_ singals the creation of a `VkDebugUtilsMessengerEXT <https://registry.khronos.org/vulkan/specs/latest/man/html/VkDebugUtilsMessengerEXT.html>`_ object. This allows for printing from shaders, but also significantly reduces performance by introducing runtime debugging tools. Therefore, it is recommended this option remain off unless needed for in shader debugging.
+   The debug_mode flag enables the `VK_EXT_debug_utils <https://registry.khronos.org/vulkan/specs/latest/man/html/VK_EXT_debug_utils.html>`_ vulkan extension and singals the creation of a `VkDebugUtilsMessengerEXT <https://registry.khronos.org/vulkan/specs/latest/man/html/VkDebugUtilsMessengerEXT.html>`_ object. This allows for printing from shaders, but also significantly reduces performance by introducing runtime debugging tools. Therefore, it is recommended this option remain off unless needed for in shader debugging.
 
 Initialization API
 ------------------
