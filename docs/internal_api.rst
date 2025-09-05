@@ -9,4 +9,4 @@ and the underlying C++/Cython implementation.
    :maxdepth: 2
 
    python_api
-   cpp_api
+..   cpp_api
