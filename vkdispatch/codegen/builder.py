@@ -407,7 +407,7 @@ class ShaderVariable:
                 raise AttributeError(f"Cannot get attribute '{name}' from a matrix of shape {self.var_type.shape}!")
             
             if name == "x" and self.var_type.shape[0] == 1:
-                return self.new(self.var_type, f"{self}.{name}", [self], lexical_unit=True)
+                return self.new(self.var_type, f"{self}.{name}", [self], lexical_unit=True, settable=self.settable)
             
             if name == "y" and self.var_type.shape[0] < 2:
                 raise AttributeError(f"Cannot get attribute '{name}' from a {self.var_type.name}!")
@@ -418,10 +418,10 @@ class ShaderVariable:
             if name == "w" and self.var_type.shape[0] < 4:
                 raise AttributeError(f"Cannot get attribute '{name}' from a {self.var_type.name}!")
 
-            return self.new(self.var_type.child_type, f"{self}.{name}", [self], lexical_unit=True)
+            return self.new(self.var_type.child_type, f"{self}.{name}", [self], lexical_unit=True, settable=self.settable)
         
         new_type = to_vector(self.var_type.child_type, len(name))
-        return self.new(new_type, f"{self}.{name}", [self], lexical_unit=True)
+        return self.new(new_type, f"{self}.{name}", [self], lexical_unit=True, settable=self.settable)
 
     def __lt__(self, other):
         return self.new(dtypes.int32, f"{self} < {other}", [self, other])
