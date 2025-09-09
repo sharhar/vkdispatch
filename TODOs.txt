@@ -3,3 +3,6 @@ This file is to keep track of all the features that I hope to implement eventual
  - Implement dynamic local size through specialization constants
  - proper device ordering to match CUDA
  - CUDA/Vulkan memory bridging
+
+# offline webUI
+HF_HUB_OFFLINE=1 open-webui serve

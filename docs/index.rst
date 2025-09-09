@@ -6,20 +6,29 @@
 Welcome to vkdispatch's documentation!
 ======================================
 
+**[WARNING: This site is still under heavy development, and has many missing sections]**
+
+Welcome to the vkdispatch documentation website!
+
+To learn how to install vkdispatch, go to the :doc:`Getting Started<getting_started>` Section.
+
+Additionally, below are a set of tutorials on vkdispatch usage and a full API reference.
+
 .. toctree::
-   :maxdepth: 2
-   :caption: User Guide:
+   :hidden:
 
    getting_started
-   public_api/index
 
 .. toctree::
    :maxdepth: 2
-   :caption: Full Internal Documentation:
 
-   internal_api
+   Tutorials <tutorials/index>
 
-.. include:: ../README.md
+.. toctree::
+   :maxdepth: 2
+
+   Full Internal Documentation <internal_api>
+
 
 
 Indices and tables
