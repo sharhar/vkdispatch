@@ -188,3 +188,5 @@ assert np.allclose(buff.read(0), numpy_result, atol=1e-5)
 
 #vd.fft.fft(buff, axis=0, print_shader=True)
 #vd.vkfft.fft(buff, axis=0, print_shader=True)
+
+

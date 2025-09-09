@@ -23,19 +23,19 @@ to a vkdispatch API, a few examples are provided below:
 
 .. code-block:: python
 
-    import vkdispatch as vd
+   import vkdispatch as vd
 
-    # Enables debug mode, which allows for printing from shaders
-    vd.initialize(debug_mode=True)
+   # Enables debug mode, which allows for printing from shaders
+   vd.initialize(debug_mode=True)
 
-    # Sets the environment variable `VK_LOADER_DEBUG` to 'all'. 
-    # This enables debug log outputs for the vulkan loader, which
-    # can be useful for debugging driver loading issues 
-    vd.initialize(loader_debug_logs=True)
+   # Sets the environment variable `VK_LOADER_DEBUG` to 'all'. 
+   # This enables debug log outputs for the vulkan loader, which
+   # can be useful for debugging driver loading issues 
+   vd.initialize(loader_debug_logs=True)
 
-    # Sets the default logging level to INFO, which enables detailed printouts
-    # of internal vkdispatch operations, useful for debugging internal issues.
-    vd.initialize(log_level=vd.LogLevel.INFO)
+   # Sets the default logging level to INFO, which enables detailed printouts
+   # of internal vkdispatch operations, useful for debugging internal issues.
+   vd.initialize(log_level=vd.LogLevel.INFO)
 
 .. note::
    The debug_mode flag enables the `VK_EXT_debug_utils <https://registry.khronos.org/vulkan/specs/latest/man/html/VK_EXT_debug_utils.html>`_ vulkan extension and singals the creation of a `VkDebugUtilsMessengerEXT <https://registry.khronos.org/vulkan/specs/latest/man/html/VkDebugUtilsMessengerEXT.html>`_ object. This allows for printing from shaders, but also significantly reduces performance by introducing runtime debugging tools. Therefore, it is recommended this option remain off unless needed for in shader debugging.

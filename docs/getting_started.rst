@@ -1,4 +1,4 @@
-Getting Started with vkdispatch
+Getting Started/Installation
 ===============================
 
 Welcome to vkdispatch! This guide will help you install the library and run your first GPU-accelerated code.
@@ -7,22 +7,27 @@ Welcome to vkdispatch! This guide will help you install the library and run your
    vkdispatch requires a Vulkan-compatible GPU and drivers installed on your system.
    Please ensure your system meets these requirements before proceeding.
 
-Installation
-------------
+PyPI
+----
 
-You can install `vkdispatch` directly from PyPI using `pip`. We recommend
-using a `virtual environment`_ for your projects.
+The default installation method for `vkdispatch` is through PyPI (pip):
 
 .. code-block:: bash
 
-   # Create a virtual environment (optional, but recommended)
-   python -m venv venv
-   source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
-
-   # Install vkdispatch
+   # Install the package
    pip install vkdispatch
 
-.. _virtual environment: https://docs.python.org/3/library/venv.html
+On mainstream platforms — Windows (x86_64), macOS (x86_64 and Apple Silicon/arm64),
+and Linux (x86_64) — pip will download a **prebuilt wheel** (built with `cibuildwheel`
+on GitHub Actions and tagged as *manylinux* where applicable), so no compiler is needed.
+
+On less common platforms (e.g., non-Apple ARM or other niche architectures), pip may
+fall back to a **source build**, which takes a few minutes. See :doc:`Building From Source<tutorials/building_from_source>`
+for toolchain requirements and developer-oriented instructions.
+
+.. note::
+   If you see output like ``Building wheel for vkdispatch (pyproject.toml)``,
+   you’re compiling from source.
 
 Verifying Your Installation
 ---------------------------
@@ -31,56 +36,47 @@ To ensure `vkdispatch` is installed correctly and can detect your GPU,
 run this simple Python script:
 
 .. code-block:: bash
+   
    # Run the example script to verify installation
    vdlist
 
    # If the above command fails, you can try this alternative
    python3 -m vkdispatch
 
-If the installation was successful, you should see output listing your GPU(s).
-
-Your First GPU Buffer
----------------------
-
-Let's create a simple GPU buffer and fill it with data.
-
-.. literalinclude:: ../examples/first_buffer.py
-   :language: python
-   :linenos:
-   :caption: examples/first_buffer.py
-
-.. raw:: html
+If the installation was successful, you should see output listing your GPU(s) which may look something like this:
 
 .. code-block:: text
 
-      # Expected Output:
-      # Original CPU data: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15]
-      # Data downloaded from GPU: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15]
-   
+   Device 0: Apple M2 Pro
+        Vulkan Version: 1.2.283
+        Device Type: Integrated GPU
 
-.. admonition:: What's happening here?
-   :class: tip
+        Features:
+                Float32 Atomic Add: True
 
-   1.  We import `vkdispatch` and `numpy` (a common dependency for numerical data).
-   2.  A `BufferBuilder` is used to define the characteristics of our GPU buffer (size, usage).
-   3.  `buffer.upload()` transfers data from your CPU's memory to the GPU.
-   4.  `buffer.download()` retrieves data back from the GPU to the CPU.
-   5.  Error checking is crucial in GPU programming, so `check_for_errors()` ensures operations completed successfully.
+        Properties:
+                64-bit Float Support: False
+                16-bit Float Support: True
+                64-bit Int Support: True
+                16-bit Int Support: True
+                Max Push Constant Size: 4096 bytes
+                Subgroup Size: 32
+                Max Compute Shared Memory Size: 32768
+
+        Queues:
+                0 (count=1, flags=0x7): Graphics | Compute
+                1 (count=1, flags=0x7): Graphics | Compute
+                2 (count=1, flags=0x7): Graphics | Compute
+                3 (count=1, flags=0x7): Graphics | Compute
+
+
 
 Next Steps
 ----------
 
-Now that you've got `vkdispatch` up and running, consider exploring:
+Now that you've got `vkdispatch` up and running, consider exploring the following:
 
-*   **Public API Reference:** Our curated guide to the most commonly used classes and functions.
-*   **Full Python API Reference:** A comprehensive list of all Python-facing components.
-*   **C++/Cython API Reference:** Dive deep into the backend details.
+*   :doc:`Tutorials<tutorials/index>`: Our curated guide to the most commonly used classes and functions.
+*   :doc:`Full Python API Reference<python_api>`: A comprehensive list of all Python-facing components.
 
 Happy GPU programming!
-
-.. seealso::
-
-   :doc:`public_api/index`
-      Start here for a guided tour of core features.
-   :doc:`buffer_management`
-      Detailed information on working with GPU buffers.
