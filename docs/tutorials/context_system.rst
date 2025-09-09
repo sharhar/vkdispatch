@@ -1,12 +1,12 @@
 Initialization and Context Creation
 ==============
 
-.. This page is now its own HTML file
-
 In vkdispatch, all operations are handled by a global context object which keeps
 track of things behind the scenes. By default, any function call into the vkdispatch
 API (aside from the vd.shader decorator) invokes the creation of a context with default
-settings. However, you can also control the context creation process for on of many reasons:
+settings. This means that **this page can be skipped if you have no need to customize context parameters.**
+
+However, you can control the context creation process for one of many reasons:
 
 * To utlize more than one device or queue, for full control over GPU resources
 * To enable debugging features such as printing to stdout from shaders
@@ -45,16 +45,32 @@ Initialization API
 
 .. autofunction:: vkdispatch.initialize
 
+.. .. autoclass:: vkdispatch.LogLevel
+..    :members: VERBOSE, INFO, WARNING, ERROR
+..    :show-inheritance:
+
 Context Management
 ------------------
 
+After the initialization stage, vkdispatch must create a context to be used. By default, this context will be created when the vkdispatch API is first used (like the initialization). The default context is configured to only use one GPU with one queue, to enable multi-device contexts, the user must manually call the :func:`vkdispatch.make_context` function before calling any other vkdispatch API:
+
+.. code-block:: python
+
+   import vkdispatch as vd
+
+   # Call the initilization first if you want to modify the instance settings
+   # vd.initialize(...)
+
+   # To use all available devices, we create the context with the `multi_device` flag
+   vd.make_context(multi_device=True)
+
+   # To allocate multiple queues per device for maximum utilization we use the `multi_queue` flag
+   vd.make_context(multi_queue=True)
+
+   # To utilize all devices with multiple queues, we use both flags
+   vd.make_context(multi_device=True, multi_queue=True)
 
 Context API
 ------------------
 .. autofunction:: vkdispatch.make_context
 
-.. autofunction:: vkdispatch.get_context
-
-.. autoclass:: vkdispatch.LogLevel
-   :members: VERBOSE, INFO, WARNING, ERROR
-   :show-inheritance:
