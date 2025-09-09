@@ -44,6 +44,8 @@ jobs:
             "sphinx>=7,<9" \
             sphinx-rtd-theme
 
+          pip install numpy
+
           # If your docs import your package (autodoc), also install it:
           # python -m pip install -e .
 
