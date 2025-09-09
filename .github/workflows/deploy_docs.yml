@@ -1,0 +1,65 @@
+name: Deploy Sphinx docs to GitHub Pages
+
+on:
+  push:
+    branches: [ docs ]
+    paths:
+      - 'docs/**'
+      - '**.py'
+      - 'pyproject.toml'
+      - 'setup.py'
+      - 'README*'
+  workflow_dispatch: {}   # Manual “Run workflow” button
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+          cache: 'pip'
+          cache-dependency-path: 'docs/requirements.txt'
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f docs/requirements.txt ]; then pip install -r docs/requirements.txt; fi
+          # If your docs import your package (autodoc), uncomment:
+          # pip install -e .
+
+      - name: Build Sphinx HTML
+        working-directory: docs
+        run: |
+          make clean html
+
+      - name: Add .nojekyll (avoid Jekyll processing on GitHub Pages)
+        run: |
+          touch docs/_build/html/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_build/html
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
