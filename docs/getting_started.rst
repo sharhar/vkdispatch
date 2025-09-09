@@ -1,4 +1,4 @@
-Getting Started/Installation
+Getting Started
 ===============================
 
 Welcome to vkdispatch! This guide will help you install the library and run your first GPU-accelerated code.
