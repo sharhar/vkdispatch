@@ -34,10 +34,21 @@ jobs:
 
       - name: Install build dependencies
         run: |
+          sudo apt-get update
+          # Install system packages required for exhale/breathe
+          sudo apt-get install -y doxygen graphviz
+
           python -m pip install --upgrade pip
-          if [ -f docs/requirements.txt ]; then pip install -r docs/requirements.txt; fi
-          # If your docs import your package (autodoc), uncomment:
-          # pip install -e .
+          # Always install sphinx and required extensions
+          python -m pip install \
+            "sphinx>=7,<9" \
+            sphinx-rtd-theme \
+            myst-parser \
+            breathe \
+            exhale
+
+          # If your docs import your package (autodoc), also install it:
+          # python -m pip install -e .
 
       - name: Build Sphinx HTML
         working-directory: docs
