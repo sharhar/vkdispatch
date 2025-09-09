@@ -15,8 +15,7 @@ pip install vkdispatch
 
 On mainstream platforms — Windows (x86_64), macOS (x86_64 and Apple Silicon/arm64), and Linux (x86_64) — pip will download a **prebuilt wheel** (built with `cibuildwheel` on GitHub Actions and tagged as *manylinux* where applicable), so no compiler is needed.
 
-On less common platforms (e.g., non-Apple ARM or other niche architectures), pip may fall back to a **source build**, which takes a few minutes. See **[Building From Source](https://sharhar.github.io/vkdispatch/tutorials/building_from_source.html)** for toolchain requirements and developer-oriented instructions.  
-*(Replace the link above with your actual GitHub Pages URL once deployed.)*
+On less common platforms (e.g., non-Apple ARM or other niche architectures), pip may fall back to a **source build**, which takes a few minutes. See **[Building From Source](https://sharhar.github.io/vkdispatch/tutorials/building_from_source.html)** for toolchain requirements and developer-oriented instructions.
 
 > **Tip:** If you see output like `Building wheel for vkdispatch (pyproject.toml)`, you’re compiling from source.
 
