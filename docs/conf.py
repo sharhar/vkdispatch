@@ -21,31 +21,31 @@ release = '2025'
 extensions = [
     'sphinx.ext.autodoc',  # For Python docstrings
     'sphinx.ext.napoleon', # To support Google/Numpy style docstrings
-    'breathe',             # The Doxygen-Sphinx bridge
-    'exhale',              # The automation layer for Breathe
-    'myst_parser',         # For Markdown support
+#    'breathe',             # The Doxygen-Sphinx bridge
+#    'exhale',              # The automation layer for Breathe
+#    'myst_parser',         # For Markdown support
 ]
-breathe_projects = {
-    "vkdispatch": "../build/doxyoutput/xml" # Path to Doxygen's XML output
-}
-breathe_default_project = "vkdispatch"
+# breathe_projects = {
+#     "vkdispatch": "../build/doxyoutput/xml" # Path to Doxygen's XML output
+# }
+#breathe_default_project = "vkdispatch"
 
-exhale_args = {
-    # These arguments are required
-    "containmentFolder":     "./api",
-    "rootFileName":          "library_root.rst",
-    "doxygenStripFromPath":  "..",
-    # Suggested optional arguments
-    "createTreeView":        True,
-    "exhaleExecutesDoxygen": True,
-    "exhaleDoxygenStdin":    "INPUT = ../vkdispatch_native2", # Path to your C++ source
-}
+# exhale_args = {
+#     # These arguments are required
+#     "containmentFolder":     "./api",
+#     "rootFileName":          "library_root.rst",
+#     "doxygenStripFromPath":  "..",
+#     # Suggested optional arguments
+#     "createTreeView":        True,
+#     "exhaleExecutesDoxygen": True,
+#     "exhaleDoxygenStdin":    "INPUT = ../vkdispatch_native2", # Path to your C++ source
+# }
 
 # Tell sphinx what the primary language being documented is.
-primary_domain = 'cpp'
+# primary_domain = 'cpp'
 
 # Tell sphinx what the pygments highlight language should be.
-highlight_language = 'cpp'
+# highlight_language = 'cpp'
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']

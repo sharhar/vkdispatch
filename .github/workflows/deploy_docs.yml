@@ -42,10 +42,7 @@ jobs:
           # Always install sphinx and required extensions
           python -m pip install \
             "sphinx>=7,<9" \
-            sphinx-rtd-theme \
-            myst-parser \
-            breathe \
-            exhale
+            sphinx-rtd-theme
 
           # If your docs import your package (autodoc), also install it:
           # python -m pip install -e .
