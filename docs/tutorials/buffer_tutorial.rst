@@ -5,6 +5,12 @@ In vkdispatch, nearly all data is stored inside "buffers" (each wrapping an indi
 
 However, unlike :class:`torch.Tensor` or :func:`wp.array`, vkdispatch buffers are by default multi-device. This means that when a vkdispatch buffer is allocated on a multi-device or multi-queue context, multiple :class:`VkBuffer`'s are allocated (one for each queue on each device). This architecture has the benefit of greatly simplfying multi-GPU programs, since all buffers can be assumed to exist on all devices and all queues. 
 
+Allocating Buffers
+---------------------
+
+To allocate a buffer, you can use the constructor of the :class:`vkdispatch.Buffer` class. 
+
+
 Your First GPU Buffer
 ---------------------
 
@@ -52,3 +58,6 @@ Buffer Class API Reference
       buffer = vd.Buffer((1000000,), vd.float32)
       buffer.write(my_data)
       result = buffer.read()
+
+.. autofunction:: vkdispatch.asbuffer
+

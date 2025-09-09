@@ -8,5 +8,6 @@ A collection of tutorials covering how to use and modify the vkdispatch library.
 
    context_system
    buffer_tutorial
+   data_types
 
    building_from_source
