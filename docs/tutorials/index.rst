@@ -1,4 +1,4 @@
-Vkdispatch tutorials
+Tutorials
 ====================
 
 A collection of tutorials covering how to use and modify the vkdispatch library.
@@ -8,5 +8,7 @@ A collection of tutorials covering how to use and modify the vkdispatch library.
 
    context_system
    buffer_tutorial
+   data_types
+   logging
 
    building_from_source
