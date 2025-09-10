@@ -2,6 +2,8 @@
 
 Welcome to **vkdispatch**! This guide will help you install the library and run your first GPU-accelerated code.
 
+**[WARNING: This site is still under heavy development, and has many missing sections]**
+
 > **Note:** vkdispatch requires a Vulkan-compatible GPU and drivers installed on your system. Please ensure your system meets these requirements before proceeding.
 
 ## Installation
