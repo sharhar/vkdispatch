@@ -1,4 +1,4 @@
-Getting Started/Installation
+Getting Started
 ===============================
 
 Welcome to vkdispatch! This guide will help you install the library and run your first GPU-accelerated code.
@@ -7,8 +7,8 @@ Welcome to vkdispatch! This guide will help you install the library and run your
    vkdispatch requires a Vulkan-compatible GPU and drivers installed on your system.
    Please ensure your system meets these requirements before proceeding.
 
-PyPI
-----
+Installation
+---------------------------
 
 The default installation method for `vkdispatch` is through PyPI (pip):
 
