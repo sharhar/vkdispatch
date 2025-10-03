@@ -353,8 +353,6 @@ def make_context(
             [dev >= 0 and dev < total_devices for dev in device_ids]
         ), f"All device indicies must between 0 and {total_devices}"
 
-        print(f"Creating context with devices {device_ids} and queue families {queue_families}")
-
         __context = Context(device_ids, queue_families)
 
     return __context
