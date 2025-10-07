@@ -1,40 +1,38 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
+import numpy as np
 
 SIZE = 512
 
 buffer = vd.Buffer((SIZE, SIZE), vd.complex64)
 kernel = vd.Buffer((SIZE, SIZE), vd.complex64)
 
-@vd.map_registers([vc.c64])
-def kernel_mapping(kernel_buffer: vc.Buffer[vc.c64]):
-    img_val = vc.mapping_registers()[0]
-    read_register = vc.mapping_registers()[1]
+# make a square and circle signal in numpy
+x = np.linspace(-1, 1, SIZE)
+y = np.linspace(-1, 1, SIZE)
+X, Y = np.meshgrid(x, y)
+signal = np.zeros((SIZE, SIZE), dtype=np.complex64)
+signal[np.abs(X) < 0.5] = 1.0 + 0j
 
-    # Calculate the invocation within this FFT batch
-    in_group_index = vc.local_invocation().y * vc.workgroup_size().x + vc.local_invocation().x
-    out_group_index = vc.workgroup().y * vc.num_workgroups().x + vc.workgroup().x
-    workgroup_index = in_group_index + out_group_index * (
-        vc.workgroup_size().x * vc.workgroup_size().y
-    )
+signal2 = np.zeros((SIZE, SIZE), dtype=np.complex64)
+signal2[np.sqrt(X**2 + Y**2) < 0.5] = 1.0 + 0j
 
-    # Calculate the batch index of the FFT
-    batch_index = (
-        vc.mapping_index()
-    ) / (
-        vc.workgroup_size().x * vc.workgroup_size().y *
-        vc.num_workgroups().x * vc.num_workgroups().y
-    )
+buffer.write(signal)
+kernel.write(signal2)
 
-    # Calculate the transposed index
-    transposed_index = workgroup_index + batch_index * (
-        vc.workgroup_size().x * vc.workgroup_size().y *
-        vc.num_workgroups().x * vc.num_workgroups().y
-    )
+# perform convolution in numpy for validation
+f_signal = np.fft.fft2(signal)
+f_kernel = np.fft.fft2(signal2)
+f_convolved = f_signal * f_kernel
+convolved = np.fft.ifft2(f_convolved)
 
-    read_register[:] = kernel_buffer[transposed_index]
-    img_val[:] = vc.mult_conj_c64(read_register, img_val)
+np.save("signal.npy", signal)
+np.save("kernel.npy", signal2)
+np.save("convolved.npy", convolved)
 
-vd.fft.convolve2D(buffer, kernel, kernel_map=kernel_mapping, print_shader=True)
 
-#vd.vkfft.convolve_2D(buffer, kernel, keep_shader_code=True)
+vd.fft.convolve2D(buffer, kernel)
+
+vk_convolved = buffer.read(0)
+
+np.save("vk_convolved.npy", vk_convolved)

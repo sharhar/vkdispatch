@@ -489,9 +489,6 @@ class ShaderVariable:
 
             power = int(np.round(np.log2(other)))
 
-            if power == 8:
-                print(self, self.var_type)
-
             return self.new(self.var_type, f"{self} >> {power}", [self])
 
         return self.new(self.var_type, f"{self} / {other}", [self, other])
@@ -921,11 +918,17 @@ class ShaderBuilder:
     contents: str
     pre_header: str
 
-    def __init__(self, enable_subgroup_ops: bool = True, enable_atomic_float_ops: bool = True, enable_printf: bool = True, enable_exec_bounds: bool = True) -> None:
+    def __init__(self,
+                 enable_subgroup_ops: bool = True,
+                 enable_atomic_float_ops: bool = True,
+                 enable_printf: bool = True,
+                 enable_exec_bounds: bool = True,
+                 is_apple_device: bool = False) -> None:
         self.enable_subgroup_ops = enable_subgroup_ops
         self.enable_atomic_float_ops = enable_atomic_float_ops
         self.enable_printf = enable_printf
         self.enable_exec_bounds = enable_exec_bounds
+        self.is_apple_device = is_apple_device
 
         self.pre_header = "#version 450\n"
         self.pre_header += "#extension GL_ARB_separate_shader_objects : enable\n"
@@ -1188,6 +1191,9 @@ class ShaderBuilder:
         return new_var
     
     def barrier(self):
+        if self.is_apple_device:
+            self.memory_barrier()
+
         self.append_contents("barrier();\n")
     
     def ceil(self, arg: ShaderVariable):
