@@ -1,7 +1,7 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
-SIZE = 8192
+SIZE = 512
 
 buffer = vd.Buffer((SIZE, SIZE), vd.complex64)
 kernel = vd.Buffer((SIZE, SIZE), vd.complex64)
@@ -35,6 +35,6 @@ def kernel_mapping(kernel_buffer: vc.Buffer[vc.c64]):
     read_register[:] = kernel_buffer[transposed_index]
     img_val[:] = vc.mult_conj_c64(read_register, img_val)
 
-#vd.fft.convolve2D(buffer, kernel, kernel_map=kernel_mapping, print_shader=True)
+vd.fft.convolve2D(buffer, kernel, kernel_map=kernel_mapping, print_shader=True)
 
-vd.vkfft.convolve_2D(buffer, kernel, keep_shader_code=True)
+#vd.vkfft.convolve_2D(buffer, kernel, keep_shader_code=True)
