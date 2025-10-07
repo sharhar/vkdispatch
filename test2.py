@@ -2,10 +2,14 @@ import vkdispatch as vd
 import vkdispatch.codegen as vc
 import numpy as np
 
-SIZE = 512
+SIZE = 1024
 
 buffer = vd.Buffer((SIZE, SIZE), vd.complex64)
 kernel = vd.Buffer((SIZE, SIZE), vd.complex64)
+
+vd.fft.convolve2D(buffer, kernel, print_shader=True)
+
+exit()
 
 # make a square and circle signal in numpy
 x = np.linspace(-1, 1, SIZE)
@@ -30,7 +34,7 @@ np.save("signal.npy", signal)
 np.save("kernel.npy", signal2)
 np.save("convolved.npy", convolved)
 
-
+vd.fft.fft2(kernel)
 vd.fft.convolve2D(buffer, kernel)
 
 vk_convolved = buffer.read(0)
