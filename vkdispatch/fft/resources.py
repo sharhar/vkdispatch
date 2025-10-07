@@ -128,8 +128,12 @@ def allocate_fft_resources(config: FFTConfig, convolve: bool) -> FFTResources:
         config.batch_inner_count,
         config.batch_threads,
         config.sdata_allocation if make_sdata_buffer else 0,
-        vd.get_context().max_workgroup_size[0],
+        #vd.get_context().max_workgroup_size[0],
+        min(vd.get_context().max_workgroup_size[0], 4),
         vd.get_context().max_workgroup_invocations)
+
+    #if inline_batch_inner > 4:
+    #    inline_batch_inner = 4
 
     max_inline_outer_batches = vd.get_context().max_workgroup_size[1 if config.batch_inner_count == 1 else 2]
 
