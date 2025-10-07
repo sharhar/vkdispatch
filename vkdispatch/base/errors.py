@@ -40,11 +40,11 @@ def check_for_compute_stage_errors():
     if not isinstance(error, str):
         raise RuntimeError("Unknown error occurred")
 
-    result = ""
+    # result = ""
 
-    for ii, line in enumerate(error.split("\n")):
-        result += f"{ii + 1:4d}: {line}\n"
+    # for ii, line in enumerate(error.split("\n")):
+    #    result += f"{ii + 1:4d}: {line}\n"
 
-    print(result)
+    # print(result)
 
     raise RuntimeError("Error occurred in compute stage")

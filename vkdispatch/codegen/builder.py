@@ -466,19 +466,33 @@ class ShaderVariable:
             and other.var_type.dimentions == 1):
             return_var_type = other.var_type
 
+        if(self.var_type == dtypes.int32 or self.var_type == dtypes.uint32):
+            if (isinstance(other, int) and is_int_power_of_2(other)):
+                if other == 1:
+                    return self
+
+                power = int(np.round(np.log2(other)))
+
+                return self.new(self.var_type, f"{self} << {power}", [self])
+            elif (isinstance(other, ShaderVariable) and (other.var_type == dtypes.float32)) or (isinstance(other, float) and np.issubdtype(type(other), np.floating)):
+                return_var_type = dtypes.float32
+
         return self.new(return_var_type, f"{self} * {other}", [self, other])
 
     def __truediv__(self, other):
-        # if do_scaled_int_check(other) and is_int_power_of_2(other):
-        #     if other == 1:
-        #         return self
+        if isinstance(other, int) and is_int_power_of_2(other):
+            if other == 1:
+                return self
             
-        #     if self.var_type != vd.int32 or self.var_type != vd.uint32:
-        #         return self.new(self.var_type, f"{self} / {other}")
+            if self.var_type != dtypes.int32 and self.var_type != dtypes.uint32:
+                return self.new(self.var_type, f"{self} / {other}", [self, other])
 
-        #     power = int(np.round(np.log2(other)))
+            power = int(np.round(np.log2(other)))
 
-        #     return self.new(self.var_type, f"({self} >> {power})")
+            if power == 8:
+                print(self, self.var_type)
+
+            return self.new(self.var_type, f"{self} >> {power}", [self])
 
         return self.new(self.var_type, f"{self} / {other}", [self, other])
 
@@ -538,8 +552,21 @@ class ShaderVariable:
         if do_scaled_int_check(other):
             result = self.new_scaled_and_offset_int(self.var_type, f"{self}", [self])
             return result.__rmul__(other)
+        
+        return_var_type = self.var_type
+        
+        if(self.var_type == dtypes.int32 or self.var_type == dtypes.uint32):
+            if (isinstance(other, int) and is_int_power_of_2(other)):
+                if other == 1:
+                    return self
 
-        return self.new(self.var_type, f"{other} * {self}", [self, other])
+                power = int(np.round(np.log2(other)))
+
+                return self.new(self.var_type, f"{self} << {power}", [self])
+            elif (isinstance(other, ShaderVariable) and (other.var_type == dtypes.float32)) or (isinstance(other, float) and np.issubdtype(type(other), np.floating)):
+                return_var_type = dtypes.float32
+
+        return self.new(return_var_type, f"{other} * {self}", [self, other])
 
     def __rtruediv__(self, other):
         return self.new(self.var_type, f"{other} / {self}", [self, other])
@@ -723,10 +750,15 @@ class ScaledAndOfftsetIntVariable(ShaderVariable):
         super().__init__(append_func, name_func, var_type, name, parent_variables=parent_variables)
     
     def new_from_self(self, scale: int = 1, offset: int = 0):
+        child_vartype = self.var_type
+
+        if isinstance(scale, float) or isinstance(offset, float):
+            child_vartype = var_types_to_floating(self.var_type)
+
         return ScaledAndOfftsetIntVariable(
             self.append_func,
             self.name_func,
-            self.var_type,
+            child_vartype,
             f"{self.name}",
             scale=self.scale * scale,
             offset=offset + self.offset * scale,
