@@ -28,7 +28,8 @@ def builder_context(
         enable_atomic_float_ops=enable_atomic_float_ops,
         enable_subgroup_ops=enable_subgroup_ops,
         enable_printf=enable_printf,
-        enable_exec_bounds=enable_exec_bounds
+        enable_exec_bounds=enable_exec_bounds,
+        is_apple_device=vd.get_context().is_apple()
     )
     old_builder = set_global_builder(builder)
 
