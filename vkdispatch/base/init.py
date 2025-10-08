@@ -224,6 +224,15 @@ class DeviceInfo:
             `bool`: A flag indicating whether the device is an NVIDIA device.
         """
         return "NVIDIA" in self.device_name
+    
+    def is_apple(self) -> bool:
+        """
+        A method which checks if the device is an Apple device.
+
+        Returns:
+            `bool`: A flag indicating whether the device is an Apple device.
+        """
+        return "Apple" in self.device_name
 
     def get_info_string(self, verbose: bool = False) -> str:
         """
