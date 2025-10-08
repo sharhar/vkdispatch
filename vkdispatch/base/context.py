@@ -194,6 +194,9 @@ class Context:
 
         self.uniform_buffer_alignment = max(uniform_buffer_alignments)
         self.max_shared_memory = min(max_shared_memory)
+    
+    def is_apple(self) -> bool:
+        return any([device.is_apple() for device in self.device_infos])
 
 def get_compute_queue_family_index(device: DeviceInfo, device_index: int) -> int:
     # First check if we have a pure compute queue family with (sparse) transfer capabilities
