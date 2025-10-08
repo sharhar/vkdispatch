@@ -2,7 +2,7 @@ import vkdispatch as vd
 import vkdispatch.codegen as vc
 import numpy as np
 
-SIZE = 1024
+SIZE = 512
 
 buffer = vd.Buffer((SIZE, SIZE), vd.complex64)
 kernel = vd.Buffer((SIZE, SIZE), vd.complex64)

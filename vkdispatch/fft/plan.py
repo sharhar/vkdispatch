@@ -213,7 +213,6 @@ def process_fft_register_stage(resources: FFTResources,
     if do_runtime_if: vc.end()
 
     if (input is None and output is None) or params.input_sdata:
-        vc.memory_barrier()
         vc.barrier()
 
     if do_runtime_if: vc.if_statement(resources.tid < stage.thread_count)
@@ -258,7 +257,6 @@ def plan(
         output_stride *= params.config.stages[i].fft_length
 
         if i < stage_count - 1:
-            vc.memory_barrier()
             vc.barrier()
 
     return do_sdata_padding

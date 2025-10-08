@@ -174,7 +174,6 @@ def make_convolution_shader(
             ),
             input=io_object.in_buff)
 
-        vc.memory_barrier()
         vc.barrier()
 
         vc.comment("Performing convolution stage in convolution shader")
@@ -243,7 +242,6 @@ def make_convolution_shader(
         vc.comment("Performing IFFT stage in convolution shader")
 
         for kern_index in range(kernel_num):
-            vc.memory_barrier()
             vc.barrier()
             
             for i in range(len(resources.registers)):
