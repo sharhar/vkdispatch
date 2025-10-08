@@ -8,9 +8,9 @@ cd test_results
 DATA_SIZE=67108864
 #DATA_SIZE=33554432
 SIGNAL_FACTOR=8
-ITER_COUNT=100
+ITER_COUNT=80
 BATCH_SIZE=10
-REPEATS=4
+REPEATS=3
 
 # /usr/local/cuda/bin/nvcc -O2 -std=c++17 ../conv_cufft.cu -rdc=true -lcufft_static -lculibos -o conv_cufft.exec
 # /usr/local/cuda/bin/nvcc -O2 -std=c++17 ../conv_cufft_callback.cu -rdc=true -lcufft_static -lculibos -o conv_cufft_callback.exec
