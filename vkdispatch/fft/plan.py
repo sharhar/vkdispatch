@@ -10,6 +10,8 @@ import numpy as np
 from .resources import FFTResources
 from .config import FFTRegisterStageConfig, FFTParams
 
+from .io_proxy import IOProxy
+
 from .memory_io import load_buffer_to_registers, store_registers_from_stages, FFTRegisterStageInvocation
 
 def set_batch_offsets(resources: FFTResources, params: FFTParams):
@@ -234,8 +236,8 @@ def process_fft_register_stage(resources: FFTResources,
 def plan(
         resources: FFTResources,
         params: FFTParams,
-        input: Buff = None,
-        output: Buff = None,
+        input: IOProxy = None,
+        output: IOProxy = None,
         do_sdata_padding: bool = False) -> bool:
 
     set_batch_offsets(resources, params)

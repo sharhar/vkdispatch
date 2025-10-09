@@ -144,7 +144,6 @@ class ShaderVariable:
     raw_name: str
     can_index: bool = False
     use_child_type: bool = True
-    index_suffix: str = ""
     _varying: bool = False
     lexical_unit: bool = False
     settable: bool = False
@@ -236,17 +235,17 @@ class ShaderVariable:
             index_strs = tuple(shader_var_name(i) for i in index)
 
             if len(index_strs) == 1:
-                return self.new(return_type, f"{self.name}[{index_strs[0]}]{self.index_suffix}", [self], settable=self.settable)
+                return self.new(return_type, f"{self.name}[{index_strs[0]}]", [self], settable=self.settable)
             elif self.shape is None:
                 raise ValueError("Cannot do multidimentional index into object with no shape!")
             
             if len(index_strs) == 2:
                 true_index = f"{index_strs[0]} * {self.shape.y} + {index_strs[1]}"
-                return self.new(return_type, f"{self.name}[{true_index}]{self.index_suffix}", [self], settable=self.settable)
+                return self.new(return_type, f"{self.name}[{true_index}]", [self], settable=self.settable)
             elif len(index_strs) == 3:
                 true_index = f"{index_strs[0]} * {self.shape.y} + {index_strs[1]}"
                 true_index = f"({true_index}) * {self.shape.z} + {index_strs[2]}"
-                return self.new(return_type, f"{self.name}[{true_index}]{self.index_suffix}", [self], settable=self.settable)
+                return self.new(return_type, f"{self.name}[{true_index}]", [self], settable=self.settable)
             else:
                 raise ValueError(f"Unsupported number of indicies {len(index)}!")
 
@@ -271,7 +270,7 @@ class ShaderVariable:
         if not self.can_index:
             raise ValueError(f"Unsupported indexing {index}!")
         
-        if f"{self.name}[{index}]{self.index_suffix}" == str(value):
+        if f"{self.name}[{index}]" == str(value):
             return
 
         self.write_callback()
@@ -282,7 +281,7 @@ class ShaderVariable:
         if isinstance(value, ShaderVariable):
             value.read_callback()
 
-        self.append_func(f"{self.name}[{shader_var_name(index)}]{self.index_suffix} = {shader_var_name(value)};\n")
+        self.append_func(f"{self.name}[{shader_var_name(index)}] = {shader_var_name(value)};\n")
 
     def _register_shape(self, shape_var: "ShaderVariable" = None, shape_name: str = None, use_child_type: bool = True):
         self.shape = shape_var
