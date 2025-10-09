@@ -2,6 +2,9 @@ from .config import FFTConfig, FFTParams
 
 from .resources import FFTResources, allocate_fft_resources
 
+from .io_proxy import IOProxy
+from .io_manager import IOManager
+
 from .shader import make_fft_shader, get_cache_info, cache_clear, print_cache_info
 from .shader import make_convolution_shader
 
