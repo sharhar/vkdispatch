@@ -1,4 +1,5 @@
 import vkdispatch as vd
+import vkdispatch.codegen as vc
 import numpy as np
 import dataclasses
 from typing import List, Tuple, Optional
@@ -89,32 +90,6 @@ class FFTRegisterStageConfig:
             self.sdata_width_padded = self.sdata_width
             self.sdata_size = self.sdata_width_padded * int(np.prod(threads_primes))
 
-    def __str__(self):
-        """
-        Returns a string representation of the FFTRegisterStageConfig object.
-
-        """
-        return f"""
-FFT Stage Config:
-    primes: {self.primes}
-    fft_length: {self.fft_length}
-    instance_count: {self.instance_count}
-    registers_used: {self.registers_used}
-    remainder: {self.remainder}
-    remainder_offset: {self.remainder_offset}
-    extra_ffts: {self.extra_ffts}
-    thread_count: {self.thread_count}
-    sdata_size: {self.sdata_size}
-    sdata_width: {self.sdata_width}
-    sdata_width_padded: {self.sdata_width_padded}"""
-    
-    def __repr__(self):
-        """
-        Returns a string representation of the FFTRegisterStageConfig object.
-
-        """
-        return str(self)
-
 @dataclasses.dataclass
 class FFTParams:
     config: "FFTConfig" = None
@@ -149,8 +124,8 @@ class FFTConfig:
     batch_threads: int
     sdata_allocation: int
 
-    sdata_row_size: Optional[int]
-    sdata_row_size_padded: Optional[int]
+    sdata_row_size: int
+    sdata_row_size_padded: int
 
     def __init__(self, buffer_shape: Tuple, axis: int = None, max_register_count: int = None):
         if axis is None:
@@ -192,7 +167,9 @@ class FFTConfig:
 
         assert self.register_count <= max_register_count, f"Register count {self.register_count} exceeds max register count {max_register_count}"
 
-        self.sdata_allocation = 1 
+        self.sdata_allocation = 1
+        self.sdata_row_size = 1
+        self.sdata_row_size_padded = 1
 
         for stage in self.stages:
             if stage.sdata_size < self.sdata_allocation:

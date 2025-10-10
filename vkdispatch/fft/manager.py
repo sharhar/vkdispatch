@@ -5,7 +5,9 @@ from typing import Optional, Tuple, Union
 
 from .io_manager import IOManager
 from .config import FFTConfig
-from .resources import FFTResources, allocate_fft_resources
+from .grid_manager import FFTGridManager
+from .sdata_manager import FFTSDataManager
+from .resources import FFTResources #, allocate_fft_resources
 
 class FFTCallable:
     shader_object: vd.ShaderObject
@@ -25,6 +27,8 @@ class FFTManager:
     builder: vc.ShaderBuilder
     io_manager: IOManager
     config: FFTConfig
+    grid: FFTGridManager
+    sdata: FFTSDataManager
     resources: FFTResources
     fft_callable: FFTCallable
     name: str
@@ -39,9 +43,14 @@ class FFTManager:
                 kernel_map: Union[vd.MappingFunction, type, None] = None,
                 name: str = None):
         self.builder = builder
-        self.io_manager = IOManager(builder, output_map, input_map, kernel_map)
+        
         self.config = FFTConfig(buffer_shape, axis, max_register_count)
-        self.resources = allocate_fft_resources(self.config, True)
+        self.grid = FFTGridManager(self.config, True)
+        self.resources = FFTResources(self.config, self.grid)
+        
+        self.io_manager = IOManager(builder, output_map, input_map, kernel_map)
+        self.sdata = FFTSDataManager(self.config, self.grid)
+        
         self.fft_callable = None
         self.name = name if name is not None else f"fft_shader_{buffer_shape}_{axis}"
         
@@ -49,9 +58,9 @@ class FFTManager:
         self.fft_callable = FFTCallable(vd.ShaderObject(
                 self.builder.build(self.name),
                 self.io_manager.signature,
-                local_size=self.resources.local_size
+                local_size=self.grid.local_size
             ),
-            self.resources.exec_size
+            self.grid.exec_size
         )
 
     def get_callable(self) -> FFTCallable:

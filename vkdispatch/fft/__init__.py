@@ -1,6 +1,6 @@
 from .config import FFTConfig, FFTParams
 
-from .resources import FFTResources, allocate_fft_resources
+from .resources import FFTResources #, allocate_fft_resources
 
 from .io_proxy import IOProxy
 from .io_manager import IOManager
