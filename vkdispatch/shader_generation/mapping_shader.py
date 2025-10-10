@@ -1,4 +1,5 @@
 import vkdispatch as vd
+import vkdispatch.codegen as vc
 import dataclasses
 
 import uuid
@@ -25,6 +26,21 @@ class MappingFunction:
             return False
         # Two instances are equal only if they have the same instance_id
         return self.instance_id == other.instance_id
+    
+    def callback(self, *args):
+        if self.return_type is None:
+            vc.new_scope()
+            self.mapping_function(*args)
+            vc.end()
+            return
+
+        return_var = vc.new(self.return_type)
+
+        vc.new_scope()
+        return_var[:] = self.mapping_function(*args)
+        vc.end()
+
+        return return_var
 
 def map(func: Callable, register_types: List[vd.dtype] = None, return_type: vd.dtype = None, input_types: List[vd.dtype] = None) -> MappingFunction:
     if register_types is None:

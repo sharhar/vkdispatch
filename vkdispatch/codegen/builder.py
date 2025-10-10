@@ -1000,6 +1000,7 @@ class ShaderBuilder:
     def comment(self, comment: str) -> None:
         self.append_contents("\n")
         self.append_contents(f"/* {comment} */\n")
+
     
     def get_name_func(self, prefix: Optional[str] = None, suffix: Optional[str] = None):
         my_prefix = [prefix]
@@ -1419,6 +1420,14 @@ class ShaderBuilder:
 
     def while_statement(self, arg: ShaderVariable):
         self.append_contents(f"while({arg}) {'{'}\n")
+        self.scope_num += 1
+
+    def new_scope(self, comment: str = None):
+        if comment is None:
+            self.append_contents("{\n")
+        else:
+            self.append_contents("{ " + f"/* {comment} */\n")
+        
         self.scope_num += 1
 
     def end(self):

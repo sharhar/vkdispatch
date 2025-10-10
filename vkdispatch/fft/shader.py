@@ -14,91 +14,6 @@ from .io_manager import IOManager
 
 from .plan import plan
 
-import dataclasses
-
-"""
-
-@dataclasses.dataclass
-class FFTInputOutput:
-    input_object: Union[vd.Buffer, vd.MappingFunction]
-    output_object: Union[vd.Buffer, vd.MappingFunction]
-    kernel_object: Union[vd.Buffer, vd.MappingFunction]
-
-    input_types: List[vd.dtype]
-    signature: vd.ShaderSignature
-
-    in_buff: vd.Buffer
-    out_buff: vd.Buffer
-
-    input_buffers: List[vc.Buffer]
-    output_buffers: List[vc.Buffer]
-    kernel_buffers: List[vc.Buffer]
-
-    def __init__(self,
-                 builder: vc.ShaderBuilder,
-                 input_object: Union[vd.Buffer, vd.MappingFunction] = None,
-                 output_object: Union[vd.Buffer, vd.MappingFunction] = None,
-                 kernel_object: Union[vd.Buffer, vd.MappingFunction] = None):
-        self.input_object = input_object
-        self.output_object = output_object
-        self.kernel_object = kernel_object
-
-        if self.input_object is None and self.output_object is None:
-            self.input_types = [Buff[c64]]
-
-        elif self.output_object is None:
-            self.input_types = [Buff[c64]] + self.input_object.buffer_types
-
-        elif self.input_object is None:
-            self.input_types = self.output_object.buffer_types + [Buff[c64]]
-
-        else:
-            self.input_types = self.output_object.buffer_types + self.input_object.buffer_types
-
-        kernel_count = 0
-
-        if self.kernel_object is not None:
-            self.input_types += self.kernel_object.buffer_types
-
-            kernel_count = len(self.kernel_object.buffer_types)
-
-        self.signature = vd.ShaderSignature.from_type_annotations(builder, self.input_types)
-        sig_vars = self.signature.get_variables()
-
-        io_vars = sig_vars[:len(sig_vars)-kernel_count]
-
-        if self.input_object is None and self.output_object is None:
-            self.input_buffers = None
-            self.output_buffers = None
-
-            self.in_buff = io_vars[0]
-            self.out_buff = io_vars[0]
-
-        elif self.output_object is None:
-            self.input_buffers = io_vars[1:]
-            self.output_buffers = None
-
-            self.in_buff = input_object
-            self.out_buff = io_vars[0]
-
-        elif self.input_object is None:
-            self.input_buffers = None
-            self.output_buffers = io_vars[:-1]
-
-            self.in_buff = io_vars[-1]
-            self.out_buff = output_object
-
-        else:
-            self.input_buffers = io_vars[len(self.output_object.buffer_types):]
-            self.output_buffers = io_vars[:len(self.output_object.buffer_types)]
-
-            self.in_buff = input_object
-            self.out_buff = output_object
-
-        if kernel_count > 0:
-            self.kernel_buffers = sig_vars[len(sig_vars)-kernel_count:]
-"""
-
 @lru_cache(maxsize=None)
 def make_fft_shader(
         buffer_shape: Tuple, 
@@ -114,8 +29,6 @@ def make_fft_shader(
         name = f"fft_shader_{buffer_shape}_{axis}_{inverse}_{normalize_inverse}_{r2c}"
 
     with vc.builder_context(enable_exec_bounds=False) as builder:
-        #io_object = FFTInputOutput(builder, input_map, output_map)
-
         io_manager = IOManager(builder, output_map, input_map)
 
         fft_config = FFTConfig(buffer_shape, axis)
@@ -128,12 +41,8 @@ def make_fft_shader(
                 inverse,
                 normalize_inverse,
                 r2c),
-                #input_buffers=io_object.input_buffers,
-                #output_buffers=io_object.output_buffers),
             input=io_manager.input_proxy,
             output=io_manager.output_proxy)
-            #input=io_object.in_buff,
-            #output=io_object.out_buff)
 
         shader_object = vd.ShaderObject(
             builder.build(name),
@@ -167,8 +76,6 @@ def make_convolution_shader(
         kernel_map = vd.map(kernel_map_func, register_types=[c64], input_types=[vc.Buffer[c64]])
 
     with vc.builder_context(enable_exec_bounds=False) as builder:
-        #io_object = FFTInputOutput(builder, input_map, output_map, kernel_map)
-
         io_manager = IOManager(builder, output_map, input_map, kernel_map)
 
         fft_config = FFTConfig(buffer_shape, axis)
@@ -181,10 +88,8 @@ def make_convolution_shader(
             resources,
             fft_config.params(
                 inverse=False,
-                #input_buffers=io_object.input_buffers,
             ),
             input=io_manager.input_proxy)
-            #input=io_object.in_buff)
 
         vc.barrier()
 
@@ -193,8 +98,6 @@ def make_convolution_shader(
         inverse_params = fft_config.params(
                 inverse=True,
                 normalize=normalize)
-                #input_buffers=io_object.kernel_buffers, 
-                #output_buffers=io_object.output_buffers)
         
         assert inverse_params.config.stages[0].instance_count == 1, "Something is very wrong"
 
@@ -226,8 +129,6 @@ def make_convolution_shader(
             plan(
                 resources,
                 inverse_params,
-                #input=io_object.kernel_object,
-                #output=io_object.out_buff,
                 input=io_manager.kernel_proxy,
                 output=io_manager.output_proxy,
                 do_sdata_padding=do_sdata_padding)
@@ -266,13 +167,13 @@ def make_convolution_shader(
             plan(
                 resources,
                 inverse_params,
-                input=io_object.kernel_object,
-                output=io_object.out_buff,
+                input=io_manager.kernel_proxy,
+                output=io_manager.output_proxy,
                 do_sdata_padding=do_sdata_padding)
 
         shader_object = vd.ShaderObject(
             builder.build(name),
-            io_object.signature,
+            io_manager.signature,
             local_size=resources.local_size
         )
 

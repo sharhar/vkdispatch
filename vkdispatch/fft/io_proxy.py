@@ -55,8 +55,8 @@ class IOProxy:
 
             vc.set_mapping_index(memory_index)
             vc.set_mapping_registers([register, spare_register])
-            
-            self.map_func.mapping_function(*self.buffer_variables)
+
+            self.map_func.callback(*self.buffer_variables)
 
             return
         
@@ -106,7 +106,7 @@ class IOProxy:
 
                 vc.set_mapping_index(memory_index)
                 vc.set_mapping_registers([register])
-                self.map_func.mapping_function(*self.buffer_variables)
+                self.map_func.callback(*self.buffer_variables)
 
                 if not inverse and r2c:
                     vc.end()

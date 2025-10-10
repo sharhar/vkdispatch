@@ -290,6 +290,9 @@ def return_statement(arg=None):
 def while_statement(arg: ShaderVariable):
     GlobalBuilder.obj.while_statement(arg)
 
+def new_scope():
+    GlobalBuilder.obj.new_scope()
+
 def end():
     GlobalBuilder.obj.end()
 
