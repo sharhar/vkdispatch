@@ -33,6 +33,8 @@ def make_fft_shader(
                 inverse,
                 normalize_inverse,
                 r2c),
+            manager.grid,
+            manager.sdata,
             input=manager.io_manager.input_proxy,
             output=manager.io_manager.output_proxy)
 
@@ -67,11 +69,13 @@ def make_convolution_shader(
     ) as manager:
         vc.comment("Performing forward FFT stage in convolution shader")
 
-        do_sdata_padding = plan(
+        plan(
             manager.resources,
             manager.config.params(
                 inverse=False,
             ),
+            manager.grid,
+            manager.sdata,
             input=manager.io_manager.input_proxy)
 
         vc.barrier()

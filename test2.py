@@ -7,7 +7,7 @@ SIZE = 512
 buffer = vd.Buffer((SIZE, SIZE), vd.complex64)
 kernel = vd.Buffer((SIZE, SIZE), vd.complex64)
 
-vd.fft.convolve2D(buffer, kernel, print_shader=True)
+vd.fft.convolve2D(buffer, kernel) #, print_shader=True)
 
 exit()
 

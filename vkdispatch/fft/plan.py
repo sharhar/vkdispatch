@@ -3,18 +3,20 @@ import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import *
 
 import dataclasses
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from functools import lru_cache
 import numpy as np
 
 from .resources import FFTResources
-from .config import FFTRegisterStageConfig, FFTParams
+from .grid_manager import FFTGridManager
+from .sdata_manager import FFTSDataManager
+from .config import FFTParams
 
 from .io_proxy import IOProxy
 
-from .memory_io import load_buffer_to_registers, store_registers_from_stages, FFTRegisterStageInvocation
+#from .memory_io import load_buffer_to_registers, store_registers_from_stages, FFTRegisterStageInvocation
 
-def set_batch_offsets(resources: FFTResources, params: FFTParams):
+def set_batch_offsets(resources: FFTResources, params: FFTParams, grid: FFTGridManager):
     input_batch_stride_y = params.batch_outer_stride
     output_batch_stride_y = params.batch_outer_stride
 
@@ -26,8 +28,10 @@ def set_batch_offsets(resources: FFTResources, params: FFTParams):
         input_batch_stride_y = (params.config.N // 2) + 1
         output_batch_stride_y = input_batch_stride_y * 2
 
-    resources.input_batch_offset[:] = resources.global_outer_index * input_batch_stride_y + resources.global_inner_index * params.batch_inner_stride
-    resources.output_batch_offset[:] = resources.global_outer_index * output_batch_stride_y + resources.global_inner_index * params.batch_inner_stride
+    print(resources.input_batch_offset)
+
+    resources.input_batch_offset[:] = grid.global_outer * input_batch_stride_y + grid.global_inner * params.batch_inner_stride
+    resources.output_batch_offset[:] = grid.global_outer * output_batch_stride_y + grid.global_inner * params.batch_inner_stride
 
 def do_c64_mult_const(register_out: vc.ShaderVariable, register_in: vc.ShaderVariable, constant: complex):
     vc.comment(f"Multiplying {register_in} by {constant}")
@@ -164,35 +168,52 @@ def register_radix_composite(resources: FFTResources, params: FFTParams, registe
     return register_list
 
 def process_fft_register_stage(resources: FFTResources,
-                               params: FFTParams, 
-                               stage: FFTRegisterStageConfig, 
+                               params: FFTParams,
+                               grid: FFTGridManager,
+                               sdata: FFTSDataManager,
+                               stage_index: int, 
                                output_stride: int, 
-                               input = None, 
-                               output = None,
+                               input: Optional[IOProxy] = None, 
+                               output: Optional[IOProxy] = None,
                                do_sdata_padding: bool = False) -> bool:
+    stage = params.config.stages[stage_index]
+
     do_runtime_if = stage.thread_count < params.config.batch_threads
     
     vc.comment(f"Processing prime group {stage.primes} by doing {stage.instance_count} radix-{stage.fft_length} FFTs on {params.config.N // stage.registers_used} groups")
-    if do_runtime_if: vc.if_statement(resources.tid < stage.thread_count)
+    if do_runtime_if: vc.if_statement(grid.tid < stage.thread_count)
 
-    stage_invocations: List[FFTRegisterStageInvocation] = []
-
-    for i in range(stage.instance_count):
-        stage_invocations.append(FFTRegisterStageInvocation(stage, output_stride, i, resources.tid, params.config.N))
-    
-    for ii, invocation in enumerate(stage_invocations):
-        if stage.remainder_offset == 1 and ii == stage.extra_ffts:
-            vc.if_statement(resources.tid < params.config.N // stage.registers_used)
-
-        load_buffer_to_registers(
+    if input is not None:
+        input.read_to_registers(
             resources=resources,
-            params=params,
-            buffer=input, 
-            offset=invocation.instance_id, 
-            stride=params.config.N // stage.fft_length, 
-            register_list=resources.registers[invocation.register_selection],
-            do_sdata_padding=do_sdata_padding
+            config=params.config,
+            grid=grid,
+            inverse=params.inverse,
+            r2c=params.r2c,
+            stage_index=stage_index
         )
+
+    for ii, invocation in enumerate(resources.invocations[stage_index]):
+        if stage.remainder_offset == 1 and ii == stage.extra_ffts:
+            vc.if_statement(grid.tid < params.config.N // stage.registers_used)
+
+        if input is None:
+            sdata.read_to_registers(
+                resources=resources,
+                config=params.config,
+                stage_index=stage_index,
+                invocation_index=ii
+            )
+
+        # load_buffer_to_registers(
+        #     resources=resources,
+        #     params=params,
+        #     buffer=input, 
+        #     offset=invocation.instance_id, 
+        #     stride=params.config.N // stage.fft_length, 
+        #     register_list=resources.registers[invocation.register_selection],
+        #     do_sdata_padding=do_sdata_padding
+        # )
 
         apply_cooley_tukey_twiddle_factors(
             resources=resources,
@@ -217,48 +238,64 @@ def process_fft_register_stage(resources: FFTResources,
     if (input is None and output is None) or params.input_sdata:
         vc.barrier()
 
-    if do_runtime_if: vc.if_statement(resources.tid < stage.thread_count)
+    if do_runtime_if: vc.if_statement(grid.tid < stage.thread_count)
 
-    do_padding_next = store_registers_from_stages(
-        resources=resources,
-        params=params,
-        stage=stage,
-        stage_invocations=stage_invocations,
-        output=output,
-        stride=output_stride
-    )
-    
+    if output is not None:
+        output.write_from_registers(
+            resources=resources,
+            config=params.config,
+            grid=grid,
+            inverse=params.inverse,
+            r2c=params.r2c,
+            normalize=params.normalize,
+            stage_index=stage_index
+        )
+    else:
+        sdata.write_from_registers(
+            resources=resources,
+            config=params.config,
+            stage_index=stage_index
+        )
+
+    # do_padding_next = store_registers_from_stages(
+    #     resources=resources,
+    #     params=params,
+    #     stage=stage,
+    #     stage_invocations=stage_invocations,
+    #     output=output,
+    #     stride=output_stride
+    # )
 
     if do_runtime_if: vc.end()
 
-    return do_padding_next
+    #return do_padding_next
 
 def plan(
         resources: FFTResources,
         params: FFTParams,
+        grid: FFTGridManager,
+        sdata: FFTSDataManager,
         input: IOProxy = None,
-        output: IOProxy = None,
-        do_sdata_padding: bool = False) -> bool:
+        output: IOProxy = None) -> bool:
 
-    set_batch_offsets(resources, params)
+    set_batch_offsets(resources, params, grid)
 
     output_stride = 1
 
     stage_count = len(params.config.stages)
 
     for i in range(stage_count):
-        do_sdata_padding = process_fft_register_stage(
+        process_fft_register_stage(
             resources,
             params,
-            params.config.stages[i],
+            grid,
+            sdata,
+            i,
             output_stride,
             input=input if i == 0 else None,
-            output=output if i == stage_count - 1 else None,
-            do_sdata_padding=do_sdata_padding)
+            output=output if i == stage_count - 1 else None)
         
         output_stride *= params.config.stages[i].fft_length
 
         if i < stage_count - 1:
             vc.barrier()
-
-    return do_sdata_padding
