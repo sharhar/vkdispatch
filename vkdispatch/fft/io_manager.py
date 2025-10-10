@@ -17,7 +17,6 @@ class IOManager:
                     output: Optional[vd.MappingFunction],
                     input: Optional[vd.MappingFunction] = None,
                     kernel: Optional[vd.MappingFunction] = None):
-            
 
             self.output_proxy = IOProxy(vd.complex64 if output is None else output, "Output")
             self.input_proxy = IOProxy(input, "Input")

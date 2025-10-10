@@ -30,8 +30,6 @@ def test_reductions_sum():
     # Check that the data is the same
     assert np.allclose([data.sum()], [read_data[0]])
 
-"""
-
 def test_mapped_reductions():
     # Create a buffer
     buf = vd.Buffer((1024,) , vd.float32)
@@ -163,4 +161,3 @@ def test_batched_mapped_reductions():
 
     # Check that the data is the same
     assert np.allclose([np.sin(data).sum(axis=1)], [read_data])
-"""

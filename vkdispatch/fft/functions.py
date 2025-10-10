@@ -22,10 +22,9 @@ def fft(
     if buffer_shape is None:
         buffer_shape = buffers[0].shape
 
-    fft_shader, exec_size = make_fft_shader(
+    fft_shader = make_fft_shader(
         tuple(buffer_shape),
         axis,
-        name=name,
         inverse=inverse,
         normalize_inverse=normalize_inverse,
         r2c=r2c,
@@ -35,7 +34,7 @@ def fft(
     if print_shader:
         print(fft_shader)
 
-    fft_shader(*buffers, graph=graph, exec_size=exec_size)
+    fft_shader(*buffers, graph=graph)
 
 def fft2(buffer: vd.Buffer, graph: vd.CommandGraph = None, print_shader: bool = False, input_map: vd.MappingFunction = None, output_map: vd.MappingFunction = None):
     assert len(buffer.shape) == 2 or len(buffer.shape) == 3, 'Buffer must have 2 or 3 dimensions'
@@ -123,12 +122,11 @@ def convolve(
     if buffer_shape is None:
         buffer_shape = buffers[0].shape
 
-    fft_shader, exec_size = make_convolution_shader(
+    fft_shader = make_convolution_shader(
         tuple(buffer_shape),
         kernel_map,
         kernel_num,
         axis,
-        name=name,
         normalize=normalize,
         input_map=input_map,
         output_map=output_map)
@@ -136,7 +134,7 @@ def convolve(
     if print_shader:
         print(fft_shader)
 
-    fft_shader(*buffers, graph=graph, exec_size=exec_size)
+    fft_shader(*buffers, graph=graph)
 
 def convolve2D(
         buffer: vd.Buffer,
