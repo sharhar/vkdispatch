@@ -15,7 +15,7 @@ class ReductionObject:
         self.reduction = reduction
         self.out_type = mapping_function.return_type #out_type
         self.group_size = group_size
-        self.map_func = mapping_function.mapping_function # map_func
+        self.map_func = mapping_function.callback # map_func
         self.input_types = mapping_function.buffer_types # input_types if input_types is not None else [vc.Buffer[out_type]]
         self.axes = axes
 

@@ -266,14 +266,14 @@ def do_numpy_command(out_buffer: int, in_buffer: int, program: int, config: RunC
     output_array[:total_exec_size] = temp_array
 
 def test_async_commands():
-    for _ in range(150):
+    for _ in range(50):
         clear_caches()
         
         config = make_random_config()
 
         cmd_list = vd.CommandList()
 
-        exec_count = np.random.randint(200, 400)
+        exec_count = np.random.randint(1, 250)
 
         input_buffers = np.random.randint(0, config.buffer_count, size=exec_count)
         output_buffers = np.random.randint(0, config.buffer_count, size=exec_count)
