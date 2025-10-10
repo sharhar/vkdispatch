@@ -1,19 +1,33 @@
 import vkdispatch as vd
+import vkdispatch.codegen as vc
 import contextlib
-from typing import List, Union, Optional
+from typing import Union, Tuple
+
+from .manager import FFTManager
 
 @contextlib.contextmanager
-def fft_context():
-
-    builder = ShaderBuilder(
-        enable_atomic_float_ops=enable_atomic_float_ops,
-        enable_subgroup_ops=enable_subgroup_ops,
-        enable_printf=enable_printf,
-        enable_exec_bounds=enable_exec_bounds
-    )
-    old_builder = set_global_builder(builder)
+def fft_context(buffer_shape: Tuple,
+                axis: int = None,
+                max_register_count: int = None,
+                output_map: Union[vd.MappingFunction, type, None] = None,
+                input_map: Union[vd.MappingFunction, type, None] = None,
+                kernel_map: Union[vd.MappingFunction, type, None] = None):
 
     try:
-        yield builder
+        with vc.builder_context(enable_exec_bounds=False) as builder:
+            manager = FFTManager(
+                builder=builder,
+                buffer_shape=buffer_shape,
+                axis=axis,
+                max_register_count=max_register_count,
+                output_map=output_map,
+                input_map=input_map,
+                kernel_map=kernel_map
+            )
+
+            yield manager
+
+            manager.compile_shader()
+
     finally:
-        set_global_builder(old_builder)
+        pass        

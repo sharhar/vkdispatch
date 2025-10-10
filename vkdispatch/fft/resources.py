@@ -120,7 +120,7 @@ class FFTResources:
     shared_memory_size: int
     local_size: Tuple[int, int, int]
 
-def allocate_fft_resources(config: FFTConfig, convolve: bool) -> FFTResources:
+def allocate_fft_resources(config: FFTConfig, convolve: bool = False) -> FFTResources:
     make_sdata_buffer = config.batch_threads > 1 or convolve
 
     inline_batch_inner = allocate_inline_batches(

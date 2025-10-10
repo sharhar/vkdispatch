@@ -191,7 +191,6 @@ class ShaderObject:
 
         return result
 
-
     def __call__(self, *args, **kwargs):
         self.build()
 
