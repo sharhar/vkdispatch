@@ -1375,23 +1375,29 @@ class ShaderBuilder:
         )
         return new_var
 
+    def proc_bool(self, arg: Union[ShaderVariable, bool]) -> ShaderVariable:
+        if isinstance(arg, bool):
+            return "true" if arg else "false"
+
+        return arg
+
     def if_statement(self, arg: ShaderVariable, command: Optional[str] = None):
         if command is None:
-            self.append_contents(f"if({arg}) {'{'}\n")
+            self.append_contents(f"if({self.proc_bool(arg)}) {'{'}\n")
             self.scope_num += 1
             return
         
-        self.append_contents(f"if({arg})\n")
+        self.append_contents(f"if({self.proc_bool(arg)})\n")
         self.scope_num += 1
         self.append_contents(f"{command}\n")
         self.scope_num -= 1
 
     def if_any(self, *args: List[ShaderVariable]):
-        self.append_contents(f"if({' || '.join([str(elem) for elem in args])}) {'{'}\n")
+        self.append_contents(f"if({' || '.join([str(self.proc_bool(elem)) for elem in args])}) {'{'}\n")
         self.scope_num += 1
 
     def if_all(self, *args: List[ShaderVariable]):
-        self.append_contents(f"if({' && '.join([str(elem) for elem in args])}) {'{'}\n")
+        self.append_contents(f"if({' && '.join([str(self.proc_bool(elem)) for elem in args])}) {'{'}\n")
         self.scope_num += 1
 
     def else_statement(self):
@@ -1401,17 +1407,17 @@ class ShaderBuilder:
 
     def else_if_statement(self, arg: ShaderVariable):
         self.scope_num -= 1
-        self.append_contents(f"}} else if({arg}) {'{'}\n")
+        self.append_contents(f"}} else if({self.proc_bool(arg)}) {'{'}\n")
         self.scope_num += 1
 
     def else_if_any(self, *args: List[ShaderVariable]):
         self.scope_num -= 1
-        self.append_contents(f"}} else if({' || '.join([str(elem) for elem in args])}) {'{'}\n")
+        self.append_contents(f"}} else if({' || '.join([str(self.proc_bool(elem)) for elem in args])}) {'{'}\n")
         self.scope_num += 1
     
     def else_if_all(self, *args: List[ShaderVariable]):
         self.scope_num -= 1
-        self.append_contents(f"}} else if({' && '.join([str(elem) for elem in args])}) {'{'}\n")
+        self.append_contents(f"}} else if({' && '.join([str(self.proc_bool(elem)) for elem in args])}) {'{'}\n")
         self.scope_num += 1
 
     def return_statement(self, arg=None):
@@ -1419,7 +1425,7 @@ class ShaderBuilder:
         self.append_contents(f"return {arg};\n")
 
     def while_statement(self, arg: ShaderVariable):
-        self.append_contents(f"while({arg}) {'{'}\n")
+        self.append_contents(f"while({self.proc_bool(elem)}) {'{'}\n")
         self.scope_num += 1
 
     def new_scope(self, comment: str = None):
