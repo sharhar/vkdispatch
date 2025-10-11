@@ -48,9 +48,19 @@ class FFTSDataManager:
     def read_to_registers(self,
                             resources: FFTResources,
                             config: FFTConfig,
-                            stage_index: int,
-                            invocation_index: int,
+                            stage_index: int = 0,
+                            invocation_index: int = None,
                             registers: List[vc.ShaderVariable] = None):
+        if invocation_index is None:
+            for ii, invocation in enumerate(resources.invocations[stage_index]):
+                register_selection = None
+
+                if registers is not None:
+                    register_selection = registers[invocation.register_selection]
+
+                self.read_to_registers(resources, config, stage_index, ii, register_selection)
+            return
+
         vc.comment(f"Loading from shared data buffer to registers")
 
         invocation = resources.invocations[stage_index][invocation_index]
