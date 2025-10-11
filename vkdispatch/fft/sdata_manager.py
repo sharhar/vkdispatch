@@ -51,6 +51,8 @@ class FFTSDataManager:
                             stage_index: int,
                             invocation_index: int,
                             registers: List[vc.ShaderVariable] = None):
+        vc.comment(f"Loading from shared data buffer to registers")
+
         invocation = resources.invocations[stage_index][invocation_index]
         
         if registers is None:
@@ -93,7 +95,7 @@ class FFTSDataManager:
                     resources.io_index[:] = resources.io_index + resources.io_index / self.sdata_row_size
                     sdata_index = resources.io_index
                 
-                self.sdata[sdata_index] = registers[jj]
+                self.sdata[sdata_index] = registers[invocation.register_selection][jj]
 
             if stage.remainder_offset == 1:
                 vc.end()
