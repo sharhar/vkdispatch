@@ -2,11 +2,8 @@ import vkdispatch as vd
 import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import *
 
-from typing import List, Tuple, Union
+from typing import Tuple
 from functools import lru_cache
-import numpy as np
-
-from .memory_io import load_sdata_state_to_registers, FFTRegisterStageInvocation
 
 from .plan import plan
 
@@ -19,26 +16,37 @@ def make_fft_shader(
         r2c: bool = False,
         input_map: vd.MappingFunction = None,
         output_map: vd.MappingFunction = None) -> Tuple[vd.ShaderObject, Tuple[int, int, int]]:
-    
+
     with vd.fft.fft_context(
         buffer_shape,
         axis=axis,
         input_map=input_map,
         output_map=output_map
-    ) as manager:
+    ) as ctx:
+        
+        ctx.read_input(
+            r2c=r2c,
+            inverse=inverse
+        )
 
         plan(
-            manager.resources,
-            manager.config.params(
+            ctx.resources,
+            ctx.config.params(
                 inverse,
                 normalize_inverse,
                 r2c),
-            manager.grid,
-            manager.sdata,
-            input=manager.io_manager.input_proxy,
-            output=manager.io_manager.output_proxy)
+            ctx.grid,
+            ctx.sdata,
+            input=ctx.io_manager.input_proxy,
+            output=ctx.io_manager.output_proxy)
 
-    return manager.get_callable()
+        ctx.write_output(
+            r2c=r2c,
+            inverse=inverse,
+            normalize=normalize_inverse
+        )
+
+    return ctx.get_callable()
 
 @lru_cache(maxsize=None)
 def make_convolution_shader(
@@ -66,105 +74,88 @@ def make_convolution_shader(
         input_map=input_map,
         output_map=output_map,
         kernel_map=kernel_map
-    ) as manager:
+    ) as ctx:
         vc.comment("Performing forward FFT stage in convolution shader")
 
+        ctx.read_input()
+
         plan(
-            manager.resources,
-            manager.config.params(
+            ctx.resources,
+            ctx.config.params(
                 inverse=False,
             ),
-            manager.grid,
-            manager.sdata,
-            input=manager.io_manager.input_proxy)
+            ctx.grid,
+            ctx.sdata,
+            input=ctx.io_manager.input_proxy)
+
+        vc.barrier()
+
+        ctx.write_sdata()
 
         vc.barrier()
 
         vc.comment("Performing convolution stage in convolution shader")
 
-
-        
-        assert manager.config.stages[0].instance_count == 1, "Something is very wrong"
-
-        invocation = FFTRegisterStageInvocation(
-            manager.config.stages[0],
-            1, 0,
-            manager.grid.tid,
-            manager.config.N
-        )
-        
-
-        inverse_params = manager.config.params(
+        inverse_params = ctx.config.params(
             inverse=True,
             normalize=normalize)
 
         vc.comment(f"Loading state to registers in convolution shader")
 
         if kernel_num == 1:
-            # load_sdata_state_to_registers(
-            #     manager.resources,
-            #     inverse_params,
-            #     invocation.instance_id,
-            #     inverse_params.config.N // inverse_params.config.stages[0].fft_length,
-            #     manager.resources.registers[invocation.register_selection],
-            #     do_sdata_padding
-            # )
-
-            manager.sdata.read_to_registers(manager.resources, manager.config)
 
             vc.comment("Performing IFFT stage in convolution shader")
 
+            ctx.read_sdata()
+            
             vc.barrier()
             
             vc.set_kernel_index(0)
 
+            ctx.read_kernel()
+
             plan(
-                manager.resources,
+                ctx.resources,
                 inverse_params,
-                manager.grid,
-                manager.sdata,
-                input=manager.io_manager.kernel_proxy,
-                output=manager.io_manager.output_proxy)
+                ctx.grid,
+                ctx.sdata,
+                input=ctx.io_manager.kernel_proxy,
+                output=ctx.io_manager.output_proxy)
+            
+            ctx.write_output(inverse=True, normalize=normalize)
 
         else:
-            backup_registers = []
-            for i in range(len(manager.resources.registers)):
-                backup_registers.append(vc.new(c64, 0, var_name=f"backup_register_{i}"))
-
-            # load_sdata_state_to_registers(
-            #     manager.resources,
-            #     inverse_params,
-            #     invocation.instance_id,
-            #     inverse_params.config.N // inverse_params.config.stages[0].fft_length,
-            #     backup_registers[invocation.register_selection],
-            #     do_sdata_padding
-            # )
-
-            manager.sdata.read_to_registers(
-                manager.resources,
-                manager.config,
-                registers=backup_registers
-            )
 
             vc.comment("Performing IFFT stage in convolution shader")
 
+            backup_registers = []
+            for i in range(len(ctx.resources.registers)):
+                backup_registers.append(vc.new(c64, 0, var_name=f"backup_register_{i}"))
+
+
+            ctx.read_sdata(registers=backup_registers)
+            
             for kern_index in range(kernel_num):
                 vc.barrier()
                 
-                for i in range(len(manager.resources.registers)):
-                    manager.resources.registers[i][:] = backup_registers[i]
+                for i in range(len(ctx.resources.registers)):
+                    ctx.resources.registers[i][:] = backup_registers[i]
 
                 vc.set_kernel_index(kern_index)
 
+                ctx.read_kernel()
+
                 plan(
-                    manager.resources,
+                    ctx.resources,
                     inverse_params,
-                    manager.grid,
-                    manager.sdata,
-                    input=manager.io_manager.kernel_proxy,
-                    output=manager.io_manager.output_proxy)
+                    ctx.grid,
+                    ctx.sdata,
+                    input=ctx.io_manager.kernel_proxy,
+                    output=ctx.io_manager.output_proxy)
+            
+                ctx.write_output(inverse=True, normalize=normalize)
     
-    return manager.get_callable()
+    return ctx.get_callable()
 
 def get_cache_info():
     return make_fft_shader.cache_info()

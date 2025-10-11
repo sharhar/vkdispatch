@@ -51,6 +51,10 @@ class FFTResources:
     io_index: Const[u32]
     io_index_2: Const[u32]
 
+    tid: vc.ShaderVariable
+
+    config: FFTConfig
+
     output_strides: List[int]
     invocations: List[List[FFTRegisterStageInvocation]]
 
@@ -63,6 +67,8 @@ class FFTResources:
             vc.new(c64, 0, var_name=f"radix_{i}") for i in range(config.max_prime_radix)
         ]
 
+        self.tid = grid.tid
+        self.config = config
         self.input_batch_offset = vc.new_uint(var_name="input_batch_offset")
         self.output_batch_offset = vc.new_uint(var_name="output_batch_offset")
         self.omega_register = vc.new(c64, 0, var_name="omega_register")
@@ -86,7 +92,7 @@ class FFTResources:
                     stage.instance_count,
                     output_stride,
                     ii,
-                    grid.tid,
+                    self.tid,
                     config.N
             ))
                 
@@ -94,3 +100,28 @@ class FFTResources:
             self.invocations.append(stage_invocations)
             
             output_stride *= config.stages[i].fft_length
+
+    def stage_begin(self, stage_index: int):
+        thread_count = self.config.stages[stage_index].thread_count
+
+        if thread_count < self.config.batch_threads:
+            vc.if_statement(self.tid < thread_count)
+    
+    def stage_end(self, stage_index: int):
+        thread_count = self.config.stages[stage_index].thread_count
+
+        if thread_count < self.config.batch_threads:
+            vc.end()
+
+    def invocation_gaurd(self, stage_index: int, invocation_index: int):
+        stage = self.config.stages[stage_index]
+
+        if stage.remainder_offset == 1 and invocation_index == stage.extra_ffts:
+            vc.if_statement(self.tid < self.config.N // stage.registers_used)
+
+    def invocation_end(self, stage_index: int):
+        stage = self.config.stages[stage_index]
+
+        if stage.remainder_offset == 1:
+            vc.end()
+

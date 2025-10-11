@@ -79,7 +79,7 @@ def test_rfft_1d():
     vd.fft.cache_clear()
 
 
-test_rfft_1d()
+test_fft_1d()
 
 data = np.random.rand(495).astype(np.complex64)
 test_data = vd.RFFTBuffer(data.shape)

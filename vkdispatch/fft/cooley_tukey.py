@@ -1,35 +1,12 @@
-import vkdispatch as vd
 import vkdispatch.codegen as vc
-from vkdispatch.codegen.abreviations import *
+from .resources import FFTResources
 
-import dataclasses
-from typing import List, Tuple, Optional
-from functools import lru_cache
+from typing import List
+
 import numpy as np
 
-from .resources import FFTResources
-from .grid_manager import FFTGridManager
-from .sdata_manager import FFTSDataManager
-from .config import FFTConfig, FFTParams
-
-from .io_proxy import IOProxy
-
-#from .memory_io import load_buffer_to_registers, store_registers_from_stages, FFTRegisterStageInvocation
-
-def set_batch_offsets(resources: FFTResources, config: FFTConfig, grid: FFTGridManager, r2c: bool, inverse: bool):
-    input_batch_stride_y = config.batch_outer_stride,
-    output_batch_stride_y = config.batch_outer_stride
-
-    if r2c and not inverse:
-        output_batch_stride_y = (config.N // 2) + 1
-        input_batch_stride_y = output_batch_stride_y * 2
-
-    if r2c and inverse:
-        input_batch_stride_y = (config.N // 2) + 1
-        output_batch_stride_y = input_batch_stride_y * 2
-
-    resources.input_batch_offset[:] = grid.global_outer * input_batch_stride_y + grid.global_inner * config.batch_inner_stride
-    resources.output_batch_offset[:] = grid.global_outer * output_batch_stride_y + grid.global_inner * config.batch_inner_stride
+def get_angle_factor(inverse: bool) -> float:
+    return 2 * np.pi * (1 if inverse else -1)
 
 def do_c64_mult_const(register_out: vc.ShaderVariable, register_in: vc.ShaderVariable, constant: complex):
     vc.comment(f"Multiplying {register_in} by {constant}")
@@ -40,7 +17,7 @@ def do_c64_mult_const(register_out: vc.ShaderVariable, register_in: vc.ShaderVar
     register_out.y = register_in.y * constant.real
     register_out.y = vc.fma(register_in.x, constant.imag, register_out.y)
 
-def radix_P(resources: FFTResources, angle_factor: float, register_list: List[vc.ShaderVariable]):
+def radix_P(resources: FFTResources, inverse: bool, register_list: List[vc.ShaderVariable]):
     assert len(register_list) <= len(resources.radix_registers), "Too many registers for radix_P"
 
     if len(register_list) == 1:
@@ -54,6 +31,8 @@ def radix_P(resources: FFTResources, angle_factor: float, register_list: List[vc
         return
 
     vc.comment(f"Performing a DFT for Radix-{len(register_list)} FFT")
+
+    angle_factor = get_angle_factor(inverse)
 
     for i in range(0, len(register_list)):
         for j in range(0, len(register_list)):
@@ -76,11 +55,13 @@ def radix_P(resources: FFTResources, angle_factor: float, register_list: List[vc
     for i in range(0, len(register_list)):
         register_list[i][:] = resources.radix_registers[i]
 
-def apply_cooley_tukey_twiddle_factors(resources: FFTResources, angle_factor: float, register_list: List[vc.ShaderVariable], twiddle_index: int = 0, twiddle_N: int = 1):
+def apply_cooley_tukey_twiddle_factors(resources: FFTResources, inverse: bool, register_list: List[vc.ShaderVariable], twiddle_index: int = 0, twiddle_N: int = 1):
     if isinstance(twiddle_index, int) and twiddle_index == 0:
         return
 
     vc.comment(f"Applying Cooley-Tukey twiddle factors for twiddle index {twiddle_index} and twiddle N {twiddle_N}")
+
+    angle_factor = get_angle_factor(inverse)
 
     if not isinstance(twiddle_index, int):
         resources.omega_register.x = angle_factor * twiddle_index / twiddle_N
@@ -132,7 +113,7 @@ def apply_cooley_tukey_twiddle_factors(resources: FFTResources, angle_factor: fl
             do_c64_mult_const(resources.radix_registers[0], resources.omega_register, resources.radix_registers[1])
             resources.radix_registers[1][:] = resources.radix_registers[0]
 
-def register_radix_composite(resources: FFTResources, angle_factor: float, register_list: List[vc.ShaderVariable], primes: List[int]):
+def radix_composite(resources: FFTResources, inverse: bool, register_list: List[vc.ShaderVariable], primes: List[int]):
     if len(register_list) == 1:
         return
     
@@ -153,8 +134,8 @@ def register_radix_composite(resources: FFTResources, angle_factor: float, regis
             inner_block_offset = i % output_stride
             block_index = (i * prime) // block_width
 
-            apply_cooley_tukey_twiddle_factors(resources, angle_factor, sub_squences[i], twiddle_index=inner_block_offset, twiddle_N=block_width)
-            radix_P(resources, angle_factor, sub_squences[i])
+            apply_cooley_tukey_twiddle_factors(resources, inverse, sub_squences[i], twiddle_index=inner_block_offset, twiddle_N=block_width)
+            radix_P(resources, inverse, sub_squences[i])
             
             sub_sequence_offset = block_index * block_width + inner_block_offset
 
@@ -164,94 +145,3 @@ def register_radix_composite(resources: FFTResources, angle_factor: float, regis
         output_stride *= prime   
 
     return register_list
-
-def process_fft_register_stage(resources: FFTResources,
-                               params: FFTParams,
-                               grid: FFTGridManager,
-                               sdata: FFTSDataManager,
-                               stage_index: int) -> bool:
-    stage = params.config.stages[stage_index]
-    stage_count = len(params.config.stages)
-
-    do_runtime_if = stage.thread_count < params.config.batch_threads
-    
-    vc.comment(f"Processing prime group {stage.primes} by doing {stage.instance_count} radix-{stage.fft_length} FFTs on {params.config.N // stage.registers_used} groups")
-    if do_runtime_if: vc.if_statement(grid.tid < stage.thread_count)
-
-    for ii, invocation in enumerate(resources.invocations[stage_index]):
-        if stage.remainder_offset == 1 and ii == stage.extra_ffts:
-            vc.if_statement(grid.tid < params.config.N // stage.registers_used)
-
-        if stage_index != 0:
-            sdata.read_registers(
-                resources=resources,
-                config=params.config,
-                stage_index=stage_index,
-                invocation_index=ii
-            )
-
-        apply_cooley_tukey_twiddle_factors(
-            resources=resources,
-            angle_factor=params.config.angle_factor(params.inverse),
-            register_list=resources.registers[invocation.register_selection], 
-            twiddle_index=invocation.inner_block_offset, 
-            twiddle_N=invocation.block_width
-        )
-
-        resources.registers[invocation.register_selection] = register_radix_composite(
-            resources=resources,
-            angle_factor=params.config.angle_factor(params.inverse),
-            register_list=resources.registers[invocation.register_selection],
-            primes=stage.primes
-        )
-
-    if stage.remainder_offset == 1:
-        vc.end()
-
-    if do_runtime_if: vc.end()
-
-    #if stage_index != 0 and stage_index < stage_count - 1: #) or params.input_sdata:
-    #    vc.barrier()
-
-    #if do_runtime_if: vc.if_statement(grid.tid < stage.thread_count)
-
-    if stage_index < stage_count - 1:
-        if stage_index != 0:
-            vc.barrier()
-
-        sdata.write_registers(
-            resources=resources,
-            config=params.config,
-            stage_index=stage_index
-        )
-
-    #if do_runtime_if: vc.end()
-
-def plan(
-        resources: FFTResources,
-        params: FFTParams,
-        grid: FFTGridManager,
-        sdata: FFTSDataManager,
-        input: IOProxy = None,
-        output: IOProxy = None) -> bool:
-
-    #set_batch_offsets(resources, params.config, grid, params.r2c, params.inverse)
-
-    output_stride = 1
-
-    stage_count = len(params.config.stages)
-
-    for i in range(stage_count):
-        process_fft_register_stage(
-            resources,
-            params,
-            grid,
-            sdata,
-            i)
-            #input=input if i == 0 else None,
-            #output=output if i == stage_count - 1 else None)
-        
-        output_stride *= params.config.stages[i].fft_length
-
-        if i < stage_count - 1:
-            vc.barrier()

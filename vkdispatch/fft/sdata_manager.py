@@ -45,20 +45,30 @@ class FFTSDataManager:
 
             self.sdata_offset = vc.new_uint(sdata_offset_value, var_name="sdata_offset")
     
-    def read_to_registers(self,
+    def read_registers(self,
                             resources: FFTResources,
                             config: FFTConfig,
                             stage_index: int = 0,
                             invocation_index: int = None,
                             registers: List[vc.ShaderVariable] = None):
+        
+
         if invocation_index is None:
+            resources.stage_begin(stage_index)
+
             for ii, invocation in enumerate(resources.invocations[stage_index]):
+                resources.invocation_gaurd(stage_index, ii)
+
                 register_selection = None
 
                 if registers is not None:
                     register_selection = registers[invocation.register_selection]
 
-                self.read_to_registers(resources, config, stage_index, ii, register_selection)
+                self.read_registers(resources, config, stage_index, ii, register_selection)
+
+            resources.invocation_end(stage_index)
+            resources.stage_end(stage_index)
+
             return
 
         vc.comment(f"Loading from shared data buffer to registers")
@@ -79,7 +89,7 @@ class FFTSDataManager:
             else:
                 registers[i][:] = self.sdata[resources.io_index + stride * i]
 
-    def write_from_registers(self,
+    def write_registers(self,
                             resources: FFTResources,
                             config: FFTConfig,
                             stage_index: int,
@@ -93,10 +103,14 @@ class FFTSDataManager:
 
         vc.comment(f"Storing from registers to shared data buffer")
 
+        resources.stage_begin(stage_index)
+
         for jj in range(stage.fft_length):
             for ii, invocation in enumerate(resources.invocations[stage_index]):
-                if stage.remainder_offset == 1 and ii == stage.extra_ffts:
-                    vc.if_statement(self.tid < self.fft_N // stage.registers_used)
+                #if stage.remainder_offset == 1 and ii == stage.extra_ffts:
+                #    vc.if_statement(self.tid < self.fft_N // stage.registers_used)
+
+                resources.invocation_gaurd(stage_index, ii)
 
                 sdata_index = self.sdata_offset + invocation.sub_sequence_offset + jj * resources.output_strides[stage_index]
                 
@@ -107,5 +121,9 @@ class FFTSDataManager:
                 
                 self.sdata[sdata_index] = registers[invocation.register_selection][jj]
 
-            if stage.remainder_offset == 1:
-                vc.end()
+            resources.invocation_end(stage_index)
+
+            #if stage.remainder_offset == 1:
+            #    vc.end()
+        
+        resources.stage_end(stage_index)
