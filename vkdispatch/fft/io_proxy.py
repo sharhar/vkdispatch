@@ -48,55 +48,52 @@ class IOProxy:
         self.buffer_variables = vars
 
     def read_register(self,
+             resources: FFTResources,
+             config: FFTConfig,
              register: vc.ShaderVariable,
-             memory_index: vc.ShaderVariable,
-             spare_register: vc.ShaderVariable = None,
-             r2c: bool = False) -> vc.ShaderVariable:
+             r2c: bool = False,
+             inverse: bool = None,
+             fft_index: int = None) -> vc.ShaderVariable:
         assert self.enabled, f"{self.name} IOProxy is not enabled"
+
+        if r2c:
+            assert inverse is not None, "Must specify inverse for r2c read"
+
+        if r2c and inverse:
+            assert self.map_func is None, "Mapping functions do not support inverse r2c operations"
+            assert fft_index is not None, "FFT index must be provided for inverse r2c read"
+        
+            vc.if_statement(fft_index >= (config.N // 2) + 1)
+            resources.io_index_2[:] = 2 * resources.input_batch_offset + config.N * config.fft_stride - resources.io_index
+            register[:] = self.buffer_variables[0][resources.io_index_2]
+            register.y = -register.y
+            vc.else_statement()
+            register[:] = self.buffer_variables[0][resources.io_index]
+            vc.end()
+
+            return
         
         if self.map_func is not None:
-            assert spare_register is not None, "Spare register must be provided when using a mapping function"
-
-            vc.set_mapping_index(memory_index)
-            vc.set_mapping_registers([register, spare_register])
+            vc.set_mapping_index(resources.io_index)
+            vc.set_mapping_registers([register, resources.omega_register])
 
             self.map_func.callback(*self.buffer_variables)
 
             return
         
         if not r2c:
-            register[:] = self.buffer_variables[0][memory_index]
+            register[:] = self.buffer_variables[0][resources.io_index]
             return
         
-        real_value = self.buffer_variables[0][memory_index / 2][memory_index % 2]
+        real_value = self.buffer_variables[0][resources.io_index / 2][resources.io_index % 2]
         register[:] = f"vec2({real_value}, 0)"
 
-    def read_r2c_inverse_register(self,
-                         register: vc.ShaderVariable,
-                         memory_index: vc.ShaderVariable,
-                         fft_index: vc.ShaderVariable,
-                         spare_index: vc.ShaderVariable,
-                         input_batch_offset: vc.ShaderVariable,
-                         fft_size: int,
-                         fft_stride: int) -> vc.ShaderVariable:
-        assert self.enabled, f"{self.name} IOProxy is not enabled"
-        
-        assert self.map_func is None, "Mapping functions do not support inverse r2c operations"
-        
-        vc.if_statement(fft_index >= (fft_size // 2) + 1)
-        spare_index[:] = 2 * input_batch_offset + fft_size * fft_stride - memory_index
-        register[:] = self.buffer_variables[0][spare_index]
-        register.y = -register.y
-        vc.else_statement()
-        register[:] = self.buffer_variables[0][memory_index]
-        vc.end()
-
-    def read_to_registers(self,
+    def read_registers(self,
                             resources: FFTResources,
                             config: FFTConfig,
                             grid: FFTGridManager,
-                            inverse: bool,
                             r2c: bool = False,
+                            inverse: bool = None,
                             stage_index: int = 0,
                             registers: List[vc.ShaderVariable] = None):
         if registers is None:
@@ -104,9 +101,25 @@ class IOProxy:
 
         vc.comment(f"Loading to registers from buffer {self.buffer_variables[0]}")
 
+        input_batch_stride_y = config.batch_outer_stride
+
+        resources.stage_begin(stage_index)
+
+        if r2c:
+            assert inverse is not None, "Must specify inverse for r2c read"
+
+            if not inverse:
+                input_batch_stride_y = ((config.N // 2) + 1) * 2
+            if inverse:
+                input_batch_stride_y = (config.N // 2) + 1
+
+        resources.input_batch_offset[:] = grid.global_outer * input_batch_stride_y + grid.global_inner * config.batch_inner_stride
+
         for ii, invocation in enumerate(resources.invocations[stage_index]):
-            if config.stages[stage_index].remainder_offset == 1 and ii == config.stages[stage_index].extra_ffts:
-                vc.if_statement(grid.tid < config.N // config.stages[stage_index].registers_used)
+            #if config.stages[stage_index].remainder_offset == 1 and ii == config.stages[stage_index].extra_ffts:
+            #    vc.if_statement(grid.tid < config.N // config.stages[stage_index].registers_used)
+
+            resources.invocation_gaurd(stage_index, ii)
 
             offset = invocation.instance_id
             stride = config.N // config.stages[stage_index].fft_length
@@ -119,71 +132,77 @@ class IOProxy:
                 if i != 0:
                     resources.io_index += stride * config.fft_stride
                 
-                if r2c and inverse:
-                    self.read_r2c_inverse_register(
-                        register=register_list[i],
-                        memory_index=resources.io_index,
-                        fft_index=i * stride + offset,
-                        spare_index=resources.io_index_2,
-                        input_batch_offset=resources.input_batch_offset,
-                        fft_size=config.N,
-                        fft_stride=config.fft_stride
-                    )
-                else:
-                    self.read_register(register_list[i], resources.io_index, spare_register=resources.omega_register, r2c=r2c)
+                self.read_register(
+                    resources,
+                    config,
+                    register_list[i],
+                    r2c=r2c,
+                    inverse=inverse,
+                    fft_index=i * stride + offset
+                )
 
-        if config.stages[stage_index].remainder_offset == 1:
-            vc.end()
+        resources.invocation_end(stage_index)
+
+        # if config.stages[stage_index].remainder_offset == 1:
+        #     vc.end()
+
+        resources.stage_end(stage_index)
 
     def write_register(self,
+                resources: FFTResources,
+                config: FFTConfig,
                 register: vc.ShaderVariable,
-                memory_index: vc.ShaderVariable,
                 r2c: bool = False,
-                inverse: bool = False,
-                fft_index: vc.ShaderVariable = None,
-                fft_size: int = None) -> vc.ShaderVariable:
+                inverse: bool = None,
+                fft_index: vc.ShaderVariable = None) -> vc.ShaderVariable:
             assert self.enabled, f"{self.name} IOProxy is not enabled"
             
             if self.map_func is not None:
 
-                if not inverse and r2c:
-                    assert fft_size is not None, "FFT size must be provided for forward r2c write"
+                do_if = False
+
+                if r2c:
+                    assert inverse is not None, "Must specify inverse for r2c write"
+                    if not inverse:
+                        do_if = True
+
+                if do_if:
                     assert fft_index is not None, "FFT index must be provided for forward r2c write"
 
-                    vc.if_statement(fft_index < (fft_size // 2) + 1)
+                    vc.if_statement(fft_index < (config.N // 2) + 1)
 
-                vc.set_mapping_index(memory_index)
+                vc.set_mapping_index(resources.io_index)
                 vc.set_mapping_registers([register])
                 self.map_func.callback(*self.buffer_variables)
 
-                if not inverse and r2c:
+                if do_if:
                     vc.end()
 
                 return
             
             if not r2c:
-                self.buffer_variables[0][memory_index] = register
+                self.buffer_variables[0][resources.io_index] = register
                 return
             
+            assert inverse is not None, "Must specify inverse for r2c write"
+            
             if not inverse:
-                assert fft_size is not None, "FFT size must be provided for forward r2c write"
                 assert fft_index is not None, "FFT index must be provided for forward r2c write"
 
-                vc.if_statement(fft_index < (fft_size // 2) + 1)
-                self.buffer_variables[0][memory_index] = register
+                vc.if_statement(fft_index < (config.N // 2) + 1)
+                self.buffer_variables[0][resources.io_index] = register
                 vc.end()
                 return
 
 
-            self.buffer_variables[0][memory_index / 2][memory_index % 2] = register.x
+            self.buffer_variables[0][resources.io_index / 2][resources.io_index % 2] = register.x
     
-    def write_from_registers(self,
+    def write_registers(self,
                             resources: FFTResources,
                             config: FFTConfig,
                             grid: FFTGridManager,
-                            inverse: bool,
                             r2c: bool = False,
-                            normalize: bool = True,
+                            inverse: bool = None,
                             stage_index: int = -1,
                             registers: List[vc.ShaderVariable] = None):
         if registers is None:
@@ -191,33 +210,55 @@ class IOProxy:
 
         stage = config.stages[stage_index]
 
-        resources.io_index[:] = grid.tid * config.fft_stride + resources.output_batch_offset
-
         vc.comment(f"Storing from registers to buffer")
+
+        #do_runtime_if = config.stages[stage_index].thread_count < config.batch_threads
+        #if do_runtime_if: vc.if_statement(grid.tid < config.stages[stage_index].thread_count)
+        
+        resources.stage_begin(stage_index)
+
+        output_batch_stride_y = config.batch_outer_stride
+
+        if r2c:
+            assert inverse is not None, "Must specify inverse for r2c write"
+
+            if not inverse:
+                output_batch_stride_y = (config.N // 2) + 1
+            if inverse:
+                output_batch_stride_y = ((config.N // 2) + 1) * 2
+
+        resources.output_batch_offset[:] = grid.global_outer * output_batch_stride_y + grid.global_inner * config.batch_inner_stride
+
+        resources.io_index[:] = grid.tid * config.fft_stride + resources.output_batch_offset
         
         instance_index_stride = config.N // (stage.fft_length * stage.instance_count)
 
         for jj in range(stage.fft_length):
             for ii, invocation in enumerate(resources.invocations[stage_index]):
-                if stage.remainder_offset == 1 and ii == stage.extra_ffts:
-                    vc.if_statement(grid.tid < config.N // stage.registers_used)
+                #if stage.remainder_offset == 1 and ii == stage.extra_ffts:
+                #    vc.if_statement(grid.tid < config.N // stage.registers_used)
+
+                resources.invocation_gaurd(stage_index, ii)
 
                 if jj != 0 or ii != 0:
                     resources.io_index += instance_index_stride * config.fft_stride
 
                 register = registers[invocation.register_selection][jj]
 
-                if normalize and inverse:
-                    register[:] = register / config.N
-
                 self.write_register(
-                    register=register,
-                    memory_index=resources.io_index,
+                    resources,
+                    config,
+                    register,
                     r2c=r2c,
                     inverse=inverse,
-                    fft_size=config.N,
                     fft_index=invocation.sub_sequence_offset + jj * resources.output_strides[stage_index]
                 )
 
-            if stage.remainder_offset == 1:
-                vc.end()
+            resources.invocation_end(stage_index)
+
+            # if stage.remainder_offset == 1:
+            #     vc.end()
+
+        resources.stage_end(stage_index)
+
+        #if do_runtime_if: vc.end()

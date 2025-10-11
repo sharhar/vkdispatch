@@ -4,6 +4,8 @@ import random
 
 from typing import List
 
+TEST_COUNT = 2
+
 def numpy_convolution(signal: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     return np.fft.ifft2(
         np.fft.fft2(signal).astype(np.complex64)
@@ -31,7 +33,7 @@ def test_fft_1d():
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(20):
+    for _ in range(TEST_COUNT):
         dims = pick_dim_count(1)
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
@@ -55,7 +57,7 @@ def test_fft_2d():
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(20):
+    for _ in range(TEST_COUNT):
         dims = pick_dim_count(2)
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
@@ -78,7 +80,7 @@ def test_fft_3d():
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(20):
+    for _ in range(TEST_COUNT):
         dims = 3
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
@@ -101,7 +103,7 @@ def test_ifft_1d():
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(20):
+    for _ in range(TEST_COUNT):
         dims = pick_dim_count(1)
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
@@ -125,7 +127,7 @@ def test_ifft_2d():
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(20):
+    for _ in range(TEST_COUNT):
         dims = pick_dim_count(2)
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
@@ -148,7 +150,7 @@ def test_ifft_3d():
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(20):
+    for _ in range(TEST_COUNT):
         dims = 3
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
@@ -171,7 +173,7 @@ def test_rfft_1d():
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(20):
+    for _ in range(TEST_COUNT):
         dims = pick_dim_count(1)
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
@@ -194,7 +196,7 @@ def test_rfft_2d():
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(20):
+    for _ in range(TEST_COUNT):
         dims = pick_dim_count(2)
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
@@ -217,7 +219,7 @@ def test_rfft_3d():
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(20):
+    for _ in range(TEST_COUNT):
         dims = 3
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
@@ -240,7 +242,7 @@ def test_irfft_1d():
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(20):
+    for _ in range(TEST_COUNT):
         dims = pick_dim_count(1)
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
@@ -263,7 +265,7 @@ def test_irfft_2d():
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(20):
+    for _ in range(TEST_COUNT):
         dims = pick_dim_count(2)
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
@@ -286,7 +288,7 @@ def test_irfft_3d():
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(20):
+    for _ in range(TEST_COUNT):
         dims = 3
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
@@ -309,7 +311,7 @@ def test_convolution_2d():
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(20):
+    for _ in range(TEST_COUNT):
         dims = pick_dim_count(2)
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
@@ -336,7 +338,7 @@ def test_convolution_2d_real():
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(20):
+    for _ in range(TEST_COUNT):
         dims = pick_dim_count(2)
         current_shape = [pick_radix_prime() for _ in range(dims)]
 

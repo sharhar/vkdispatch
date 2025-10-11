@@ -189,6 +189,9 @@ class FFTConfig:
     def __repr__(self):
         return str(self)
     
+    def angle_factor(self, inverse: bool) -> float:
+        return 2 * np.pi * (1 if inverse else -1)
+
     def params(self,
                inverse: bool = False,
                normalize: bool = True,
