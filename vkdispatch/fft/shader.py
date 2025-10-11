@@ -82,56 +82,68 @@ def make_convolution_shader(
 
         vc.comment("Performing convolution stage in convolution shader")
 
-        inverse_params = manager.config.params(
-                inverse=True,
-                normalize=normalize)
+
         
-        assert inverse_params.config.stages[0].instance_count == 1, "Something is very wrong"
+        assert manager.config.stages[0].instance_count == 1, "Something is very wrong"
 
         invocation = FFTRegisterStageInvocation(
-            inverse_params.config.stages[0],
+            manager.config.stages[0],
             1, 0,
-            manager.resources.tid,
-            inverse_params.config.N
+            manager.grid.tid,
+            manager.config.N
         )
+        
+
+        inverse_params = manager.config.params(
+            inverse=True,
+            normalize=normalize)
 
         vc.comment(f"Loading state to registers in convolution shader")
 
         if kernel_num == 1:
-            load_sdata_state_to_registers(
-                manager.resources,
-                inverse_params,
-                invocation.instance_id,
-                inverse_params.config.N // inverse_params.config.stages[0].fft_length,
-                manager.resources.registers[invocation.register_selection],
-                do_sdata_padding
-            )
+            # load_sdata_state_to_registers(
+            #     manager.resources,
+            #     inverse_params,
+            #     invocation.instance_id,
+            #     inverse_params.config.N // inverse_params.config.stages[0].fft_length,
+            #     manager.resources.registers[invocation.register_selection],
+            #     do_sdata_padding
+            # )
+
+            manager.sdata.read_to_registers(manager.resources, manager.config)
 
             vc.comment("Performing IFFT stage in convolution shader")
 
             vc.barrier()
-                
+            
             vc.set_kernel_index(0)
 
             plan(
                 manager.resources,
                 inverse_params,
+                manager.grid,
+                manager.sdata,
                 input=manager.io_manager.kernel_proxy,
-                output=manager.io_manager.output_proxy,
-                do_sdata_padding=do_sdata_padding)
+                output=manager.io_manager.output_proxy)
 
         else:
             backup_registers = []
             for i in range(len(manager.resources.registers)):
                 backup_registers.append(vc.new(c64, 0, var_name=f"backup_register_{i}"))
 
-            load_sdata_state_to_registers(
+            # load_sdata_state_to_registers(
+            #     manager.resources,
+            #     inverse_params,
+            #     invocation.instance_id,
+            #     inverse_params.config.N // inverse_params.config.stages[0].fft_length,
+            #     backup_registers[invocation.register_selection],
+            #     do_sdata_padding
+            # )
+
+            manager.sdata.read_to_registers(
                 manager.resources,
-                inverse_params,
-                invocation.instance_id,
-                inverse_params.config.N // inverse_params.config.stages[0].fft_length,
-                backup_registers[invocation.register_selection],
-                do_sdata_padding
+                manager.config,
+                registers=backup_registers
             )
 
             vc.comment("Performing IFFT stage in convolution shader")
@@ -147,9 +159,10 @@ def make_convolution_shader(
                 plan(
                     manager.resources,
                     inverse_params,
+                    manager.grid,
+                    manager.sdata,
                     input=manager.io_manager.kernel_proxy,
-                    output=manager.io_manager.output_proxy,
-                    do_sdata_padding=do_sdata_padding)
+                    output=manager.io_manager.output_proxy)
     
     return manager.get_callable()
 

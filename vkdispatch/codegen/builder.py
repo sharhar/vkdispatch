@@ -1425,7 +1425,7 @@ class ShaderBuilder:
         self.append_contents(f"return {arg};\n")
 
     def while_statement(self, arg: ShaderVariable):
-        self.append_contents(f"while({self.proc_bool(elem)}) {'{'}\n")
+        self.append_contents(f"while({self.proc_bool(arg)}) {'{'}\n")
         self.scope_num += 1
 
     def new_scope(self, comment: str = None):
