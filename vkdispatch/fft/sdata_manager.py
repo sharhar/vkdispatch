@@ -51,10 +51,10 @@ class FFTSDataManager:
                             stage_index: int,
                             invocation_index: int,
                             registers: List[vc.ShaderVariable] = None):
-        if registers is None:
-            registers = resources.registers
-
         invocation = resources.invocations[stage_index][invocation_index]
+        
+        if registers is None:
+            registers = resources.registers[invocation.register_selection]
 
         resources.io_index[:] = invocation.instance_id + self.sdata_offset
 
