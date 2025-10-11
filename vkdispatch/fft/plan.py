@@ -28,8 +28,6 @@ def set_batch_offsets(resources: FFTResources, params: FFTParams, grid: FFTGridM
         input_batch_stride_y = (params.config.N // 2) + 1
         output_batch_stride_y = input_batch_stride_y * 2
 
-    print(resources.input_batch_offset)
-
     resources.input_batch_offset[:] = grid.global_outer * input_batch_stride_y + grid.global_inner * params.batch_inner_stride
     resources.output_batch_offset[:] = grid.global_outer * output_batch_stride_y + grid.global_inner * params.batch_inner_stride
 
