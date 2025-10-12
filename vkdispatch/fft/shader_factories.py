@@ -74,41 +74,30 @@ def make_convolution_shader(
         vc.barrier()
 
         vc.comment("Performing convolution stage in convolution shader")
+        backup_registers = None
 
-        if kernel_num == 1:
-            vc.comment("Performing IFFT stage in convolution shader")
-
-            ctx.read_sdata()
-            vc.barrier()
-            
-            vc.set_kernel_index(0)
-            ctx.read_kernel()
-            
-            ctx.execute(inverse=True)
-            ctx.write_output(inverse=True, normalize=normalize)
-
-        else:
-
-            vc.comment("Performing IFFT stage in convolution shader")
-
+        if kernel_num > 1:
             backup_registers = []
             for i in range(len(ctx.resources.registers)):
                 backup_registers.append(vc.new(c64, 0, var_name=f"backup_register_{i}"))
 
-            ctx.read_sdata(registers=backup_registers)
-            vc.barrier()
-            
-            for kern_index in range(kernel_num):
-                vc.comment(f"Processing kernel {kern_index}")
+        # If backup_registers is None, then the data is read into the main registers as desired
+        ctx.read_sdata(registers=backup_registers)
+        vc.barrier()
 
+        for kern_index in range(kernel_num):
+            vc.comment(f"Processing kernel {kern_index}")
+
+            if kernel_num > 1:
+                # Restore the main registers from backup if needed
                 for i in range(len(ctx.resources.registers)):
                     ctx.resources.registers[i][:] = backup_registers[i]
 
-                vc.set_kernel_index(kern_index)
-                ctx.read_kernel()
+            vc.set_kernel_index(kern_index)
+            ctx.read_kernel()
 
-                ctx.execute(inverse=True)
-                ctx.write_output(inverse=True, normalize=normalize)
+            ctx.execute(inverse=True)
+            ctx.write_output(inverse=True, normalize=normalize)
     
     return ctx.get_callable()
 
