@@ -5,8 +5,6 @@ from vkdispatch.codegen.abreviations import *
 from typing import Tuple
 from functools import lru_cache
 
-from .plan import plan
-
 @lru_cache(maxsize=None)
 def make_fft_shader(
         buffer_shape: Tuple, 
