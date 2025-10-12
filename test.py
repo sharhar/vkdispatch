@@ -79,24 +79,21 @@ def test_rfft_1d():
     vd.fft.cache_clear()
 
 
-test_fft_1d()
+#test_fft_1d()
 
-data = np.random.rand(495).astype(np.complex64)
-test_data = vd.RFFTBuffer(data.shape)
-#print(current_shape, axis)
+data = np.random.rand(1001, 2, 11).astype(np.complex64)
+test_data = vd.Buffer(data.shape, vd.complex64)
 
-#test_data.write(data)
+test_data.write(data)
 
-vd.fft.rfft(test_data) #, print_shader=True)
-
-exit()
+vd.fft.fft(test_data, print_shader=True)
 
 fft_data = test_data.read(0)
 np_data = np.fft.fft(data, axis=0)
 
 #print(np_data[0])
 
-np.save("fft_np.npy", np_data.reshape(45, 11))
-np.save("fft_vk.npy", fft_data.reshape(45, 11))
+# np.save("fft_np.npy", np_data.reshape(1001, 22))
+# np.save("fft_vk.npy", fft_data.reshape(1001, 22))
 
 assert np.allclose(np_data, fft_data, atol=1e-3)

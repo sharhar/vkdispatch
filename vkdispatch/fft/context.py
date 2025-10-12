@@ -10,6 +10,8 @@ from .grid_manager import FFTGridManager
 from .sdata_manager import FFTSDataManager
 from .resources import FFTResources
 
+from .cooley_tukey import radix_composite, apply_twiddle_factors
+
 class FFTCallable:
     shader_object: vd.ShaderObject
     exec_size: Tuple[int, int, int]
@@ -164,6 +166,55 @@ class FFTContext:
     def get_callable(self) -> FFTCallable:
         assert self.fft_callable is not None, "Shader not compiled yet... something is wrong"
         return self.fft_callable
+
+    def execute(self, inverse: bool = False):
+        stage_count = len(self.config.stages)
+
+        for i in range(stage_count):
+            stage = self.config.stages[i]
+
+            vc.comment(f"Processing prime group {stage.primes} by doing {stage.instance_count} radix-{stage.fft_length} FFTs on {self.config.N // stage.registers_used} groups")
+
+            self.resources.stage_begin(i)
+            for ii, invocation in enumerate(self.resources.invocations[i]):
+                
+                self.resources.invocation_gaurd(i, ii)
+
+                if i != 0:
+                    self.sdata.read_registers(
+                        resources=self.resources,
+                        config=self.config,
+                        stage_index=i,
+                        invocation_index=ii
+                    )
+
+                apply_twiddle_factors(
+                    resources=self.resources,
+                    inverse=inverse,
+                    register_list=self.resources.registers[invocation.register_selection], 
+                    twiddle_index=invocation.inner_block_offset, 
+                    twiddle_N=invocation.block_width
+                )
+
+                self.resources.registers[invocation.register_selection] = radix_composite(
+                    resources=self.resources,
+                    inverse=inverse,
+                    register_list=self.resources.registers[invocation.register_selection],
+                    primes=stage.primes
+                )
+
+            self.resources.invocation_end(i)
+            self.resources.stage_end(i)
+
+            if i < stage_count - 1:
+                if i != 0:
+                    vc.barrier()
+
+                self.sdata.write_registers(
+                    resources=self.resources,
+                    config=self.config,
+                    stage_index=i
+                )
 
 @contextlib.contextmanager
 def fft_context(buffer_shape: Tuple,
