@@ -55,7 +55,7 @@ def radix_P(resources: FFTResources, inverse: bool, register_list: List[vc.Shade
     for i in range(0, len(register_list)):
         register_list[i][:] = resources.radix_registers[i]
 
-def apply_cooley_tukey_twiddle_factors(resources: FFTResources, inverse: bool, register_list: List[vc.ShaderVariable], twiddle_index: int = 0, twiddle_N: int = 1):
+def apply_twiddle_factors(resources: FFTResources, inverse: bool, register_list: List[vc.ShaderVariable], twiddle_index: int = 0, twiddle_N: int = 1):
     if isinstance(twiddle_index, int) and twiddle_index == 0:
         return
 
@@ -134,7 +134,7 @@ def radix_composite(resources: FFTResources, inverse: bool, register_list: List[
             inner_block_offset = i % output_stride
             block_index = (i * prime) // block_width
 
-            apply_cooley_tukey_twiddle_factors(resources, inverse, sub_squences[i], twiddle_index=inner_block_offset, twiddle_N=block_width)
+            apply_twiddle_factors(resources, inverse, sub_squences[i], twiddle_index=inner_block_offset, twiddle_N=block_width)
             radix_P(resources, inverse, sub_squences[i])
             
             sub_sequence_offset = block_index * block_width + inner_block_offset

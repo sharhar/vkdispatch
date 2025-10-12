@@ -29,16 +29,7 @@ def make_fft_shader(
             inverse=inverse
         )
 
-        plan(
-            ctx.resources,
-            ctx.config.params(
-                inverse,
-                normalize_inverse,
-                r2c),
-            ctx.grid,
-            ctx.sdata,
-            input=ctx.io_manager.input_proxy,
-            output=ctx.io_manager.output_proxy)
+        ctx.execute(inverse=inverse)
 
         ctx.write_output(
             r2c=r2c,
@@ -78,50 +69,24 @@ def make_convolution_shader(
         vc.comment("Performing forward FFT stage in convolution shader")
 
         ctx.read_input()
-
-        plan(
-            ctx.resources,
-            ctx.config.params(
-                inverse=False,
-            ),
-            ctx.grid,
-            ctx.sdata,
-            input=ctx.io_manager.input_proxy)
-
+        ctx.execute(inverse=False)
+        
         vc.barrier()
-
         ctx.write_sdata()
-
         vc.barrier()
 
         vc.comment("Performing convolution stage in convolution shader")
 
-        inverse_params = ctx.config.params(
-            inverse=True,
-            normalize=normalize)
-
-        vc.comment(f"Loading state to registers in convolution shader")
-
         if kernel_num == 1:
-
             vc.comment("Performing IFFT stage in convolution shader")
 
             ctx.read_sdata()
-            
             vc.barrier()
             
             vc.set_kernel_index(0)
-
             ctx.read_kernel()
-
-            plan(
-                ctx.resources,
-                inverse_params,
-                ctx.grid,
-                ctx.sdata,
-                input=ctx.io_manager.kernel_proxy,
-                output=ctx.io_manager.output_proxy)
             
+            ctx.execute(inverse=True)
             ctx.write_output(inverse=True, normalize=normalize)
 
         else:
@@ -132,27 +97,19 @@ def make_convolution_shader(
             for i in range(len(ctx.resources.registers)):
                 backup_registers.append(vc.new(c64, 0, var_name=f"backup_register_{i}"))
 
-
             ctx.read_sdata(registers=backup_registers)
+            vc.barrier()
             
             for kern_index in range(kernel_num):
-                vc.barrier()
-                
+                vc.comment(f"Processing kernel {kern_index}")
+
                 for i in range(len(ctx.resources.registers)):
                     ctx.resources.registers[i][:] = backup_registers[i]
 
                 vc.set_kernel_index(kern_index)
-
                 ctx.read_kernel()
 
-                plan(
-                    ctx.resources,
-                    inverse_params,
-                    ctx.grid,
-                    ctx.sdata,
-                    input=ctx.io_manager.kernel_proxy,
-                    output=ctx.io_manager.output_proxy)
-            
+                ctx.execute(inverse=True)
                 ctx.write_output(inverse=True, normalize=normalize)
     
     return ctx.get_callable()
