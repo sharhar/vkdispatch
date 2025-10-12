@@ -4,7 +4,7 @@ import random
 
 from typing import List
 
-TEST_COUNT = 2
+TEST_COUNT = 20
 
 def numpy_convolution(signal: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     return np.fft.ifft2(

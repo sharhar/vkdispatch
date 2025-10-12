@@ -1,6 +1,6 @@
 import vkdispatch as vd
 
-from .shader import make_fft_shader, make_convolution_shader
+from .shader_factories import make_fft_shader, make_convolution_shader
 
 from typing import Tuple, Union
 

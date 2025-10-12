@@ -86,7 +86,7 @@ test_data = vd.Buffer(data.shape, vd.complex64)
 
 test_data.write(data)
 
-vd.fft.fft(test_data, print_shader=True)
+vd.fft.fft(test_data, axis=0, print_shader=True)
 
 fft_data = test_data.read(0)
 np_data = np.fft.fft(data, axis=0)

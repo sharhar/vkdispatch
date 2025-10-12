@@ -9,7 +9,6 @@ from .config import FFTConfig
 from .grid_manager import FFTGridManager
 from .sdata_manager import FFTSDataManager
 from .resources import FFTResources
-
 from .cooley_tukey import radix_composite, apply_twiddle_factors
 
 class FFTCallable:
@@ -215,6 +214,8 @@ class FFTContext:
                     config=self.config,
                     stage_index=i
                 )
+
+                vc.barrier()
 
 @contextlib.contextmanager
 def fft_context(buffer_shape: Tuple,
