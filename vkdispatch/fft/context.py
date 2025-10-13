@@ -234,7 +234,7 @@ class FFTContext:
 
                 vc.barrier()
 
-        # self.reorder_registers()
+        #self.reorder_registers()
 
 @contextlib.contextmanager
 def fft_context(buffer_shape: Tuple,
