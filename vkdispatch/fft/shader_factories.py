@@ -69,7 +69,7 @@ def make_convolution_shader(
         ctx.read_input()
         ctx.execute(inverse=False)
 
-        ctx.reorder_registers()
+        ctx.register_shuffle()
         
         #vc.barrier()
         #ctx.write_sdata()
@@ -98,7 +98,7 @@ def make_convolution_shader(
                 for i in range(len(ctx.resources.registers)):
                     ctx.resources.registers[i][:] = backup_registers[i]
 
-            vc.barrier()
+            #vc.barrier()
             vc.set_kernel_index(kern_index)
             ctx.read_kernel()
             ctx.execute(inverse=True)

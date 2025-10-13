@@ -2,7 +2,7 @@ import vkdispatch as vd
 import vkdispatch.codegen as vc
 
 import contextlib
-from typing import Optional, Tuple, Union, List
+from typing import Optional, Tuple, Union, List, Dict
 
 from .io_manager import IOManager
 from .config import FFTConfig
@@ -166,22 +166,62 @@ class FFTContext:
         assert self.fft_callable is not None, "Shader not compiled yet... something is wrong"
         return self.fft_callable
 
-    def reorder_registers(self, registers: List[vc.ShaderVariable] = None):
+    def register_input_format(self, stage_index: int = 0) -> Dict[int, int]:
+        in_format = {}
+
+        stride = self.config.N // self.config.stages[stage_index].fft_length
+
+        register_count = len(self.resources.registers)
+        register_index_list = list(range(register_count))
+
+        for invocation in self.resources.invocations[stage_index]:
+            sub_registers = register_index_list[invocation.register_selection]
+            
+            for i in range(len(sub_registers)):
+                in_format[invocation.get_read_index(stride * i)] = sub_registers[i]
+
+        return in_format
+
+    def register_output_format(self, stage_index: int = -1) -> Dict[int, int]:
+        out_format = {}
+
+        register_count = len(self.resources.registers)
+        register_index_list = list(range(register_count))
+
+        for jj in range(self.config.stages[stage_index].fft_length):
+            for invocation in self.resources.invocations[stage_index]:
+                out_format[invocation.get_write_index(jj)] = register_index_list[invocation.register_selection][jj]
+
+        return out_format
+
+    def register_shuffle(self, output_stage: int = -1, input_stage: int = 0, registers: List[vc.ShaderVariable] = None) -> Dict[int, int]:
+        out_format = self.register_output_format(output_stage)
+        in_format = self.register_input_format(input_stage)
+
+        if out_format.keys() != in_format.keys():
+            self.write_sdata(stage_index=output_stage, registers=registers)
+            self.read_sdata(stage_index=input_stage, registers=registers)
+            return
+        
         if registers is None:
             registers = self.resources.registers
 
-        new_order = [None] * len(registers)
-
-        stage = self.config.stages[-1]
-
-        invocation_count = len(self.resources.invocations[-1])
-
-        for jj in range(stage.fft_length):
-            for ii, invocation in enumerate(self.resources.invocations[-1]):
-                new_order[jj * invocation_count + ii] = registers[invocation.register_selection][jj]
+        shuffled_registers = [None] * len(registers)
 
         for i in range(len(registers)):
-            registers[i] = new_order[i]
+            format_key = None
+            
+            for k, v in in_format.items():
+                if v == i:
+                    format_key = k
+                    break
+
+            assert format_key is not None, "Could not find register in output format???"
+
+            shuffled_registers[i] = registers[out_format[format_key]]
+
+        for i in range(len(registers)):
+            registers[i] = shuffled_registers[i]
 
     def execute(self, inverse: bool = False):
         stage_count = len(self.config.stages)
@@ -191,18 +231,16 @@ class FFTContext:
 
             vc.comment(f"Processing prime group {stage.primes} by doing {stage.instance_count} radix-{stage.fft_length} FFTs on {self.config.N // stage.registers_used} groups")
 
+            if i != 0:
+                self.sdata.read_registers(
+                    resources=self.resources,
+                    config=self.config,
+                    stage_index=i
+                )
+
             self.resources.stage_begin(i)
             for ii, invocation in enumerate(self.resources.invocations[i]):
-                
                 self.resources.invocation_gaurd(i, ii)
-
-                if i != 0:
-                    self.sdata.read_registers(
-                        resources=self.resources,
-                        config=self.config,
-                        stage_index=i,
-                        invocation_index=ii
-                    )
 
                 apply_twiddle_factors(
                     resources=self.resources,
@@ -223,18 +261,11 @@ class FFTContext:
             self.resources.stage_end(i)
 
             if i < stage_count - 1:
-                if i != 0:
-                    vc.barrier()
-
                 self.sdata.write_registers(
                     resources=self.resources,
                     config=self.config,
                     stage_index=i
                 )
-
-                vc.barrier()
-
-        #self.reorder_registers()
 
 @contextlib.contextmanager
 def fft_context(buffer_shape: Tuple,
