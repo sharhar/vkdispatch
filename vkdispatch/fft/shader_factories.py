@@ -68,10 +68,12 @@ def make_convolution_shader(
 
         ctx.read_input()
         ctx.execute(inverse=False)
+
+        ctx.reorder_registers()
         
-        vc.barrier()
-        ctx.write_sdata()
-        vc.barrier()
+        #vc.barrier()
+        #ctx.write_sdata()
+        #vc.barrier()
 
         vc.comment("Performing convolution stage in convolution shader")
         backup_registers = None
@@ -81,12 +83,12 @@ def make_convolution_shader(
             for i in range(len(ctx.resources.registers)):
                 backup_registers.append(vc.new(c64, 0, var_name=f"backup_register_{i}"))
 
-            #for i in range(len(ctx.resources.registers)):
-            #    backup_registers[i][:] = ctx.resources.registers[i]
+            for i in range(len(ctx.resources.registers)):
+                backup_registers[i][:] = ctx.resources.registers[i]
 
         # If backup_registers is None, then the data is read into the main registers as desired
-        ctx.read_sdata(registers=backup_registers)
-        vc.barrier()
+        #ctx.read_sdata(registers=backup_registers)
+        #vc.barrier()
 
         for kern_index in range(kernel_num):
             vc.comment(f"Processing kernel {kern_index}")
