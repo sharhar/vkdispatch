@@ -4,10 +4,14 @@ import numpy as np
 
 SIZE = 512
 
-buffer = vd.Buffer((SIZE, SIZE), vd.complex64)
-kernel = vd.Buffer((SIZE, SIZE), vd.complex64)
+buffer = vd.Buffer((1, SIZE, SIZE), vd.complex64)
+kernel = vd.Buffer((1, SIZE, SIZE), vd.complex64)
 
-vd.fft.convolve2D(buffer, kernel) #, print_shader=True)
+vd.fft.fft(buffer, disable_interior=True, print_shader=True)
+vd.fft.convolve(buffer, kernel, axis=1, disable_interior=True, print_shader=True)
+vd.fft.fft(buffer, inverse=True, disable_interior=True, print_shader=True)
+
+#vd.vkfft.convolve_2D(buffer, kernel, keep_shader_code=True)
 
 exit()
 

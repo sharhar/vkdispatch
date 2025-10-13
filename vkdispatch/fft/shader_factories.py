@@ -12,6 +12,7 @@ def make_fft_shader(
         inverse: bool = False, 
         normalize_inverse: bool = True,
         r2c: bool = False,
+        disable_interior: bool = False,
         input_map: vd.MappingFunction = None,
         output_map: vd.MappingFunction = None) -> Tuple[vd.ShaderObject, Tuple[int, int, int]]:
 
@@ -27,7 +28,8 @@ def make_fft_shader(
             inverse=inverse
         )
 
-        ctx.execute(inverse=inverse)
+        if not disable_interior:
+            ctx.execute(inverse=inverse)
 
         ctx.write_output(
             r2c=r2c,
@@ -44,6 +46,7 @@ def make_convolution_shader(
         kernel_num: int = 1,
         axis: int = None, 
         normalize: bool = True,
+        disable_interior: bool = False,
         input_map: vd.MappingFunction = None,
         output_map: vd.MappingFunction = None) -> Tuple[vd.ShaderObject, Tuple[int, int, int]]:
 
@@ -67,13 +70,10 @@ def make_convolution_shader(
         vc.comment("Performing forward FFT stage in convolution shader")
 
         ctx.read_input()
-        ctx.execute(inverse=False)
-
-        ctx.register_shuffle()
         
-        #vc.barrier()
-        #ctx.write_sdata()
-        #vc.barrier()
+        if not disable_interior:
+            ctx.execute(inverse=False)
+            ctx.register_shuffle()
 
         vc.comment("Performing convolution stage in convolution shader")
         backup_registers = None
@@ -81,14 +81,9 @@ def make_convolution_shader(
         if kernel_num > 1:
             backup_registers = []
             for i in range(len(ctx.resources.registers)):
-                backup_registers.append(vc.new(c64, 0, var_name=f"backup_register_{i}"))
-
-            for i in range(len(ctx.resources.registers)):
-                backup_registers[i][:] = ctx.resources.registers[i]
-
-        # If backup_registers is None, then the data is read into the main registers as desired
-        #ctx.read_sdata(registers=backup_registers)
-        #vc.barrier()
+                backup_registers.append(vc.new(
+                    c64, ctx.resources.registers[i],
+                    var_name=f"backup_register_{i}"))
 
         for kern_index in range(kernel_num):
             vc.comment(f"Processing kernel {kern_index}")
@@ -98,10 +93,12 @@ def make_convolution_shader(
                 for i in range(len(ctx.resources.registers)):
                     ctx.resources.registers[i][:] = backup_registers[i]
 
-            #vc.barrier()
             vc.set_kernel_index(kern_index)
             ctx.read_kernel()
-            ctx.execute(inverse=True)
+            
+            if not disable_interior:
+                ctx.execute(inverse=True)
+
             ctx.write_output(inverse=True, normalize=normalize)
     
     return ctx.get_callable()
