@@ -166,6 +166,23 @@ class FFTContext:
         assert self.fft_callable is not None, "Shader not compiled yet... something is wrong"
         return self.fft_callable
 
+    def reorder_registers(self, registers: List[vc.ShaderVariable] = None):
+        if registers is None:
+            registers = self.resources.registers
+
+        new_order = [None] * len(registers)
+
+        stage = self.config.stages[-1]
+
+        invocation_count = len(self.resources.invocations[-1])
+
+        for jj in range(stage.fft_length):
+            for ii, invocation in enumerate(self.resources.invocations[-1]):
+                new_order[jj * invocation_count + ii] = registers[invocation.register_selection][jj]
+
+        for i in range(len(registers)):
+            registers[i] = new_order[i]
+
     def execute(self, inverse: bool = False):
         stage_count = len(self.config.stages)
 
@@ -216,6 +233,8 @@ class FFTContext:
                 )
 
                 vc.barrier()
+
+        # self.reorder_registers()
 
 @contextlib.contextmanager
 def fft_context(buffer_shape: Tuple,
