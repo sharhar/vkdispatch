@@ -394,33 +394,33 @@ class ShaderVariable:
 
         super().__setattr__(name, value)
 
-    def __getattr__(self, name: str) -> "ShaderVariable":
-        if not set(name).issubset(set("xyzw")):
-            raise AttributeError(f"Cannot get attribute '{name}'")
+    # def __getattr__(self, name: str) -> "ShaderVariable":
+    #     if not set(name).issubset(set("xyzw")):
+    #         raise AttributeError(f"Cannot get attribute '{name}'")
 
-        if len(name) > 4:
-            raise AttributeError(f"Cannot get attribute '{name}'")
+    #     if len(name) > 4:
+    #         raise AttributeError(f"Cannot get attribute '{name}'")
         
-        if len(name) == 1:
-            if len(self.var_type.shape) == 2:
-                raise AttributeError(f"Cannot get attribute '{name}' from a matrix of shape {self.var_type.shape}!")
+    #     if len(name) == 1:
+    #         if len(self.var_type.shape) == 2:
+    #             raise AttributeError(f"Cannot get attribute '{name}' from a matrix of shape {self.var_type.shape}!")
             
-            if name == "x" and self.var_type.shape[0] == 1:
-                return self.new(self.var_type, f"{self}.{name}", [self], lexical_unit=True, settable=self.settable)
+    #         if name == "x" and self.var_type.shape[0] == 1:
+    #             return self.new(self.var_type, f"{self}.{name}", [self], lexical_unit=True, settable=self.settable)
             
-            if name == "y" and self.var_type.shape[0] < 2:
-                raise AttributeError(f"Cannot get attribute '{name}' from a {self.var_type.name}!")
+    #         if name == "y" and self.var_type.shape[0] < 2:
+    #             raise AttributeError(f"Cannot get attribute '{name}' from a {self.var_type.name}!")
             
-            if name == "z" and self.var_type.shape[0] < 3:
-                raise AttributeError(f"Cannot get attribute '{name}' from a {self.var_type.name}!")
+    #         if name == "z" and self.var_type.shape[0] < 3:
+    #             raise AttributeError(f"Cannot get attribute '{name}' from a {self.var_type.name}!")
 
-            if name == "w" and self.var_type.shape[0] < 4:
-                raise AttributeError(f"Cannot get attribute '{name}' from a {self.var_type.name}!")
+    #         if name == "w" and self.var_type.shape[0] < 4:
+    #             raise AttributeError(f"Cannot get attribute '{name}' from a {self.var_type.name}!")
 
-            return self.new(self.var_type.child_type, f"{self}.{name}", [self], lexical_unit=True, settable=self.settable)
+    #         return self.new(self.var_type.child_type, f"{self}.{name}", [self], lexical_unit=True, settable=self.settable)
         
-        new_type = to_vector(self.var_type.child_type, len(name))
-        return self.new(new_type, f"{self}.{name}", [self], lexical_unit=True, settable=self.settable)
+    #     new_type = to_vector(self.var_type.child_type, len(name))
+    #     return self.new(new_type, f"{self}.{name}", [self], lexical_unit=True, settable=self.settable)
 
     def __lt__(self, other):
         return self.new(dtypes.int32, f"{self} < {other}", [self, other])
@@ -440,10 +440,10 @@ class ShaderVariable:
     def __ge__(self, other):
         return self.new(dtypes.int32, f"{self} >= {other}", [self, other])
 
-    def __add__(self, other):
+    def __add__(self, other): # -> "Union[ShaderVariable, ScaledAndOfftsetIntVariable]":
         if do_scaled_int_check(other):
             result = self.new_scaled_and_offset_int(self.var_type, f"{self}", [self])
-            return result.__add__(other)
+            return result.new_from_self(offset=other)
 
         return self.new(self.var_type, f"{self} + {other}", [self, other])
 
@@ -770,7 +770,7 @@ class ScaledAndOfftsetIntVariable(ShaderVariable):
 
         return f"({self.base_name}{scale_str}{offset_str})"
 
-    def __add__(self, other):
+    def __add__(self, other) -> "Union[ShaderVariable, ScaledAndOfftsetIntVariable]":
         if isinstance(other, ShaderVariable):
             return super().__add__(other)
 

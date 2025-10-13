@@ -15,6 +15,11 @@ class FFTSDataManager:
     sdata_row_size_padded: int
     padding_enabled: bool
 
+    # None: not set yet
+    # True: last operation was write
+    # False: last operation was read
+    last_op: bool
+
     use_padding: bool
 
     tid: vc.ShaderVariable
@@ -27,6 +32,7 @@ class FFTSDataManager:
         self.use_padding = False
         self.fft_N = config.N
         self.tid = grid.tid
+        self.last_op = None
 
         total_inner_batches = grid.inline_batches_inner * grid.inline_batches_outer
 
@@ -53,6 +59,11 @@ class FFTSDataManager:
                             registers: List[vc.ShaderVariable] = None):
         
         if invocation_index is None:
+            if self.last_op is not None and self.last_op:
+                vc.barrier()
+
+            self.last_op = False
+
             resources.stage_begin(stage_index)
 
             for ii, invocation in enumerate(resources.invocations[stage_index]):
@@ -102,6 +113,11 @@ class FFTSDataManager:
 
         vc.comment(f"Storing from registers to shared data buffer with fft length {stage.fft_length} and invocations {len(resources.invocations[stage_index])}")
 
+        if self.last_op is not None and not self.last_op:
+            vc.barrier()
+        
+        self.last_op = True
+
         resources.stage_begin(stage_index)
 
         for jj in range(stage.fft_length):
@@ -114,7 +130,7 @@ class FFTSDataManager:
                     resources.io_index[:] = sdata_index
                     resources.io_index[:] = resources.io_index + resources.io_index / self.sdata_row_size
                     sdata_index = resources.io_index
-                
+
                 self.sdata[sdata_index] = registers[invocation.register_selection][jj]
 
             resources.invocation_end(stage_index)

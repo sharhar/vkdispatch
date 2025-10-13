@@ -12,12 +12,23 @@ from .grid_manager import FFTGridManager
 class FFTRegisterStageInvocation:
     output_stride: int
     block_width: int
-    inner_block_offset: int
-    block_index: int
-    sub_sequence_offset: int
+    inner_block_offset: vc.ShaderVariable
+    sub_sequence_offset: vc.ShaderVariable
     register_selection: slice
 
-    def __init__(self, stage_fft_length: int, stage_instance_count: int, output_stride: int, instance_index: int, tid: vc.ShaderVariable, N: int):
+    instance_id: vc.ShaderVariable
+
+    instance_id0: int
+    inner_block_offset0: int
+    sub_sequence_offset0: int
+
+    def __init__(self,
+                 stage_fft_length: int,
+                 stage_instance_count: int,
+                 output_stride: int,
+                 instance_index: int,
+                 tid: vc.ShaderVariable,
+                 N: int):
         self.output_stride = output_stride
 
         self.block_width = output_stride * stage_fft_length
@@ -33,12 +44,22 @@ class FFTRegisterStageInvocation:
         
         self.sub_sequence_offset = self.instance_id * stage_fft_length - self.inner_block_offset * (stage_fft_length - 1)
 
+        # pretend tid is 0, used for calculating register shuffles
+        self.instance_id0 = instance_index_stride * instance_index
+        self.inner_block_offset0 = self.instance_id0 % output_stride
+        self.sub_sequence_offset0 = self.instance_id0 * stage_fft_length - self.inner_block_offset0 * (stage_fft_length - 1)
+        
         if self.block_width == N:
             self.inner_block_offset = self.instance_id
             self.sub_sequence_offset = self.inner_block_offset
         
         self.register_selection = slice(instance_index * stage_fft_length, (instance_index + 1) * stage_fft_length)
 
+    def get_write_index(self, fft_index: int) -> vc.ShaderVariable:
+        return self.sub_sequence_offset0 + fft_index * self.output_stride
+    
+    def get_read_index(self, offset: int) -> vc.ShaderVariable:
+        return self.instance_id0 + offset
 
 @dataclasses.dataclass
 class FFTResources:
