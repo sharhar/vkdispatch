@@ -52,7 +52,6 @@ class FFTSDataManager:
                             invocation_index: int = None,
                             registers: List[vc.ShaderVariable] = None):
         
-
         if invocation_index is None:
             resources.stage_begin(stage_index)
 
@@ -101,15 +100,12 @@ class FFTSDataManager:
 
         self.use_padding = self.padding_enabled and resources.output_strides[stage_index] < 32
 
-        vc.comment(f"Storing from registers to shared data buffer")
+        vc.comment(f"Storing from registers to shared data buffer with fft length {stage.fft_length} and invocations {len(resources.invocations[stage_index])}")
 
         resources.stage_begin(stage_index)
 
         for jj in range(stage.fft_length):
             for ii, invocation in enumerate(resources.invocations[stage_index]):
-                #if stage.remainder_offset == 1 and ii == stage.extra_ffts:
-                #    vc.if_statement(self.tid < self.fft_N // stage.registers_used)
-
                 resources.invocation_gaurd(stage_index, ii)
 
                 sdata_index = self.sdata_offset + invocation.sub_sequence_offset + jj * resources.output_strides[stage_index]
@@ -122,8 +118,5 @@ class FFTSDataManager:
                 self.sdata[sdata_index] = registers[invocation.register_selection][jj]
 
             resources.invocation_end(stage_index)
-
-            #if stage.remainder_offset == 1:
-            #    vc.end()
         
         resources.stage_end(stage_index)
