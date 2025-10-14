@@ -13,7 +13,8 @@ def fft(
         name: str = None,
         inverse: bool = False,
         normalize_inverse: bool = True,
-        disable_interior: bool = False,
+        disable_compute: bool = False,
+        disable_shuffle: bool = False,
         r2c: bool = False,
         input_map: vd.MappingFunction = None,
         output_map: vd.MappingFunction = None):
@@ -29,7 +30,8 @@ def fft(
         inverse=inverse,
         normalize_inverse=normalize_inverse,
         r2c=r2c,
-        disable_interior=disable_interior,
+        disable_compute=disable_compute,
+        disable_shuffle=disable_shuffle,
         input_map=input_map,
         output_map=output_map)
 
@@ -118,7 +120,8 @@ def convolve(
         print_shader: bool = False,
         axis: int = None,
         normalize: bool = True,
-        disable_interior: bool = False,
+        disable_compute: bool = False,
+        disable_shuffle: bool = False,
         name: str = None,
         input_map: vd.MappingFunction = None,
         output_map: vd.MappingFunction = None):
@@ -130,7 +133,8 @@ def convolve(
         kernel_map,
         kernel_num,
         axis,
-        disable_interior=disable_interior,
+        disable_compute=disable_compute,
+        disable_shuffle=disable_shuffle,
         normalize=normalize,
         input_map=input_map,
         output_map=output_map)

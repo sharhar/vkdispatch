@@ -194,7 +194,10 @@ class FFTContext:
 
         return out_format
 
-    def register_shuffle(self, output_stage: int = -1, input_stage: int = 0, registers: List[vc.ShaderVariable] = None) -> Dict[int, int]:
+    def register_shuffle(self,
+                         output_stage: int = -1,
+                         input_stage: int = 0,
+                         registers: List[vc.ShaderVariable] = None) -> Dict[int, int]:
         out_format = self.register_output_format(output_stage)
         in_format = self.register_input_format(input_stage)
 
@@ -223,7 +226,7 @@ class FFTContext:
         for i in range(len(registers)):
             registers[i] = shuffled_registers[i]
 
-    def execute(self, inverse: bool = False):
+    def execute(self, inverse: bool = False, disable_shuffle: bool = False, disable_compute: bool = False):
         stage_count = len(self.config.stages)
 
         for i in range(stage_count):
@@ -231,7 +234,12 @@ class FFTContext:
 
             vc.comment(f"Processing prime group {stage.primes} by doing {stage.instance_count} radix-{stage.fft_length} FFTs on {self.config.N // stage.registers_used} groups")
 
-            if i != 0:
+            if i != 0 and not disable_shuffle:
+                self.sdata.write_registers(
+                    resources=self.resources,
+                    config=self.config,
+                    stage_index=i-1
+                )
                 self.sdata.read_registers(
                     resources=self.resources,
                     config=self.config,
@@ -242,30 +250,25 @@ class FFTContext:
             for ii, invocation in enumerate(self.resources.invocations[i]):
                 self.resources.invocation_gaurd(i, ii)
 
-                apply_twiddle_factors(
-                    resources=self.resources,
-                    inverse=inverse,
-                    register_list=self.resources.registers[invocation.register_selection], 
-                    twiddle_index=invocation.inner_block_offset, 
-                    twiddle_N=invocation.block_width
-                )
+                if not disable_compute:
+                    apply_twiddle_factors(
+                        resources=self.resources,
+                        inverse=inverse,
+                        register_list=self.resources.registers[invocation.register_selection], 
+                        twiddle_index=invocation.inner_block_offset, 
+                        twiddle_N=invocation.block_width
+                    )
 
-                self.resources.registers[invocation.register_selection] = radix_composite(
-                    resources=self.resources,
-                    inverse=inverse,
-                    register_list=self.resources.registers[invocation.register_selection],
-                    primes=stage.primes
-                )
+                    self.resources.registers[invocation.register_selection] = radix_composite(
+                        resources=self.resources,
+                        inverse=inverse,
+                        register_list=self.resources.registers[invocation.register_selection],
+                        primes=stage.primes
+                    )
 
             self.resources.invocation_end(i)
             self.resources.stage_end(i)
 
-            if i < stage_count - 1:
-                self.sdata.write_registers(
-                    resources=self.resources,
-                    config=self.config,
-                    stage_index=i
-                )
 
 @contextlib.contextmanager
 def fft_context(buffer_shape: Tuple,

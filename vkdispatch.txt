@@ -1,0 +1,2492 @@
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_EXT_debug_printf : enable
+shared vec2 sdata[2176];
+
+layout(set = 0, binding = 0) uniform UniformObjectBuffer {
+ 	uvec4 exec_count;
+	ivec4 buf1_shape;
+	ivec4 buf2_shape;
+	ivec4 sdata_shape; 
+} UBO;
+layout(set = 0, binding = 1) buffer Buffer1 { vec2 data[]; } buf1;
+layout(set = 0, binding = 2) buffer Buffer2 { vec2 data[]; } buf2;
+
+layout(local_size_x = 4, local_size_y = 32, local_size_z = 1) in;
+void main() {
+    uint workgroup_index = uint(gl_WorkGroupID.x);
+    uint global_inner_index = uint((((workgroup_index % 128) * 4) + gl_LocalInvocationID.x));
+    uint global_outer_index = uint(((workgroup_index / 128) + gl_LocalInvocationID.z));
+    uint tid = gl_LocalInvocationID.y;
+    vec2 register_0 = vec2(0);
+    vec2 register_1 = vec2(0);
+    vec2 register_2 = vec2(0);
+    vec2 register_3 = vec2(0);
+    vec2 register_4 = vec2(0);
+    vec2 register_5 = vec2(0);
+    vec2 register_6 = vec2(0);
+    vec2 register_7 = vec2(0);
+    vec2 register_8 = vec2(0);
+    vec2 register_9 = vec2(0);
+    vec2 register_10 = vec2(0);
+    vec2 register_11 = vec2(0);
+    vec2 register_12 = vec2(0);
+    vec2 register_13 = vec2(0);
+    vec2 register_14 = vec2(0);
+    vec2 register_15 = vec2(0);
+    vec2 radix_0 = vec2(0);
+    vec2 radix_1 = vec2(0);
+    uint input_batch_offset;
+    uint output_batch_offset;
+    vec2 omega_register = vec2(0);
+    uint subsequence_offset = uint(0);
+    uint io_index = uint(0);
+    uint io_index_2 = uint(0);
+    uint sdata_offset = uint(((gl_LocalInvocationID.z * 2048) + (gl_LocalInvocationID.x * 512)));
+    
+    /* Performing forward FFT stage in convolution shader */
+    
+    /* Loading to registers from buffer (buf1.data) */
+    input_batch_offset = (global_outer_index * 262144) + global_inner_index;
+    io_index = (tid * 512) + input_batch_offset;
+    register_0 = buf1.data[io_index];
+    io_index += 16384;
+    register_1 = buf1.data[io_index];
+    io_index += 16384;
+    register_2 = buf1.data[io_index];
+    io_index += 16384;
+    register_3 = buf1.data[io_index];
+    io_index += 16384;
+    register_4 = buf1.data[io_index];
+    io_index += 16384;
+    register_5 = buf1.data[io_index];
+    io_index += 16384;
+    register_6 = buf1.data[io_index];
+    io_index += 16384;
+    register_7 = buf1.data[io_index];
+    io_index += 16384;
+    register_8 = buf1.data[io_index];
+    io_index += 16384;
+    register_9 = buf1.data[io_index];
+    io_index += 16384;
+    register_10 = buf1.data[io_index];
+    io_index += 16384;
+    register_11 = buf1.data[io_index];
+    io_index += 16384;
+    register_12 = buf1.data[io_index];
+    io_index += 16384;
+    register_13 = buf1.data[io_index];
+    io_index += 16384;
+    register_14 = buf1.data[io_index];
+    io_index += 16384;
+    register_15 = buf1.data[io_index];
+    
+    /* Processing prime group (2, 2, 2, 2) by doing 1 radix-16 FFTs on 32 groups */
+    
+    /* Performing a Radix-(2, 2, 2, 2) FFT on 16 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_8;
+    register_8 = register_0 - radix_0;
+    register_0 = register_0 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_9;
+    register_9 = register_1 - radix_0;
+    register_1 = register_1 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_10;
+    register_10 = register_2 - radix_0;
+    register_2 = register_2 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_11;
+    register_11 = register_3 - radix_0;
+    register_3 = register_3 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_12;
+    register_12 = register_4 - radix_0;
+    register_4 = register_4 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_13;
+    register_13 = register_5 - radix_0;
+    register_5 = register_5 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_14;
+    register_14 = register_6 - radix_0;
+    register_6 = register_6 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_15;
+    register_15 = register_7 - radix_0;
+    register_7 = register_7 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_4;
+    register_4 = register_0 - radix_0;
+    register_0 = register_0 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 4 */
+    omega_register.x = register_12.x;
+    register_12.x = register_12.y;
+    register_12.y = -omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_12;
+    register_12 = register_8 - radix_0;
+    register_8 = register_8 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_5;
+    register_5 = register_1 - radix_0;
+    register_1 = register_1 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 4 */
+    omega_register.x = register_13.x;
+    register_13.x = register_13.y;
+    register_13.y = -omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_13;
+    register_13 = register_9 - radix_0;
+    register_9 = register_9 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_6;
+    register_6 = register_2 - radix_0;
+    register_2 = register_2 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 4 */
+    omega_register.x = register_14.x;
+    register_14.x = register_14.y;
+    register_14.y = -omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_14;
+    register_14 = register_10 - radix_0;
+    register_10 = register_10 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_7;
+    register_7 = register_3 - radix_0;
+    register_3 = register_3 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 4 */
+    omega_register.x = register_15.x;
+    register_15.x = register_15.y;
+    register_15.y = -omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_15;
+    register_15 = register_11 - radix_0;
+    register_11 = register_11 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_2;
+    register_2 = register_0 - radix_0;
+    register_0 = register_0 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 8 */
+    
+    /* Multiplying register_10 by (0.7071067811865476-0.7071067811865475j) */
+    omega_register.x = register_10.y * 0.7071067811865475;
+    omega_register.x = fma(register_10.x, 0.7071067811865476, omega_register.x);
+    omega_register.y = register_10.y * 0.7071067811865476;
+    omega_register.y = fma(register_10.x, -0.7071067811865475, omega_register.y);
+    register_10 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_10;
+    register_10 = register_8 - radix_0;
+    register_8 = register_8 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 2 and twiddle N 8 */
+    omega_register.x = register_6.x;
+    register_6.x = register_6.y;
+    register_6.y = -omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_6;
+    register_6 = register_4 - radix_0;
+    register_4 = register_4 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 3 and twiddle N 8 */
+    
+    /* Multiplying register_14 by (-0.7071067811865475-0.7071067811865476j) */
+    omega_register.x = register_14.y * 0.7071067811865476;
+    omega_register.x = fma(register_14.x, -0.7071067811865475, omega_register.x);
+    omega_register.y = register_14.y * -0.7071067811865475;
+    omega_register.y = fma(register_14.x, -0.7071067811865476, omega_register.y);
+    register_14 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_14;
+    register_14 = register_12 - radix_0;
+    register_12 = register_12 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_3;
+    register_3 = register_1 - radix_0;
+    register_1 = register_1 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 8 */
+    
+    /* Multiplying register_11 by (0.7071067811865476-0.7071067811865475j) */
+    omega_register.x = register_11.y * 0.7071067811865475;
+    omega_register.x = fma(register_11.x, 0.7071067811865476, omega_register.x);
+    omega_register.y = register_11.y * 0.7071067811865476;
+    omega_register.y = fma(register_11.x, -0.7071067811865475, omega_register.y);
+    register_11 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_11;
+    register_11 = register_9 - radix_0;
+    register_9 = register_9 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 2 and twiddle N 8 */
+    omega_register.x = register_7.x;
+    register_7.x = register_7.y;
+    register_7.y = -omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_7;
+    register_7 = register_5 - radix_0;
+    register_5 = register_5 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 3 and twiddle N 8 */
+    
+    /* Multiplying register_15 by (-0.7071067811865475-0.7071067811865476j) */
+    omega_register.x = register_15.y * 0.7071067811865476;
+    omega_register.x = fma(register_15.x, -0.7071067811865475, omega_register.x);
+    omega_register.y = register_15.y * -0.7071067811865475;
+    omega_register.y = fma(register_15.x, -0.7071067811865476, omega_register.y);
+    register_15 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_15;
+    register_15 = register_13 - radix_0;
+    register_13 = register_13 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_1;
+    register_1 = register_0 - radix_0;
+    register_0 = register_0 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 16 */
+    
+    /* Multiplying register_9 by (0.9238795325112867-0.3826834323650898j) */
+    omega_register.x = register_9.y * 0.3826834323650898;
+    omega_register.x = fma(register_9.x, 0.9238795325112867, omega_register.x);
+    omega_register.y = register_9.y * 0.9238795325112867;
+    omega_register.y = fma(register_9.x, -0.3826834323650898, omega_register.y);
+    register_9 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_9;
+    register_9 = register_8 - radix_0;
+    register_8 = register_8 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 2 and twiddle N 16 */
+    
+    /* Multiplying register_5 by (0.7071067811865476-0.7071067811865475j) */
+    omega_register.x = register_5.y * 0.7071067811865475;
+    omega_register.x = fma(register_5.x, 0.7071067811865476, omega_register.x);
+    omega_register.y = register_5.y * 0.7071067811865476;
+    omega_register.y = fma(register_5.x, -0.7071067811865475, omega_register.y);
+    register_5 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_5;
+    register_5 = register_4 - radix_0;
+    register_4 = register_4 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 3 and twiddle N 16 */
+    
+    /* Multiplying register_13 by (0.38268343236508984-0.9238795325112867j) */
+    omega_register.x = register_13.y * 0.9238795325112867;
+    omega_register.x = fma(register_13.x, 0.38268343236508984, omega_register.x);
+    omega_register.y = register_13.y * 0.38268343236508984;
+    omega_register.y = fma(register_13.x, -0.9238795325112867, omega_register.y);
+    register_13 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_13;
+    register_13 = register_12 - radix_0;
+    register_12 = register_12 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 4 and twiddle N 16 */
+    omega_register.x = register_3.x;
+    register_3.x = register_3.y;
+    register_3.y = -omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_3;
+    register_3 = register_2 - radix_0;
+    register_2 = register_2 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 5 and twiddle N 16 */
+    
+    /* Multiplying register_11 by (-0.3826834323650897-0.9238795325112867j) */
+    omega_register.x = register_11.y * 0.9238795325112867;
+    omega_register.x = fma(register_11.x, -0.3826834323650897, omega_register.x);
+    omega_register.y = register_11.y * -0.3826834323650897;
+    omega_register.y = fma(register_11.x, -0.9238795325112867, omega_register.y);
+    register_11 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_11;
+    register_11 = register_10 - radix_0;
+    register_10 = register_10 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 6 and twiddle N 16 */
+    
+    /* Multiplying register_7 by (-0.7071067811865475-0.7071067811865476j) */
+    omega_register.x = register_7.y * 0.7071067811865476;
+    omega_register.x = fma(register_7.x, -0.7071067811865475, omega_register.x);
+    omega_register.y = register_7.y * -0.7071067811865475;
+    omega_register.y = fma(register_7.x, -0.7071067811865476, omega_register.y);
+    register_7 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_7;
+    register_7 = register_6 - radix_0;
+    register_6 = register_6 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 7 and twiddle N 16 */
+    
+    /* Multiplying register_15 by (-0.9238795325112867-0.3826834323650899j) */
+    omega_register.x = register_15.y * 0.3826834323650899;
+    omega_register.x = fma(register_15.x, -0.9238795325112867, omega_register.x);
+    omega_register.y = register_15.y * -0.9238795325112867;
+    omega_register.y = fma(register_15.x, -0.3826834323650899, omega_register.y);
+    register_15 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_15;
+    register_15 = register_14 - radix_0;
+    register_14 = register_14 + radix_0;
+    
+    /* Storing from registers to shared data buffer with fft length 16 and invocations 1 */
+    io_index = sdata_offset + (tid * 16);
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_0;
+    io_index = (sdata_offset + (tid * 16)) + 1;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_8;
+    io_index = (sdata_offset + (tid * 16)) + 2;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_4;
+    io_index = (sdata_offset + (tid * 16)) + 3;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_12;
+    io_index = (sdata_offset + (tid * 16)) + 4;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_2;
+    io_index = (sdata_offset + (tid * 16)) + 5;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_10;
+    io_index = (sdata_offset + (tid * 16)) + 6;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_6;
+    io_index = (sdata_offset + (tid * 16)) + 7;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_14;
+    io_index = (sdata_offset + (tid * 16)) + 8;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_1;
+    io_index = (sdata_offset + (tid * 16)) + 9;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_9;
+    io_index = (sdata_offset + (tid * 16)) + 10;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_5;
+    io_index = (sdata_offset + (tid * 16)) + 11;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_13;
+    io_index = (sdata_offset + (tid * 16)) + 12;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_3;
+    io_index = (sdata_offset + (tid * 16)) + 13;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_11;
+    io_index = (sdata_offset + (tid * 16)) + 14;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_7;
+    io_index = (sdata_offset + (tid * 16)) + 15;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_15;
+    
+    /* Processing prime group (2, 2, 2, 2) by doing 1 radix-16 FFTs on 32 groups */
+    barrier();
+    
+    /* Loading from shared data buffer to registers */
+    io_index = tid + sdata_offset;
+    io_index_2 = io_index + (io_index >> 4);
+    register_0 = sdata[io_index_2];
+    io_index_2 = (io_index + 32) + ((io_index + 32) >> 4);
+    register_8 = sdata[io_index_2];
+    io_index_2 = (io_index + 64) + ((io_index + 64) >> 4);
+    register_4 = sdata[io_index_2];
+    io_index_2 = (io_index + 96) + ((io_index + 96) >> 4);
+    register_12 = sdata[io_index_2];
+    io_index_2 = (io_index + 128) + ((io_index + 128) >> 4);
+    register_2 = sdata[io_index_2];
+    io_index_2 = (io_index + 160) + ((io_index + 160) >> 4);
+    register_10 = sdata[io_index_2];
+    io_index_2 = (io_index + 192) + ((io_index + 192) >> 4);
+    register_6 = sdata[io_index_2];
+    io_index_2 = (io_index + 224) + ((io_index + 224) >> 4);
+    register_14 = sdata[io_index_2];
+    io_index_2 = (io_index + 256) + ((io_index + 256) >> 4);
+    register_1 = sdata[io_index_2];
+    io_index_2 = (io_index + 288) + ((io_index + 288) >> 4);
+    register_9 = sdata[io_index_2];
+    io_index_2 = (io_index + 320) + ((io_index + 320) >> 4);
+    register_5 = sdata[io_index_2];
+    io_index_2 = (io_index + 352) + ((io_index + 352) >> 4);
+    register_13 = sdata[io_index_2];
+    io_index_2 = (io_index + 384) + ((io_index + 384) >> 4);
+    register_3 = sdata[io_index_2];
+    io_index_2 = (io_index + 416) + ((io_index + 416) >> 4);
+    register_11 = sdata[io_index_2];
+    io_index_2 = (io_index + 448) + ((io_index + 448) >> 4);
+    register_7 = sdata[io_index_2];
+    io_index_2 = (io_index + 480) + ((io_index + 480) >> 4);
+    register_15 = sdata[io_index_2];
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index (tid % 16) and twiddle N 256 */
+    omega_register.x = (-6.283185307179586 * (tid % 16)) / 256;
+    omega_register = vec2(cos(omega_register.x), sin(omega_register.x));
+    radix_1 = omega_register;
+    
+    /* Multiplying register_8 by radix_1 */
+    radix_0.x = register_8.y * (-radix_1.y);
+    radix_0.x = fma(register_8.x, radix_1.x, radix_0.x);
+    radix_0.y = register_8.y * radix_1.x;
+    radix_0.y = fma(register_8.x, radix_1.y, radix_0.y);
+    register_8 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_4 by radix_1 */
+    radix_0.x = register_4.y * (-radix_1.y);
+    radix_0.x = fma(register_4.x, radix_1.x, radix_0.x);
+    radix_0.y = register_4.y * radix_1.x;
+    radix_0.y = fma(register_4.x, radix_1.y, radix_0.y);
+    register_4 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_12 by radix_1 */
+    radix_0.x = register_12.y * (-radix_1.y);
+    radix_0.x = fma(register_12.x, radix_1.x, radix_0.x);
+    radix_0.y = register_12.y * radix_1.x;
+    radix_0.y = fma(register_12.x, radix_1.y, radix_0.y);
+    register_12 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_2 by radix_1 */
+    radix_0.x = register_2.y * (-radix_1.y);
+    radix_0.x = fma(register_2.x, radix_1.x, radix_0.x);
+    radix_0.y = register_2.y * radix_1.x;
+    radix_0.y = fma(register_2.x, radix_1.y, radix_0.y);
+    register_2 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_10 by radix_1 */
+    radix_0.x = register_10.y * (-radix_1.y);
+    radix_0.x = fma(register_10.x, radix_1.x, radix_0.x);
+    radix_0.y = register_10.y * radix_1.x;
+    radix_0.y = fma(register_10.x, radix_1.y, radix_0.y);
+    register_10 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_6 by radix_1 */
+    radix_0.x = register_6.y * (-radix_1.y);
+    radix_0.x = fma(register_6.x, radix_1.x, radix_0.x);
+    radix_0.y = register_6.y * radix_1.x;
+    radix_0.y = fma(register_6.x, radix_1.y, radix_0.y);
+    register_6 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_14 by radix_1 */
+    radix_0.x = register_14.y * (-radix_1.y);
+    radix_0.x = fma(register_14.x, radix_1.x, radix_0.x);
+    radix_0.y = register_14.y * radix_1.x;
+    radix_0.y = fma(register_14.x, radix_1.y, radix_0.y);
+    register_14 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_1 by radix_1 */
+    radix_0.x = register_1.y * (-radix_1.y);
+    radix_0.x = fma(register_1.x, radix_1.x, radix_0.x);
+    radix_0.y = register_1.y * radix_1.x;
+    radix_0.y = fma(register_1.x, radix_1.y, radix_0.y);
+    register_1 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_9 by radix_1 */
+    radix_0.x = register_9.y * (-radix_1.y);
+    radix_0.x = fma(register_9.x, radix_1.x, radix_0.x);
+    radix_0.y = register_9.y * radix_1.x;
+    radix_0.y = fma(register_9.x, radix_1.y, radix_0.y);
+    register_9 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_5 by radix_1 */
+    radix_0.x = register_5.y * (-radix_1.y);
+    radix_0.x = fma(register_5.x, radix_1.x, radix_0.x);
+    radix_0.y = register_5.y * radix_1.x;
+    radix_0.y = fma(register_5.x, radix_1.y, radix_0.y);
+    register_5 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_13 by radix_1 */
+    radix_0.x = register_13.y * (-radix_1.y);
+    radix_0.x = fma(register_13.x, radix_1.x, radix_0.x);
+    radix_0.y = register_13.y * radix_1.x;
+    radix_0.y = fma(register_13.x, radix_1.y, radix_0.y);
+    register_13 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_3 by radix_1 */
+    radix_0.x = register_3.y * (-radix_1.y);
+    radix_0.x = fma(register_3.x, radix_1.x, radix_0.x);
+    radix_0.y = register_3.y * radix_1.x;
+    radix_0.y = fma(register_3.x, radix_1.y, radix_0.y);
+    register_3 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_11 by radix_1 */
+    radix_0.x = register_11.y * (-radix_1.y);
+    radix_0.x = fma(register_11.x, radix_1.x, radix_0.x);
+    radix_0.y = register_11.y * radix_1.x;
+    radix_0.y = fma(register_11.x, radix_1.y, radix_0.y);
+    register_11 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_7 by radix_1 */
+    radix_0.x = register_7.y * (-radix_1.y);
+    radix_0.x = fma(register_7.x, radix_1.x, radix_0.x);
+    radix_0.y = register_7.y * radix_1.x;
+    radix_0.y = fma(register_7.x, radix_1.y, radix_0.y);
+    register_7 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_15 by radix_1 */
+    radix_0.x = register_15.y * (-radix_1.y);
+    radix_0.x = fma(register_15.x, radix_1.x, radix_0.x);
+    radix_0.y = register_15.y * radix_1.x;
+    radix_0.y = fma(register_15.x, radix_1.y, radix_0.y);
+    register_15 = radix_0;
+    
+    /* Performing a Radix-(2, 2, 2, 2) FFT on 16 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_1;
+    register_1 = register_0 - radix_0;
+    register_0 = register_0 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_9;
+    register_9 = register_8 - radix_0;
+    register_8 = register_8 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_5;
+    register_5 = register_4 - radix_0;
+    register_4 = register_4 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_13;
+    register_13 = register_12 - radix_0;
+    register_12 = register_12 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_3;
+    register_3 = register_2 - radix_0;
+    register_2 = register_2 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_11;
+    register_11 = register_10 - radix_0;
+    register_10 = register_10 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_7;
+    register_7 = register_6 - radix_0;
+    register_6 = register_6 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_15;
+    register_15 = register_14 - radix_0;
+    register_14 = register_14 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_2;
+    register_2 = register_0 - radix_0;
+    register_0 = register_0 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 4 */
+    omega_register.x = register_3.x;
+    register_3.x = register_3.y;
+    register_3.y = -omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_3;
+    register_3 = register_1 - radix_0;
+    register_1 = register_1 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_10;
+    register_10 = register_8 - radix_0;
+    register_8 = register_8 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 4 */
+    omega_register.x = register_11.x;
+    register_11.x = register_11.y;
+    register_11.y = -omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_11;
+    register_11 = register_9 - radix_0;
+    register_9 = register_9 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_6;
+    register_6 = register_4 - radix_0;
+    register_4 = register_4 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 4 */
+    omega_register.x = register_7.x;
+    register_7.x = register_7.y;
+    register_7.y = -omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_7;
+    register_7 = register_5 - radix_0;
+    register_5 = register_5 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_14;
+    register_14 = register_12 - radix_0;
+    register_12 = register_12 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 4 */
+    omega_register.x = register_15.x;
+    register_15.x = register_15.y;
+    register_15.y = -omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_15;
+    register_15 = register_13 - radix_0;
+    register_13 = register_13 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_4;
+    register_4 = register_0 - radix_0;
+    register_0 = register_0 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 8 */
+    
+    /* Multiplying register_5 by (0.7071067811865476-0.7071067811865475j) */
+    omega_register.x = register_5.y * 0.7071067811865475;
+    omega_register.x = fma(register_5.x, 0.7071067811865476, omega_register.x);
+    omega_register.y = register_5.y * 0.7071067811865476;
+    omega_register.y = fma(register_5.x, -0.7071067811865475, omega_register.y);
+    register_5 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_5;
+    register_5 = register_1 - radix_0;
+    register_1 = register_1 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 2 and twiddle N 8 */
+    omega_register.x = register_6.x;
+    register_6.x = register_6.y;
+    register_6.y = -omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_6;
+    register_6 = register_2 - radix_0;
+    register_2 = register_2 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 3 and twiddle N 8 */
+    
+    /* Multiplying register_7 by (-0.7071067811865475-0.7071067811865476j) */
+    omega_register.x = register_7.y * 0.7071067811865476;
+    omega_register.x = fma(register_7.x, -0.7071067811865475, omega_register.x);
+    omega_register.y = register_7.y * -0.7071067811865475;
+    omega_register.y = fma(register_7.x, -0.7071067811865476, omega_register.y);
+    register_7 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_7;
+    register_7 = register_3 - radix_0;
+    register_3 = register_3 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_12;
+    register_12 = register_8 - radix_0;
+    register_8 = register_8 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 8 */
+    
+    /* Multiplying register_13 by (0.7071067811865476-0.7071067811865475j) */
+    omega_register.x = register_13.y * 0.7071067811865475;
+    omega_register.x = fma(register_13.x, 0.7071067811865476, omega_register.x);
+    omega_register.y = register_13.y * 0.7071067811865476;
+    omega_register.y = fma(register_13.x, -0.7071067811865475, omega_register.y);
+    register_13 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_13;
+    register_13 = register_9 - radix_0;
+    register_9 = register_9 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 2 and twiddle N 8 */
+    omega_register.x = register_14.x;
+    register_14.x = register_14.y;
+    register_14.y = -omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_14;
+    register_14 = register_10 - radix_0;
+    register_10 = register_10 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 3 and twiddle N 8 */
+    
+    /* Multiplying register_15 by (-0.7071067811865475-0.7071067811865476j) */
+    omega_register.x = register_15.y * 0.7071067811865476;
+    omega_register.x = fma(register_15.x, -0.7071067811865475, omega_register.x);
+    omega_register.y = register_15.y * -0.7071067811865475;
+    omega_register.y = fma(register_15.x, -0.7071067811865476, omega_register.y);
+    register_15 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_15;
+    register_15 = register_11 - radix_0;
+    register_11 = register_11 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_8;
+    register_8 = register_0 - radix_0;
+    register_0 = register_0 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 16 */
+    
+    /* Multiplying register_9 by (0.9238795325112867-0.3826834323650898j) */
+    omega_register.x = register_9.y * 0.3826834323650898;
+    omega_register.x = fma(register_9.x, 0.9238795325112867, omega_register.x);
+    omega_register.y = register_9.y * 0.9238795325112867;
+    omega_register.y = fma(register_9.x, -0.3826834323650898, omega_register.y);
+    register_9 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_9;
+    register_9 = register_1 - radix_0;
+    register_1 = register_1 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 2 and twiddle N 16 */
+    
+    /* Multiplying register_10 by (0.7071067811865476-0.7071067811865475j) */
+    omega_register.x = register_10.y * 0.7071067811865475;
+    omega_register.x = fma(register_10.x, 0.7071067811865476, omega_register.x);
+    omega_register.y = register_10.y * 0.7071067811865476;
+    omega_register.y = fma(register_10.x, -0.7071067811865475, omega_register.y);
+    register_10 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_10;
+    register_10 = register_2 - radix_0;
+    register_2 = register_2 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 3 and twiddle N 16 */
+    
+    /* Multiplying register_11 by (0.38268343236508984-0.9238795325112867j) */
+    omega_register.x = register_11.y * 0.9238795325112867;
+    omega_register.x = fma(register_11.x, 0.38268343236508984, omega_register.x);
+    omega_register.y = register_11.y * 0.38268343236508984;
+    omega_register.y = fma(register_11.x, -0.9238795325112867, omega_register.y);
+    register_11 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_11;
+    register_11 = register_3 - radix_0;
+    register_3 = register_3 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 4 and twiddle N 16 */
+    omega_register.x = register_12.x;
+    register_12.x = register_12.y;
+    register_12.y = -omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_12;
+    register_12 = register_4 - radix_0;
+    register_4 = register_4 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 5 and twiddle N 16 */
+    
+    /* Multiplying register_13 by (-0.3826834323650897-0.9238795325112867j) */
+    omega_register.x = register_13.y * 0.9238795325112867;
+    omega_register.x = fma(register_13.x, -0.3826834323650897, omega_register.x);
+    omega_register.y = register_13.y * -0.3826834323650897;
+    omega_register.y = fma(register_13.x, -0.9238795325112867, omega_register.y);
+    register_13 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_13;
+    register_13 = register_5 - radix_0;
+    register_5 = register_5 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 6 and twiddle N 16 */
+    
+    /* Multiplying register_14 by (-0.7071067811865475-0.7071067811865476j) */
+    omega_register.x = register_14.y * 0.7071067811865476;
+    omega_register.x = fma(register_14.x, -0.7071067811865475, omega_register.x);
+    omega_register.y = register_14.y * -0.7071067811865475;
+    omega_register.y = fma(register_14.x, -0.7071067811865476, omega_register.y);
+    register_14 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_14;
+    register_14 = register_6 - radix_0;
+    register_6 = register_6 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 7 and twiddle N 16 */
+    
+    /* Multiplying register_15 by (-0.9238795325112867-0.3826834323650899j) */
+    omega_register.x = register_15.y * 0.3826834323650899;
+    omega_register.x = fma(register_15.x, -0.9238795325112867, omega_register.x);
+    omega_register.y = register_15.y * -0.9238795325112867;
+    omega_register.y = fma(register_15.x, -0.3826834323650899, omega_register.y);
+    register_15 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_15;
+    register_15 = register_7 - radix_0;
+    register_7 = register_7 + radix_0;
+    
+    /* Storing from registers to shared data buffer with fft length 16 and invocations 1 */
+    barrier();
+    io_index = sdata_offset + ((tid * 16) - ((tid % 16) * 15));
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_0;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 16;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_1;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 32;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_2;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 48;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_3;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 64;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_4;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 80;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_5;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 96;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_6;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 112;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_7;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 128;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_8;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 144;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_9;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 160;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_10;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 176;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_11;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 192;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_12;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 208;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_13;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 224;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_14;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 240;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_15;
+    
+    /* Processing prime group (2,) by doing 8 radix-2 FFTs on 32 groups */
+    barrier();
+    
+    /* Loading from shared data buffer to registers */
+    io_index = tid + sdata_offset;
+    io_index_2 = io_index + (io_index >> 4);
+    register_0 = sdata[io_index_2];
+    io_index_2 = (io_index + 256) + ((io_index + 256) >> 4);
+    register_1 = sdata[io_index_2];
+    
+    /* Loading from shared data buffer to registers */
+    io_index = (tid + 32) + sdata_offset;
+    io_index_2 = io_index + (io_index >> 4);
+    register_2 = sdata[io_index_2];
+    io_index_2 = (io_index + 256) + ((io_index + 256) >> 4);
+    register_3 = sdata[io_index_2];
+    
+    /* Loading from shared data buffer to registers */
+    io_index = (tid + 64) + sdata_offset;
+    io_index_2 = io_index + (io_index >> 4);
+    register_4 = sdata[io_index_2];
+    io_index_2 = (io_index + 256) + ((io_index + 256) >> 4);
+    register_5 = sdata[io_index_2];
+    
+    /* Loading from shared data buffer to registers */
+    io_index = (tid + 96) + sdata_offset;
+    io_index_2 = io_index + (io_index >> 4);
+    register_6 = sdata[io_index_2];
+    io_index_2 = (io_index + 256) + ((io_index + 256) >> 4);
+    register_7 = sdata[io_index_2];
+    
+    /* Loading from shared data buffer to registers */
+    io_index = (tid + 128) + sdata_offset;
+    io_index_2 = io_index + (io_index >> 4);
+    register_8 = sdata[io_index_2];
+    io_index_2 = (io_index + 256) + ((io_index + 256) >> 4);
+    register_9 = sdata[io_index_2];
+    
+    /* Loading from shared data buffer to registers */
+    io_index = (tid + 160) + sdata_offset;
+    io_index_2 = io_index + (io_index >> 4);
+    register_10 = sdata[io_index_2];
+    io_index_2 = (io_index + 256) + ((io_index + 256) >> 4);
+    register_11 = sdata[io_index_2];
+    
+    /* Loading from shared data buffer to registers */
+    io_index = (tid + 192) + sdata_offset;
+    io_index_2 = io_index + (io_index >> 4);
+    register_12 = sdata[io_index_2];
+    io_index_2 = (io_index + 256) + ((io_index + 256) >> 4);
+    register_13 = sdata[io_index_2];
+    
+    /* Loading from shared data buffer to registers */
+    io_index = (tid + 224) + sdata_offset;
+    io_index_2 = io_index + (io_index >> 4);
+    register_14 = sdata[io_index_2];
+    io_index_2 = (io_index + 256) + ((io_index + 256) >> 4);
+    register_15 = sdata[io_index_2];
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index tid and twiddle N 512 */
+    omega_register.x = (tid * -6.283185307179586) / 512;
+    omega_register = vec2(cos(omega_register.x), sin(omega_register.x));
+    radix_1 = omega_register;
+    
+    /* Multiplying register_1 by radix_1 */
+    radix_0.x = register_1.y * (-radix_1.y);
+    radix_0.x = fma(register_1.x, radix_1.x, radix_0.x);
+    radix_0.y = register_1.y * radix_1.x;
+    radix_0.y = fma(register_1.x, radix_1.y, radix_0.y);
+    register_1 = radix_0;
+    
+    /* Performing a Radix-(2,) FFT on 2 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_1;
+    register_1 = register_0 - radix_0;
+    register_0 = register_0 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index (tid + 32) and twiddle N 512 */
+    omega_register.x = (tid * -6.283185307179586 + -201.06192982974676) / 512;
+    omega_register = vec2(cos(omega_register.x), sin(omega_register.x));
+    radix_1 = omega_register;
+    
+    /* Multiplying register_3 by radix_1 */
+    radix_0.x = register_3.y * (-radix_1.y);
+    radix_0.x = fma(register_3.x, radix_1.x, radix_0.x);
+    radix_0.y = register_3.y * radix_1.x;
+    radix_0.y = fma(register_3.x, radix_1.y, radix_0.y);
+    register_3 = radix_0;
+    
+    /* Performing a Radix-(2,) FFT on 2 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_3;
+    register_3 = register_2 - radix_0;
+    register_2 = register_2 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index (tid + 64) and twiddle N 512 */
+    omega_register.x = (tid * -6.283185307179586 + -402.1238596594935) / 512;
+    omega_register = vec2(cos(omega_register.x), sin(omega_register.x));
+    radix_1 = omega_register;
+    
+    /* Multiplying register_5 by radix_1 */
+    radix_0.x = register_5.y * (-radix_1.y);
+    radix_0.x = fma(register_5.x, radix_1.x, radix_0.x);
+    radix_0.y = register_5.y * radix_1.x;
+    radix_0.y = fma(register_5.x, radix_1.y, radix_0.y);
+    register_5 = radix_0;
+    
+    /* Performing a Radix-(2,) FFT on 2 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_5;
+    register_5 = register_4 - radix_0;
+    register_4 = register_4 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index (tid + 96) and twiddle N 512 */
+    omega_register.x = (tid * -6.283185307179586 + -603.1857894892403) / 512;
+    omega_register = vec2(cos(omega_register.x), sin(omega_register.x));
+    radix_1 = omega_register;
+    
+    /* Multiplying register_7 by radix_1 */
+    radix_0.x = register_7.y * (-radix_1.y);
+    radix_0.x = fma(register_7.x, radix_1.x, radix_0.x);
+    radix_0.y = register_7.y * radix_1.x;
+    radix_0.y = fma(register_7.x, radix_1.y, radix_0.y);
+    register_7 = radix_0;
+    
+    /* Performing a Radix-(2,) FFT on 2 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_7;
+    register_7 = register_6 - radix_0;
+    register_6 = register_6 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index (tid + 128) and twiddle N 512 */
+    omega_register.x = (tid * -6.283185307179586 + -804.247719318987) / 512;
+    omega_register = vec2(cos(omega_register.x), sin(omega_register.x));
+    radix_1 = omega_register;
+    
+    /* Multiplying register_9 by radix_1 */
+    radix_0.x = register_9.y * (-radix_1.y);
+    radix_0.x = fma(register_9.x, radix_1.x, radix_0.x);
+    radix_0.y = register_9.y * radix_1.x;
+    radix_0.y = fma(register_9.x, radix_1.y, radix_0.y);
+    register_9 = radix_0;
+    
+    /* Performing a Radix-(2,) FFT on 2 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_9;
+    register_9 = register_8 - radix_0;
+    register_8 = register_8 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index (tid + 160) and twiddle N 512 */
+    omega_register.x = (tid * -6.283185307179586 + -1005.3096491487338) / 512;
+    omega_register = vec2(cos(omega_register.x), sin(omega_register.x));
+    radix_1 = omega_register;
+    
+    /* Multiplying register_11 by radix_1 */
+    radix_0.x = register_11.y * (-radix_1.y);
+    radix_0.x = fma(register_11.x, radix_1.x, radix_0.x);
+    radix_0.y = register_11.y * radix_1.x;
+    radix_0.y = fma(register_11.x, radix_1.y, radix_0.y);
+    register_11 = radix_0;
+    
+    /* Performing a Radix-(2,) FFT on 2 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_11;
+    register_11 = register_10 - radix_0;
+    register_10 = register_10 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index (tid + 192) and twiddle N 512 */
+    omega_register.x = (tid * -6.283185307179586 + -1206.3715789784806) / 512;
+    omega_register = vec2(cos(omega_register.x), sin(omega_register.x));
+    radix_1 = omega_register;
+    
+    /* Multiplying register_13 by radix_1 */
+    radix_0.x = register_13.y * (-radix_1.y);
+    radix_0.x = fma(register_13.x, radix_1.x, radix_0.x);
+    radix_0.y = register_13.y * radix_1.x;
+    radix_0.y = fma(register_13.x, radix_1.y, radix_0.y);
+    register_13 = radix_0;
+    
+    /* Performing a Radix-(2,) FFT on 2 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_13;
+    register_13 = register_12 - radix_0;
+    register_12 = register_12 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index (tid + 224) and twiddle N 512 */
+    omega_register.x = (tid * -6.283185307179586 + -1407.4335088082273) / 512;
+    omega_register = vec2(cos(omega_register.x), sin(omega_register.x));
+    radix_1 = omega_register;
+    
+    /* Multiplying register_15 by radix_1 */
+    radix_0.x = register_15.y * (-radix_1.y);
+    radix_0.x = fma(register_15.x, radix_1.x, radix_0.x);
+    radix_0.y = register_15.y * radix_1.x;
+    radix_0.y = fma(register_15.x, radix_1.y, radix_0.y);
+    register_15 = radix_0;
+    
+    /* Performing a Radix-(2,) FFT on 2 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_15;
+    register_15 = register_14 - radix_0;
+    register_14 = register_14 + radix_0;
+    
+    /* Performing convolution stage in convolution shader */
+    
+    /* Processing kernel 0 */
+    
+    /* Loading to registers from buffer (buf2.data) */
+    input_batch_offset = (global_outer_index * 262144) + global_inner_index;
+    io_index = (tid * 512) + input_batch_offset;
+    {
+        omega_register = buf2.data[io_index];
+        register_0 = vec2(register_0.x * omega_register.x + register_0.y * omega_register.y, register_0.y * omega_register.x - register_0.x * omega_register.y);
+    }
+    io_index += 16384;
+    {
+        omega_register = buf2.data[io_index];
+        register_2 = vec2(register_2.x * omega_register.x + register_2.y * omega_register.y, register_2.y * omega_register.x - register_2.x * omega_register.y);
+    }
+    io_index += 16384;
+    {
+        omega_register = buf2.data[io_index];
+        register_4 = vec2(register_4.x * omega_register.x + register_4.y * omega_register.y, register_4.y * omega_register.x - register_4.x * omega_register.y);
+    }
+    io_index += 16384;
+    {
+        omega_register = buf2.data[io_index];
+        register_6 = vec2(register_6.x * omega_register.x + register_6.y * omega_register.y, register_6.y * omega_register.x - register_6.x * omega_register.y);
+    }
+    io_index += 16384;
+    {
+        omega_register = buf2.data[io_index];
+        register_8 = vec2(register_8.x * omega_register.x + register_8.y * omega_register.y, register_8.y * omega_register.x - register_8.x * omega_register.y);
+    }
+    io_index += 16384;
+    {
+        omega_register = buf2.data[io_index];
+        register_10 = vec2(register_10.x * omega_register.x + register_10.y * omega_register.y, register_10.y * omega_register.x - register_10.x * omega_register.y);
+    }
+    io_index += 16384;
+    {
+        omega_register = buf2.data[io_index];
+        register_12 = vec2(register_12.x * omega_register.x + register_12.y * omega_register.y, register_12.y * omega_register.x - register_12.x * omega_register.y);
+    }
+    io_index += 16384;
+    {
+        omega_register = buf2.data[io_index];
+        register_14 = vec2(register_14.x * omega_register.x + register_14.y * omega_register.y, register_14.y * omega_register.x - register_14.x * omega_register.y);
+    }
+    io_index += 16384;
+    {
+        omega_register = buf2.data[io_index];
+        register_1 = vec2(register_1.x * omega_register.x + register_1.y * omega_register.y, register_1.y * omega_register.x - register_1.x * omega_register.y);
+    }
+    io_index += 16384;
+    {
+        omega_register = buf2.data[io_index];
+        register_3 = vec2(register_3.x * omega_register.x + register_3.y * omega_register.y, register_3.y * omega_register.x - register_3.x * omega_register.y);
+    }
+    io_index += 16384;
+    {
+        omega_register = buf2.data[io_index];
+        register_5 = vec2(register_5.x * omega_register.x + register_5.y * omega_register.y, register_5.y * omega_register.x - register_5.x * omega_register.y);
+    }
+    io_index += 16384;
+    {
+        omega_register = buf2.data[io_index];
+        register_7 = vec2(register_7.x * omega_register.x + register_7.y * omega_register.y, register_7.y * omega_register.x - register_7.x * omega_register.y);
+    }
+    io_index += 16384;
+    {
+        omega_register = buf2.data[io_index];
+        register_9 = vec2(register_9.x * omega_register.x + register_9.y * omega_register.y, register_9.y * omega_register.x - register_9.x * omega_register.y);
+    }
+    io_index += 16384;
+    {
+        omega_register = buf2.data[io_index];
+        register_11 = vec2(register_11.x * omega_register.x + register_11.y * omega_register.y, register_11.y * omega_register.x - register_11.x * omega_register.y);
+    }
+    io_index += 16384;
+    {
+        omega_register = buf2.data[io_index];
+        register_13 = vec2(register_13.x * omega_register.x + register_13.y * omega_register.y, register_13.y * omega_register.x - register_13.x * omega_register.y);
+    }
+    io_index += 16384;
+    {
+        omega_register = buf2.data[io_index];
+        register_15 = vec2(register_15.x * omega_register.x + register_15.y * omega_register.y, register_15.y * omega_register.x - register_15.x * omega_register.y);
+    }
+    
+    /* Processing prime group (2, 2, 2, 2) by doing 1 radix-16 FFTs on 32 groups */
+    
+    /* Performing a Radix-(2, 2, 2, 2) FFT on 16 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_1;
+    register_1 = register_0 - radix_0;
+    register_0 = register_0 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_3;
+    register_3 = register_2 - radix_0;
+    register_2 = register_2 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_5;
+    register_5 = register_4 - radix_0;
+    register_4 = register_4 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_7;
+    register_7 = register_6 - radix_0;
+    register_6 = register_6 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_9;
+    register_9 = register_8 - radix_0;
+    register_8 = register_8 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_11;
+    register_11 = register_10 - radix_0;
+    register_10 = register_10 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_13;
+    register_13 = register_12 - radix_0;
+    register_12 = register_12 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_15;
+    register_15 = register_14 - radix_0;
+    register_14 = register_14 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_8;
+    register_8 = register_0 - radix_0;
+    register_0 = register_0 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 4 */
+    omega_register.x = register_9.x;
+    register_9.x = -register_9.y;
+    register_9.y = omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_9;
+    register_9 = register_1 - radix_0;
+    register_1 = register_1 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_10;
+    register_10 = register_2 - radix_0;
+    register_2 = register_2 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 4 */
+    omega_register.x = register_11.x;
+    register_11.x = -register_11.y;
+    register_11.y = omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_11;
+    register_11 = register_3 - radix_0;
+    register_3 = register_3 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_12;
+    register_12 = register_4 - radix_0;
+    register_4 = register_4 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 4 */
+    omega_register.x = register_13.x;
+    register_13.x = -register_13.y;
+    register_13.y = omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_13;
+    register_13 = register_5 - radix_0;
+    register_5 = register_5 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_14;
+    register_14 = register_6 - radix_0;
+    register_6 = register_6 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 4 */
+    omega_register.x = register_15.x;
+    register_15.x = -register_15.y;
+    register_15.y = omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_15;
+    register_15 = register_7 - radix_0;
+    register_7 = register_7 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_4;
+    register_4 = register_0 - radix_0;
+    register_0 = register_0 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 8 */
+    
+    /* Multiplying register_5 by (0.7071067811865476+0.7071067811865475j) */
+    omega_register.x = register_5.y * -0.7071067811865475;
+    omega_register.x = fma(register_5.x, 0.7071067811865476, omega_register.x);
+    omega_register.y = register_5.y * 0.7071067811865476;
+    omega_register.y = fma(register_5.x, 0.7071067811865475, omega_register.y);
+    register_5 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_5;
+    register_5 = register_1 - radix_0;
+    register_1 = register_1 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 2 and twiddle N 8 */
+    omega_register.x = register_12.x;
+    register_12.x = -register_12.y;
+    register_12.y = omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_12;
+    register_12 = register_8 - radix_0;
+    register_8 = register_8 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 3 and twiddle N 8 */
+    
+    /* Multiplying register_13 by (-0.7071067811865475+0.7071067811865476j) */
+    omega_register.x = register_13.y * -0.7071067811865476;
+    omega_register.x = fma(register_13.x, -0.7071067811865475, omega_register.x);
+    omega_register.y = register_13.y * -0.7071067811865475;
+    omega_register.y = fma(register_13.x, 0.7071067811865476, omega_register.y);
+    register_13 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_13;
+    register_13 = register_9 - radix_0;
+    register_9 = register_9 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_6;
+    register_6 = register_2 - radix_0;
+    register_2 = register_2 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 8 */
+    
+    /* Multiplying register_7 by (0.7071067811865476+0.7071067811865475j) */
+    omega_register.x = register_7.y * -0.7071067811865475;
+    omega_register.x = fma(register_7.x, 0.7071067811865476, omega_register.x);
+    omega_register.y = register_7.y * 0.7071067811865476;
+    omega_register.y = fma(register_7.x, 0.7071067811865475, omega_register.y);
+    register_7 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_7;
+    register_7 = register_3 - radix_0;
+    register_3 = register_3 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 2 and twiddle N 8 */
+    omega_register.x = register_14.x;
+    register_14.x = -register_14.y;
+    register_14.y = omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_14;
+    register_14 = register_10 - radix_0;
+    register_10 = register_10 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 3 and twiddle N 8 */
+    
+    /* Multiplying register_15 by (-0.7071067811865475+0.7071067811865476j) */
+    omega_register.x = register_15.y * -0.7071067811865476;
+    omega_register.x = fma(register_15.x, -0.7071067811865475, omega_register.x);
+    omega_register.y = register_15.y * -0.7071067811865475;
+    omega_register.y = fma(register_15.x, 0.7071067811865476, omega_register.y);
+    register_15 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_15;
+    register_15 = register_11 - radix_0;
+    register_11 = register_11 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_2;
+    register_2 = register_0 - radix_0;
+    register_0 = register_0 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 16 */
+    
+    /* Multiplying register_3 by (0.9238795325112867+0.3826834323650898j) */
+    omega_register.x = register_3.y * -0.3826834323650898;
+    omega_register.x = fma(register_3.x, 0.9238795325112867, omega_register.x);
+    omega_register.y = register_3.y * 0.9238795325112867;
+    omega_register.y = fma(register_3.x, 0.3826834323650898, omega_register.y);
+    register_3 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_3;
+    register_3 = register_1 - radix_0;
+    register_1 = register_1 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 2 and twiddle N 16 */
+    
+    /* Multiplying register_10 by (0.7071067811865476+0.7071067811865475j) */
+    omega_register.x = register_10.y * -0.7071067811865475;
+    omega_register.x = fma(register_10.x, 0.7071067811865476, omega_register.x);
+    omega_register.y = register_10.y * 0.7071067811865476;
+    omega_register.y = fma(register_10.x, 0.7071067811865475, omega_register.y);
+    register_10 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_10;
+    register_10 = register_8 - radix_0;
+    register_8 = register_8 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 3 and twiddle N 16 */
+    
+    /* Multiplying register_11 by (0.38268343236508984+0.9238795325112867j) */
+    omega_register.x = register_11.y * -0.9238795325112867;
+    omega_register.x = fma(register_11.x, 0.38268343236508984, omega_register.x);
+    omega_register.y = register_11.y * 0.38268343236508984;
+    omega_register.y = fma(register_11.x, 0.9238795325112867, omega_register.y);
+    register_11 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_11;
+    register_11 = register_9 - radix_0;
+    register_9 = register_9 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 4 and twiddle N 16 */
+    omega_register.x = register_6.x;
+    register_6.x = -register_6.y;
+    register_6.y = omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_6;
+    register_6 = register_4 - radix_0;
+    register_4 = register_4 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 5 and twiddle N 16 */
+    
+    /* Multiplying register_7 by (-0.3826834323650897+0.9238795325112867j) */
+    omega_register.x = register_7.y * -0.9238795325112867;
+    omega_register.x = fma(register_7.x, -0.3826834323650897, omega_register.x);
+    omega_register.y = register_7.y * -0.3826834323650897;
+    omega_register.y = fma(register_7.x, 0.9238795325112867, omega_register.y);
+    register_7 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_7;
+    register_7 = register_5 - radix_0;
+    register_5 = register_5 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 6 and twiddle N 16 */
+    
+    /* Multiplying register_14 by (-0.7071067811865475+0.7071067811865476j) */
+    omega_register.x = register_14.y * -0.7071067811865476;
+    omega_register.x = fma(register_14.x, -0.7071067811865475, omega_register.x);
+    omega_register.y = register_14.y * -0.7071067811865475;
+    omega_register.y = fma(register_14.x, 0.7071067811865476, omega_register.y);
+    register_14 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_14;
+    register_14 = register_12 - radix_0;
+    register_12 = register_12 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 7 and twiddle N 16 */
+    
+    /* Multiplying register_15 by (-0.9238795325112867+0.3826834323650899j) */
+    omega_register.x = register_15.y * -0.3826834323650899;
+    omega_register.x = fma(register_15.x, -0.9238795325112867, omega_register.x);
+    omega_register.y = register_15.y * -0.9238795325112867;
+    omega_register.y = fma(register_15.x, 0.3826834323650899, omega_register.y);
+    register_15 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_15;
+    register_15 = register_13 - radix_0;
+    register_13 = register_13 + radix_0;
+    
+    /* Storing from registers to shared data buffer with fft length 16 and invocations 1 */
+    barrier();
+    io_index = sdata_offset + (tid * 16);
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_0;
+    io_index = (sdata_offset + (tid * 16)) + 1;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_1;
+    io_index = (sdata_offset + (tid * 16)) + 2;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_8;
+    io_index = (sdata_offset + (tid * 16)) + 3;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_9;
+    io_index = (sdata_offset + (tid * 16)) + 4;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_4;
+    io_index = (sdata_offset + (tid * 16)) + 5;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_5;
+    io_index = (sdata_offset + (tid * 16)) + 6;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_12;
+    io_index = (sdata_offset + (tid * 16)) + 7;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_13;
+    io_index = (sdata_offset + (tid * 16)) + 8;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_2;
+    io_index = (sdata_offset + (tid * 16)) + 9;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_3;
+    io_index = (sdata_offset + (tid * 16)) + 10;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_10;
+    io_index = (sdata_offset + (tid * 16)) + 11;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_11;
+    io_index = (sdata_offset + (tid * 16)) + 12;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_6;
+    io_index = (sdata_offset + (tid * 16)) + 13;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_7;
+    io_index = (sdata_offset + (tid * 16)) + 14;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_14;
+    io_index = (sdata_offset + (tid * 16)) + 15;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_15;
+    
+    /* Processing prime group (2, 2, 2, 2) by doing 1 radix-16 FFTs on 32 groups */
+    barrier();
+    
+    /* Loading from shared data buffer to registers */
+    io_index = tid + sdata_offset;
+    io_index_2 = io_index + (io_index >> 4);
+    register_0 = sdata[io_index_2];
+    io_index_2 = (io_index + 32) + ((io_index + 32) >> 4);
+    register_1 = sdata[io_index_2];
+    io_index_2 = (io_index + 64) + ((io_index + 64) >> 4);
+    register_8 = sdata[io_index_2];
+    io_index_2 = (io_index + 96) + ((io_index + 96) >> 4);
+    register_9 = sdata[io_index_2];
+    io_index_2 = (io_index + 128) + ((io_index + 128) >> 4);
+    register_4 = sdata[io_index_2];
+    io_index_2 = (io_index + 160) + ((io_index + 160) >> 4);
+    register_5 = sdata[io_index_2];
+    io_index_2 = (io_index + 192) + ((io_index + 192) >> 4);
+    register_12 = sdata[io_index_2];
+    io_index_2 = (io_index + 224) + ((io_index + 224) >> 4);
+    register_13 = sdata[io_index_2];
+    io_index_2 = (io_index + 256) + ((io_index + 256) >> 4);
+    register_2 = sdata[io_index_2];
+    io_index_2 = (io_index + 288) + ((io_index + 288) >> 4);
+    register_3 = sdata[io_index_2];
+    io_index_2 = (io_index + 320) + ((io_index + 320) >> 4);
+    register_10 = sdata[io_index_2];
+    io_index_2 = (io_index + 352) + ((io_index + 352) >> 4);
+    register_11 = sdata[io_index_2];
+    io_index_2 = (io_index + 384) + ((io_index + 384) >> 4);
+    register_6 = sdata[io_index_2];
+    io_index_2 = (io_index + 416) + ((io_index + 416) >> 4);
+    register_7 = sdata[io_index_2];
+    io_index_2 = (io_index + 448) + ((io_index + 448) >> 4);
+    register_14 = sdata[io_index_2];
+    io_index_2 = (io_index + 480) + ((io_index + 480) >> 4);
+    register_15 = sdata[io_index_2];
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index (tid % 16) and twiddle N 256 */
+    omega_register.x = (6.283185307179586 * (tid % 16)) / 256;
+    omega_register = vec2(cos(omega_register.x), sin(omega_register.x));
+    radix_1 = omega_register;
+    
+    /* Multiplying register_1 by radix_1 */
+    radix_0.x = register_1.y * (-radix_1.y);
+    radix_0.x = fma(register_1.x, radix_1.x, radix_0.x);
+    radix_0.y = register_1.y * radix_1.x;
+    radix_0.y = fma(register_1.x, radix_1.y, radix_0.y);
+    register_1 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_8 by radix_1 */
+    radix_0.x = register_8.y * (-radix_1.y);
+    radix_0.x = fma(register_8.x, radix_1.x, radix_0.x);
+    radix_0.y = register_8.y * radix_1.x;
+    radix_0.y = fma(register_8.x, radix_1.y, radix_0.y);
+    register_8 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_9 by radix_1 */
+    radix_0.x = register_9.y * (-radix_1.y);
+    radix_0.x = fma(register_9.x, radix_1.x, radix_0.x);
+    radix_0.y = register_9.y * radix_1.x;
+    radix_0.y = fma(register_9.x, radix_1.y, radix_0.y);
+    register_9 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_4 by radix_1 */
+    radix_0.x = register_4.y * (-radix_1.y);
+    radix_0.x = fma(register_4.x, radix_1.x, radix_0.x);
+    radix_0.y = register_4.y * radix_1.x;
+    radix_0.y = fma(register_4.x, radix_1.y, radix_0.y);
+    register_4 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_5 by radix_1 */
+    radix_0.x = register_5.y * (-radix_1.y);
+    radix_0.x = fma(register_5.x, radix_1.x, radix_0.x);
+    radix_0.y = register_5.y * radix_1.x;
+    radix_0.y = fma(register_5.x, radix_1.y, radix_0.y);
+    register_5 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_12 by radix_1 */
+    radix_0.x = register_12.y * (-radix_1.y);
+    radix_0.x = fma(register_12.x, radix_1.x, radix_0.x);
+    radix_0.y = register_12.y * radix_1.x;
+    radix_0.y = fma(register_12.x, radix_1.y, radix_0.y);
+    register_12 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_13 by radix_1 */
+    radix_0.x = register_13.y * (-radix_1.y);
+    radix_0.x = fma(register_13.x, radix_1.x, radix_0.x);
+    radix_0.y = register_13.y * radix_1.x;
+    radix_0.y = fma(register_13.x, radix_1.y, radix_0.y);
+    register_13 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_2 by radix_1 */
+    radix_0.x = register_2.y * (-radix_1.y);
+    radix_0.x = fma(register_2.x, radix_1.x, radix_0.x);
+    radix_0.y = register_2.y * radix_1.x;
+    radix_0.y = fma(register_2.x, radix_1.y, radix_0.y);
+    register_2 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_3 by radix_1 */
+    radix_0.x = register_3.y * (-radix_1.y);
+    radix_0.x = fma(register_3.x, radix_1.x, radix_0.x);
+    radix_0.y = register_3.y * radix_1.x;
+    radix_0.y = fma(register_3.x, radix_1.y, radix_0.y);
+    register_3 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_10 by radix_1 */
+    radix_0.x = register_10.y * (-radix_1.y);
+    radix_0.x = fma(register_10.x, radix_1.x, radix_0.x);
+    radix_0.y = register_10.y * radix_1.x;
+    radix_0.y = fma(register_10.x, radix_1.y, radix_0.y);
+    register_10 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_11 by radix_1 */
+    radix_0.x = register_11.y * (-radix_1.y);
+    radix_0.x = fma(register_11.x, radix_1.x, radix_0.x);
+    radix_0.y = register_11.y * radix_1.x;
+    radix_0.y = fma(register_11.x, radix_1.y, radix_0.y);
+    register_11 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_6 by radix_1 */
+    radix_0.x = register_6.y * (-radix_1.y);
+    radix_0.x = fma(register_6.x, radix_1.x, radix_0.x);
+    radix_0.y = register_6.y * radix_1.x;
+    radix_0.y = fma(register_6.x, radix_1.y, radix_0.y);
+    register_6 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_7 by radix_1 */
+    radix_0.x = register_7.y * (-radix_1.y);
+    radix_0.x = fma(register_7.x, radix_1.x, radix_0.x);
+    radix_0.y = register_7.y * radix_1.x;
+    radix_0.y = fma(register_7.x, radix_1.y, radix_0.y);
+    register_7 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_14 by radix_1 */
+    radix_0.x = register_14.y * (-radix_1.y);
+    radix_0.x = fma(register_14.x, radix_1.x, radix_0.x);
+    radix_0.y = register_14.y * radix_1.x;
+    radix_0.y = fma(register_14.x, radix_1.y, radix_0.y);
+    register_14 = radix_0;
+    
+    /* Multiplying omega_register by radix_1 */
+    radix_0.x = omega_register.y * (-radix_1.y);
+    radix_0.x = fma(omega_register.x, radix_1.x, radix_0.x);
+    radix_0.y = omega_register.y * radix_1.x;
+    radix_0.y = fma(omega_register.x, radix_1.y, radix_0.y);
+    radix_1 = radix_0;
+    
+    /* Multiplying register_15 by radix_1 */
+    radix_0.x = register_15.y * (-radix_1.y);
+    radix_0.x = fma(register_15.x, radix_1.x, radix_0.x);
+    radix_0.y = register_15.y * radix_1.x;
+    radix_0.y = fma(register_15.x, radix_1.y, radix_0.y);
+    register_15 = radix_0;
+    
+    /* Performing a Radix-(2, 2, 2, 2) FFT on 16 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_2;
+    register_2 = register_0 - radix_0;
+    register_0 = register_0 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_3;
+    register_3 = register_1 - radix_0;
+    register_1 = register_1 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_10;
+    register_10 = register_8 - radix_0;
+    register_8 = register_8 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_11;
+    register_11 = register_9 - radix_0;
+    register_9 = register_9 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_6;
+    register_6 = register_4 - radix_0;
+    register_4 = register_4 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_7;
+    register_7 = register_5 - radix_0;
+    register_5 = register_5 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_14;
+    register_14 = register_12 - radix_0;
+    register_12 = register_12 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_15;
+    register_15 = register_13 - radix_0;
+    register_13 = register_13 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_4;
+    register_4 = register_0 - radix_0;
+    register_0 = register_0 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 4 */
+    omega_register.x = register_6.x;
+    register_6.x = -register_6.y;
+    register_6.y = omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_6;
+    register_6 = register_2 - radix_0;
+    register_2 = register_2 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_5;
+    register_5 = register_1 - radix_0;
+    register_1 = register_1 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 4 */
+    omega_register.x = register_7.x;
+    register_7.x = -register_7.y;
+    register_7.y = omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_7;
+    register_7 = register_3 - radix_0;
+    register_3 = register_3 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_12;
+    register_12 = register_8 - radix_0;
+    register_8 = register_8 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 4 */
+    omega_register.x = register_14.x;
+    register_14.x = -register_14.y;
+    register_14.y = omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_14;
+    register_14 = register_10 - radix_0;
+    register_10 = register_10 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_13;
+    register_13 = register_9 - radix_0;
+    register_9 = register_9 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 4 */
+    omega_register.x = register_15.x;
+    register_15.x = -register_15.y;
+    register_15.y = omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_15;
+    register_15 = register_11 - radix_0;
+    register_11 = register_11 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_8;
+    register_8 = register_0 - radix_0;
+    register_0 = register_0 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 8 */
+    
+    /* Multiplying register_10 by (0.7071067811865476+0.7071067811865475j) */
+    omega_register.x = register_10.y * -0.7071067811865475;
+    omega_register.x = fma(register_10.x, 0.7071067811865476, omega_register.x);
+    omega_register.y = register_10.y * 0.7071067811865476;
+    omega_register.y = fma(register_10.x, 0.7071067811865475, omega_register.y);
+    register_10 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_10;
+    register_10 = register_2 - radix_0;
+    register_2 = register_2 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 2 and twiddle N 8 */
+    omega_register.x = register_12.x;
+    register_12.x = -register_12.y;
+    register_12.y = omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_12;
+    register_12 = register_4 - radix_0;
+    register_4 = register_4 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 3 and twiddle N 8 */
+    
+    /* Multiplying register_14 by (-0.7071067811865475+0.7071067811865476j) */
+    omega_register.x = register_14.y * -0.7071067811865476;
+    omega_register.x = fma(register_14.x, -0.7071067811865475, omega_register.x);
+    omega_register.y = register_14.y * -0.7071067811865475;
+    omega_register.y = fma(register_14.x, 0.7071067811865476, omega_register.y);
+    register_14 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_14;
+    register_14 = register_6 - radix_0;
+    register_6 = register_6 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_9;
+    register_9 = register_1 - radix_0;
+    register_1 = register_1 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 8 */
+    
+    /* Multiplying register_11 by (0.7071067811865476+0.7071067811865475j) */
+    omega_register.x = register_11.y * -0.7071067811865475;
+    omega_register.x = fma(register_11.x, 0.7071067811865476, omega_register.x);
+    omega_register.y = register_11.y * 0.7071067811865476;
+    omega_register.y = fma(register_11.x, 0.7071067811865475, omega_register.y);
+    register_11 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_11;
+    register_11 = register_3 - radix_0;
+    register_3 = register_3 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 2 and twiddle N 8 */
+    omega_register.x = register_13.x;
+    register_13.x = -register_13.y;
+    register_13.y = omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_13;
+    register_13 = register_5 - radix_0;
+    register_5 = register_5 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 3 and twiddle N 8 */
+    
+    /* Multiplying register_15 by (-0.7071067811865475+0.7071067811865476j) */
+    omega_register.x = register_15.y * -0.7071067811865476;
+    omega_register.x = fma(register_15.x, -0.7071067811865475, omega_register.x);
+    omega_register.y = register_15.y * -0.7071067811865475;
+    omega_register.y = fma(register_15.x, 0.7071067811865476, omega_register.y);
+    register_15 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_15;
+    register_15 = register_7 - radix_0;
+    register_7 = register_7 + radix_0;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_1;
+    register_1 = register_0 - radix_0;
+    register_0 = register_0 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 1 and twiddle N 16 */
+    
+    /* Multiplying register_3 by (0.9238795325112867+0.3826834323650898j) */
+    omega_register.x = register_3.y * -0.3826834323650898;
+    omega_register.x = fma(register_3.x, 0.9238795325112867, omega_register.x);
+    omega_register.y = register_3.y * 0.9238795325112867;
+    omega_register.y = fma(register_3.x, 0.3826834323650898, omega_register.y);
+    register_3 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_3;
+    register_3 = register_2 - radix_0;
+    register_2 = register_2 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 2 and twiddle N 16 */
+    
+    /* Multiplying register_5 by (0.7071067811865476+0.7071067811865475j) */
+    omega_register.x = register_5.y * -0.7071067811865475;
+    omega_register.x = fma(register_5.x, 0.7071067811865476, omega_register.x);
+    omega_register.y = register_5.y * 0.7071067811865476;
+    omega_register.y = fma(register_5.x, 0.7071067811865475, omega_register.y);
+    register_5 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_5;
+    register_5 = register_4 - radix_0;
+    register_4 = register_4 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 3 and twiddle N 16 */
+    
+    /* Multiplying register_7 by (0.38268343236508984+0.9238795325112867j) */
+    omega_register.x = register_7.y * -0.9238795325112867;
+    omega_register.x = fma(register_7.x, 0.38268343236508984, omega_register.x);
+    omega_register.y = register_7.y * 0.38268343236508984;
+    omega_register.y = fma(register_7.x, 0.9238795325112867, omega_register.y);
+    register_7 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_7;
+    register_7 = register_6 - radix_0;
+    register_6 = register_6 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 4 and twiddle N 16 */
+    omega_register.x = register_9.x;
+    register_9.x = -register_9.y;
+    register_9.y = omega_register.x;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_9;
+    register_9 = register_8 - radix_0;
+    register_8 = register_8 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 5 and twiddle N 16 */
+    
+    /* Multiplying register_11 by (-0.3826834323650897+0.9238795325112867j) */
+    omega_register.x = register_11.y * -0.9238795325112867;
+    omega_register.x = fma(register_11.x, -0.3826834323650897, omega_register.x);
+    omega_register.y = register_11.y * -0.3826834323650897;
+    omega_register.y = fma(register_11.x, 0.9238795325112867, omega_register.y);
+    register_11 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_11;
+    register_11 = register_10 - radix_0;
+    register_10 = register_10 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 6 and twiddle N 16 */
+    
+    /* Multiplying register_13 by (-0.7071067811865475+0.7071067811865476j) */
+    omega_register.x = register_13.y * -0.7071067811865476;
+    omega_register.x = fma(register_13.x, -0.7071067811865475, omega_register.x);
+    omega_register.y = register_13.y * -0.7071067811865475;
+    omega_register.y = fma(register_13.x, 0.7071067811865476, omega_register.y);
+    register_13 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_13;
+    register_13 = register_12 - radix_0;
+    register_12 = register_12 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index 7 and twiddle N 16 */
+    
+    /* Multiplying register_15 by (-0.9238795325112867+0.3826834323650899j) */
+    omega_register.x = register_15.y * -0.3826834323650899;
+    omega_register.x = fma(register_15.x, -0.9238795325112867, omega_register.x);
+    omega_register.y = register_15.y * -0.9238795325112867;
+    omega_register.y = fma(register_15.x, 0.3826834323650899, omega_register.y);
+    register_15 = omega_register;
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_15;
+    register_15 = register_14 - radix_0;
+    register_14 = register_14 + radix_0;
+    
+    /* Storing from registers to shared data buffer with fft length 16 and invocations 1 */
+    barrier();
+    io_index = sdata_offset + ((tid * 16) - ((tid % 16) * 15));
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_0;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 16;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_2;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 32;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_4;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 48;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_6;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 64;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_8;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 80;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_10;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 96;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_12;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 112;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_14;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 128;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_1;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 144;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_3;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 160;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_5;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 176;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_7;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 192;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_9;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 208;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_11;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 224;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_13;
+    io_index = (sdata_offset + ((tid * 16) - ((tid % 16) * 15))) + 240;
+    io_index = io_index + (io_index >> 4);
+    sdata[io_index] = register_15;
+    
+    /* Processing prime group (2,) by doing 8 radix-2 FFTs on 32 groups */
+    barrier();
+    
+    /* Loading from shared data buffer to registers */
+    io_index = tid + sdata_offset;
+    io_index_2 = io_index + (io_index >> 4);
+    register_0 = sdata[io_index_2];
+    io_index_2 = (io_index + 256) + ((io_index + 256) >> 4);
+    register_2 = sdata[io_index_2];
+    
+    /* Loading from shared data buffer to registers */
+    io_index = (tid + 32) + sdata_offset;
+    io_index_2 = io_index + (io_index >> 4);
+    register_4 = sdata[io_index_2];
+    io_index_2 = (io_index + 256) + ((io_index + 256) >> 4);
+    register_6 = sdata[io_index_2];
+    
+    /* Loading from shared data buffer to registers */
+    io_index = (tid + 64) + sdata_offset;
+    io_index_2 = io_index + (io_index >> 4);
+    register_8 = sdata[io_index_2];
+    io_index_2 = (io_index + 256) + ((io_index + 256) >> 4);
+    register_10 = sdata[io_index_2];
+    
+    /* Loading from shared data buffer to registers */
+    io_index = (tid + 96) + sdata_offset;
+    io_index_2 = io_index + (io_index >> 4);
+    register_12 = sdata[io_index_2];
+    io_index_2 = (io_index + 256) + ((io_index + 256) >> 4);
+    register_14 = sdata[io_index_2];
+    
+    /* Loading from shared data buffer to registers */
+    io_index = (tid + 128) + sdata_offset;
+    io_index_2 = io_index + (io_index >> 4);
+    register_1 = sdata[io_index_2];
+    io_index_2 = (io_index + 256) + ((io_index + 256) >> 4);
+    register_3 = sdata[io_index_2];
+    
+    /* Loading from shared data buffer to registers */
+    io_index = (tid + 160) + sdata_offset;
+    io_index_2 = io_index + (io_index >> 4);
+    register_5 = sdata[io_index_2];
+    io_index_2 = (io_index + 256) + ((io_index + 256) >> 4);
+    register_7 = sdata[io_index_2];
+    
+    /* Loading from shared data buffer to registers */
+    io_index = (tid + 192) + sdata_offset;
+    io_index_2 = io_index + (io_index >> 4);
+    register_9 = sdata[io_index_2];
+    io_index_2 = (io_index + 256) + ((io_index + 256) >> 4);
+    register_11 = sdata[io_index_2];
+    
+    /* Loading from shared data buffer to registers */
+    io_index = (tid + 224) + sdata_offset;
+    io_index_2 = io_index + (io_index >> 4);
+    register_13 = sdata[io_index_2];
+    io_index_2 = (io_index + 256) + ((io_index + 256) >> 4);
+    register_15 = sdata[io_index_2];
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index tid and twiddle N 512 */
+    omega_register.x = (tid * 6.283185307179586) / 512;
+    omega_register = vec2(cos(omega_register.x), sin(omega_register.x));
+    radix_1 = omega_register;
+    
+    /* Multiplying register_2 by radix_1 */
+    radix_0.x = register_2.y * (-radix_1.y);
+    radix_0.x = fma(register_2.x, radix_1.x, radix_0.x);
+    radix_0.y = register_2.y * radix_1.x;
+    radix_0.y = fma(register_2.x, radix_1.y, radix_0.y);
+    register_2 = radix_0;
+    
+    /* Performing a Radix-(2,) FFT on 2 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_2;
+    register_2 = register_0 - radix_0;
+    register_0 = register_0 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index (tid + 32) and twiddle N 512 */
+    omega_register.x = (tid * 6.283185307179586 + 201.06192982974676) / 512;
+    omega_register = vec2(cos(omega_register.x), sin(omega_register.x));
+    radix_1 = omega_register;
+    
+    /* Multiplying register_6 by radix_1 */
+    radix_0.x = register_6.y * (-radix_1.y);
+    radix_0.x = fma(register_6.x, radix_1.x, radix_0.x);
+    radix_0.y = register_6.y * radix_1.x;
+    radix_0.y = fma(register_6.x, radix_1.y, radix_0.y);
+    register_6 = radix_0;
+    
+    /* Performing a Radix-(2,) FFT on 2 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_6;
+    register_6 = register_4 - radix_0;
+    register_4 = register_4 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index (tid + 64) and twiddle N 512 */
+    omega_register.x = (tid * 6.283185307179586 + 402.1238596594935) / 512;
+    omega_register = vec2(cos(omega_register.x), sin(omega_register.x));
+    radix_1 = omega_register;
+    
+    /* Multiplying register_10 by radix_1 */
+    radix_0.x = register_10.y * (-radix_1.y);
+    radix_0.x = fma(register_10.x, radix_1.x, radix_0.x);
+    radix_0.y = register_10.y * radix_1.x;
+    radix_0.y = fma(register_10.x, radix_1.y, radix_0.y);
+    register_10 = radix_0;
+    
+    /* Performing a Radix-(2,) FFT on 2 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_10;
+    register_10 = register_8 - radix_0;
+    register_8 = register_8 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index (tid + 96) and twiddle N 512 */
+    omega_register.x = (tid * 6.283185307179586 + 603.1857894892403) / 512;
+    omega_register = vec2(cos(omega_register.x), sin(omega_register.x));
+    radix_1 = omega_register;
+    
+    /* Multiplying register_14 by radix_1 */
+    radix_0.x = register_14.y * (-radix_1.y);
+    radix_0.x = fma(register_14.x, radix_1.x, radix_0.x);
+    radix_0.y = register_14.y * radix_1.x;
+    radix_0.y = fma(register_14.x, radix_1.y, radix_0.y);
+    register_14 = radix_0;
+    
+    /* Performing a Radix-(2,) FFT on 2 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_14;
+    register_14 = register_12 - radix_0;
+    register_12 = register_12 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index (tid + 128) and twiddle N 512 */
+    omega_register.x = (tid * 6.283185307179586 + 804.247719318987) / 512;
+    omega_register = vec2(cos(omega_register.x), sin(omega_register.x));
+    radix_1 = omega_register;
+    
+    /* Multiplying register_3 by radix_1 */
+    radix_0.x = register_3.y * (-radix_1.y);
+    radix_0.x = fma(register_3.x, radix_1.x, radix_0.x);
+    radix_0.y = register_3.y * radix_1.x;
+    radix_0.y = fma(register_3.x, radix_1.y, radix_0.y);
+    register_3 = radix_0;
+    
+    /* Performing a Radix-(2,) FFT on 2 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_3;
+    register_3 = register_1 - radix_0;
+    register_1 = register_1 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index (tid + 160) and twiddle N 512 */
+    omega_register.x = (tid * 6.283185307179586 + 1005.3096491487338) / 512;
+    omega_register = vec2(cos(omega_register.x), sin(omega_register.x));
+    radix_1 = omega_register;
+    
+    /* Multiplying register_7 by radix_1 */
+    radix_0.x = register_7.y * (-radix_1.y);
+    radix_0.x = fma(register_7.x, radix_1.x, radix_0.x);
+    radix_0.y = register_7.y * radix_1.x;
+    radix_0.y = fma(register_7.x, radix_1.y, radix_0.y);
+    register_7 = radix_0;
+    
+    /* Performing a Radix-(2,) FFT on 2 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_7;
+    register_7 = register_5 - radix_0;
+    register_5 = register_5 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index (tid + 192) and twiddle N 512 */
+    omega_register.x = (tid * 6.283185307179586 + 1206.3715789784806) / 512;
+    omega_register = vec2(cos(omega_register.x), sin(omega_register.x));
+    radix_1 = omega_register;
+    
+    /* Multiplying register_11 by radix_1 */
+    radix_0.x = register_11.y * (-radix_1.y);
+    radix_0.x = fma(register_11.x, radix_1.x, radix_0.x);
+    radix_0.y = register_11.y * radix_1.x;
+    radix_0.y = fma(register_11.x, radix_1.y, radix_0.y);
+    register_11 = radix_0;
+    
+    /* Performing a Radix-(2,) FFT on 2 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_11;
+    register_11 = register_9 - radix_0;
+    register_9 = register_9 + radix_0;
+    
+    /* Applying Cooley-Tukey twiddle factors for twiddle index (tid + 224) and twiddle N 512 */
+    omega_register.x = (tid * 6.283185307179586 + 1407.4335088082273) / 512;
+    omega_register = vec2(cos(omega_register.x), sin(omega_register.x));
+    radix_1 = omega_register;
+    
+    /* Multiplying register_15 by radix_1 */
+    radix_0.x = register_15.y * (-radix_1.y);
+    radix_0.x = fma(register_15.x, radix_1.x, radix_0.x);
+    radix_0.y = register_15.y * radix_1.x;
+    radix_0.y = fma(register_15.x, radix_1.y, radix_0.y);
+    register_15 = radix_0;
+    
+    /* Performing a Radix-(2,) FFT on 2 registers */
+    
+    /* Performing a DFT for Radix-2 FFT */
+    radix_0 = register_15;
+    register_15 = register_13 - radix_0;
+    register_13 = register_13 + radix_0;
+    register_0 = register_0 / 512;
+    register_2 = register_2 / 512;
+    register_4 = register_4 / 512;
+    register_6 = register_6 / 512;
+    register_8 = register_8 / 512;
+    register_10 = register_10 / 512;
+    register_12 = register_12 / 512;
+    register_14 = register_14 / 512;
+    register_1 = register_1 / 512;
+    register_3 = register_3 / 512;
+    register_5 = register_5 / 512;
+    register_7 = register_7 / 512;
+    register_9 = register_9 / 512;
+    register_11 = register_11 / 512;
+    register_13 = register_13 / 512;
+    register_15 = register_15 / 512;
+    
+    /* Storing from registers to buffer */
+    output_batch_offset = (global_outer_index * 262144) + global_inner_index;
+    io_index = (tid * 512) + output_batch_offset;
+    buf1.data[io_index] = register_0;
+    io_index += 16384;
+    buf1.data[io_index] = register_4;
+    io_index += 16384;
+    buf1.data[io_index] = register_8;
+    io_index += 16384;
+    buf1.data[io_index] = register_12;
+    io_index += 16384;
+    buf1.data[io_index] = register_1;
+    io_index += 16384;
+    buf1.data[io_index] = register_5;
+    io_index += 16384;
+    buf1.data[io_index] = register_9;
+    io_index += 16384;
+    buf1.data[io_index] = register_13;
+    io_index += 16384;
+    buf1.data[io_index] = register_2;
+    io_index += 16384;
+    buf1.data[io_index] = register_6;
+    io_index += 16384;
+    buf1.data[io_index] = register_10;
+    io_index += 16384;
+    buf1.data[io_index] = register_14;
+    io_index += 16384;
+    buf1.data[io_index] = register_3;
+    io_index += 16384;
+    buf1.data[io_index] = register_7;
+    io_index += 16384;
+    buf1.data[io_index] = register_11;
+    io_index += 16384;
+    buf1.data[io_index] = register_15;
+
+}

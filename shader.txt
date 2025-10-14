@@ -1,0 +1,471 @@
+   1: #version 450
+   2: #extension GL_ARB_separate_shader_objects : enable
+   3: #extension GL_KHR_shader_subgroup_arithmetic : enable
+   4: #extension GL_EXT_debug_printf : enable
+   5: shared vec2 sdata[544];
+   6: 
+   7: layout(set = 0, binding = 0) uniform UniformObjectBuffer {
+   8:  	uvec4 exec_count;
+   9: 	ivec4 buf1_shape;
+  10: 	ivec4 sdata_shape; 
+  11: } UBO;
+  12: layout(set = 0, binding = 1) buffer Buffer1 { vec2 data[]; } buf1;
+  13: 
+  14: layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+  15: void main() {
+  16:     uint tid = gl_LocalInvocationID.x;
+  17:     uint workgroup_index = uint(gl_WorkGroupID.x);
+  18:     vec2 register_0 = vec2(0);
+  19:     vec2 register_1 = vec2(0);
+  20:     vec2 register_2 = vec2(0);
+  21:     vec2 register_3 = vec2(0);
+  22:     vec2 register_4 = vec2(0);
+  23:     vec2 register_5 = vec2(0);
+  24:     vec2 register_6 = vec2(0);
+  25:     vec2 register_7 = vec2(0);
+  26:     vec2 register_8 = vec2(0);
+  27:     vec2 register_9 = vec2(0);
+  28:     vec2 register_10 = vec2(0);
+  29:     vec2 register_11 = vec2(0);
+  30:     vec2 register_12 = vec2(0);
+  31:     vec2 register_13 = vec2(0);
+  32:     vec2 register_14 = vec2(0);
+  33:     vec2 register_15 = vec2(0);
+  34:     vec2 radix_0 = vec2(0);
+  35:     vec2 radix_1 = vec2(0);
+  36:     uint input_batch_offset;
+  37:     uint output_batch_offset;
+  38:     vec2 omega_register = vec2(0);
+  39:     uint subsequence_offset = uint(0);
+  40:     uint io_index = uint(0);
+  41:     uint io_index_2 = uint(0);
+  42:     
+  43:     /* Loading to registers from buffer (buf1.data) */
+  44:     input_batch_offset = (workgroup_index + gl_LocalInvocationID.y) * 512;
+  45:     io_index = tid + input_batch_offset;
+  46:     register_0 = buf1.data[io_index];
+  47:     io_index += 32;
+  48:     register_1 = buf1.data[io_index];
+  49:     io_index += 32;
+  50:     register_2 = buf1.data[io_index];
+  51:     io_index += 32;
+  52:     register_3 = buf1.data[io_index];
+  53:     io_index += 32;
+  54:     register_4 = buf1.data[io_index];
+  55:     io_index += 32;
+  56:     register_5 = buf1.data[io_index];
+  57:     io_index += 32;
+  58:     register_6 = buf1.data[io_index];
+  59:     io_index += 32;
+  60:     register_7 = buf1.data[io_index];
+  61:     io_index += 32;
+  62:     register_8 = buf1.data[io_index];
+  63:     io_index += 32;
+  64:     register_9 = buf1.data[io_index];
+  65:     io_index += 32;
+  66:     register_10 = buf1.data[io_index];
+  67:     io_index += 32;
+  68:     register_11 = buf1.data[io_index];
+  69:     io_index += 32;
+  70:     register_12 = buf1.data[io_index];
+  71:     io_index += 32;
+  72:     register_13 = buf1.data[io_index];
+  73:     io_index += 32;
+  74:     register_14 = buf1.data[io_index];
+  75:     io_index += 32;
+  76:     register_15 = buf1.data[io_index];
+  77:     
+  78:     /* Storing from registers to buffer */
+  79:     output_batch_offset = (workgroup_index + gl_LocalInvocationID.y) * 512;
+  80:     io_index = tid + output_batch_offset;
+  81:     buf1.data[io_index] = register_0;
+  82:     io_index += 32;
+  83:     buf1.data[io_index] = register_2;
+  84:     io_index += 32;
+  85:     buf1.data[io_index] = register_4;
+  86:     io_index += 32;
+  87:     buf1.data[io_index] = register_6;
+  88:     io_index += 32;
+  89:     buf1.data[io_index] = register_8;
+  90:     io_index += 32;
+  91:     buf1.data[io_index] = register_10;
+  92:     io_index += 32;
+  93:     buf1.data[io_index] = register_12;
+  94:     io_index += 32;
+  95:     buf1.data[io_index] = register_14;
+  96:     io_index += 32;
+  97:     buf1.data[io_index] = register_1;
+  98:     io_index += 32;
+  99:     buf1.data[io_index] = register_3;
+ 100:     io_index += 32;
+ 101:     buf1.data[io_index] = register_5;
+ 102:     io_index += 32;
+ 103:     buf1.data[io_index] = register_7;
+ 104:     io_index += 32;
+ 105:     buf1.data[io_index] = register_9;
+ 106:     io_index += 32;
+ 107:     buf1.data[io_index] = register_11;
+ 108:     io_index += 32;
+ 109:     buf1.data[io_index] = register_13;
+ 110:     io_index += 32;
+ 111:     buf1.data[io_index] = register_15;
+ 112: 
+ 113: }
+ 114: 
+
+   1: #version 450
+   2: #extension GL_ARB_separate_shader_objects : enable
+   3: #extension GL_KHR_shader_subgroup_arithmetic : enable
+   4: #extension GL_EXT_debug_printf : enable
+   5: shared vec2 sdata[2176];
+   6: 
+   7: layout(set = 0, binding = 0) uniform UniformObjectBuffer {
+   8:  	uvec4 exec_count;
+   9: 	ivec4 buf1_shape;
+  10: 	ivec4 buf2_shape;
+  11: 	ivec4 sdata_shape; 
+  12: } UBO;
+  13: layout(set = 0, binding = 1) buffer Buffer1 { vec2 data[]; } buf1;
+  14: layout(set = 0, binding = 2) buffer Buffer2 { vec2 data[]; } buf2;
+  15: 
+  16: layout(local_size_x = 4, local_size_y = 32, local_size_z = 1) in;
+  17: void main() {
+  18:     uint workgroup_index = uint(gl_WorkGroupID.x);
+  19:     uint global_inner_index = uint((((workgroup_index % 128) * 4) + gl_LocalInvocationID.x));
+  20:     uint global_outer_index = uint(((workgroup_index / 128) + gl_LocalInvocationID.z));
+  21:     uint tid = gl_LocalInvocationID.y;
+  22:     vec2 register_0 = vec2(0);
+  23:     vec2 register_1 = vec2(0);
+  24:     vec2 register_2 = vec2(0);
+  25:     vec2 register_3 = vec2(0);
+  26:     vec2 register_4 = vec2(0);
+  27:     vec2 register_5 = vec2(0);
+  28:     vec2 register_6 = vec2(0);
+  29:     vec2 register_7 = vec2(0);
+  30:     vec2 register_8 = vec2(0);
+  31:     vec2 register_9 = vec2(0);
+  32:     vec2 register_10 = vec2(0);
+  33:     vec2 register_11 = vec2(0);
+  34:     vec2 register_12 = vec2(0);
+  35:     vec2 register_13 = vec2(0);
+  36:     vec2 register_14 = vec2(0);
+  37:     vec2 register_15 = vec2(0);
+  38:     vec2 radix_0 = vec2(0);
+  39:     vec2 radix_1 = vec2(0);
+  40:     uint input_batch_offset;
+  41:     uint output_batch_offset;
+  42:     vec2 omega_register = vec2(0);
+  43:     uint subsequence_offset = uint(0);
+  44:     uint io_index = uint(0);
+  45:     uint io_index_2 = uint(0);
+  46:     uint sdata_offset = uint(((gl_LocalInvocationID.z * 2048) + (gl_LocalInvocationID.x * 512)));
+  47:     
+  48:     /* Performing forward FFT stage in convolution shader */
+  49:     
+  50:     /* Loading to registers from buffer (buf1.data) */
+  51:     input_batch_offset = (global_outer_index * 262144) + global_inner_index;
+  52:     io_index = (tid * 512) + input_batch_offset;
+  53:     register_0 = buf1.data[io_index];
+  54:     io_index += 16384;
+  55:     register_1 = buf1.data[io_index];
+  56:     io_index += 16384;
+  57:     register_2 = buf1.data[io_index];
+  58:     io_index += 16384;
+  59:     register_3 = buf1.data[io_index];
+  60:     io_index += 16384;
+  61:     register_4 = buf1.data[io_index];
+  62:     io_index += 16384;
+  63:     register_5 = buf1.data[io_index];
+  64:     io_index += 16384;
+  65:     register_6 = buf1.data[io_index];
+  66:     io_index += 16384;
+  67:     register_7 = buf1.data[io_index];
+  68:     io_index += 16384;
+  69:     register_8 = buf1.data[io_index];
+  70:     io_index += 16384;
+  71:     register_9 = buf1.data[io_index];
+  72:     io_index += 16384;
+  73:     register_10 = buf1.data[io_index];
+  74:     io_index += 16384;
+  75:     register_11 = buf1.data[io_index];
+  76:     io_index += 16384;
+  77:     register_12 = buf1.data[io_index];
+  78:     io_index += 16384;
+  79:     register_13 = buf1.data[io_index];
+  80:     io_index += 16384;
+  81:     register_14 = buf1.data[io_index];
+  82:     io_index += 16384;
+  83:     register_15 = buf1.data[io_index];
+  84:     
+  85:     /* Performing convolution stage in convolution shader */
+  86:     
+  87:     /* Processing kernel 0 */
+  88:     
+  89:     /* Loading to registers from buffer (buf2.data) */
+  90:     input_batch_offset = (global_outer_index * 262144) + global_inner_index;
+  91:     io_index = (tid * 512) + input_batch_offset;
+  92:     {
+  93:         omega_register = buf2.data[io_index];
+  94:         register_0 = vec2(register_0.x * omega_register.x + register_0.y * omega_register.y, register_0.y * omega_register.x - register_0.x * omega_register.y);
+  95:     }
+  96:     io_index += 16384;
+  97:     {
+  98:         omega_register = buf2.data[io_index];
+  99:         register_1 = vec2(register_1.x * omega_register.x + register_1.y * omega_register.y, register_1.y * omega_register.x - register_1.x * omega_register.y);
+ 100:     }
+ 101:     io_index += 16384;
+ 102:     {
+ 103:         omega_register = buf2.data[io_index];
+ 104:         register_2 = vec2(register_2.x * omega_register.x + register_2.y * omega_register.y, register_2.y * omega_register.x - register_2.x * omega_register.y);
+ 105:     }
+ 106:     io_index += 16384;
+ 107:     {
+ 108:         omega_register = buf2.data[io_index];
+ 109:         register_3 = vec2(register_3.x * omega_register.x + register_3.y * omega_register.y, register_3.y * omega_register.x - register_3.x * omega_register.y);
+ 110:     }
+ 111:     io_index += 16384;
+ 112:     {
+ 113:         omega_register = buf2.data[io_index];
+ 114:         register_4 = vec2(register_4.x * omega_register.x + register_4.y * omega_register.y, register_4.y * omega_register.x - register_4.x * omega_register.y);
+ 115:     }
+ 116:     io_index += 16384;
+ 117:     {
+ 118:         omega_register = buf2.data[io_index];
+ 119:         register_5 = vec2(register_5.x * omega_register.x + register_5.y * omega_register.y, register_5.y * omega_register.x - register_5.x * omega_register.y);
+ 120:     }
+ 121:     io_index += 16384;
+ 122:     {
+ 123:         omega_register = buf2.data[io_index];
+ 124:         register_6 = vec2(register_6.x * omega_register.x + register_6.y * omega_register.y, register_6.y * omega_register.x - register_6.x * omega_register.y);
+ 125:     }
+ 126:     io_index += 16384;
+ 127:     {
+ 128:         omega_register = buf2.data[io_index];
+ 129:         register_7 = vec2(register_7.x * omega_register.x + register_7.y * omega_register.y, register_7.y * omega_register.x - register_7.x * omega_register.y);
+ 130:     }
+ 131:     io_index += 16384;
+ 132:     {
+ 133:         omega_register = buf2.data[io_index];
+ 134:         register_8 = vec2(register_8.x * omega_register.x + register_8.y * omega_register.y, register_8.y * omega_register.x - register_8.x * omega_register.y);
+ 135:     }
+ 136:     io_index += 16384;
+ 137:     {
+ 138:         omega_register = buf2.data[io_index];
+ 139:         register_9 = vec2(register_9.x * omega_register.x + register_9.y * omega_register.y, register_9.y * omega_register.x - register_9.x * omega_register.y);
+ 140:     }
+ 141:     io_index += 16384;
+ 142:     {
+ 143:         omega_register = buf2.data[io_index];
+ 144:         register_10 = vec2(register_10.x * omega_register.x + register_10.y * omega_register.y, register_10.y * omega_register.x - register_10.x * omega_register.y);
+ 145:     }
+ 146:     io_index += 16384;
+ 147:     {
+ 148:         omega_register = buf2.data[io_index];
+ 149:         register_11 = vec2(register_11.x * omega_register.x + register_11.y * omega_register.y, register_11.y * omega_register.x - register_11.x * omega_register.y);
+ 150:     }
+ 151:     io_index += 16384;
+ 152:     {
+ 153:         omega_register = buf2.data[io_index];
+ 154:         register_12 = vec2(register_12.x * omega_register.x + register_12.y * omega_register.y, register_12.y * omega_register.x - register_12.x * omega_register.y);
+ 155:     }
+ 156:     io_index += 16384;
+ 157:     {
+ 158:         omega_register = buf2.data[io_index];
+ 159:         register_13 = vec2(register_13.x * omega_register.x + register_13.y * omega_register.y, register_13.y * omega_register.x - register_13.x * omega_register.y);
+ 160:     }
+ 161:     io_index += 16384;
+ 162:     {
+ 163:         omega_register = buf2.data[io_index];
+ 164:         register_14 = vec2(register_14.x * omega_register.x + register_14.y * omega_register.y, register_14.y * omega_register.x - register_14.x * omega_register.y);
+ 165:     }
+ 166:     io_index += 16384;
+ 167:     {
+ 168:         omega_register = buf2.data[io_index];
+ 169:         register_15 = vec2(register_15.x * omega_register.x + register_15.y * omega_register.y, register_15.y * omega_register.x - register_15.x * omega_register.y);
+ 170:     }
+ 171:     register_0 = register_0 / 512;
+ 172:     register_1 = register_1 / 512;
+ 173:     register_2 = register_2 / 512;
+ 174:     register_3 = register_3 / 512;
+ 175:     register_4 = register_4 / 512;
+ 176:     register_5 = register_5 / 512;
+ 177:     register_6 = register_6 / 512;
+ 178:     register_7 = register_7 / 512;
+ 179:     register_8 = register_8 / 512;
+ 180:     register_9 = register_9 / 512;
+ 181:     register_10 = register_10 / 512;
+ 182:     register_11 = register_11 / 512;
+ 183:     register_12 = register_12 / 512;
+ 184:     register_13 = register_13 / 512;
+ 185:     register_14 = register_14 / 512;
+ 186:     register_15 = register_15 / 512;
+ 187:     
+ 188:     /* Storing from registers to buffer */
+ 189:     output_batch_offset = (global_outer_index * 262144) + global_inner_index;
+ 190:     io_index = (tid * 512) + output_batch_offset;
+ 191:     buf1.data[io_index] = register_0;
+ 192:     io_index += 16384;
+ 193:     buf1.data[io_index] = register_2;
+ 194:     io_index += 16384;
+ 195:     buf1.data[io_index] = register_4;
+ 196:     io_index += 16384;
+ 197:     buf1.data[io_index] = register_6;
+ 198:     io_index += 16384;
+ 199:     buf1.data[io_index] = register_8;
+ 200:     io_index += 16384;
+ 201:     buf1.data[io_index] = register_10;
+ 202:     io_index += 16384;
+ 203:     buf1.data[io_index] = register_12;
+ 204:     io_index += 16384;
+ 205:     buf1.data[io_index] = register_14;
+ 206:     io_index += 16384;
+ 207:     buf1.data[io_index] = register_1;
+ 208:     io_index += 16384;
+ 209:     buf1.data[io_index] = register_3;
+ 210:     io_index += 16384;
+ 211:     buf1.data[io_index] = register_5;
+ 212:     io_index += 16384;
+ 213:     buf1.data[io_index] = register_7;
+ 214:     io_index += 16384;
+ 215:     buf1.data[io_index] = register_9;
+ 216:     io_index += 16384;
+ 217:     buf1.data[io_index] = register_11;
+ 218:     io_index += 16384;
+ 219:     buf1.data[io_index] = register_13;
+ 220:     io_index += 16384;
+ 221:     buf1.data[io_index] = register_15;
+ 222: 
+ 223: }
+ 224: 
+
+   1: #version 450
+   2: #extension GL_ARB_separate_shader_objects : enable
+   3: #extension GL_KHR_shader_subgroup_arithmetic : enable
+   4: #extension GL_EXT_debug_printf : enable
+   5: shared vec2 sdata[544];
+   6: 
+   7: layout(set = 0, binding = 0) uniform UniformObjectBuffer {
+   8:  	uvec4 exec_count;
+   9: 	ivec4 buf1_shape;
+  10: 	ivec4 sdata_shape; 
+  11: } UBO;
+  12: layout(set = 0, binding = 1) buffer Buffer1 { vec2 data[]; } buf1;
+  13: 
+  14: layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+  15: void main() {
+  16:     uint tid = gl_LocalInvocationID.x;
+  17:     uint workgroup_index = uint(gl_WorkGroupID.x);
+  18:     vec2 register_0 = vec2(0);
+  19:     vec2 register_1 = vec2(0);
+  20:     vec2 register_2 = vec2(0);
+  21:     vec2 register_3 = vec2(0);
+  22:     vec2 register_4 = vec2(0);
+  23:     vec2 register_5 = vec2(0);
+  24:     vec2 register_6 = vec2(0);
+  25:     vec2 register_7 = vec2(0);
+  26:     vec2 register_8 = vec2(0);
+  27:     vec2 register_9 = vec2(0);
+  28:     vec2 register_10 = vec2(0);
+  29:     vec2 register_11 = vec2(0);
+  30:     vec2 register_12 = vec2(0);
+  31:     vec2 register_13 = vec2(0);
+  32:     vec2 register_14 = vec2(0);
+  33:     vec2 register_15 = vec2(0);
+  34:     vec2 radix_0 = vec2(0);
+  35:     vec2 radix_1 = vec2(0);
+  36:     uint input_batch_offset;
+  37:     uint output_batch_offset;
+  38:     vec2 omega_register = vec2(0);
+  39:     uint subsequence_offset = uint(0);
+  40:     uint io_index = uint(0);
+  41:     uint io_index_2 = uint(0);
+  42:     
+  43:     /* Loading to registers from buffer (buf1.data) */
+  44:     input_batch_offset = (workgroup_index + gl_LocalInvocationID.y) * 512;
+  45:     io_index = tid + input_batch_offset;
+  46:     register_0 = buf1.data[io_index];
+  47:     io_index += 32;
+  48:     register_1 = buf1.data[io_index];
+  49:     io_index += 32;
+  50:     register_2 = buf1.data[io_index];
+  51:     io_index += 32;
+  52:     register_3 = buf1.data[io_index];
+  53:     io_index += 32;
+  54:     register_4 = buf1.data[io_index];
+  55:     io_index += 32;
+  56:     register_5 = buf1.data[io_index];
+  57:     io_index += 32;
+  58:     register_6 = buf1.data[io_index];
+  59:     io_index += 32;
+  60:     register_7 = buf1.data[io_index];
+  61:     io_index += 32;
+  62:     register_8 = buf1.data[io_index];
+  63:     io_index += 32;
+  64:     register_9 = buf1.data[io_index];
+  65:     io_index += 32;
+  66:     register_10 = buf1.data[io_index];
+  67:     io_index += 32;
+  68:     register_11 = buf1.data[io_index];
+  69:     io_index += 32;
+  70:     register_12 = buf1.data[io_index];
+  71:     io_index += 32;
+  72:     register_13 = buf1.data[io_index];
+  73:     io_index += 32;
+  74:     register_14 = buf1.data[io_index];
+  75:     io_index += 32;
+  76:     register_15 = buf1.data[io_index];
+  77:     register_0 = register_0 / 512;
+  78:     register_1 = register_1 / 512;
+  79:     register_2 = register_2 / 512;
+  80:     register_3 = register_3 / 512;
+  81:     register_4 = register_4 / 512;
+  82:     register_5 = register_5 / 512;
+  83:     register_6 = register_6 / 512;
+  84:     register_7 = register_7 / 512;
+  85:     register_8 = register_8 / 512;
+  86:     register_9 = register_9 / 512;
+  87:     register_10 = register_10 / 512;
+  88:     register_11 = register_11 / 512;
+  89:     register_12 = register_12 / 512;
+  90:     register_13 = register_13 / 512;
+  91:     register_14 = register_14 / 512;
+  92:     register_15 = register_15 / 512;
+  93:     
+  94:     /* Storing from registers to buffer */
+  95:     output_batch_offset = (workgroup_index + gl_LocalInvocationID.y) * 512;
+  96:     io_index = tid + output_batch_offset;
+  97:     buf1.data[io_index] = register_0;
+  98:     io_index += 32;
+  99:     buf1.data[io_index] = register_2;
+ 100:     io_index += 32;
+ 101:     buf1.data[io_index] = register_4;
+ 102:     io_index += 32;
+ 103:     buf1.data[io_index] = register_6;
+ 104:     io_index += 32;
+ 105:     buf1.data[io_index] = register_8;
+ 106:     io_index += 32;
+ 107:     buf1.data[io_index] = register_10;
+ 108:     io_index += 32;
+ 109:     buf1.data[io_index] = register_12;
+ 110:     io_index += 32;
+ 111:     buf1.data[io_index] = register_14;
+ 112:     io_index += 32;
+ 113:     buf1.data[io_index] = register_1;
+ 114:     io_index += 32;
+ 115:     buf1.data[io_index] = register_3;
+ 116:     io_index += 32;
+ 117:     buf1.data[io_index] = register_5;
+ 118:     io_index += 32;
+ 119:     buf1.data[io_index] = register_7;
+ 120:     io_index += 32;
+ 121:     buf1.data[io_index] = register_9;
+ 122:     io_index += 32;
+ 123:     buf1.data[io_index] = register_11;
+ 124:     io_index += 32;
+ 125:     buf1.data[io_index] = register_13;
+ 126:     io_index += 32;
+ 127:     buf1.data[io_index] = register_15;
+ 128: 
+ 129: }
+ 130: 
+

@@ -47,11 +47,9 @@ def run_vkdispatch(config: fu.Config, fft_size: int) -> float:
         read_register[:] = kernel_buffer[transposed_index]
         img_val[:] = vc.mult_conj_c64(read_register, img_val)
     
-    vd.fft.convolve2D(buffer, kernel, graph=graph, kernel_map=kernel_mapping)
-
-    # vd.fft.fft(buffer, graph=graph)
-    # vd.fft.convolve(buffer, kernel, axis=1, graph=graph, kernel_map=kernel_mapping)
-    # vd.fft.fft(buffer, graph=graph, inverse=True)
+    vd.fft.fft(buffer, graph=graph, disable_compute=True, disable_shuffle=True)
+    vd.fft.convolve(buffer, kernel, axis=1, graph=graph, kernel_map=kernel_mapping, disable_compute=True, disable_shuffle=True)
+    vd.fft.fft(buffer, graph=graph, inverse=True, disable_compute=True, disable_shuffle=True)
 
     for _ in range(config.warmup):
         graph.submit(config.iter_batch)
@@ -83,7 +81,7 @@ if __name__ == "__main__":
     config = fu.parse_args()
     fft_sizes = fu.get_fft_sizes()
 
-    output_name = f"conv_vkdispatch.csv"
+    output_name = f"conv_vkdispatch_none.csv"
     with open(output_name, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(['Backend', 'FFT Size'] + [f'Run {i + 1} (GB/s)' for i in range(config.run_count)] + ['Mean', 'Std Dev'])
@@ -100,7 +98,7 @@ if __name__ == "__main__":
             rounded_mean = round(np.mean(rates), 2)
             rounded_std = round(np.std(rates), 2)
 
-            writer.writerow(["vkdispatch", fft_size] + rounded_data + [rounded_mean, rounded_std])
+            writer.writerow(["vkdispatch_none", fft_size] + rounded_data + [rounded_mean, rounded_std])
         
     print(f"Results saved to {output_name}.csv")
 
