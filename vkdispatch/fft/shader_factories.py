@@ -12,7 +12,6 @@ def make_fft_shader(
         inverse: bool = False, 
         normalize_inverse: bool = True,
         r2c: bool = False,
-        disable_interior: bool = False,
         input_map: vd.MappingFunction = None,
         output_map: vd.MappingFunction = None) -> Tuple[vd.ShaderObject, Tuple[int, int, int]]:
 
@@ -28,8 +27,7 @@ def make_fft_shader(
             inverse=inverse
         )
 
-        if not disable_interior:
-            ctx.execute(inverse=inverse)
+        ctx.execute(inverse=inverse)
 
         ctx.write_output(
             r2c=r2c,
@@ -46,7 +44,6 @@ def make_convolution_shader(
         kernel_num: int = 1,
         axis: int = None, 
         normalize: bool = True,
-        disable_interior: bool = False,
         input_map: vd.MappingFunction = None,
         output_map: vd.MappingFunction = None) -> Tuple[vd.ShaderObject, Tuple[int, int, int]]:
 
@@ -71,9 +68,8 @@ def make_convolution_shader(
 
         ctx.read_input()
         
-        if not disable_interior:
-            ctx.execute(inverse=False)
-            ctx.register_shuffle()
+        ctx.execute(inverse=False)
+        ctx.register_shuffle()
 
         vc.comment("Performing convolution stage in convolution shader")
         backup_registers = None
@@ -95,10 +91,7 @@ def make_convolution_shader(
 
             vc.set_kernel_index(kern_index)
             ctx.read_kernel()
-            
-            if not disable_interior:
-                ctx.execute(inverse=True)
-
+            ctx.execute(inverse=True)
             ctx.write_output(inverse=True, normalize=normalize)
     
     return ctx.get_callable()

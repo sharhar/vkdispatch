@@ -116,9 +116,6 @@ class IOProxy:
         resources.input_batch_offset[:] = grid.global_outer * input_batch_stride_y + grid.global_inner * config.batch_inner_stride
 
         for ii, invocation in enumerate(resources.invocations[stage_index]):
-            #if config.stages[stage_index].remainder_offset == 1 and ii == config.stages[stage_index].extra_ffts:
-            #    vc.if_statement(grid.tid < config.N // config.stages[stage_index].registers_used)
-
             resources.invocation_gaurd(stage_index, ii)
 
             offset = invocation.instance_id
@@ -142,9 +139,6 @@ class IOProxy:
                 )
 
         resources.invocation_end(stage_index)
-
-        # if config.stages[stage_index].remainder_offset == 1:
-        #     vc.end()
 
         resources.stage_end(stage_index)
 
@@ -211,9 +205,6 @@ class IOProxy:
         stage = config.stages[stage_index]
 
         vc.comment(f"Storing from registers to buffer")
-
-        #do_runtime_if = config.stages[stage_index].thread_count < config.batch_threads
-        #if do_runtime_if: vc.if_statement(grid.tid < config.stages[stage_index].thread_count)
         
         resources.stage_begin(stage_index)
 
@@ -235,9 +226,6 @@ class IOProxy:
 
         for jj in range(stage.fft_length):
             for ii, invocation in enumerate(resources.invocations[stage_index]):
-                #if stage.remainder_offset == 1 and ii == stage.extra_ffts:
-                #    vc.if_statement(grid.tid < config.N // stage.registers_used)
-
                 resources.invocation_gaurd(stage_index, ii)
 
                 if jj != 0 or ii != 0:
@@ -256,9 +244,4 @@ class IOProxy:
 
             resources.invocation_end(stage_index)
 
-            # if stage.remainder_offset == 1:
-            #     vc.end()
-
         resources.stage_end(stage_index)
-
-        #if do_runtime_if: vc.end()

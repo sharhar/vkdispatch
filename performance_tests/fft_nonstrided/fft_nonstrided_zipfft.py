@@ -1,12 +1,11 @@
 import csv
 import time
-import conv_utils as fu
+import fft_nonstrided_utils as fu
 import numpy as np
 import torch
 
 try:
     from zipfft import fft_nonstrided
-    from zipfft import conv1d_strided_padded
 except ImportError:
     print("zipfft is not installed. Please install it via 'pip install zipfft'.")
     exit(0)
@@ -21,16 +20,7 @@ def run_zipfft(config: fu.Config, fft_size: int) -> float:
         device='cuda'
     )
 
-
-    kernel = torch.empty(
-        shape,
-        dtype=torch.complex64,
-        device='cuda'
-    )
-
-
     buffer.copy_(torch.from_numpy(random_data).to('cuda'))
-    kernel.copy_(torch.from_numpy(random_data).to('cuda'))
 
     stream = torch.cuda.Stream()
 
@@ -38,10 +28,7 @@ def run_zipfft(config: fu.Config, fft_size: int) -> float:
     
     with torch.cuda.stream(stream):
         for _ in range(config.warmup):
-            fft_nonstrided.fft(buffer.view(-1, buffer.size(2)))
-            conv1d_strided_padded.conv(buffer, kernel, fft_size, True)
-            fft_nonstrided.fft(buffer.view(-1, buffer.size(2)))
-
+            fft_nonstrided.fft(buffer.view(-1, buffer.size(2)), False)
 
     torch.cuda.synchronize()
     
@@ -50,13 +37,11 @@ def run_zipfft(config: fu.Config, fft_size: int) -> float:
     # We capture either 1 or K FFTs back-to-back. All on the same stream.
     with torch.cuda.graph(g, stream=stream):
         for _ in range(max(1, config.iter_batch)):
-            fft_nonstrided.fft(buffer.view(-1, buffer.size(2)))
-            conv1d_strided_padded.conv(buffer, kernel, fft_size, True)
-            fft_nonstrided.fft(buffer.view(-1, buffer.size(2)))
+            fft_nonstrided.fft(buffer.view(-1, buffer.size(2)), False)
 
     torch.cuda.synchronize()
 
-    gb_byte_count = 11 * np.prod(shape) * 8 / (1024 * 1024 * 1024)
+    gb_byte_count = 2 * np.prod(shape) * 8 / (1024 * 1024 * 1024)
     
     start_time = time.perf_counter()
 
@@ -73,7 +58,7 @@ if __name__ == "__main__":
     config = fu.parse_args()
     fft_sizes = fu.get_fft_sizes()
 
-    output_name = f"conv_zipfft_no_transpose.csv"
+    output_name = f"fft_nonstrided_zipfft.csv"
     with open(output_name, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(['Backend', 'FFT Size'] + [f'Run {i + 1} (GB/s)' for i in range(config.run_count)] + ['Mean', 'Std Dev'])
@@ -90,6 +75,6 @@ if __name__ == "__main__":
             rounded_mean = round(np.mean(rates), 2)
             rounded_std = round(np.std(rates), 2)
 
-            writer.writerow(["zipfft_no_transpose", fft_size] + rounded_data + [rounded_mean, rounded_std])
+            writer.writerow(["zipfft", fft_size] + rounded_data + [rounded_mean, rounded_std])
         
     print(f"Results saved to {output_name}.csv")
