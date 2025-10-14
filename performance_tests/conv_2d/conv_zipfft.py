@@ -5,8 +5,8 @@ import numpy as np
 import torch
 
 try:
-    from zipfft import cfft1d
-    from zipfft import conv1d_strided_padded
+    from zipfft import fft_nonstrided
+    from zipfft import conv_strided_padded
 except ImportError:
     print("zipfft is not installed. Please install it via 'pip install zipfft'.")
     exit(0)
@@ -38,9 +38,9 @@ def run_zipfft(config: fu.Config, fft_size: int) -> float:
     
     with torch.cuda.stream(stream):
         for _ in range(config.warmup):
-            cfft1d.fft(buffer.view(-1, buffer.size(2)))
-            conv1d_strided_padded.conv(buffer, kernel, fft_size)
-            cfft1d.ifft(buffer.view(-1, buffer.size(2)))
+            fft_nonstrided.fft(buffer.view(-1, buffer.size(2)), False)
+            conv_strided_padded.conv(buffer, kernel, fft_size, False)
+            fft_nonstrided.fft(buffer.view(-1, buffer.size(2)), True)
 
 
     torch.cuda.synchronize()
@@ -50,9 +50,9 @@ def run_zipfft(config: fu.Config, fft_size: int) -> float:
     # We capture either 1 or K FFTs back-to-back. All on the same stream.
     with torch.cuda.graph(g, stream=stream):
         for _ in range(max(1, config.iter_batch)):
-            cfft1d.fft(buffer.view(-1, buffer.size(2)))
-            conv1d_strided_padded.conv(buffer, kernel, fft_size)
-            cfft1d.ifft(buffer.view(-1, buffer.size(2)))
+            fft_nonstrided.fft(buffer.view(-1, buffer.size(2)), False)
+            conv_strided_padded.conv(buffer, kernel, fft_size, False)
+            fft_nonstrided.fft(buffer.view(-1, buffer.size(2)), True)
 
     torch.cuda.synchronize()
 

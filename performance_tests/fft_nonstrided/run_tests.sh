@@ -23,18 +23,18 @@ echo "Repeats: $REPEATS"
 #./fft_cufft.exec $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
 
 echo "Running Vkdispatch FFT..."
-python3 ../fft_vkdispatch.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
+python3 ../fft_nonstrided_vkdispatch.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
 
-# echo "Running VKFFT FFT..."
-# python3 ../fft_vkfft.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
+echo "Running VKFFT FFT..."
+python3 ../fft_nonstrided_vkfft.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
 
-# echo "Running PyTorch FFT..."
-# python3 ../fft_torch.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
+echo "Running PyTorch FFT..."
+python3 ../fft_nonstrided_torch.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
 
-# echo "Running ZipFFT FFT..."
-# python3 ../fft_zipfft.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
+echo "Running ZipFFT FFT..."
+python3 ../fft_nonstrided_zipfft.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
 
 echo "Running ZipFFT NO Compute FFT..."
-python3 ../fft_zipfft_no_compute.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
+python3 ../fft_nonstrided_zipfft_no_compute.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
 
-python3 ../fft_make_graph.py
+python3 ../fft_nonstrided_make_graph.py

@@ -27,6 +27,9 @@ def run_zipfft(config: fu.Config, fft_size: int) -> float:
 
     torch.cuda.synchronize()
     
+    fft_nonstrided.set_disable_compute(True)
+    fft_strided.set_disable_compute(True)
+
     with torch.cuda.stream(stream):
         for _ in range(config.warmup):
             fft_nonstrided.fft(buffer.view(-1, buffer.size(2)), False)
@@ -61,7 +64,7 @@ if __name__ == "__main__":
     config = fu.parse_args()
     fft_sizes = fu.get_fft_sizes()
 
-    output_name = f"fft_zipfft.csv"
+    output_name = f"fft_zipfft_no_compute.csv"
     with open(output_name, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(['Backend', 'FFT Size'] + [f'Run {i + 1} (GB/s)' for i in range(config.run_count)] + ['Mean', 'Std Dev'])
@@ -78,6 +81,6 @@ if __name__ == "__main__":
             rounded_mean = round(np.mean(rates), 2)
             rounded_std = round(np.std(rates), 2)
 
-            writer.writerow(["zipfft", fft_size] + rounded_data + [rounded_mean, rounded_std])
+            writer.writerow(["zipfft_no_compute", fft_size] + rounded_data + [rounded_mean, rounded_std])
         
     print(f"Results saved to {output_name}.csv")

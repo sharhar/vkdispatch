@@ -30,16 +30,13 @@ echo "Repeats: $REPEATS"
 # echo "Running VKFFT FFT..."
 # python3 ../conv_vkfft.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
 
-echo "Running Vkdispatch FFT..."
-python3 ../conv_vkdispatch.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
-
-echo "Running Vkdispatch Memory FFT..."
-python3 ../conv_vkdispatch_memory.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
+# echo "Running Vkdispatch FFT..."
+# python3 ../conv_vkdispatch.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
 
 # echo "Running PyTorch FFT..."
 # python3 ../conv_torch.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
 
-# echo "Running ZipFFT FFT..."
-# python3 ../conv_zipfft.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
+echo "Running ZipFFT FFT..."
+python3 ../conv_zipfft.py $DATA_SIZE $ITER_COUNT $BATCH_SIZE $REPEATS
 
 python3 ../conv_make_graph.py
