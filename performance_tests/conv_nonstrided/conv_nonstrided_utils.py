@@ -17,8 +17,16 @@ class Config:
         assert self.data_size % total_square_size == 0, "Data size must be a multiple of fft_size squared"
         return (self.data_size // total_square_size, fft_size, fft_size)
     
+    def make_shape_2d(self, fft_size: int) -> Tuple[int, ...]:
+        assert self.data_size % fft_size == 0, "Data size must be a multiple of fft_size squared"
+        return (self.data_size // fft_size, fft_size)
+    
     def make_random_data(self, fft_size: int):
         shape = self.make_shape(fft_size)
+        return np.random.rand(*shape).astype(np.complex64)
+    
+    def make_random_data_2d(self, fft_size: int):
+        shape = self.make_shape_2d(fft_size)
         return np.random.rand(*shape).astype(np.complex64)
 
 def parse_args() -> Config:

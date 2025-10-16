@@ -28,16 +28,11 @@ __global__ void fill_randomish(cufftComplex* a, long long n){
     }
 }
 
-__global__ void convolve_arrays(cufftComplex* data, cufftComplex* kernel, long long total_elems) {
+__global__ void scale_kernel(cufftComplex* data, float scale_factor, long long total_elems) {
     long long i = blockIdx.x * 1LL * blockDim.x + threadIdx.x;
     if (i < total_elems) {
-        const size_t idx_in_image = i;
-        const cufftComplex d = data[i];
-        const cufftComplex k = kernel[idx_in_image];
-        // Complex multiply: (a+bi)(c+di) = (ac-bd) + (ad+bc)i
-        const float real = d.x * k.x - d.y * k.y;
-        const float imag = d.x * k.y + d.y * k.x;
-        data[i] = make_float2(real, imag);
+        data[i].x *= scale_factor;
+        data[i].y *= scale_factor;
     }
 }
 
@@ -84,19 +79,16 @@ static std::vector<int> get_fft_sizes() {
 }
 
 // Compute GB processed per single FFT execution (read + write) for shape (dim0, dim1)
-static double gb_per_exec(long long dim0, long long dim1, long long dim2) {
+static double gb_per_exec(long long dim0, long long dim1) {
     // complex64 = 8 bytes; count both read and write -> *2
-    const double bytes = static_cast<double>(dim0) * static_cast<double>(dim1) * static_cast<double>(dim2) * 8.0;
+    const double bytes = static_cast<double>(dim0) * static_cast<double>(dim1) * 8.0;
     return bytes / (1024.0 * 1024.0 * 1024.0);
 }
 
 static double run_cufft_case(const Config& cfg, int fft_size) {
-    const long long total_fft_area = fft_size * fft_size;
-
-    const long long dim0 = cfg.data_size / total_fft_area;
+    const long long dim0 = cfg.data_size / fft_size;
     const long long dim1 = fft_size;
-    const long long dim2 = fft_size;
-    const long long total_elems = dim0 * dim1 * dim2;
+    const long long total_elems = dim0 * dim1;
 
     // Device buffers (in-place transform will overwrite input)
     cufftComplex* d_data = nullptr;
@@ -125,23 +117,25 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
     cufftHandle plan;
     checkCuFFT(cufftCreate(&plan), "cufftCreate");
 
-    int n[2] = { int(dim1), int(dim2) };
-    int inembed[2] = { int(dim1), int(dim2) };        // physical layout (same as n for tight pack)
-    int onembed[2] = { int(dim1), int(dim2) };
-    int istride    = 1;               // contiguous within each 2D image
-    int ostride    = 1;
-    int idist      = int(dim1)* int(dim2);           // distance between images
-    int odist      = int(dim1)* int(dim2);
+    // int n[2] = { int(dim1), int(dim2) };
+    // int inembed[2] = { int(dim1), int(dim2) };        // physical layout (same as n for tight pack)
+    // int onembed[2] = { int(dim1), int(dim2) };
+    // int istride    = 1;               // contiguous within each 2D image
+    // int ostride    = 1;
+    // int idist      = int(dim1)* int(dim2);           // distance between images
+    // int odist      = int(dim1)* int(dim2);
 
-    checkCuFFT(cufftPlanMany(&plan, 2, n,
-                                  inembed,  istride, idist,
-                                  onembed,  ostride, odist,
-                                  CUFFT_C2C, int(dim0)), "plan2d");
+    // checkCuFFT(cufftPlanMany(&plan, 2, n,
+    //                               inembed,  istride, idist,
+    //                               onembed,  ostride, odist,
+    //                               CUFFT_C2C, int(dim0)), "plan2d");
+
+    checkCuFFT(cufftPlan1d(&plan, dim1, CUFFT_C2C, dim0), "plan");
 
     // --- warmup on the stream ---
     for (int i = 0; i < cfg.warmup; ++i) {
         checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_FORWARD), "warmup");
-        convolve_arrays<<<(total_elems+255)/256,256>>>(d_data, d_kernel, total_elems);
+        scale_kernel<<<(total_elems+255)/256,256>>>(d_data, 5.0, total_elems);
         checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_INVERSE), "warmup");
     }
     
@@ -154,7 +148,7 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
     checkCuda(cudaEventRecord(evA), "record A");
     for (int it = 0; it < cfg.iter_count; ++it) {
         checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_FORWARD), "exec");
-        convolve_arrays<<<(total_elems+255)/256,256>>>(d_data, d_kernel, total_elems);
+        scale_kernel<<<(total_elems+255)/256,256>>>(d_data, 5.0, total_elems);
         checkCuFFT(cufftExecC2C(plan, d_data, d_data, CUFFT_INVERSE), "exec");
     }
     checkCuda(cudaEventRecord(evB), "record B");
@@ -168,7 +162,7 @@ static double run_cufft_case(const Config& cfg, int fft_size) {
     const double seconds = static_cast<double>(ms) / 1000.0;
 
     // Compute throughput in GB/s (same accounting as Torch: 2 * elems * 8 bytes per exec)
-    const double gb_per_exec_once = 11 * gb_per_exec(dim0, dim1, dim2);
+    const double gb_per_exec_once = 6 * gb_per_exec(dim0, dim1);
     const double total_execs = static_cast<double>(cfg.iter_count); // * static_cast<double>(cfg.iter_batch);
     const double gb_per_second = (total_execs * gb_per_exec_once) / seconds;
 
@@ -184,7 +178,7 @@ int main(int argc, char** argv) {
     const Config cfg = parse_args(argc, argv);
     const auto sizes = get_fft_sizes();
 
-    const std::string output_name = "conv_cufft.csv";
+    const std::string output_name = "conv_nonstrided_cufft.csv";
     std::ofstream out(output_name);
     if (!out) {
         std::cerr << "Failed to open output file: " << output_name << "\n";
