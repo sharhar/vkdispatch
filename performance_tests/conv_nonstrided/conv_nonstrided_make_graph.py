@@ -10,7 +10,7 @@ import sys
 MergedType = Dict[str, Dict[int, Tuple[float, float]]]
 
 def read_bench_csvs() -> Tuple[MergedType, Set[str], Set[int]]:
-    pattern = f"conv_*.csv"
+    pattern = f"conv_nonstrided_*.csv"
     files = glob.glob(pattern)
 
     merged: MergedType = {}

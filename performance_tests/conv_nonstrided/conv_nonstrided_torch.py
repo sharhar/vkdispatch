@@ -1,13 +1,13 @@
 import csv
 import time
-import conv_utils as fu
+import conv_nonstrided_utils as fu
 import numpy as np
 import torch
 
 def run_torch(config: fu.Config, fft_size: int) -> float:
-    shape = config.make_shape(fft_size)
-    random_data = config.make_random_data(fft_size)
-    random_data_kernel = config.make_random_data(fft_size)
+    shape = config.make_shape_2d(fft_size)
+    random_data = config.make_random_data_2d(fft_size)
+    scale_factor = np.random.rand() + 0.5
 
     buffer = torch.empty(
         shape,
@@ -15,14 +15,7 @@ def run_torch(config: fu.Config, fft_size: int) -> float:
         device='cuda'
     )
 
-    kernel = torch.empty(
-        shape,
-        dtype=torch.complex64,
-        device='cuda'
-    )
-
     buffer.copy_(torch.from_numpy(random_data).to('cuda'))
-    kernel.copy_(torch.from_numpy(random_data_kernel).to('cuda'))
 
     stream = torch.cuda.Stream()
 
@@ -30,18 +23,18 @@ def run_torch(config: fu.Config, fft_size: int) -> float:
     
     with torch.cuda.stream(stream):
         for _ in range(config.warmup):
-            buffer = torch.fft.ifft2(torch.fft.fft2(buffer)  * kernel)
+            buffer = torch.fft.ifft(torch.fft.fft(buffer) * scale_factor)
 
     torch.cuda.synchronize()
 
-    gb_byte_count = 11 * np.prod(shape) * 8 / (1024 * 1024 * 1024)
+    gb_byte_count = 6 * np.prod(shape) * 8 / (1024 * 1024 * 1024)
     
     g = torch.cuda.CUDAGraph()
 
     # We capture either 1 or K FFTs back-to-back. All on the same stream.
     with torch.cuda.graph(g, stream=stream):
         for _ in range(max(1, config.iter_batch)):
-            buffer = torch.fft.ifft2(torch.fft.fft2(buffer)  * kernel)
+            buffer = torch.fft.ifft(torch.fft.fft(buffer) * scale_factor)
 
     torch.cuda.synchronize()
     start_time = time.perf_counter()
@@ -59,7 +52,7 @@ if __name__ == "__main__":
     config = fu.parse_args()
     fft_sizes = fu.get_fft_sizes()
 
-    output_name = f"conv_torch.csv"
+    output_name = f"conv_nonstrided_torch.csv"
     with open(output_name, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(['Backend', 'FFT Size'] + [f'Run {i + 1} (GB/s)' for i in range(config.run_count)] + ['Mean', 'Std Dev'])
