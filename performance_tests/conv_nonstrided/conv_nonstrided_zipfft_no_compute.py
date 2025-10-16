@@ -34,9 +34,10 @@ def run_zipfft(config: fu.Config, fft_size: int) -> float:
 
     stream = torch.cuda.Stream()
 
-    #conv_strided_padded.conv_kernel_size(buffer, True)
-
     torch.cuda.synchronize()
+
+    fft_nonstrided.set_disable_compute(True)
+    conv_strided_padded.set_disable_compute(True)
     
     with torch.cuda.stream(stream):
         for _ in range(config.warmup):

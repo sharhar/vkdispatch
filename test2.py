@@ -2,14 +2,14 @@ import vkdispatch as vd
 import vkdispatch.codegen as vc
 import numpy as np
 
-SIZE = 512
+SIZE = 2 ** 6
 
 buffer = vd.Buffer((1, SIZE, SIZE), vd.complex64)
 kernel = vd.Buffer((1, SIZE, SIZE), vd.complex64)
 
-vd.fft.fft(buffer, disable_interior=True, print_shader=True)
-vd.fft.convolve(buffer, kernel, axis=1, disable_interior=True, print_shader=True)
-vd.fft.fft(buffer, inverse=True, disable_interior=True, print_shader=True)
+#vd.fft.fft(buffer)
+vd.fft.convolve(buffer, kernel, axis=1, print_shader=True)
+#vd.fft.fft(buffer, inverse=True)
 
 #vd.vkfft.convolve_2D(buffer, kernel, keep_shader_code=True)
 
