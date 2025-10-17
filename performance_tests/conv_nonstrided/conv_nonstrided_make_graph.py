@@ -75,7 +75,7 @@ def save_grouped_bar_graph(backends: List[str],
     # X axis as categorical sizes (more readable for grouped bars)
     plt.xticks(x, [str(s) for s in used_fft_sizes])
     plt.xlabel('Convolution Size (FFT size)')
-    plt.ylabel('ms (lower is better)')
+    plt.ylabel('GB/s (higher is better)')
     plt.title('Convolution Performance Comparison (Grouped Bars)')
     plt.grid(True, axis='y', linestyle='--', alpha=0.4)
     plt.legend()
@@ -95,4 +95,4 @@ if __name__ == '__main__':
     sorted_fft_sizes = sorted(fft_sizes)
 
     # Grouped bar chart (side-by-side per size)
-    save_grouped_bar_graph(sorted_backends, sorted_fft_sizes, merged)
+    save_grouped_bar_graph(["torch", "cufft", "zipfft", "vkdispatch"], sorted_fft_sizes, merged)
