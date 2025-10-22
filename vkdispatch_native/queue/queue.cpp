@@ -146,6 +146,8 @@ void Queue::wait_for_timestamp(uint64_t timestamp) {
     }
 
     while(last_completed < timestamp) {
+        LOG_INFO("Last completed timestamp: %llu, waiting for timestamp: %llu on queue %d", last_completed, timestamp, this->queue_index);
+
         VkSemaphoreWaitInfo wi = {};
         wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
         wi.semaphoreCount = 1;
@@ -174,9 +176,10 @@ void ingest_work_item(
     struct WorkHeader* work_header,
     uint64_t current_index) {
 
-    LOG_VERBOSE("Ingesting work item for queue %d, current index %llu", queue->queue_index, current_index);
+    LOG_INFO("Ingesting work item for queue %d, current index %llu", queue->queue_index, current_index);
 
     if (current_index + 1 > queue->inflight_cmd_buffer_count) {
+        LOG_INFO("Waiting for timestamp %llu on queue %d", current_index + 1 - queue->inflight_cmd_buffer_count, queue->queue_index);
         queue->wait_for_timestamp(current_index + 1 - queue->inflight_cmd_buffer_count);
     }
         

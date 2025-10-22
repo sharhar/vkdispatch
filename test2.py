@@ -11,6 +11,8 @@ kernel = vd.Buffer((1, SIZE, SIZE), vd.complex64)
 vd.fft.convolve(buffer, kernel, axis=1, print_shader=True)
 #vd.fft.fft(buffer, inverse=True)
 
+vd.queue_wait_idle()
+
 #vd.vkfft.convolve_2D(buffer, kernel, keep_shader_code=True)
 
 exit()

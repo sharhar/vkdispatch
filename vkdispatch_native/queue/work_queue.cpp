@@ -36,60 +36,119 @@ void WorkQueue::stop() {
     this->cv_push.notify_all();
 }
 
-void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int queue_index, int record_type) {
-    std::unique_lock<std::mutex> lock(this->mutex);
+int WorkQueue::get_program_index(struct CommandList* command_list) {
+    int program_index = -1;
+
+    for(int i = 0; i < this->program_info_count; i++) {
+        // Sanity check
+        if(this->program_infos[i].ref_count < 0) {
+            set_error("Program reference count (%d) is negative!", this->program_infos[i].ref_count);
+            return -2;
+        }
+
+        // Program already exists, return its index
+        if(this->program_infos[i].program_id == command_list->program_id) {
+            return i;
+        }
+
+        // Found an available slot
+        if(this->program_infos[i].ref_count == 0) {
+            program_index = i;
+        }
+    }
+
+    return program_index;
+}
+
+int WorkQueue::get_work_index() {
+    for(int i = 0; i < this->work_info_count; i++) {
+        if(!this->work_infos[i].dirty) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+void WorkQueue::prepare_work(int work_index, int program_index, struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int queue_index, int record_type) {
+    // Setup work info
+    work_infos[work_index].program_index = program_index;
+    work_infos[work_index].queue_index = queue_index;
+    work_infos[work_index].dirty = true;
+    work_infos[work_index].state = WORK_STATE_PENDING;
+    work_infos[work_index].work_id = __work_id;
+    __work_id += 1;
+
+    struct WorkHeader* work_header = this->work_infos[work_index].header;
+
+    // Update the program if needed
+    if(this->program_infos[program_index].program_id != command_list->program_id) {
+        // Sanity check
+        if(this->program_infos[program_index].ref_count != 0) {
+            set_error("Program ID mismatch!!");
+            return;
+        }
+
+        // Update program commands
+        this->program_infos[program_index].commands->clear();
+        for(CommandInfo command : command_list->commands) {
+            this->program_infos[program_index].commands->push_back(command);
+        }
+
+        // Update program ID
+        this->program_infos[program_index].program_id = command_list->program_id;
+    }
+
+    size_t work_size = command_list_get_instance_size_extern(command_list) * instance_count;
+
+    // Resize work header if needed
+    if(work_size > work_header->array_size) {
+        work_header = (struct WorkHeader*)realloc(work_header, sizeof(struct WorkHeader) + work_size);
+        work_header->array_size = work_size;
+        work_header->info_index = work_index;
+        this->work_infos[work_index].header = work_header;
+    }
+
+    // Setup work header
+    work_header->instance_count = instance_count;
+    work_header->instance_size = command_list_get_instance_size_extern(command_list);
+    work_header->commands = this->program_infos[program_index].commands;
+    work_header->program_info_index = program_index;
+    work_header->record_type = (RecordType)record_type; 
     
-    auto start = std::chrono::high_resolution_clock::now();
+    // Copy instance data if needed
+    if(work_size > 0)
+        memcpy(&work_header[1], instance_buffer, work_size);
+    
+    // Increment program reference count
+    this->program_infos[program_index].ref_count += 1;
+}
+
+bool WorkQueue::push(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int queue_index, int record_type) {
+    std::unique_lock<std::mutex> lock(this->mutex);
 
     int found_indicies[2] = {-1, -1};
 
-    this->cv_pop.wait(lock, [this, start, command_list, &found_indicies] () {
+    bool ready = this->cv_pop.wait_for(lock, std::chrono::seconds(1), [this, command_list, &found_indicies] () {
         if(!running) {
             return true;
         }
 
-        auto end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> elapsed = end - start;
-        
-        if(elapsed.count() > 500) {
-            set_error("Timed out waiting for room in queue");
+        int program_index = get_program_index(command_list);
+
+        // Error occurred, return now and exit
+        if(program_index == -2)
             return true;
-        }
-
-        int program_index = -1;
-
-        for(int i = 0; i < this->program_info_count; i++) {
-            if(this->program_infos[i].ref_count < 0) {
-                set_error("Program reference count (%d) is negative!!!!", this->program_infos[i].ref_count);
-                return true;
-            }
-
-            if(this->program_infos[i].program_id == command_list->program_id) {
-                program_index = i;
-                break;
-            }
-
-            if(this->program_infos[i].ref_count == 0) {
-                program_index = i;
-            }
-        }
-
-        if(program_index == -1) {
+        
+        // No available program slots, try again later
+        if(program_index == -1)
             return false;
-        }
 
-        int work_index = -1;
+        int work_index = get_work_index();
 
-        for(int i = 0; i < this->work_info_count; i++) {
-            if(!this->work_infos[i].dirty) {
-                work_index = i;
-                break;
-            }
-        }
-
-        if(work_index == -1) {
+        // No available work slots, try again later
+        if(work_index == -1)
             return false;
-        }
 
         found_indicies[0] = program_index;
         found_indicies[1] = work_index;
@@ -97,63 +156,20 @@ void WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
         return true;
     });
 
+    if(!ready)
+        return false;
+
     if(!running) {
-        return;
+        return true;
     }
 
-    RETURN_ON_ERROR(;)
+    RETURN_ON_ERROR(true)
 
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = end - start;
-
-    if(elapsed.count() >= 5) {
-        return;
-    }
-
-    work_infos[found_indicies[1]].program_index = found_indicies[0];
-    work_infos[found_indicies[1]].queue_index = queue_index;
-    work_infos[found_indicies[1]].dirty = true;
-    work_infos[found_indicies[1]].state = WORK_STATE_PENDING;
-    work_infos[found_indicies[1]].work_id = __work_id;
-    __work_id += 1;
-
-    struct WorkHeader* work_header = this->work_infos[found_indicies[1]].header;
-
-    if(this->program_infos[found_indicies[0]].program_id != command_list->program_id) {
-        if(this->program_infos[found_indicies[0]].ref_count != 0) {
-            set_error("Program ID mismatch!!");
-            return;
-        }
-
-        this->program_infos[found_indicies[0]].commands->clear();
-        for(CommandInfo command : command_list->commands) {
-            this->program_infos[found_indicies[0]].commands->push_back(command);
-        }
-
-        this->program_infos[found_indicies[0]].program_id = command_list->program_id;
-    }
-
-    size_t work_size = command_list_get_instance_size_extern(command_list) * instance_count;
-
-    if(work_size > work_header->array_size) {
-        work_header = (struct WorkHeader*)realloc(work_header, sizeof(struct WorkHeader) + work_size);
-        work_header->array_size = work_size;
-        work_header->info_index = found_indicies[1];
-        this->work_infos[found_indicies[1]].header = work_header;
-    }
-
-    work_header->instance_count = instance_count;
-    work_header->instance_size = command_list_get_instance_size_extern(command_list);
-    work_header->commands = this->program_infos[found_indicies[0]].commands;
-    work_header->program_info_index = found_indicies[0];
-    work_header->record_type = (RecordType)record_type; 
-    
-    if(work_size > 0)
-        memcpy(&work_header[1], instance_buffer, work_size);
-    
-    this->program_infos[found_indicies[0]].ref_count += 1;
+    prepare_work(found_indicies[1], found_indicies[0], command_list, instance_buffer, instance_count, queue_index, record_type);
 
     this->cv_push.notify_all();
+
+    return true;
 }
 
 bool WorkQueue::pop(struct WorkHeader** header, int queue_index) {
