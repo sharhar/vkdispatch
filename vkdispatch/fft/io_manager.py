@@ -13,7 +13,7 @@ class IOManager:
     signature: vd.ShaderSignature
 
     def __init__(self,
-                    builder: vc.ShaderBuilder,
+                    shader_context: vd.ShaderContext,
                     output: Optional[vd.MappingFunction],
                     input: Optional[vd.MappingFunction] = None,
                     kernel: Optional[vd.MappingFunction] = None):
@@ -31,8 +31,7 @@ class IOManager:
             if len(all_types) == 0:
                 raise ValueError("A big error happened")
     
-            self.signature = vd.ShaderSignature.from_type_annotations(builder, all_types)
-            sig_vars = self.signature.get_variables()
+            sig_vars = shader_context.declare_input_arguments(all_types)
     
             output_count = len(output_types)
             input_count = len(input_types)

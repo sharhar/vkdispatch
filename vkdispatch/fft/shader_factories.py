@@ -13,7 +13,7 @@ def make_fft_shader(
         normalize_inverse: bool = True,
         r2c: bool = False,
         input_map: vd.MappingFunction = None,
-        output_map: vd.MappingFunction = None) -> Tuple[vd.ShaderObject, Tuple[int, int, int]]:
+        output_map: vd.MappingFunction = None) -> Tuple[vd.ShaderFunction, Tuple[int, int, int]]:
 
     with vd.fft.fft_context(
         buffer_shape,
@@ -45,7 +45,7 @@ def make_convolution_shader(
         axis: int = None, 
         normalize: bool = True,
         input_map: vd.MappingFunction = None,
-        output_map: vd.MappingFunction = None) -> Tuple[vd.ShaderObject, Tuple[int, int, int]]:
+        output_map: vd.MappingFunction = None) -> Tuple[vd.ShaderFunction, Tuple[int, int, int]]:
 
     if kernel_map is None:
         def kernel_map_func(kernel_buffer: vc.Buffer[c64]):
