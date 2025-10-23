@@ -21,33 +21,18 @@ def shader(
         exec_size=None,
         local_size=None,
         workgroups=None,    
-        enable_subgroup_ops: bool = True,
-        enable_atomic_float_ops: bool = True,
-        enable_printf: bool = True,
-        enable_exec_bounds: bool = True):
+        flags: vc.ShaderFlags = vc.ShaderFlags.NONE):
     if workgroups is not None and exec_size is not None:
         raise ValueError("Cannot specify both 'workgroups' and 'exec_size'")
 
     def decorator(func: Callable[P, None]) -> Callable[P, None]:
-        shader_name = f"{func.__module__}.{func.__name__}"
-
-        with vc.builder_context(
-            enable_subgroup_ops=enable_subgroup_ops,
-            enable_atomic_float_ops=enable_atomic_float_ops,
-            enable_printf=enable_printf,
-            enable_exec_bounds=enable_exec_bounds
-        ) as builder:
-            signature = vd.ShaderSignature.from_inspectable_function(builder, func)
-            
-            func(*signature.get_variables())
-
-            return vd.ShaderObject(
-                builder.build(shader_name), 
-                signature,
-                local_size=local_size,
-                workgroups=workgroups,
-                exec_count=exec_size
-            )
+        return vd.ShaderFunction(
+            func,
+            local_size=local_size,
+            workgroups=workgroups,
+            exec_count=exec_size,
+            flags=flags
+        )
     
     return decorator
 

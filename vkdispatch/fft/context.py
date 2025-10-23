@@ -12,21 +12,21 @@ from .resources import FFTResources
 from .cooley_tukey import radix_composite, apply_twiddle_factors
 
 class FFTCallable:
-    shader_object: vd.ShaderObject
+    shader_function: vd.ShaderFunction
     exec_size: Tuple[int, int, int]
 
-    def __init__(self, shader_object: vd.ShaderObject, exec_size: Tuple[int, int, int]):
-        self.shader_object = shader_object
+    def __init__(self, shader_function: vd.ShaderFunction, exec_size: Tuple[int, int, int]):
+        self.shader_function = shader_function
         self.exec_size = exec_size
 
     def __call__(self, *args, **kwargs):
-        self.shader_object(*args, exec_size=self.exec_size, **kwargs)
+        self.shader_function(*args, exec_size=self.exec_size, **kwargs)
 
     def __repr__(self):
-        return repr(self.shader_object)
+        return repr(self.shader_function)
 
 class FFTContext:
-    builder: vc.ShaderBuilder
+    shader_context: vd.ShaderContext
     io_manager: IOManager
     config: FFTConfig
     grid: FFTGridManager
@@ -36,7 +36,7 @@ class FFTContext:
     name: str
 
     def __init__(self,
-                builder: vc.ShaderBuilder,
+                shader_context: vd.ShaderContext,
                 buffer_shape: Tuple,
                 axis: int = None,
                 max_register_count: int = None,
@@ -44,13 +44,13 @@ class FFTContext:
                 input_map: Union[vd.MappingFunction, type, None] = None,
                 kernel_map: Union[vd.MappingFunction, type, None] = None,
                 name: str = None):
-        self.builder = builder
+        self.shader_context = shader_context
         
         self.config = FFTConfig(buffer_shape, axis, max_register_count)
         self.grid = FFTGridManager(self.config, True)
         self.resources = FFTResources(self.config, self.grid)
         
-        self.io_manager = IOManager(builder, output_map, input_map, kernel_map)
+        self.io_manager = IOManager(shader_context, output_map, input_map, kernel_map)
         self.sdata = FFTSDataManager(self.config, self.grid)
         
         self.fft_callable = None
@@ -154,13 +154,7 @@ class FFTContext:
         self.sdata.write_registers(self.resources, self.config, stage_index, registers)
         
     def compile_shader(self):
-        self.fft_callable = FFTCallable(vd.ShaderObject(
-                self.builder.build(self.name),
-                self.io_manager.signature,
-                local_size=self.grid.local_size
-            ),
-            self.grid.exec_size
-        )
+        self.fft_callable = FFTCallable(self.shader_context.get_function(self.grid.local_size), self.grid.exec_size)
 
     def get_callable(self) -> FFTCallable:
         assert self.fft_callable is not None, "Shader not compiled yet... something is wrong"
@@ -276,9 +270,9 @@ def fft_context(buffer_shape: Tuple,
                 kernel_map: Union[vd.MappingFunction, type, None] = None):
 
     try:
-        with vc.builder_context(enable_exec_bounds=False) as builder:
+        with vd.shader_context(vc.ShaderFlags.NO_EXEC_BOUNDS) as context:
             fft_context = FFTContext(
-                builder=builder,
+                shader_context=context,
                 buffer_shape=buffer_shape,
                 axis=axis,
                 max_register_count=max_register_count,

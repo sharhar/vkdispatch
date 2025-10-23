@@ -53,9 +53,11 @@ from .shader_generation.signature import ShaderArgumentType
 from .shader_generation.signature import ShaderArgument
 from .shader_generation.signature import ShaderSignature
 
-from .shader_generation.shader_object import ShaderObject
-from .shader_generation.shader_object import ExectionBounds
-from .shader_generation.shader_object import LaunchParametersHolder
+from .shader_generation.shader_function import ShaderFunction
+from .shader_generation.shader_function import ExectionBounds
+from .shader_generation.shader_function import LaunchParametersHolder
+
+from .shader_generation.shader_context import ShaderContext, shader_context
 
 from .shader_generation.mapping_shader import map, map_registers, MappingFunction
 

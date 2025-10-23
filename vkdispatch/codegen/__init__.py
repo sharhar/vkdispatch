@@ -4,13 +4,12 @@ from .arguments import Buffer, Image1D, Image2D, Image3D
 
 from .arguments import _ArgType
 from .struct_builder import StructBuilder, StructElement
-#from .variables import ShaderVariable # BaseVariable, ShaderVariable
-#from .variables import BoundVariable, BufferVariable, ImageVariable
+
+from .variable import ShaderVariable, BoundVariable, ImageVariable, BufferVariable, SharedBuffer
+from .variable import ShaderDescription
 
 from .builder import ShaderBinding
-from .builder import ShaderDescription
-from .builder import ShaderBuilder
-from .builder import ShaderVariable, BufferVariable, ImageVariable
+from .builder import ShaderBuilder, ShaderFlags
 
 from .global_builder import inf_f32, ninf_f32, set_global_builder, comment
 from .global_builder import global_invocation, local_invocation, workgroup
@@ -41,7 +40,7 @@ from .global_builder import subgroup_or, subgroup_xor, subgroup_elect
 from .global_builder import subgroup_barrier, mapping_index, kernel_index, mapping_registers
 from .global_builder import set_kernel_index, set_mapping_index, set_mapping_registers
 from .global_builder import printf, unravel_index
-from .global_builder import print_vars as print, builder_context
+from .global_builder import print_vars as print
 from .global_builder import new, new_float, new_int, new_uint
 from .global_builder import new_vec2, new_ivec2, new_uvec2
 from .global_builder import new_vec3, new_ivec3, new_uvec3

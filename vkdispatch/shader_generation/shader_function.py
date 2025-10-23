@@ -128,24 +128,55 @@ class ExectionBounds:
         
         return (my_blocks, my_limits)
 
-class ShaderObject:
+class ShaderFunction:
     plan: vd.ComputePlan
+    func: Callable
     shader_description: vc.ShaderDescription
     shader_signature: vd.ShaderSignature
     bounds: ExectionBounds
     ready: bool
     source: str
+    flags: vc.ShaderFlags
 
-    def __init__(self, description: vc.ShaderDescription, signature: vd.ShaderSignature, local_size=None, workgroups=None, exec_count=None) -> None:
+    def __init__(self,
+                 func: Callable,
+                 local_size=None,
+                 workgroups=None,
+                 exec_count=None,
+                 flags: vc.ShaderFlags = vc.ShaderFlags.NONE) -> None:
+        
         self.plan = None
-        self.shader_description = description
-        self.shader_signature = signature
+        self.func = func
+        self.shader_description = None
+        self.shader_signature = None
         self.bounds = None
         self.ready = False
         self.source = None
         self.local_size = local_size
         self.workgroups = workgroups
         self.exec_size = exec_count
+        self.flags = flags
+
+    def from_description(
+        shader_description: vc.ShaderDescription,
+        shader_signature: vd.ShaderSignature,
+        local_size=None,
+        workgroups=None,
+        exec_count=None,
+        
+    ) -> "ShaderFunction":
+        shader_obj = ShaderFunction(
+            func=None,
+            local_size=local_size,
+            workgroups=workgroups,
+            exec_count=exec_count,
+            flags=vc.ShaderFlags.NONE
+        )
+
+        shader_obj.shader_description = shader_description
+        shader_obj.shader_signature = shader_signature
+
+        return shader_obj
 
     def build(self):
         if self.ready:
@@ -156,6 +187,25 @@ class ShaderObject:
             if self.local_size is not None
             else [vd.get_context().max_workgroup_size[0], 1, 1]
         )
+
+        if self.shader_description is None or self.shader_signature is None:
+            assert self.shader_description is None and self.shader_signature is None, "Shader description and signature must both be set or both be None!"
+            assert self.func is not None, "Cannot build a shader without a function!"
+
+            builder = vc.ShaderBuilder(
+                flags=self.flags,
+                is_apple_device=vd.get_context().is_apple()
+            )
+            old_builder = vc.set_global_builder(builder)
+
+            signature = vd.ShaderSignature.from_inspectable_function(builder, self.func)
+            
+            self.func(*signature.get_variables())
+
+            vc.set_global_builder(old_builder)
+
+            self.shader_description = builder.build(self.func.__module__ + "." + self.func.__name__)
+            self.shader_signature = signature
 
         self.bounds = ExectionBounds(self.shader_signature.get_names_and_defaults(), my_local_size, self.workgroups, self.exec_size)
 
