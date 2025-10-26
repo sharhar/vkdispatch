@@ -9,6 +9,7 @@ from .config import FFTConfig
 from .grid_manager import FFTGridManager
 from .sdata_manager import FFTSDataManager
 from .resources import FFTResources
+from .registers import FFTRegisters
 from .cooley_tukey import radix_composite, apply_twiddle_factors
 
 class FFTCallable:
@@ -30,6 +31,7 @@ class FFTContext:
     io_manager: IOManager
     config: FFTConfig
     grid: FFTGridManager
+    registers: FFTRegisters
     sdata: FFTSDataManager
     resources: FFTResources
     fft_callable: FFTCallable
@@ -49,173 +51,96 @@ class FFTContext:
         self.config = FFTConfig(buffer_shape, axis, max_register_count)
         self.grid = FFTGridManager(self.config, True)
         self.resources = FFTResources(self.config, self.grid)
-        
+
         self.io_manager = IOManager(shader_context, output_map, input_map, kernel_map)
         self.sdata = FFTSDataManager(self.config, self.grid)
+        
+        self.registers = self.allocate_registers("fft")
         
         self.fft_callable = None
         self.name = name if name is not None else f"fft_shader_{buffer_shape}_{axis}"
 
+    def allocate_registers(self, name: str, count: int = None) -> FFTRegisters:
+        assert name is not None, "Must provide a name for allocated registers"
+
+        if count is None:
+            count = self.config.register_count
+
+        return FFTRegisters(self.resources, self.sdata, count, name)
+
     def read_input(self,
                    r2c: bool = False,
                    inverse: bool = None,
-                   registers: Optional[List[vc.ShaderVariable]] = None):
+                   registers: Optional[FFTRegisters] = None):
         if r2c:
             assert inverse is not None, "Must specify inverse for r2c read"
 
+        if registers is None:
+            registers = self.registers
+
         self.io_manager.input_proxy.read_registers(
+            registers,
             self.resources,
             self.config,
             self.grid,
             r2c=r2c,
-            inverse=inverse,
-            registers=registers
+            inverse=inverse
         )
 
     def write_output(self,
                     r2c: bool = False,
                     inverse: bool = None,
                     normalize: bool = None,
-                    registers: Optional[List[vc.ShaderVariable]] = None):
+                    registers: Optional[FFTRegisters] = None):
+        
+        if registers is None:
+            registers = self.registers
+    
         if inverse is not None:
             if inverse:
                 assert normalize is not None, "Must specify normalize when specifying inverse"
-            
-                if registers is None:
-                    registers = self.resources.registers
 
-                for register in registers:
+                for i in range(registers.count):
                     if normalize:
-                        register[:] = register / self.config.N
+                        registers[i] = registers[i] / self.config.N
 
         self.io_manager.output_proxy.write_registers(
+            registers,
             self.resources,
             self.config,
             self.grid,
             r2c=r2c,
-            inverse=inverse,
-            registers=registers
+            inverse=inverse
         )
 
-    def read_kernel(self,
-                   r2c: bool = False,
-                   inverse: bool = None,
-                   registers: Optional[List[vc.ShaderVariable]] = None):
-        if r2c:
-            assert inverse is not None, "Must specify inverse for r2c read"
-
-        self.io_manager.kernel_proxy.read_registers(
-            self.resources,
-            self.config,
-            self.grid,
-            r2c=r2c,
-            inverse=inverse,
-            registers=registers
-        )
-
-    def write_kernel(self,
-                    r2c: bool = False,
-                    inverse: bool = None,
-                    normalize: bool = None,
-                    registers: Optional[List[vc.ShaderVariable]] = None):
-        if inverse is not None:
-            if inverse:
-                assert normalize is not None, "Must specify normalize when specifying inverse"
-            
-                if registers is None:
-                    registers = self.resources.registers
-
-                for register in registers:
-                    if normalize:
-                        register[:] = register / self.config.N
-
-        self.io_manager.kernel_proxy.write_registers(
-            self.resources,
-            self.config,
-            self.grid,
-            r2c=r2c,
-            inverse=inverse,
-            registers=registers
-        )
-
-    def read_sdata(self,
-                   stage_index: int = 0,
-                   invocation_index: int = None,
-                   registers: Optional[List[vc.ShaderVariable]] = None):
-        self.sdata.read_registers(
-            self.resources,
-            self.config,
-            stage_index,
-            invocation_index,
-            registers
-        )
-
-    def write_sdata(self, stage_index: int = -1, registers: Optional[List[vc.ShaderVariable]] = None):
-        self.sdata.write_registers(self.resources, self.config, stage_index, registers)
+    def read_kernel(self, registers: Optional[FFTRegisters] = None):
+        if registers is None:
+            registers = self.registers
         
+        self.io_manager.kernel_proxy.read_registers(
+            registers,
+            self.resources,
+            self.config,
+            self.grid
+        )
+
+    def write_kernel(self, registers: Optional[FFTRegisters] = None):
+        if registers is None:
+            registers = self.registers
+        
+        self.io_manager.kernel_proxy.write_registers(
+            registers,
+            self.resources,
+            self.config,
+            self.grid
+        )
+
     def compile_shader(self):
         self.fft_callable = FFTCallable(self.shader_context.get_function(self.grid.local_size), self.grid.exec_size)
 
     def get_callable(self) -> FFTCallable:
         assert self.fft_callable is not None, "Shader not compiled yet... something is wrong"
         return self.fft_callable
-
-    def register_input_format(self, stage_index: int = 0) -> Dict[int, int]:
-        in_format = {}
-
-        stride = self.config.N // self.config.stages[stage_index].fft_length
-
-        register_count = len(self.resources.registers)
-        register_index_list = list(range(register_count))
-
-        for invocation in self.resources.invocations[stage_index]:
-            sub_registers = register_index_list[invocation.register_selection]
-            
-            for i in range(len(sub_registers)):
-                in_format[invocation.get_read_index(stride * i)] = sub_registers[i]
-
-        return in_format
-
-    def register_output_format(self, stage_index: int = -1) -> Dict[int, int]:
-        out_format = {}
-
-        register_count = len(self.resources.registers)
-        register_index_list = list(range(register_count))
-
-        for jj in range(self.config.stages[stage_index].fft_length):
-            for invocation in self.resources.invocations[stage_index]:
-                out_format[invocation.get_write_index(jj)] = register_index_list[invocation.register_selection][jj]
-
-        return out_format
-
-    def register_shuffle(self, output_stage: int = -1, input_stage: int = 0, registers: List[vc.ShaderVariable] = None) -> Dict[int, int]:
-        out_format = self.register_output_format(output_stage)
-        in_format = self.register_input_format(input_stage)
-
-        if out_format.keys() != in_format.keys():
-            self.write_sdata(stage_index=output_stage, registers=registers)
-            self.read_sdata(stage_index=input_stage, registers=registers)
-            return
-        
-        if registers is None:
-            registers = self.resources.registers
-
-        shuffled_registers = [None] * len(registers)
-
-        for i in range(len(registers)):
-            format_key = None
-            
-            for k, v in in_format.items():
-                if v == i:
-                    format_key = k
-                    break
-
-            assert format_key is not None, "Could not find register in output format???"
-
-            shuffled_registers[i] = registers[out_format[format_key]]
-
-        for i in range(len(registers)):
-            registers[i] = shuffled_registers[i]
 
     def execute(self, inverse: bool = False):
         stage_count = len(self.config.stages)
@@ -226,11 +151,7 @@ class FFTContext:
             vc.comment(f"Processing prime group {stage.primes} by doing {stage.instance_count} radix-{stage.fft_length} FFTs on {self.config.N // stage.registers_used} groups")
 
             if i != 0:
-                self.sdata.read_registers(
-                    resources=self.resources,
-                    config=self.config,
-                    stage_index=i
-                )
+                self.registers.shuffle(output_stage=i-1, input_stage=i)
 
             self.resources.stage_begin(i)
             for ii, invocation in enumerate(self.resources.invocations[i]):
@@ -239,27 +160,20 @@ class FFTContext:
                 apply_twiddle_factors(
                     resources=self.resources,
                     inverse=inverse,
-                    register_list=self.resources.registers[invocation.register_selection], 
+                    register_list=self.registers.slice(invocation.register_selection), 
                     twiddle_index=invocation.inner_block_offset, 
                     twiddle_N=invocation.block_width
                 )
 
-                self.resources.registers[invocation.register_selection] = radix_composite(
+                self.registers.slice_set(invocation.register_selection, radix_composite(
                     resources=self.resources,
                     inverse=inverse,
-                    register_list=self.resources.registers[invocation.register_selection],
+                    register_list=self.registers.slice(invocation.register_selection),
                     primes=stage.primes
-                )
+                ))
 
             self.resources.invocation_end(i)
             self.resources.stage_end(i)
-
-            if i < stage_count - 1:
-                self.sdata.write_registers(
-                    resources=self.resources,
-                    config=self.config,
-                    stage_index=i
-                )
 
 @contextlib.contextmanager
 def fft_context(buffer_shape: Tuple,

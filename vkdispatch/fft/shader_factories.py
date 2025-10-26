@@ -66,28 +66,22 @@ def make_convolution_shader(
     ) as ctx:
         vc.comment("Performing forward FFT stage in convolution shader")
 
-        ctx.read_input()
-        
+        ctx.read_input() 
         ctx.execute(inverse=False)
-        ctx.register_shuffle()
+        ctx.registers.shuffle()
 
         vc.comment("Performing convolution stage in convolution shader")
         backup_registers = None
 
         if kernel_num > 1:
-            backup_registers = []
-            for i in range(len(ctx.resources.registers)):
-                backup_registers.append(vc.new(
-                    c64, ctx.resources.registers[i],
-                    var_name=f"backup_register_{i}"))
+            backup_registers = ctx.allocate_registers("backup")
+            backup_registers.read_from_registers(ctx.registers)
 
         for kern_index in range(kernel_num):
             vc.comment(f"Processing kernel {kern_index}")
 
             if backup_registers is not None:
-                # Restore the main registers from backup if needed
-                for i in range(len(ctx.resources.registers)):
-                    ctx.resources.registers[i][:] = backup_registers[i]
+                ctx.registers.read_from_registers(backup_registers)
 
             vc.set_kernel_index(kern_index)
             ctx.read_kernel()

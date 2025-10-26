@@ -5,7 +5,8 @@ from typing import Literal, Union, List
 
 from .config import FFTConfig
 from .grid_manager import FFTGridManager
-from .resources import FFTResources
+#from .resources import FFTResources
+#from .registers import FFTRegisters
 
 class FFTSDataManager:
     sdata: vc.Buff[vc.c64]
@@ -51,88 +52,99 @@ class FFTSDataManager:
 
             self.sdata_offset = vc.new_uint(sdata_offset_value, var_name="sdata_offset")
     
-    def read_registers(self,
-                            resources: FFTResources,
-                            config: FFTConfig,
-                            stage_index: int = 0,
-                            invocation_index: int = None,
-                            registers: List[vc.ShaderVariable] = None):
-        
-        if invocation_index is None:
-            if self.last_op is not None and self.last_op:
-                vc.barrier()
 
-            self.last_op = False
-
-            resources.stage_begin(stage_index)
-
-            for ii, invocation in enumerate(resources.invocations[stage_index]):
-                resources.invocation_gaurd(stage_index, ii)
-
-                register_selection = None
-
-                if registers is not None:
-                    register_selection = registers[invocation.register_selection]
-
-                self.read_registers(resources, config, stage_index, ii, register_selection)
-
-            resources.invocation_end(stage_index)
-            resources.stage_end(stage_index)
-
-            return
-
-        vc.comment(f"Loading from shared data buffer to registers")
-
-        invocation = resources.invocations[stage_index][invocation_index]
-        
-        if registers is None:
-            registers = resources.registers[invocation.register_selection]
-
-        resources.io_index[:] = invocation.instance_id + self.sdata_offset
-
-        stride = self.fft_N // config.stages[stage_index].fft_length
-
-        for i in range(len(registers)):
-            if self.use_padding:
-                resources.io_index_2[:] = resources.io_index + stride * i + ((resources.io_index + stride * i) / self.sdata_row_size)
-                registers[i][:] = self.sdata[resources.io_index_2]
-            else:
-                registers[i][:] = self.sdata[resources.io_index + stride * i]
-
-    def write_registers(self,
-                            resources: FFTResources,
-                            config: FFTConfig,
-                            stage_index: int,
-                            registers: List[vc.ShaderVariable] = None):
-        stage = config.stages[stage_index]
-
-        if registers is None:
-            registers = resources.registers
-
-        self.use_padding = self.padding_enabled and resources.output_strides[stage_index] < 32
-
-        vc.comment(f"Storing from registers to shared data buffer with fft length {stage.fft_length} and invocations {len(resources.invocations[stage_index])}")
-
-        if self.last_op is not None and not self.last_op:
+    def do_op(self, op: bool):
+        if self.last_op is not None and self.last_op != op:
             vc.barrier()
+
+        self.last_op = op
+
+    def op_read(self) -> bool:
+        self.do_op(False)
+
+    def op_write(self) -> bool:
+        self.do_op(True)
+
+    # def read_registers(self,
+    #                         registers: FFTRegisters,
+    #                         resources: FFTResources,
+    #                         config: FFTConfig,
+    #                         stage_index: int = 0):
         
-        self.last_op = True
+    #     self.op_read()
 
-        resources.stage_begin(stage_index)
+    #     for read_op in registers.iter_read(stage_index=stage_index):
+    #         if read_op.first_invocation_instance:
+    #             resources.io_index[:] = read_op.offset + self.sdata_offset
+    #         else:
+    #             resources.io_index += read_op.stride
 
-        for jj in range(stage.fft_length):
-            for ii, invocation in enumerate(resources.invocations[stage_index]):
-                resources.invocation_gaurd(stage_index, ii)
+    #         if self.use_padding:
+    #             resources.io_index_2[:] = resources.io_index + ((resources.io_index) / self.sdata_row_size)
+    #             read_op.register[:] = self.sdata[resources.io_index_2]
+    #         else:
+    #             read_op.register[:] = self.sdata[resources.io_index]
 
-                sdata_index = self.sdata_offset + invocation.sub_sequence_offset + jj * resources.output_strides[stage_index]
+        # resources.stage_begin(stage_index)
+
+        # for invocation_index, invocation in enumerate(resources.invocations[stage_index]):
+        #     resources.invocation_gaurd(stage_index, invocation_index)
+
+        #     register_selection = registers.slice(invocation.register_selection)
+
+        #     resources.io_index[:] = invocation.instance_id + self.sdata_offset
+
+        #     stride = self.fft_N // config.stages[stage_index].fft_length
+
+        #     for i in range(len(register_selection)):
+        #         if self.use_padding:
+        #             resources.io_index_2[:] = resources.io_index + stride * i + ((resources.io_index + stride * i) / self.sdata_row_size)
+        #             register_selection[i][:] = self.sdata[resources.io_index_2]
+        #         else:
+        #             register_selection[i][:] = self.sdata[resources.io_index + stride * i]
+
+        # resources.invocation_end(stage_index)
+        # resources.stage_end(stage_index)
+        
+
+    # def write_registers(self,
+    #                         registers: FFTRegisters,
+    #                         resources: FFTResources,
+    #                         config: FFTConfig,
+    #                         stage_index: int):
+    #     stage = config.stages[stage_index]
+
+    #     self.use_padding = self.padding_enabled and resources.output_strides[stage_index] < 32
+
+    #     vc.comment(f"Storing from registers to shared data buffer with fft length {stage.fft_length} and invocations {len(resources.invocations[stage_index])}")
+
+    #     self.op_write()
+
+    #     for write_op in registers.iter_write(stage_index=stage_index):
+    #         sdata_index = write_op.fft_index
+
+    #         if self.use_padding:
+    #             resources.io_index[:] = sdata_index
+    #             resources.io_index[:] = resources.io_index + resources.io_index / self.sdata_row_size
+    #             sdata_index = resources.io_index
+
+    #         self.sdata[sdata_index] = write_op.register
+
+        # resources.stage_begin(stage_index)
+
+        # for jj in range(stage.fft_length):
+        #     for ii, invocation in enumerate(resources.invocations[stage_index]):
+        #         resources.invocation_gaurd(stage_index, ii)
+
+        #         sdata_index = self.sdata_offset + invocation.sub_sequence_offset + jj * resources.output_strides[stage_index]
                 
-                if self.use_padding:
-                    resources.io_index[:] = sdata_index
-                    resources.io_index[:] = resources.io_index + resources.io_index / self.sdata_row_size
-                    sdata_index = resources.io_index
+        #         if self.use_padding:
+        #             resources.io_index[:] = sdata_index
+        #             resources.io_index[:] = resources.io_index + resources.io_index / self.sdata_row_size
+        #             sdata_index = resources.io_index
 
-                self.sdata[sdata_index] = registers[invocation.register_selection][jj]
+        #         self.sdata[sdata_index] = registers.slice(invocation.register_selection)[jj]
 
-            resources.invocation_end(stage_index)
+        #     resources.invocation_end(stage_index)
         
-        resources.stage_end(stage_index)
+        # resources.stage_end(stage_index)

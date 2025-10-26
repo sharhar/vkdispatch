@@ -1,7 +1,7 @@
 from .config import FFTConfig, FFTParams
 
 from .resources import FFTResources
-from .io_proxy import IOProxy
+from .io_proxy import IOProxy, IOFormat
 from .io_manager import IOManager
 
 from .context import fft_context
