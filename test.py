@@ -81,7 +81,7 @@ def test_rfft_1d():
 
 #test_fft_1d()
 
-data = np.random.rand(1001, 2, 11).astype(np.complex64)
+data = np.random.rand(55, 2).astype(np.complex64)
 test_data = vd.Buffer(data.shape, vd.complex64)
 
 test_data.write(data)

@@ -4,8 +4,8 @@ import numpy as np
 
 SIZE = 2 ** 6
 
-buffer = vd.Buffer((1, SIZE, SIZE), vd.complex64)
-kernel = vd.Buffer((1, SIZE, SIZE), vd.complex64)
+buffer = vd.Buffer((1, 77, 77), vd.complex64)
+kernel = vd.Buffer((1, 77, 77), vd.complex64)
 
 #vd.fft.fft(buffer)
 vd.fft.convolve(buffer, kernel, axis=1, print_shader=True)

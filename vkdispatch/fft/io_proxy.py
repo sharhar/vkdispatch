@@ -222,8 +222,6 @@ class IOProxy:
 
         vc.comment(f"Storing from registers to buffer")
         
-        resources.stage_begin(stage_index)
-
         output_batch_stride_y = config.batch_outer_stride
 
         if r2c:
