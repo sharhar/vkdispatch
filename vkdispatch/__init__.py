@@ -59,7 +59,7 @@ from .shader_generation.shader_function import LaunchParametersHolder
 
 from .shader_generation.shader_context import ShaderContext, shader_context
 
-from .shader_generation.mapping_shader import map, map_registers, MappingFunction
+from .shader_generation.mapping_shader import map, MappingFunction
 
 from .shader_generation.reduction_operations import ReductionOperation, SubgroupAdd, SubgroupMul, SubgroupMin
 from .shader_generation.reduction_operations import SubgroupMax, SubgroupAnd, SubgroupOr, SubgroupXor

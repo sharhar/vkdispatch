@@ -564,16 +564,19 @@ class ShaderBuilder:
         self.append_contents(f"while({self.proc_bool(arg)}) {'{'}\n")
         self.scope_num += 1
 
-    def new_scope(self, comment: str = None):
+    def new_scope(self, indent: bool = True, comment: str = None):
         if comment is None:
             self.append_contents("{\n")
         else:
             self.append_contents("{ " + f"/* {comment} */\n")
         
-        self.scope_num += 1
+        if indent:
+            self.scope_num += 1
 
-    def end(self):
-        self.scope_num -= 1
+    def end(self, indent: bool = True):
+        if indent:
+            self.scope_num -= 1
+            
         self.append_contents("}\n")
 
     def logical_and(self, arg1: ShaderVariable, arg2: ShaderVariable):

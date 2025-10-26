@@ -12,50 +12,36 @@ from .resources import FFTResources
 from .registers import FFTRegisters
 from .cooley_tukey import radix_composite, apply_twiddle_factors
 
-class FFTCallable:
-    shader_function: vd.ShaderFunction
-    exec_size: Tuple[int, int, int]
-
-    def __init__(self, shader_function: vd.ShaderFunction, exec_size: Tuple[int, int, int]):
-        self.shader_function = shader_function
-        self.exec_size = exec_size
-
-    def __call__(self, *args, **kwargs):
-        self.shader_function(*args, exec_size=self.exec_size, **kwargs)
-
-    def __repr__(self):
-        return repr(self.shader_function)
-
 class FFTContext:
     shader_context: vd.ShaderContext
-    io_manager: IOManager
     config: FFTConfig
     grid: FFTGridManager
     registers: FFTRegisters
     sdata: FFTSDataManager
     resources: FFTResources
-    fft_callable: FFTCallable
+    fft_callable: vd.ShaderFunction
     name: str
+
+    declared_shader_args: bool
+    declarer: str
 
     def __init__(self,
                 shader_context: vd.ShaderContext,
                 buffer_shape: Tuple,
                 axis: int = None,
                 max_register_count: int = None,
-                output_map: Union[vd.MappingFunction, type, None] = None,
-                input_map: Union[vd.MappingFunction, type, None] = None,
-                kernel_map: Union[vd.MappingFunction, type, None] = None,
                 name: str = None):
         self.shader_context = shader_context
+        self.declared_shader_args = False
+        self.declarer = None
         
         self.config = FFTConfig(buffer_shape, axis, max_register_count)
         self.grid = FFTGridManager(self.config, True)
         self.resources = FFTResources(self.config, self.grid)
 
-        self.io_manager = IOManager(shader_context, output_map, input_map, kernel_map)
-        self.sdata = FFTSDataManager(self.config, self.grid)
-        
         self.registers = self.allocate_registers("fft")
+        
+        self.sdata = FFTSDataManager(self.config, self.grid, self.registers)
         
         self.fft_callable = None
         self.name = name if name is not None else f"fft_shader_{buffer_shape}_{axis}"
@@ -66,83 +52,63 @@ class FFTContext:
         if count is None:
             count = self.config.register_count
 
-        return FFTRegisters(self.resources, self.sdata, count, name)
+        return FFTRegisters(self.resources, count, name)
 
-    def read_input(self,
-                   r2c: bool = False,
-                   inverse: bool = None,
-                   registers: Optional[FFTRegisters] = None):
-        if r2c:
-            assert inverse is not None, "Must specify inverse for r2c read"
+    def declare_shader_args(self, types: List) -> List[vc.ShaderVariable]:
+        assert not self.declared_shader_args, f"Shader arguments already declared with {self.declarer}"
+        self.declared_shader_args = True
+        self.declarer = "declare_shader_args"
+        return self.shader_context.declare_input_arguments(types)
 
-        if registers is None:
-            registers = self.registers
-
-        self.io_manager.input_proxy.read_registers(
-            registers,
-            self.resources,
-            self.config,
-            self.grid,
-            r2c=r2c,
-            inverse=inverse
+    def make_io_manager(self,
+                        output_map: Optional[vd.MappingFunction],
+                        input_map: Optional[vd.MappingFunction] = None,
+                        kernel_map: Optional[vd.MappingFunction] = None) -> IOManager:
+        assert not self.declared_shader_args, f"Shader arguments already declared with {self.declarer}"
+        self.declared_shader_args = True
+        self.declarer = "make_io_manager"
+        return IOManager(
+            default_registers=self.registers,
+            shader_context=self.shader_context,
+            output_map=output_map,
+            input_map=input_map,
+            kernel_map=kernel_map
         )
 
-    def write_output(self,
-                    r2c: bool = False,
-                    inverse: bool = None,
-                    normalize: bool = None,
-                    registers: Optional[FFTRegisters] = None):
-        
-        if registers is None:
-            registers = self.registers
-    
-        if inverse is not None:
-            if inverse:
-                assert normalize is not None, "Must specify normalize when specifying inverse"
-
-                for i in range(registers.count):
-                    if normalize:
-                        registers[i] = registers[i] / self.config.N
-
-        self.io_manager.output_proxy.write_registers(
-            registers,
-            self.resources,
-            self.config,
-            self.grid,
-            r2c=r2c,
-            inverse=inverse
-        )
-
-    def read_kernel(self, registers: Optional[FFTRegisters] = None):
+    def register_shuffle(self,
+                         registers: Optional[FFTRegisters] = None,
+                         output_stage: int = -1,
+                         input_stage: int = 0) -> bool:
         if registers is None:
             registers = self.registers
         
-        self.io_manager.kernel_proxy.read_registers(
-            registers,
-            self.resources,
-            self.config,
-            self.grid
+        if registers.try_shuffle(
+            output_stage=output_stage,
+            input_stage=input_stage
+        ):
+            return True
+
+        self.sdata.write_to_sdata(
+            registers=registers,
+            stage_index=output_stage
         )
 
-    def write_kernel(self, registers: Optional[FFTRegisters] = None):
-        if registers is None:
-            registers = self.registers
-        
-        self.io_manager.kernel_proxy.write_registers(
-            registers,
-            self.resources,
-            self.config,
-            self.grid
+        self.sdata.read_from_sdata(
+            registers=registers,
+            stage_index=input_stage
         )
 
     def compile_shader(self):
-        self.fft_callable = FFTCallable(self.shader_context.get_function(self.grid.local_size), self.grid.exec_size)
+        self.fft_callable = self.shader_context.get_function(
+            local_size=self.grid.local_size,
+            exec_count=self.grid.exec_size
+        )
 
-    def get_callable(self) -> FFTCallable:
+    def get_callable(self) -> vd.ShaderFunction:
         assert self.fft_callable is not None, "Shader not compiled yet... something is wrong"
         return self.fft_callable
 
-    def execute(self, inverse: bool = False):
+    def execute(self, inverse: bool):
         stage_count = len(self.config.stages)
 
         for i in range(stage_count):
@@ -151,7 +117,7 @@ class FFTContext:
             vc.comment(f"Processing prime group {stage.primes} by doing {stage.instance_count} radix-{stage.fft_length} FFTs on {self.config.N // stage.registers_used} groups")
 
             if i != 0:
-                self.registers.shuffle(output_stage=i-1, input_stage=i)
+                self.register_shuffle(output_stage=i-1, input_stage=i)
 
             self.resources.stage_begin(i)
             for ii, invocation in enumerate(self.resources.invocations[i]):
@@ -160,7 +126,7 @@ class FFTContext:
                 apply_twiddle_factors(
                     resources=self.resources,
                     inverse=inverse,
-                    register_list=self.registers.slice(invocation.register_selection), 
+                    register_list=self.registers.register_slice(invocation.register_selection), 
                     twiddle_index=invocation.inner_block_offset, 
                     twiddle_N=invocation.block_width
                 )
@@ -168,7 +134,7 @@ class FFTContext:
                 self.registers.slice_set(invocation.register_selection, radix_composite(
                     resources=self.resources,
                     inverse=inverse,
-                    register_list=self.registers.slice(invocation.register_selection),
+                    register_list=self.registers.register_slice(invocation.register_selection),
                     primes=stage.primes
                 ))
 
@@ -177,11 +143,8 @@ class FFTContext:
 
 @contextlib.contextmanager
 def fft_context(buffer_shape: Tuple,
-                axis: int = None,
-                max_register_count: int = None,
-                output_map: Union[vd.MappingFunction, type, None] = None,
-                input_map: Union[vd.MappingFunction, type, None] = None,
-                kernel_map: Union[vd.MappingFunction, type, None] = None):
+                axis: Optional[int] = None,
+                max_register_count: Optional[int] = None):
 
     try:
         with vd.shader_context(vc.ShaderFlags.NO_EXEC_BOUNDS) as context:
@@ -189,10 +152,7 @@ def fft_context(buffer_shape: Tuple,
                 shader_context=context,
                 buffer_shape=buffer_shape,
                 axis=axis,
-                max_register_count=max_register_count,
-                output_map=output_map,
-                input_map=input_map,
-                kernel_map=kernel_map
+                max_register_count=max_register_count
             )
 
             yield fft_context

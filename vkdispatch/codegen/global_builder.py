@@ -269,11 +269,11 @@ def return_statement(arg=None):
 def while_statement(arg: ShaderVariable):
     GlobalBuilder.obj.while_statement(arg)
 
-def new_scope():
-    GlobalBuilder.obj.new_scope()
+def new_scope(indent: bool = True, comment: str = None):
+    GlobalBuilder.obj.new_scope(indent=indent, comment=comment)
 
-def end():
-    GlobalBuilder.obj.end()
+def end(indent: bool = True):
+    GlobalBuilder.obj.end(indent=indent)
 
 def logical_and(arg1: ShaderVariable, arg2: ShaderVariable):
     return GlobalBuilder.obj.logical_and(arg1, arg2)

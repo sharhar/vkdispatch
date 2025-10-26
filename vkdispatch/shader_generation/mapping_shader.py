@@ -10,7 +10,6 @@ from typing import List, Callable, Union
 @dataclasses.dataclass(frozen=True)
 class MappingFunction:
     buffer_types: List[vd.dtype]
-    register_types: List[vd.dtype]
     return_type: vd.dtype
     mapping_function: Callable
 
@@ -29,23 +28,20 @@ class MappingFunction:
     
     def callback(self, *args):
         if self.return_type is None:
-            vc.new_scope()
+            vc.new_scope(indent=False)
             self.mapping_function(*args)
-            vc.end()
+            vc.end(indent=False)
             return
 
         return_var = vc.new(self.return_type)
 
-        vc.new_scope()
+        vc.new_scope(indent=False)
         return_var[:] = self.mapping_function(*args)
-        vc.end()
+        vc.end(indent=False)
 
         return return_var
 
-def map(func: Callable, register_types: List[vd.dtype] = None, return_type: vd.dtype = None, input_types: List[vd.dtype] = None) -> MappingFunction:
-    if register_types is None:
-        register_types = []
-
+def map(func: Callable, return_type: vd.dtype = None, input_types: List[vd.dtype] = None) -> MappingFunction:
     if return_type is None:
         func_signature = inspect.signature(func)
 
@@ -71,12 +67,5 @@ def map(func: Callable, register_types: List[vd.dtype] = None, return_type: vd.d
     return MappingFunction(
         buffer_types=input_types,
         return_type=return_type,
-        mapping_function=func,
-        register_types=register_types
+        mapping_function=func
     )
-
-def map_registers(register_types: List[vd.dtype]) -> Callable[[Callable], MappingFunction]:
-    def decorator(func: Callable):
-        return map(func, register_types)
-    
-    return decorator

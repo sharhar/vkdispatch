@@ -15,24 +15,25 @@ def make_fft_shader(
         input_map: vd.MappingFunction = None,
         output_map: vd.MappingFunction = None) -> Tuple[vd.ShaderFunction, Tuple[int, int, int]]:
 
-    with vd.fft.fft_context(
-        buffer_shape,
-        axis=axis,
-        input_map=input_map,
-        output_map=output_map
-    ) as ctx:
-        
-        ctx.read_input(
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+        io_manager = ctx.make_io_manager(
+            input_map=input_map,
+            output_map=output_map
+        )
+
+        io_manager.read_input(
             r2c=r2c,
             inverse=inverse
         )
 
         ctx.execute(inverse=inverse)
 
-        ctx.write_output(
+        if inverse and normalize_inverse:
+            ctx.registers.normalize()
+
+        io_manager.write_output(
             r2c=r2c,
-            inverse=inverse,
-            normalize=normalize_inverse
+            inverse=inverse
         )
 
     return ctx.get_callable()
@@ -49,26 +50,27 @@ def make_convolution_shader(
 
     if kernel_map is None:
         def kernel_map_func(kernel_buffer: vc.Buffer[c64]):
-            img_val = vc.mapping_registers()[0]
-            read_register = vc.mapping_registers()[1]
+            read_op = vd.fft.mapped_read_op()
+            
+            kernel_val = vc.new_vec2(0)
+            read_op.read_from_buffer(kernel_buffer, register=kernel_val)
+            
+            read_op.register[:] = vc.mult_conj_c64(read_op.register, kernel_val)
 
-            read_register[:] = kernel_buffer[vc.mapping_index()]
-            img_val[:] = vc.mult_conj_c64(img_val, read_register)
+        kernel_map = vd.map(kernel_map_func, input_types=[vc.Buffer[c64]])
 
-        kernel_map = vd.map(kernel_map_func, register_types=[c64], input_types=[vc.Buffer[c64]])
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+        io_manager = ctx.make_io_manager(
+            input_map=input_map,
+            output_map=output_map,
+            kernel_map=kernel_map
+        )
 
-    with vd.fft.fft_context(
-        buffer_shape,
-        axis=axis,
-        input_map=input_map,
-        output_map=output_map,
-        kernel_map=kernel_map
-    ) as ctx:
         vc.comment("Performing forward FFT stage in convolution shader")
 
-        ctx.read_input() 
+        io_manager.read_input() 
         ctx.execute(inverse=False)
-        ctx.registers.shuffle()
+        ctx.register_shuffle()
 
         vc.comment("Performing convolution stage in convolution shader")
         backup_registers = None
@@ -84,9 +86,13 @@ def make_convolution_shader(
                 ctx.registers.read_from_registers(backup_registers)
 
             vc.set_kernel_index(kern_index)
-            ctx.read_kernel()
+            io_manager.read_kernel()
             ctx.execute(inverse=True)
-            ctx.write_output(inverse=True, normalize=normalize)
+
+            if normalize:
+                ctx.registers.normalize()
+
+            io_manager.write_output(inverse=True)
     
     return ctx.get_callable()
 
