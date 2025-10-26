@@ -7,6 +7,14 @@ from .config import FFTConfig
 from .grid_manager import FFTGridManager
 from .resources import FFTResources
 
+from .registers import FFTRegisters
+
+from enum import Enum
+
+class IOFormat(Enum):
+    READ = 1
+    WRITE = 2
+
 class IOProxy:
     buffer_variables: List[vc.Buffer]
     buffer_types: List[type]
@@ -89,21 +97,18 @@ class IOProxy:
         register[:] = f"vec2({real_value}, 0)"
 
     def read_registers(self,
+                            registers: FFTRegisters,
                             resources: FFTResources,
                             config: FFTConfig,
                             grid: FFTGridManager,
                             r2c: bool = False,
                             inverse: bool = None,
-                            stage_index: int = 0,
-                            registers: List[vc.ShaderVariable] = None):
-        if registers is None:
-            registers = resources.registers
-
+                            stage_index: int = 0):
         vc.comment(f"Loading to registers from buffer {self.buffer_variables[0]}")
 
         input_batch_stride_y = config.batch_outer_stride
 
-        resources.stage_begin(stage_index)
+        #resources.stage_begin(stage_index)
 
         if r2c:
             assert inverse is not None, "Must specify inverse for r2c read"
@@ -114,33 +119,47 @@ class IOProxy:
                 input_batch_stride_y = (config.N // 2) + 1
 
         resources.input_batch_offset[:] = grid.global_outer * input_batch_stride_y + grid.global_inner * config.batch_inner_stride
+        
+        for read_op in registers.iter_read(stage_index=stage_index):
+            if read_op.first_invocation_instance:
+                resources.io_index[:] = read_op.offset * config.fft_stride + resources.input_batch_offset
+            else:
+                resources.io_index += read_op.stride * config.fft_stride
+            
+            self.read_register(
+                resources,
+                config,
+                read_op.register,
+                r2c=r2c,
+                inverse=inverse,
+                fft_index=read_op.fft_index
+            )
 
-        for ii, invocation in enumerate(resources.invocations[stage_index]):
-            resources.invocation_gaurd(stage_index, ii)
+        # for ii, invocation in enumerate(resources.invocations[stage_index]):
+        #     resources.invocation_gaurd(stage_index, ii)
 
-            offset = invocation.instance_id
-            stride = config.N // config.stages[stage_index].fft_length
+        #     offset = invocation.instance_id
+        #     stride = config.N // config.stages[stage_index].fft_length
 
-            resources.io_index[:] = offset * config.fft_stride + resources.input_batch_offset
+        #     resources.io_index[:] = offset * config.fft_stride + resources.input_batch_offset
 
-            register_list = registers[invocation.register_selection]
+        #     register_list = registers.slice(invocation.register_selection)
 
-            for i in range(len(register_list)):
-                if i != 0:
-                    resources.io_index += stride * config.fft_stride
+        #     for i in range(len(register_list)):
+        #         if i != 0:
+        #             resources.io_index += stride * config.fft_stride
                 
-                self.read_register(
-                    resources,
-                    config,
-                    register_list[i],
-                    r2c=r2c,
-                    inverse=inverse,
-                    fft_index=i * stride + offset
-                )
+        #         self.read_register(
+        #             resources,
+        #             config,
+        #             register_list[i],
+        #             r2c=r2c,
+        #             inverse=inverse,
+        #             fft_index=i * stride + offset
+        #         )
 
-        resources.invocation_end(stage_index)
-
-        resources.stage_end(stage_index)
+        # resources.invocation_end(stage_index)
+        # resources.stage_end(stage_index)
 
     def write_register(self,
                 resources: FFTResources,
@@ -192,16 +211,13 @@ class IOProxy:
             self.buffer_variables[0][resources.io_index / 2][resources.io_index % 2] = register.x
     
     def write_registers(self,
+                            registers: FFTRegisters,
                             resources: FFTResources,
                             config: FFTConfig,
                             grid: FFTGridManager,
                             r2c: bool = False,
                             inverse: bool = None,
-                            stage_index: int = -1,
-                            registers: List[vc.ShaderVariable] = None):
-        if registers is None:
-            registers = resources.registers
-
+                            stage_index: int = -1):
         stage = config.stages[stage_index]
 
         vc.comment(f"Storing from registers to buffer")
@@ -219,29 +235,43 @@ class IOProxy:
                 output_batch_stride_y = ((config.N // 2) + 1) * 2
 
         resources.output_batch_offset[:] = grid.global_outer * output_batch_stride_y + grid.global_inner * config.batch_inner_stride
-
         resources.io_index[:] = grid.tid * config.fft_stride + resources.output_batch_offset
-        
         instance_index_stride = config.N // (stage.fft_length * stage.instance_count)
 
-        for jj in range(stage.fft_length):
-            for ii, invocation in enumerate(resources.invocations[stage_index]):
-                resources.invocation_gaurd(stage_index, ii)
+        iters_done = 0
 
-                if jj != 0 or ii != 0:
-                    resources.io_index += instance_index_stride * config.fft_stride
+        for write_op in registers.iter_write(stage_index=stage_index):
+            if iters_done > 0:
+                resources.io_index += instance_index_stride * config.fft_stride
+            iters_done += 1
 
-                register = registers[invocation.register_selection][jj]
+            self.write_register(
+                resources,
+                config,
+                write_op.register,
+                r2c=r2c,
+                inverse=inverse,
+                fft_index=write_op.fft_index
+            )
 
-                self.write_register(
-                    resources,
-                    config,
-                    register,
-                    r2c=r2c,
-                    inverse=inverse,
-                    fft_index=invocation.sub_sequence_offset + jj * resources.output_strides[stage_index]
-                )
+        # for jj in range(stage.fft_length):
+        #     for ii, invocation in enumerate(resources.invocations[stage_index]):
+        #         resources.invocation_gaurd(stage_index, ii)
 
-            resources.invocation_end(stage_index)
+        #         if jj != 0 or ii != 0:
+        #             resources.io_index += instance_index_stride * config.fft_stride
 
-        resources.stage_end(stage_index)
+        #         register = registers.slice(invocation.register_selection)[jj]
+
+        #         self.write_register(
+        #             resources,
+        #             config,
+        #             register,
+        #             r2c=r2c,
+        #             inverse=inverse,
+        #             fft_index=invocation.sub_sequence_offset + jj * resources.output_strides[stage_index]
+        #         )
+
+        #     resources.invocation_end(stage_index)
+
+        # resources.stage_end(stage_index)

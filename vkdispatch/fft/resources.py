@@ -63,14 +63,14 @@ class FFTRegisterStageInvocation:
 
 @dataclasses.dataclass
 class FFTResources:
-    registers: List[vc.ShaderVariable]
-    radix_registers: List[vc.ShaderVariable]
     input_batch_offset: vc.ShaderVariable
     output_batch_offset: vc.ShaderVariable
     omega_register: vc.ShaderVariable
     subsequence_offset: Const[u32]
     io_index: Const[u32]
     io_index_2: Const[u32]
+
+    radix_registers: List[vc.ShaderVariable]
 
     tid: vc.ShaderVariable
 
@@ -80,14 +80,6 @@ class FFTResources:
     invocations: List[List[FFTRegisterStageInvocation]]
 
     def __init__(self, config: FFTConfig, grid: FFTGridManager):
-        self.registers = [
-            vc.new(c64, 0, var_name=f"register_{i}") for i in range(config.register_count)
-        ]
-
-        self.radix_registers = [
-            vc.new(c64, 0, var_name=f"radix_{i}") for i in range(config.max_prime_radix)
-        ]
-
         self.tid = grid.tid
         self.config = config
         self.input_batch_offset = vc.new_uint(var_name="input_batch_offset")
@@ -96,6 +88,10 @@ class FFTResources:
         self.subsequence_offset = vc.new_uint(0, var_name="subsequence_offset")
         self.io_index = vc.new_uint(0, var_name="io_index")
         self.io_index_2 = vc.new_uint(0, var_name="io_index_2")
+
+        self.radix_registers = [
+            vc.new(c64, 0, var_name=f"radix_register_{i}") for i in range(config.max_prime_radix)
+        ]
 
         self.output_strides = []
         self.invocations = []
