@@ -74,6 +74,8 @@ class FFTResources:
 
     tid: vc.ShaderVariable
 
+    grid: FFTGridManager
+
     config: FFTConfig
 
     output_strides: List[int]
@@ -81,6 +83,7 @@ class FFTResources:
 
     def __init__(self, config: FFTConfig, grid: FFTGridManager):
         self.tid = grid.tid
+        self.grid = grid
         self.config = config
         self.input_batch_offset = vc.new_uint(var_name="input_batch_offset")
         self.output_batch_offset = vc.new_uint(var_name="output_batch_offset")

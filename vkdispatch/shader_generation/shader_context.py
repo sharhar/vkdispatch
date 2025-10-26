@@ -17,7 +17,7 @@ class ShaderContext:
     def get_function(self,
                      local_size=None,
                       workgroups=None,
-                      exec_count=None,):
+                      exec_count=None) -> vd.ShaderFunction:
         return vd.ShaderFunction.from_description(
             self.builder.build("shader"),
             self.signature,

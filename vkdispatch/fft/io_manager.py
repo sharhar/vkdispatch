@@ -4,8 +4,29 @@ import vkdispatch.codegen as vc
 from typing import Optional
 
 from .io_proxy import IOProxy
+from .registers import FFTRegisters
+from .global_memory_utils import global_writes_iterator, global_reads_iterator
+from .global_memory_utils import GlobalWriteOp, GlobalReadOp
+
+__static_global_write_op = None
+__static_global_read_op = None
+
+def set_global_write_op(op: GlobalWriteOp):
+    global __static_global_write_op
+    __static_global_write_op = op
+
+def mapped_write_op() -> GlobalWriteOp:
+    return __static_global_write_op
+
+def set_global_read_op(op: GlobalReadOp):
+    global __static_global_read_op
+    __static_global_read_op = op
+
+def mapped_read_op() -> GlobalReadOp:
+    return __static_global_read_op
 
 class IOManager:
+    default_registers: FFTRegisters
     output_proxy: IOProxy
     input_proxy: IOProxy
     kernel_proxy: IOProxy
@@ -13,14 +34,15 @@ class IOManager:
     signature: vd.ShaderSignature
 
     def __init__(self,
+                    default_registers: FFTRegisters,
                     shader_context: vd.ShaderContext,
-                    output: Optional[vd.MappingFunction],
-                    input: Optional[vd.MappingFunction] = None,
-                    kernel: Optional[vd.MappingFunction] = None):
-
-            self.output_proxy = IOProxy(vd.complex64 if output is None else output, "Output")
-            self.input_proxy = IOProxy(input, "Input")
-            self.kernel_proxy = IOProxy(kernel, "Kernel")
+                    output_map: Optional[vd.MappingFunction],
+                    input_map: Optional[vd.MappingFunction] = None,
+                    kernel_map: Optional[vd.MappingFunction] = None):
+            self.default_registers = default_registers
+            self.output_proxy = IOProxy(vd.complex64 if output_map is None else output_map, "Output")
+            self.input_proxy = IOProxy(input_map, "Input")
+            self.kernel_proxy = IOProxy(kernel_map, "Kernel")
     
             output_types = self.output_proxy.buffer_types
             input_types = self.input_proxy.buffer_types
@@ -42,3 +64,85 @@ class IOManager:
 
             if input_count == 0:
                 self.input_proxy = self.output_proxy
+
+    def read_from_proxy(self,
+                        proxy: IOProxy,
+                        registers: Optional[FFTRegisters] = None,
+                        r2c: bool = False,
+                        inverse: bool = None,
+                        stage_index: int = 0):
+
+        if registers is None:
+            registers = self.default_registers
+        
+        for read_op in global_reads_iterator(
+                registers=registers,
+                r2c=r2c,
+                inverse=inverse,
+                stage_index=stage_index
+            ):
+            
+            if proxy.has_callback():
+                set_global_read_op(read_op)
+                proxy.do_callback()
+                set_global_read_op(None)
+            else:
+                read_op.read_from_buffer(proxy.buffer_variables[0])
+
+    def write_to_proxy(self,
+                        proxy: IOProxy,
+                        registers: Optional[FFTRegisters] = None,
+                        r2c: bool = False,
+                        inverse: bool = None,
+                        stage_index: int = -1):
+
+        if registers is None:
+            registers = self.default_registers
+        
+        for write_op in global_writes_iterator(
+                registers=registers,
+                r2c=r2c,
+                inverse=inverse,
+                stage_index=stage_index
+            ):
+            
+            if proxy.has_callback():
+                set_global_write_op(write_op)
+                proxy.do_callback()
+                set_global_write_op(None)
+            else:
+                write_op.write_to_buffer(proxy.buffer_variables[0])
+    
+    def read_input(self,
+                   registers: Optional[FFTRegisters] = None,
+                   r2c: bool = False,
+                   inverse: bool = None):
+        self.read_from_proxy(
+            self.input_proxy,
+            registers,
+            r2c=r2c,
+            inverse=inverse
+        )
+
+    def write_output(self,
+                     registers: Optional[FFTRegisters] = None,
+                     r2c: bool = False,
+                     inverse: bool = None):
+        self.write_to_proxy(
+            self.output_proxy,
+            registers,
+            r2c=r2c,
+            inverse=inverse
+        )
+    
+    def read_kernel(self, registers: Optional[FFTRegisters] = None):
+        self.read_from_proxy(
+            self.kernel_proxy,
+            registers
+        )
+
+    def write_kernel(self, registers: Optional[FFTRegisters] = None):
+        self.write_to_proxy(
+            self.kernel_proxy,
+            registers
+        )
