@@ -36,7 +36,7 @@ class FFTContext:
         self.declarer = None
         
         self.config = FFTConfig(buffer_shape, axis, max_register_count)
-        self.grid = FFTGridManager(self.config, True)
+        self.grid = FFTGridManager(self.config, True, True)
         self.resources = FFTResources(self.config, self.grid)
 
         self.registers = self.allocate_registers("fft")

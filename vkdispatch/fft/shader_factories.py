@@ -2,7 +2,7 @@ import vkdispatch as vd
 import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import *
 
-from typing import Tuple
+from typing import Tuple, Optional
 from functools import lru_cache
 
 @lru_cache(maxsize=None)
@@ -13,7 +13,8 @@ def make_fft_shader(
         normalize_inverse: bool = True,
         r2c: bool = False,
         input_map: vd.MappingFunction = None,
-        output_map: vd.MappingFunction = None) -> Tuple[vd.ShaderFunction, Tuple[int, int, int]]:
+        output_map: vd.MappingFunction = None,
+        input_signal_range: Optional[Tuple[Optional[int], Optional[int]]] = None) -> vd.ShaderFunction:
 
     with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
         io_manager = ctx.make_io_manager(
@@ -23,7 +24,8 @@ def make_fft_shader(
 
         io_manager.read_input(
             r2c=r2c,
-            inverse=inverse
+            inverse=inverse,
+            signal_range=input_signal_range
         )
 
         ctx.execute(inverse=inverse)
@@ -39,14 +41,46 @@ def make_fft_shader(
     return ctx.get_callable()
 
 @lru_cache(maxsize=None)
+def get_transposed_size(
+        buffer_shape: Tuple, 
+        axis: int = None) -> vd.ShaderFunction:
+    
+    config = vd.fft.FFTConfig(buffer_shape, axis)
+    grid = vd.fft.FFTGridManager(config, True, False)
+
+    local_size_extent = grid.local_size[0] * grid.local_size[1] * grid.local_size[2]
+    workgroup_count_extent = grid.workgroup_count[0] * grid.workgroup_count[1] * grid.workgroup_count[2]
+    register_count = config.register_count
+
+    return local_size_extent * workgroup_count_extent * register_count
+
+@lru_cache(maxsize=None)
+def make_transpose_shader(
+        buffer_shape: Tuple, 
+        axis: int = None) -> vd.ShaderFunction:
+
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+        args = ctx.declare_shader_args([vc.Buffer[c64], vc.Buffer[c64]])
+
+        for read_op in vd.fft.global_reads_iterator(ctx.registers, format_transposed=False):
+            read_op.read_from_buffer(args[1])
+
+        for write_op in vd.fft.global_writes_iterator(ctx.registers, format_transposed=True):
+            write_op.write_to_buffer(args[0])
+
+    return ctx.get_callable()
+
+@lru_cache(maxsize=None)
 def make_convolution_shader(
         buffer_shape: Tuple,
         kernel_map: vd.MappingFunction = None,
         kernel_num: int = 1,
         axis: int = None, 
         normalize: bool = True,
+        transposed_kernel: bool = False,
         input_map: vd.MappingFunction = None,
-        output_map: vd.MappingFunction = None) -> Tuple[vd.ShaderFunction, Tuple[int, int, int]]:
+        output_map: vd.MappingFunction = None,
+        input_signal_range: Optional[Tuple[Optional[int], Optional[int]]] = None) -> vd.ShaderFunction:
 
     if kernel_map is None:
         def kernel_map_func(kernel_buffer: vc.Buffer[c64]):
@@ -68,7 +102,7 @@ def make_convolution_shader(
 
         vc.comment("Performing forward FFT stage in convolution shader")
 
-        io_manager.read_input() 
+        io_manager.read_input(signal_range=input_signal_range) 
         ctx.execute(inverse=False)
         ctx.register_shuffle()
 
@@ -86,7 +120,7 @@ def make_convolution_shader(
                 ctx.registers.read_from_registers(backup_registers)
 
             vc.set_kernel_index(kern_index)
-            io_manager.read_kernel()
+            io_manager.read_kernel(format_transposed=transposed_kernel)
             ctx.execute(inverse=True)
 
             if normalize:

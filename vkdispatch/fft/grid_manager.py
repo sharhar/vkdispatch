@@ -59,13 +59,16 @@ def set_to_multiple_with_max(count, max_count):
 
     return result_count
 
-def allocate_workgroups(total_count: int) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
     workgroups_x = set_to_multiple_with_max(
         total_count,
         vd.get_context().max_workgroup_count[0]
     )
     workgroups_y = 1
     workgroups_z = 1
+
+    if not declare_variables:
+        return None, (workgroups_x, workgroups_y, workgroups_z)
 
     workgroup_index = vc.new_uint(
         vc.workgroup().x,
@@ -128,7 +131,7 @@ class FFTGridManager:
     workgroup_count: Tuple[int, int, int]
     exec_size: Tuple[int, int, int]
 
-    def __init__(self, config: FFTConfig, force_sdata: bool = False):
+    def __init__(self, config: FFTConfig, force_sdata: bool = False, declare_variables: bool = True):
         make_sdata_buffer = config.batch_threads > 1 or force_sdata
 
         self.inline_batches_inner = allocate_inline_batches(
@@ -156,40 +159,51 @@ class FFTGridManager:
 
 
         if config.batch_inner_count > 1:
-            self.local_inner = vc.local_invocation().x
-            self.local_outer = vc.local_invocation().z
             self.local_size = (self.inline_batches_inner, config.batch_threads, self.inline_batches_outer)
 
             inner_workgroups = config.batch_inner_count // self.inline_batches_inner
             outer_workgroups = config.batch_outer_count // self.inline_batches_outer
             
-            workgroup_index, self.workgroup_count = allocate_workgroups(inner_workgroups * outer_workgroups)
-
-            self.global_inner, self.global_outer = decompose_workgroup_index(
-                workgroup_index,
-                inner_workgroups,
-                config.batch_threads,
-                self.local_size
+            workgroup_index, self.workgroup_count = allocate_workgroups(
+                inner_workgroups * outer_workgroups,
+                declare_variables=declare_variables
             )
 
-            
-            self.tid = vc.local_invocation().y.copy("tid")
+            if declare_variables:
+                self.local_inner = vc.local_invocation().x
+                self.local_outer = vc.local_invocation().z
+
+                self.global_inner, self.global_outer = decompose_workgroup_index(
+                    workgroup_index,
+                    inner_workgroups,
+                    config.batch_threads,
+                    self.local_size
+                )
+                
+                self.tid = vc.local_invocation().y.copy("tid")
         else:
             self.local_inner = None
             self.global_inner = 0
 
             if config.batch_threads > 1:
-                self.tid = vc.local_invocation().x.copy("tid")
-                self.local_outer = vc.local_invocation().y
                 self.local_size = (config.batch_threads, self.inline_batches_outer, 1)
             else:
-                self.tid = 0
-                self.local_outer = vc.local_invocation().x
                 self.local_size = (self.inline_batches_outer, 1, 1)
 
-            workgroup_index, self.workgroup_count = allocate_workgroups(config.batch_outer_count // self.inline_batches_outer)
+            workgroup_index, self.workgroup_count = allocate_workgroups(
+                config.batch_outer_count // self.inline_batches_outer,
+                declare_variables=declare_variables
+            )
+            
+            if declare_variables:
+                if config.batch_threads > 1:
+                    self.tid = vc.local_invocation().x.copy("tid")
+                    self.local_outer = vc.local_invocation().y
+                else:
+                    self.tid = 0
+                    self.local_outer = vc.local_invocation().x
 
-            _, self.global_outer = decompose_workgroup_index(workgroup_index, None, config.batch_threads, self.local_size)
+                _, self.global_outer = decompose_workgroup_index(workgroup_index, None, config.batch_threads, self.local_size)
 
         self.exec_size = (
             self.local_size[0] * self.workgroup_count[0],
