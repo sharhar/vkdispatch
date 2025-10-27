@@ -83,23 +83,22 @@ class FFTSDataManager:
             self.resources.io_index[:] = read_op.fft_index + self.sdata_offset
 
             if self.use_padding:
-                self.resources.io_index_2[:] = self.resources.io_index + ((self.resources.io_index) / self.sdata_row_size)
-                registers[read_op.register_id] = self.sdata[self.resources.io_index_2]
-            else:
-                registers[read_op.register_id] = self.sdata[self.resources.io_index]
+                self.resources.io_index[:] = self.resources.io_index + (self.resources.io_index / self.sdata_row_size)
+            
+            registers[read_op.register_id] = self.sdata[self.resources.io_index]
 
     def write_to_sdata(self, registers: Optional[FFTRegisters] = None, stage_index: int = -1):
         self.op_write()
+
+        self.use_padding = self.padding_enabled and self.resources.output_strides[stage_index] < 32
 
         if registers is None:
             registers = self.default_registers
 
         for write_op in memory_writes_iterator(self.resources, stage_index):
-            sdata_index = write_op.fft_index + self.sdata_offset
+            self.resources.io_index[:] = write_op.fft_index + self.sdata_offset
 
             if self.use_padding:
-                self.resources.io_index[:] = sdata_index
-                self.resources.io_index[:] = self.resources.io_index + self.resources.io_index / self.sdata_row_size
-                sdata_index = self.resources.io_index
+                self.resources.io_index[:] = self.resources.io_index + (self.resources.io_index / self.sdata_row_size)
 
-            self.sdata[sdata_index] = registers[write_op.register_id]
+            self.sdata[self.resources.io_index] = registers[write_op.register_id]
