@@ -9,6 +9,7 @@ from .memory_iterators import memory_reads_iterator, memory_writes_iterator, Mem
 
 from .global_memory_utils import global_writes_iterator, GlobalWriteOp
 from .global_memory_utils import global_reads_iterator, GlobalReadOp
+from .global_memory_utils import global_trasposed_write_iterator, GlobalTransposedWriteOp
 
 from .io_proxy import IOProxy
 from .io_manager import IOManager, mapped_read_op, mapped_write_op
@@ -16,11 +17,11 @@ from .io_manager import IOManager, mapped_read_op, mapped_write_op
 from .context import fft_context
 
 from .shader_factories import make_fft_shader, get_cache_info, cache_clear, print_cache_info
-from .shader_factories import make_convolution_shader
+from .shader_factories import make_convolution_shader, make_transpose_shader, get_transposed_size
 
 from .functions import fft, fft2, fft3, ifft, ifft2, ifft3
 from .functions import rfft, rfft2, rfft3, irfft, irfft2, irfft3
 
-from .functions import convolve, convolve2D, convolve2DR
+from .functions import convolve, convolve2D, convolve2DR, transpose
 
 from .prime_utils import pad_dim

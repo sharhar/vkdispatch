@@ -65,7 +65,7 @@ def make_transpose_shader(
         for read_op in vd.fft.global_reads_iterator(ctx.registers, format_transposed=False):
             read_op.read_from_buffer(args[1])
 
-        for write_op in vd.fft.global_writes_iterator(ctx.registers, format_transposed=True):
+        for write_op in vd.fft.global_trasposed_write_iterator(ctx.registers):
             write_op.write_to_buffer(args[0])
 
     return ctx.get_callable()
