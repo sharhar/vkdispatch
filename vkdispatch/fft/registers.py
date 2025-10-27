@@ -101,7 +101,7 @@ class FFTRegisters:
                     format_key = k
                     break
 
-            assert format_key is not None, "Could not find register in output format???"
+            assert format_key is not None, f"Could not find register {i} in input format: {in_format}"
 
             shuffled_registers[i] = self.registers[out_format[format_key]]
 
