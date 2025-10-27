@@ -1,6 +1,6 @@
 import vkdispatch as vd
 
-from .shader_factories import make_fft_shader, make_convolution_shader
+from .shader_factories import make_fft_shader, make_convolution_shader, make_transpose_shader, get_transposed_size
 
 from typing import Tuple, Union
 
@@ -176,3 +176,26 @@ def convolve2DR(
     rfft(buffer, graph=graph, print_shader=print_shader)
     convolve(buffer, kernel, kernel_map=kernel_map, buffer_shape=buffer_shape, graph=graph, print_shader=print_shader, axis=len(buffer.shape) - 2, normalize=normalize)
     irfft(buffer, graph=graph, print_shader=print_shader, normalize=normalize)
+
+def transpose(
+        in_buffer: vd.Buffer,
+        axis: int = None,
+        out_buffer: vd.Buffer = None,
+        graph: vd.CommandGraph = None):
+    
+    transposed_size = get_transposed_size(
+        tuple(in_buffer.shape),
+        axis=axis
+    )
+
+    if out_buffer is None:
+        out_buffer = vd.Buffer((transposed_size,), var_type=in_buffer.var_type)
+
+    assert out_buffer.size == transposed_size, f"Output buffer size {out_buffer.size} does not match expected transposed size {transposed_size}"
+    
+    transpose_shader = make_transpose_shader(
+        tuple(in_buffer.shape),
+        axis=axis
+    )
+
+    transpose_shader(out_buffer, in_buffer, graph=graph)

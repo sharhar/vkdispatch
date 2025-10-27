@@ -1,7 +1,7 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
-from typing import Optional
+from typing import Optional, Tuple
 
 from .io_proxy import IOProxy
 from .registers import FFTRegisters
@@ -70,7 +70,8 @@ class IOManager:
                         registers: Optional[FFTRegisters] = None,
                         r2c: bool = False,
                         inverse: bool = None,
-                        stage_index: int = 0):
+                        format_transposed: bool = False,
+                        signal_range: Optional[Tuple[Optional[int], Optional[int]]] = None):
 
         if registers is None:
             registers = self.default_registers
@@ -79,7 +80,8 @@ class IOManager:
                 registers=registers,
                 r2c=r2c,
                 inverse=inverse,
-                stage_index=stage_index
+                format_transposed=format_transposed,
+                signal_range=signal_range
             ):
             
             if proxy.has_callback():
@@ -94,8 +96,8 @@ class IOManager:
                         registers: Optional[FFTRegisters] = None,
                         r2c: bool = False,
                         inverse: bool = None,
-                        stage_index: int = -1):
-
+                        format_transposed: bool = False):
+        
         if registers is None:
             registers = self.default_registers
         
@@ -103,7 +105,7 @@ class IOManager:
                 registers=registers,
                 r2c=r2c,
                 inverse=inverse,
-                stage_index=stage_index
+                format_transposed=format_transposed
             ):
             
             if proxy.has_callback():
@@ -116,12 +118,14 @@ class IOManager:
     def read_input(self,
                    registers: Optional[FFTRegisters] = None,
                    r2c: bool = False,
-                   inverse: bool = None):
+                   inverse: bool = None,
+                   signal_range: Optional[Tuple[Optional[int], Optional[int]]] = None):
         self.read_from_proxy(
             self.input_proxy,
             registers,
             r2c=r2c,
-            inverse=inverse
+            inverse=inverse,
+            signal_range=signal_range
         )
 
     def write_output(self,
@@ -135,14 +139,16 @@ class IOManager:
             inverse=inverse
         )
     
-    def read_kernel(self, registers: Optional[FFTRegisters] = None):
+    def read_kernel(self, registers: Optional[FFTRegisters] = None, format_transposed: bool = False):
         self.read_from_proxy(
             self.kernel_proxy,
-            registers
+            registers,
+            format_transposed=format_transposed
         )
 
-    def write_kernel(self, registers: Optional[FFTRegisters] = None):
+    def write_kernel(self, registers: Optional[FFTRegisters] = None, format_transposed: bool = False):
         self.write_to_proxy(
             self.kernel_proxy,
-            registers
+            registers,
+            format_transposed=format_transposed
         )
