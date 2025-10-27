@@ -95,8 +95,7 @@ class IOManager:
                         proxy: IOProxy,
                         registers: Optional[FFTRegisters] = None,
                         r2c: bool = False,
-                        inverse: bool = None,
-                        format_transposed: bool = False):
+                        inverse: bool = None):
         
         if registers is None:
             registers = self.default_registers
@@ -104,8 +103,7 @@ class IOManager:
         for write_op in global_writes_iterator(
                 registers=registers,
                 r2c=r2c,
-                inverse=inverse,
-                format_transposed=format_transposed
+                inverse=inverse
             ):
             
             if proxy.has_callback():
@@ -141,13 +139,6 @@ class IOManager:
     
     def read_kernel(self, registers: Optional[FFTRegisters] = None, format_transposed: bool = False):
         self.read_from_proxy(
-            self.kernel_proxy,
-            registers,
-            format_transposed=format_transposed
-        )
-
-    def write_kernel(self, registers: Optional[FFTRegisters] = None, format_transposed: bool = False):
-        self.write_to_proxy(
             self.kernel_proxy,
             registers,
             format_transposed=format_transposed

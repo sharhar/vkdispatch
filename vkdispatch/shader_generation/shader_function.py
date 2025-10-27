@@ -283,7 +283,7 @@ class ShaderFunction:
 
             if shader_arg.arg_type == vd.ShaderArgumentType.BUFFER:
                 if not isinstance(arg, vd.Buffer):
-                    raise ValueError(f"Expected a buffer for argument '{shader_arg.name}'!")
+                    raise ValueError(f"Expected a buffer for argument '{shader_arg.name}' but got '{arg}'!")
                 
                 bound_buffers.append(vd.BufferBindInfo(
                     buffer=arg,

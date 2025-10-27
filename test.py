@@ -26,58 +26,39 @@ def pick_dimention(dims: int):
 def check_fft_dims(fft_dims: List[int], max_fft_size: int):
     return all([dim <= max_fft_size for dim in fft_dims]) and np.prod(fft_dims) * vd.complex64.item_size < 2 ** 20
 
-def test_fft_1d():
+
+def test_convolution_2d_transpose():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
     max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
 
-    for _ in range(20):
-        dims = pick_dim_count(1)
+    for _ in range(5):
+        dims = pick_dim_count(2)
         current_shape = [pick_radix_prime() for _ in range(dims)]
 
         while check_fft_dims(current_shape, max_fft_size):
+            print("Testing convolution 2D transpose with shape:", current_shape)
+            
             data = np.random.rand(*current_shape).astype(np.complex64)
-            test_data = vd.Buffer(data.shape, vd.complex64)
+            data2 = np.random.rand(*current_shape).astype(np.complex64)
 
-            for axis in range(dims):
-                print(current_shape, axis)
+            test_data = vd.asbuffer(data)
+            kernel_data = vd.asbuffer(data2)
 
-                test_data.write(data)
+            vd.fft.fft2(kernel_data)
+            kernel_transposed = vd.fft.transpose(kernel_data, axis=len(kernel_data.shape)-2)
+            vd.fft.convolve2D(test_data, kernel_transposed, transposed_kernel=True)
 
-                vd.fft.fft(test_data, axis=axis)
+            reference_data = numpy_convolution(data, data2)
 
-                assert np.allclose(np.fft.fft(data, axis=axis), test_data.read(0), atol=1e-3)
+            assert np.allclose(reference_data, test_data.read(0), atol=1e-3)
 
             current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
-
+    
     vd.fft.cache_clear()
 
 
-def test_rfft_1d():
-    max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
-
-    max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
-
-    for _ in range(20):
-        dims = pick_dim_count(1)
-        current_shape = [pick_radix_prime() for _ in range(dims)]
-
-        while check_fft_dims(current_shape, max_fft_size):
-            print(current_shape)
-
-            data = np.random.rand(*current_shape).astype(np.float32)
-            test_data = vd.RFFTBuffer(data.shape)
-
-            test_data.write_real(data)
-
-            vd.fft.rfft(test_data)
-
-            assert np.allclose(np.fft.rfft(data), test_data.read_fourier(0), atol=1e-3)
-
-            current_shape[pick_dimention(dims)] *= random.choice([2, 3, 5, 7, 11, 13])
-
-    vd.fft.cache_clear()
-
+test_convolution_2d_transpose()
 
 #test_fft_1d()
 

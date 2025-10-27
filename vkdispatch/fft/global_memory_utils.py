@@ -47,8 +47,7 @@ class GlobalWriteOp(MemoryOp):
 def global_writes_iterator(
         registers: FFTRegisters,
         r2c: bool = False,
-        inverse: bool = None,
-        format_transposed: bool = False):
+        inverse: bool = None):
 
     vc.comment(f"Writing registers to global memory")
 
@@ -59,7 +58,6 @@ def global_writes_iterator(
     output_batch_stride_y = config.batch_outer_stride
 
     if r2c:
-        assert not format_transposed, "R2C transposed format not supported"
         assert inverse is not None, "Must specify inverse for r2c write"
 
         if not inverse:
@@ -67,24 +65,11 @@ def global_writes_iterator(
         if inverse:
             output_batch_stride_y = ((config.N // 2) + 1) * 2
 
-    if format_transposed:
-        local_index = vc.local_invocation().z * vc.workgroup_size().x * vc.workgroup_size().y + \
-                      vc.local_invocation().y * vc.workgroup_size().x + vc.local_invocation().x
-        work_index = vc.workgroup().z * vc.num_workgroups().x * vc.num_workgroups().y + \
-                     vc.workgroup().y * vc.num_workgroups().x + vc.workgroup().x
-
-        resources.output_batch_offset[:] = local_index + work_index * (vc.workgroup_size().x * vc.workgroup_size().y * vc.workgroup_size().z)
-        transpose_stride = vc.workgroup_size().x * vc.workgroup_size().y * vc.workgroup_size().z * \
-                           vc.num_workgroups().x * vc.num_workgroups().y * vc.num_workgroups().z
-    else:
-        resources.output_batch_offset[:] = grid.global_outer * output_batch_stride_y + \
-                                            grid.global_inner * config.batch_inner_stride
+    resources.output_batch_offset[:] = grid.global_outer * output_batch_stride_y + \
+                                        grid.global_inner * config.batch_inner_stride
 
     for write_op in memory_writes_iterator(resources, -1):
-        if format_transposed:
-            resources.io_index[:] = resources.input_batch_offset + write_op.register_id * transpose_stride
-        else:
-            resources.io_index[:] = resources.output_batch_offset + write_op.fft_index * config.fft_stride
+        resources.io_index[:] = resources.output_batch_offset + write_op.fft_index * config.fft_stride
 
         global_write_op = GlobalWriteOp.from_memory_op(
             base=write_op,
@@ -104,6 +89,7 @@ class GlobalReadOp(MemoryOp):
     r2c: bool
     inverse: Optional[bool]
     r2c_inverse_offset: vc.ShaderVariable
+    format_transposed: bool
     signal_range: Tuple[int, int]
 
     @classmethod
@@ -115,6 +101,7 @@ class GlobalReadOp(MemoryOp):
                        r2c: bool,
                        inverse: Optional[bool],
                        r2c_inverse_offset: vc.ShaderVariable,
+                       format_transposed: bool,
                        signal_range: Tuple[int, int]) -> 'GlobalReadOp':
         return cls(**vars(base),
                    register=register,
@@ -123,8 +110,18 @@ class GlobalReadOp(MemoryOp):
                    r2c=r2c,
                    inverse=inverse,
                    r2c_inverse_offset=r2c_inverse_offset,
+                   format_transposed=format_transposed,
                    signal_range=signal_range
                 )
+
+    def write_transpose(self, buffer: vc.Buff[vc.c64], register: Optional[vc.ShaderVariable] = None):
+        assert self.format_transposed, "Transpose write called on non-transposed read op"
+        assert not self.r2c, "Transpose write not supported for r2c"
+
+        if register is None:
+            register = self.register
+
+        register[:] = buffer[self.io_index]
 
     def check_in_signal_range(self) -> bool:
         if self.signal_range == (0, self.fft_size):
@@ -221,28 +218,78 @@ def global_reads_iterator(
                      vc.workgroup().y * vc.num_workgroups().x + vc.workgroup().x
 
         resources.input_batch_offset[:] = local_index + work_index * (vc.workgroup_size().x * vc.workgroup_size().y * vc.workgroup_size().z)
-        transpose_stride = vc.workgroup_size().x * vc.workgroup_size().y * vc.workgroup_size().z * \
-                           vc.num_workgroups().x * vc.num_workgroups().y * vc.num_workgroups().z
+        r2c_inverse_offset = None # Transposed r2c not supported anyways
+        transpose_stride = (vc.workgroup_size().x * vc.workgroup_size().y * vc.workgroup_size().z * \
+                           vc.num_workgroups().x * vc.num_workgroups().y * vc.num_workgroups().z).copy()
     else:
         resources.input_batch_offset[:] = grid.global_outer * input_batch_stride_y + grid.global_inner * config.batch_inner_stride
         r2c_inverse_offset = 2 * resources.input_batch_offset + \
                                     config.N * config.fft_stride
 
     for read_op in memory_reads_iterator(resources, 0):
-            if format_transposed:
-                resources.io_index[:] = resources.input_batch_offset + read_op.register_id * transpose_stride
-            else:
-                resources.io_index[:] = resources.input_batch_offset + read_op.fft_index * config.fft_stride
+        if format_transposed:
+            resources.io_index[:] = resources.input_batch_offset + read_op.register_id * transpose_stride
+        else:
+            resources.io_index[:] = resources.input_batch_offset + read_op.fft_index * config.fft_stride
 
-            global_read_op = GlobalReadOp.from_memory_op(
-                base=read_op,
-                register=registers[read_op.register_id],
-                io_index=resources.io_index,
-                io_index_2=resources.io_index_2,
-                r2c=r2c,
-                inverse=inverse,
-                r2c_inverse_offset=r2c_inverse_offset,
-                signal_range=signal_range
-            )
+        global_read_op = GlobalReadOp.from_memory_op(
+            base=read_op,
+            register=registers[read_op.register_id],
+            io_index=resources.io_index,
+            io_index_2=resources.io_index_2,
+            r2c=r2c,
+            inverse=inverse,
+            r2c_inverse_offset=r2c_inverse_offset,
+            format_transposed=format_transposed,
+            signal_range=signal_range
+        )
 
-            yield global_read_op
+        yield global_read_op
+
+
+
+@dataclasses.dataclass
+class GlobalTransposedWriteOp(MemoryOp):
+    register: vc.ShaderVariable
+    io_index: vc.ShaderVariable
+
+    @classmethod
+    def from_memory_op(cls,
+                       base: MemoryOp,
+                       register: vc.ShaderVariable,
+                       io_index: vc.ShaderVariable) -> 'GlobalTransposedWriteOp':
+        return cls(**vars(base),
+                   register=register,
+                   io_index=io_index
+                )
+
+    def write_to_buffer(self, buffer: vc.Buff[vc.c64], register: Optional[vc.ShaderVariable] = None):
+        if register is None:
+            register = self.register
+
+        buffer[self.io_index] = register
+
+def global_trasposed_write_iterator(registers: FFTRegisters):
+    vc.comment(f"Writing registers to global memory in transposed format")
+
+    resources = registers.resources
+    
+    local_index = vc.local_invocation().z * vc.workgroup_size().x * vc.workgroup_size().y + \
+                    vc.local_invocation().y * vc.workgroup_size().x + vc.local_invocation().x
+    work_index = vc.workgroup().z * vc.num_workgroups().x * vc.num_workgroups().y + \
+                    vc.workgroup().y * vc.num_workgroups().x + vc.workgroup().x
+
+    resources.input_batch_offset[:] = local_index + work_index * (vc.workgroup_size().x * vc.workgroup_size().y * vc.workgroup_size().z)
+    transpose_stride = (vc.workgroup_size().x * vc.workgroup_size().y * vc.workgroup_size().z * \
+                        vc.num_workgroups().x * vc.num_workgroups().y * vc.num_workgroups().z).copy()
+
+    for read_op in memory_reads_iterator(resources, 0): # Iterate in read order to match register format when reading
+        resources.io_index[:] = resources.input_batch_offset + read_op.register_id * transpose_stride
+
+        global_trasposed_write_op = GlobalTransposedWriteOp.from_memory_op(
+            base=read_op,
+            register=registers[read_op.register_id],
+            io_index=resources.io_index
+        )
+
+        yield global_trasposed_write_op

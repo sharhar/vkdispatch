@@ -4,45 +4,67 @@ import numpy as np
 
 SIZE = 2 ** 6
 
-buffer = vd.Buffer((1, 77, 77), vd.complex64)
-kernel = vd.Buffer((1, 77, 77), vd.complex64)
+def numpy_convolution(signal: np.ndarray, kernel: np.ndarray) -> np.ndarray:
+    return np.fft.ifft2(
+        np.fft.fft2(signal).astype(np.complex64)
+        *
+        np.fft.fft2(kernel).astype(np.complex64).conjugate()
+    )
 
-#vd.fft.fft(buffer)
-vd.fft.convolve(buffer, kernel, axis=1, print_shader=True)
-#vd.fft.fft(buffer, inverse=True)
 
-vd.queue_wait_idle()
+def make_circle_signal(shape, radius):
+    center = (shape[0] // 2, shape[1] // 2)
+    Y, X = np.ogrid[:shape[0], :shape[1]]
+    dist_from_center = np.sqrt((X - center[1])**2 + (Y - center[0])**2)
+    mask = dist_from_center <= radius
+    array = np.zeros(shape, dtype=np.float32)
+    array[mask] = 1.0
+    return array
 
-#vd.vkfft.convolve_2D(buffer, kernel, keep_shader_code=True)
+def make_square_signal(shape, size):
+    array = np.zeros(shape, dtype=np.float32)
+    start_x = (shape[1] - size) // 2
+    start_y = (shape[0] - size) // 2
+    array[start_y:start_y + size, start_x:start_x + size] = 1.0
+    return array
 
-exit()
+current_shape = (275, 5)
 
-# make a square and circle signal in numpy
-x = np.linspace(-1, 1, SIZE)
-y = np.linspace(-1, 1, SIZE)
-X, Y = np.meshgrid(x, y)
-signal = np.zeros((SIZE, SIZE), dtype=np.complex64)
-signal[np.abs(X) < 0.5] = 1.0 + 0j
+#data = np.random.rand(*current_shape).astype(np.complex64)
+#data2 = np.random.rand(*current_shape).astype(np.complex64)
 
-signal2 = np.zeros((SIZE, SIZE), dtype=np.complex64)
-signal2[np.sqrt(X**2 + Y**2) < 0.5] = 1.0 + 0j
+data = make_circle_signal(current_shape, 20).astype(np.complex64)
+data2 = make_square_signal(current_shape, 15).astype(np.complex64)
 
-buffer.write(signal)
-kernel.write(signal2)
+np.save('test_signal.npy', data)
+np.save('test_kernel.npy', data2)
 
-# perform convolution in numpy for validation
-f_signal = np.fft.fft2(signal)
-f_kernel = np.fft.fft2(signal2)
-f_convolved = f_signal * f_kernel
-convolved = np.fft.ifft2(f_convolved)
+test_data = vd.asbuffer(data)
+kernel_data = vd.asbuffer(data2)
 
-np.save("signal.npy", signal)
-np.save("kernel.npy", signal2)
-np.save("convolved.npy", convolved)
+vd.fft.fft2(kernel_data)
 
-vd.fft.fft2(kernel)
-vd.fft.convolve2D(buffer, kernel)
+np.save("ffted_kernel.npy", kernel_data.read(0))
 
-vk_convolved = buffer.read(0)
+np.save("ffted_kernel_reference.npy", np.fft.fft2(data2).astype(np.complex64))
 
-np.save("vk_convolved.npy", vk_convolved)
+kernel_transposed = vd.fft.transpose(kernel_data, axis=0, print_shader=True)
+
+np.save("transposed_kernel.npy", kernel_transposed.read(0).reshape(275, -1))
+
+print(kernel_data.shape)
+print(kernel_transposed.shape)
+
+vd.fft.fft(test_data)
+vd.fft.convolve(test_data, kernel_transposed, axis=0, transposed_kernel=True) #, print_shader=True)
+vd.fft.ifft(test_data)
+
+np.save("convolved_signal.npy", test_data.read(0))
+np.save("convolved_signal_fourier.npy", np.fft.fft2(test_data.read(0)))
+
+reference_data = numpy_convolution(data, data2)
+
+np.save("reference_convolved_signal.npy", reference_data)
+np.save("reference_convolved_signal_fourier.npy", np.fft.fft2(reference_data))
+
+assert np.allclose(reference_data, test_data.read(0), atol=1e-3)

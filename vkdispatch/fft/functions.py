@@ -117,6 +117,7 @@ def convolve(
         axis: int = None,
         normalize: bool = True,
         name: str = None,
+        transposed_kernel: bool = False,
         input_map: vd.MappingFunction = None,
         output_map: vd.MappingFunction = None):
     if buffer_shape is None:
@@ -127,6 +128,7 @@ def convolve(
         kernel_map,
         kernel_num,
         axis,
+        transposed_kernel=transposed_kernel,
         normalize=normalize,
         input_map=input_map,
         output_map=output_map)
@@ -144,6 +146,7 @@ def convolve2D(
         graph: vd.CommandGraph = None,
         print_shader: bool = False,
         normalize: bool = True,
+        transposed_kernel: bool = False,
         input_map: vd.MappingFunction = None,
         output_map: vd.MappingFunction = None):
 
@@ -159,7 +162,17 @@ def convolve2D(
         output_buffers.append(buffer)
 
     fft(*input_buffers, graph=graph, print_shader=print_shader, input_map=input_map)
-    convolve(buffer, kernel, kernel_map=kernel_map, buffer_shape=buffer_shape, graph=graph, print_shader=print_shader, axis=len(buffer.shape) - 2, normalize=normalize)
+    convolve(
+        buffer,
+        kernel,
+        kernel_map=kernel_map,
+        buffer_shape=buffer_shape,
+        graph=graph,
+        transposed_kernel=transposed_kernel,
+        print_shader=print_shader,
+        axis=len(buffer.shape) - 2,
+        normalize=normalize
+    )
     ifft(*output_buffers, graph=graph, print_shader=print_shader, normalize=normalize, output_map=output_map)
 
 def convolve2DR(
@@ -167,6 +180,7 @@ def convolve2DR(
         kernel: vd.RFFTBuffer,
         kernel_map: vd.MappingFunction = None,
         buffer_shape: Tuple = None,
+        transposed_kernel: bool = False,
         graph: vd.CommandGraph = None,
         print_shader: bool = False,
         normalize: bool = True):
@@ -174,14 +188,25 @@ def convolve2DR(
     assert len(buffer.shape) == 2 or len(buffer.shape) == 3, 'Buffer must have 2 or 3 dimensions'
 
     rfft(buffer, graph=graph, print_shader=print_shader)
-    convolve(buffer, kernel, kernel_map=kernel_map, buffer_shape=buffer_shape, graph=graph, print_shader=print_shader, axis=len(buffer.shape) - 2, normalize=normalize)
+    convolve(
+        buffer,
+        kernel,
+        kernel_map=kernel_map,
+        buffer_shape=buffer_shape,
+        graph=graph,
+        transposed_kernel=transposed_kernel,
+        print_shader=print_shader,
+        axis=len(buffer.shape) - 2,
+        normalize=normalize
+    )
     irfft(buffer, graph=graph, print_shader=print_shader, normalize=normalize)
 
 def transpose(
         in_buffer: vd.Buffer,
         axis: int = None,
         out_buffer: vd.Buffer = None,
-        graph: vd.CommandGraph = None):
+        graph: vd.CommandGraph = None,
+        print_shader: bool = False) -> vd.Buffer:
     
     transposed_size = get_transposed_size(
         tuple(in_buffer.shape),
@@ -191,11 +216,16 @@ def transpose(
     if out_buffer is None:
         out_buffer = vd.Buffer((transposed_size,), var_type=in_buffer.var_type)
 
-    assert out_buffer.size == transposed_size, f"Output buffer size {out_buffer.size} does not match expected transposed size {transposed_size}"
+    assert out_buffer.size >= transposed_size, f"Output buffer size {out_buffer.size} does not match expected transposed size {transposed_size}"
     
     transpose_shader = make_transpose_shader(
         tuple(in_buffer.shape),
         axis=axis
     )
 
+    if print_shader:
+        print(transpose_shader)
+
     transpose_shader(out_buffer, in_buffer, graph=graph)
+
+    return out_buffer
