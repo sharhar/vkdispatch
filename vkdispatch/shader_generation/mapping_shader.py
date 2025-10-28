@@ -28,16 +28,16 @@ class MappingFunction:
     
     def callback(self, *args):
         if self.return_type is None:
-            #vc.new_scope(indent=False)
+            vc.new_scope(indent=False)
             self.mapping_function(*args)
-            #vc.end(indent=False)
+            vc.end(indent=False)
             return
 
         return_var = vc.new(self.return_type)
 
-        #vc.new_scope(indent=False)
+        vc.new_scope(indent=False)
         return_var[:] = self.mapping_function(*args)
-        #vc.end(indent=False)
+        vc.end(indent=False)
 
         return return_var
 
