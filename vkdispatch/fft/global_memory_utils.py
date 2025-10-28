@@ -3,6 +3,7 @@ import vkdispatch.codegen as vc
 
 from typing import Optional, Tuple
 
+import numpy as np
 import dataclasses
 
 from .registers import FFTRegisters
@@ -219,8 +220,7 @@ def global_reads_iterator(
 
         resources.input_batch_offset[:] = local_index + work_index * (vc.workgroup_size().x * vc.workgroup_size().y * vc.workgroup_size().z)
         r2c_inverse_offset = None # Transposed r2c not supported anyways
-        transpose_stride = (vc.workgroup_size().x * vc.workgroup_size().y * vc.workgroup_size().z * \
-                           vc.num_workgroups().x * vc.num_workgroups().y * vc.num_workgroups().z).copy()
+        transpose_stride = np.prod(resources.grid.workgroup_count) * np.prod(resources.grid.local_size)
     else:
         resources.input_batch_offset[:] = grid.global_outer * input_batch_stride_y + grid.global_inner * config.batch_inner_stride
         r2c_inverse_offset = 2 * resources.input_batch_offset + \
@@ -280,8 +280,7 @@ def global_trasposed_write_iterator(registers: FFTRegisters):
                     vc.workgroup().y * vc.num_workgroups().x + vc.workgroup().x
 
     resources.input_batch_offset[:] = local_index + work_index * (vc.workgroup_size().x * vc.workgroup_size().y * vc.workgroup_size().z)
-    transpose_stride = (vc.workgroup_size().x * vc.workgroup_size().y * vc.workgroup_size().z * \
-                        vc.num_workgroups().x * vc.num_workgroups().y * vc.num_workgroups().z).copy()
+    transpose_stride = np.prod(resources.grid.workgroup_count) * np.prod(resources.grid.local_size)
 
     for read_op in memory_reads_iterator(resources, 0): # Iterate in read order to match register format when reading
         resources.io_index[:] = resources.input_batch_offset + read_op.register_id * transpose_stride
