@@ -48,9 +48,7 @@ def memory_reads_iterator(resources: FFTResources, stage_index: int = 0):
                 instance_count=len(invocations)
             )
 
-            vc.new_scope(indent=False)
             yield read_op
-            vc.end(indent=False)
 
     resources.invocation_end(stage_index)
     resources.stage_end(stage_index)
