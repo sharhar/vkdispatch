@@ -1,10 +1,11 @@
-import vkdispatch as vd
+import vkdispatch.base.dtype as dtypes
+
+from .global_codegen_callbacks import set_global_codegen_callbacks
 
 from .builder import ShaderBuilder, ShaderVariable
+from .variables.variables import check_is_int
 
-import contextlib
-
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Tuple
 
 inf_f32 = "uintBitsToFloat(0x7F800000)"
 ninf_f32 = "uintBitsToFloat(0xFF800000)"
@@ -15,7 +16,23 @@ class GlobalBuilder:
 def set_global_builder(builder: ShaderBuilder):
     old_value = GlobalBuilder.obj
     GlobalBuilder.obj = builder  # Update the global reference.
+
+    set_global_codegen_callbacks(
+        append_contents=builder.append_contents,
+        new_name=builder.new_name,
+    )
+
     return old_value
+
+def get_global_builder() -> ShaderBuilder:
+    return GlobalBuilder.obj
+
+def make_var(var_type: dtypes.dtype,
+             var_name: Optional[str],
+             parents: List[ShaderVariable],
+             lexical_unit: bool = False,
+             settable: bool = False) -> ShaderVariable:
+    return GlobalBuilder.obj.make_var(var_type, var_name, parents, lexical_unit=lexical_unit, settable=settable)
 
 def comment(text: str):
     GlobalBuilder.obj.comment(text)
@@ -65,7 +82,7 @@ def kernel_index():
 def mapping_registers():
     return GlobalBuilder.obj.mapping_registers
 
-def shared_buffer(var_type: vd.dtype, size: int, var_name: Optional[str] = None):
+def shared_buffer(var_type: dtypes.dtype, size: int, var_name: Optional[str] = None):
     return GlobalBuilder.obj.shared_buffer(var_type, size, var_name)
 
 def abs(arg: ShaderVariable):
@@ -308,44 +325,44 @@ def subgroup_elect():
 def subgroup_barrier():
     GlobalBuilder.obj.subgroup_barrier()
 
-def new(var_type: vd.dtype, *args, var_name: Optional[str] = None):
+def new(var_type: dtypes.dtype, *args, var_name: Optional[str] = None):
     return GlobalBuilder.obj.new(var_type, *args, var_name=var_name)
 
 def new_float(*args, var_name: Optional[str] = None):
-    return new(vd.float32, *args, var_name=var_name)
+    return new(dtypes.float32, *args, var_name=var_name)
 
 def new_int(*args, var_name: Optional[str] = None):
-    return new(vd.int32, *args, var_name=var_name)
+    return new(dtypes.int32, *args, var_name=var_name)
 
 def new_uint(*args, var_name: Optional[str] = None):
-    return new(vd.uint32, *args, var_name=var_name)
+    return new(dtypes.uint32, *args, var_name=var_name)
 
 def new_vec2(*args, var_name: Optional[str] = None):
-    return new(vd.vec2, *args, var_name=var_name)
+    return new(dtypes.vec2, *args, var_name=var_name)
 
 def new_vec3(*args, var_name: Optional[str] = None):
-    return new(vd.vec3, *args, var_name=var_name)
+    return new(dtypes.vec3, *args, var_name=var_name)
 
 def new_vec4(*args, var_name: Optional[str] = None):
-    return new(vd.vec4, *args, var_name=var_name)
+    return new(dtypes.vec4, *args, var_name=var_name)
 
 def new_uvec2(*args, var_name: Optional[str] = None):
-    return new(vd.uvec2, *args, var_name=var_name)
+    return new(dtypes.uvec2, *args, var_name=var_name)
 
 def new_uvec3(*args, var_name: Optional[str] = None):
-    return new(vd.uvec3, *args, var_name=var_name)
+    return new(dtypes.uvec3, *args, var_name=var_name)
 
 def new_uvec4(*args, var_name: Optional[str] = None):
-    return new(vd.uvec4, *args, var_name=var_name)
+    return new(dtypes.uvec4, *args, var_name=var_name)
 
 def new_ivec2(*args, var_name: Optional[str] = None):
-    return new(vd.ivec2, *args, var_name=var_name)
+    return new(dtypes.ivec2, *args, var_name=var_name)
 
 def new_ivec3(*args, var_name: Optional[str] = None):
-    return new(vd.ivec3, *args, var_name=var_name)
+    return new(dtypes.ivec3, *args, var_name=var_name)
 
 def new_ivec4(*args, var_name: Optional[str] = None):
-    return new(vd.ivec4, *args, var_name=var_name)
+    return new(dtypes.ivec4, *args, var_name=var_name)
 
 def printf(format: str, *args: Union[ShaderVariable, str], seperator=" "):
     GlobalBuilder.obj.printf(format, *args, seperator=seperator)
@@ -353,8 +370,6 @@ def printf(format: str, *args: Union[ShaderVariable, str], seperator=" "):
 def print_vars(*args: Union[ShaderVariable, str], seperator=" "):
     GlobalBuilder.obj.print_vars(*args, seperator=seperator)
 
-def unravel_index(index: ShaderVariable, shape: ShaderVariable):
-    return GlobalBuilder.obj.unravel_index(index, shape)
 
 def complex_from_euler_angle(angle: ShaderVariable):
     return GlobalBuilder.obj.complex_from_euler_angle(angle)

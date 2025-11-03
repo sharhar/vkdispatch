@@ -14,6 +14,7 @@ from .base.dtype import vec2, vec3, vec4, ivec2, ivec3, ivec4, uvec2, uvec3, uve
 from .base.dtype import mat2, mat4
 from .base.dtype import is_scalar, is_complex, is_vector, is_matrix, is_dtype
 from .base.dtype import to_numpy_dtype, from_numpy_dtype, to_vector
+from .base.dtype import is_float_dtype, is_integer_dtype
 
 from .base.context import get_context, queue_wait_idle
 from .base.context import get_context_handle

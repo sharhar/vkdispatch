@@ -14,13 +14,10 @@ from typing import Optional
 from typing import Callable
 from typing import Any
 
-import enum
 import dataclasses
 
-import numpy as np
-
-from .variable import ShaderVariable, var_types_to_floating, BufferVariable, ImageVariable, SharedBuffer, BindingType, ShaderDescription
-
+from .variables.variables import ShaderVariable, var_types_to_floating, SharedBuffer, BindingType, ShaderDescription
+from .variables.bound_variables import BufferVariable, ImageVariable
 
 @dataclasses.dataclass
 class ShaderBinding:
@@ -69,13 +66,14 @@ class ShaderBuilder:
         self.is_apple_device = is_apple_device
 
         self.pre_header = "#version 450\n"
-        self.pre_header += "#extension GL_ARB_separate_shader_objects : enable\n"
+        self.pre_header += "#extension GL_ARB_separate_shader_objects : require\n"
+        self.pre_header += "#extension GL_EXT_scalar_block_layout : require\n"
 
         if not (self.flags & ShaderFlags.NO_SUBGROUP_OPS):
-            self.pre_header += "#extension GL_KHR_shader_subgroup_arithmetic : enable\n"
+            self.pre_header += "#extension GL_KHR_shader_subgroup_arithmetic : require\n"
 
         if not (self.flags & ShaderFlags.NO_PRINTF):
-            self.pre_header += "#extension GL_EXT_debug_printf : enable\n"
+            self.pre_header += "#extension GL_EXT_debug_printf : require\n"
         
         self.global_invocation = self.make_var(dtypes.uvec3, "gl_GlobalInvocationID", [], lexical_unit=True)
         self.local_invocation = self.make_var(dtypes.uvec3, "gl_LocalInvocationID", [], lexical_unit=True)
@@ -137,52 +135,58 @@ class ShaderBuilder:
         self.append_contents("\n")
         self.append_contents(f"/* {comment} */\n")
 
+    def new_name(self) -> str:
+        new_var = f"var{self.var_count}"
+        self.var_count += 1
+        return new_var
     
-    def get_name_func(self, prefix: Optional[str] = None, suffix: Optional[str] = None):
-        my_prefix = [prefix]
-        my_suffix = [suffix]
-        def get_name_val(var_name: Union[str, None] = None):
-            new_var = f"var{self.var_count}" if var_name is None else var_name
-            raw_name = new_var
+    # def get_name_func(self, prefix: Optional[str] = None, suffix: Optional[str] = None):
+    #     my_prefix = [prefix]
+    #     my_suffix = [suffix]
+    #     def get_name_val(var_name: Union[str, None] = None):
+    #         new_var = f"var{self.var_count}" if var_name is None else var_name
+    #         raw_name = new_var
             
-            if var_name is None:
-                self.var_count += 1
+    #         if var_name is None:
+    #             self.var_count += 1
 
-            if my_prefix[0] is not None:
-                new_var = f"{my_prefix[0]}{new_var}"
-                my_prefix[0] = None
+    #         if my_prefix[0] is not None:
+    #             new_var = f"{my_prefix[0]}{new_var}"
+    #             my_prefix[0] = None
             
-            if my_suffix[0] is not None:
-                new_var = f"{new_var}{my_suffix[0]}"
-                my_suffix[0] = None
+    #         if my_suffix[0] is not None:
+    #             new_var = f"{new_var}{my_suffix[0]}"
+    #             my_suffix[0] = None
 
-            return new_var, raw_name
-        return get_name_val
+    #         return new_var, raw_name
+    #     return get_name_val
 
     def make_var(self,
                  var_type: dtype,
                  var_name: Optional[str],
                  parents: List[ShaderVariable],
-                 prefix: Optional[str] = None,
-                 suffix: Optional[str] = None,
                  lexical_unit: bool = False,
                  settable: bool = False) -> ShaderVariable:
         return ShaderVariable(
-            self.append_contents,
-            self.get_name_func(prefix, suffix),
             var_type,
             var_name,
             lexical_unit=lexical_unit,
             settable=settable,
-            parent_variables=parents
+            parents=parents
         )
     
     def declare_constant(self, var_type: dtype, count: int = 1, var_name: Optional[str] = None):
-        suffix = None
-        if var_type.glsl_type_extern is not None:
-            suffix = ".xyz"
+        if var_name is None:
+            var_name = self.new_name()
 
-        new_var = self.make_var(var_type, var_name, [], "UBO.", suffix)
+        new_var = ShaderVariable(
+            var_type=var_type,
+            name=f"UBO.{var_name}",
+            raw_name=var_name,
+            lexical_unit=True,
+            settable=False,
+            parents=[]
+        )
 
         if count > 1:
             new_var.use_child_type = False
@@ -192,11 +196,18 @@ class ShaderBuilder:
         return new_var
 
     def declare_variable(self, var_type: dtype, count: int = 1, var_name: Optional[str] = None):
-        suffix = None
-        if var_type.glsl_type_extern is not None:
-            suffix = ".xyz"
-        
-        new_var = self.make_var(var_type, var_name, [], "PC.", suffix)
+        if var_name is None:
+            var_name = self.new_name()
+
+        new_var = ShaderVariable(
+            var_type=var_type,
+            name=f"PC.{var_name}",
+            raw_name=var_name,
+            lexical_unit=True,
+            settable=False,
+            parents=[]
+        )
+
         new_var._varying = True
 
         if count > 1:
@@ -225,8 +236,6 @@ class ShaderBuilder:
             self.binding_write_access[current_binding_count] = True
         
         return BufferVariable(
-            self.append_contents, 
-            self.get_name_func(), 
             var_type,
             self.binding_count,
             f"{buffer_name}.data",
@@ -251,8 +260,6 @@ class ShaderBuilder:
             self.binding_write_access[self.binding_count] = True
         
         return ImageVariable(
-            self.append_contents, 
-            self.get_name_func(), 
             dtypes.vec4,
             self.binding_count,
             dimensions,
@@ -262,15 +269,15 @@ class ShaderBuilder:
         )
     
     def shared_buffer(self, var_type: dtype, size: int, var_name: Optional[str] = None):
-        buffer_name = self.get_name_func()(var_name)[0]
-        shape_name = f"{buffer_name}_shape"
+        if var_name is None:
+            var_name = self.new_name()
+        
+        shape_name = f"{var_name}_shape"
 
         new_var = BufferVariable(
-            self.append_contents, 
-            self.get_name_func(), 
             var_type,
             -1,
-            buffer_name,
+            var_name,
             self.declare_constant(dtypes.ivec4, var_name=shape_name),
             shape_name,
             read_lambda=lambda: None,
@@ -345,7 +352,7 @@ class ShaderBuilder:
         return self.make_var(var_types_to_floating(arg.var_type), f"cosh({arg})", [arg], lexical_unit=True)
     
     def cross(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        return self.make_var(dtypes.v3, f"cross({arg1}, {arg2})", [arg1, arg2], lexical_unit=True)
+        return self.make_var(dtypes.vec3, f"cross({arg1}, {arg2})", [arg1, arg2], lexical_unit=True)
     
     def degrees(self, arg: ShaderVariable):
         return self.make_var(var_types_to_floating(arg.var_type), f"degrees({arg})", [arg], lexical_unit=True)
@@ -627,42 +634,6 @@ class ShaderBuilder:
 
         return new_var
 
-    def new_float(self, *args, var_name: Optional[str] = None):
-        return self.new(dtypes.float32, *args, var_name=var_name)
-
-    def new_int(self, *args, var_name: Optional[str] = None):
-        return self.new(dtypes.int32, *args, var_name=var_name)
-
-    def new_uint(self, *args, var_name: Optional[str] = None):
-        return self.new(dtypes.uint32, *args, var_name=var_name)
-
-    def new_vec2(self, *args, var_name: Optional[str] = None):
-        return self.new(dtypes.vec2, *args, var_name=var_name)
-
-    def new_vec3(self, *args, var_name: Optional[str] = None):
-        return self.new(dtypes.vec3, *args, var_name=var_name)
-
-    def new_vec4(self, *args, var_name: Optional[str] = None):
-        return self.new(dtypes.vec4, *args, var_name=var_name)
-
-    def new_uvec2(self, *args, var_name: Optional[str] = None):
-        return self.new(dtypes.uvec2, *args, var_name=var_name)
-
-    def new_uvec3(self, *args, var_name: Optional[str] = None):
-        return self.new(dtypes.uvec3, *args, var_name=var_name)
-
-    def new_uvec4(self, *args, var_name: Optional[str] = None):
-        return self.new(dtypes.uvec4, *args, var_name=var_name)
-
-    def new_ivec2(self, *args, var_name: Optional[str] = None):
-        return self.new(dtypes.ivec2, *args, var_name=var_name)
-
-    def new_ivec3(self, *args, var_name: Optional[str] = None):
-        return self.new(dtypes.ivec3, *args, var_name=var_name)
-
-    def new_ivec4(self, *args, var_name: Optional[str] = None):
-        return self.new(dtypes.ivec4, *args, var_name=var_name)
-
     def printf(self, format: str, *args: Union[ShaderVariable, str], seperator=" "):
         args_string = ""
 
@@ -691,15 +662,6 @@ class ShaderBuilder:
             args_argument = f", {','.join(args_list)}"
 
         self.append_contents(f'debugPrintfEXT("{fmt}"{args_argument});\n')
-
-    def unravel_index(self, index: ShaderVariable, shape: ShaderVariable):
-        new_var = self.new_uvec3()
-
-        new_var.x = index % shape.x
-        new_var.y = (index / shape.x) % shape.y
-        new_var.z = index / (shape.x * shape.y)
-
-        return new_var
     
     def complex_from_euler_angle(self, angle: ShaderVariable):
         return self.make_var(dtypes.vec2, f"vec2({self.cos(angle)}, {self.sin(angle)})", [angle])
@@ -709,8 +671,6 @@ class ShaderBuilder:
 
         for elem in elements:
             decleration_type = f"{elem.dtype.glsl_type}"
-            if elem.dtype.glsl_type_extern is not None:
-                decleration_type = f"{elem.dtype.glsl_type_extern}"
 
             decleration_suffix = ""
             if elem.count > 1:
@@ -738,8 +698,6 @@ class ShaderBuilder:
         for ii, binding in enumerate(self.binding_list):
             if binding.binding_type == BindingType.STORAGE_BUFFER:
                 true_type = binding.dtype.glsl_type
-                if binding.dtype.glsl_type_extern is not None:
-                    true_type = binding.dtype.glsl_type_extern
 
                 header += f"layout(set = 0, binding = {ii + 1}) buffer Buffer{ii + 1} {{ {true_type} data[]; }} {binding.name};\n"
                 binding_type_list.append(binding.binding_type)

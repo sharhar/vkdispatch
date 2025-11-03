@@ -18,8 +18,6 @@
 #include "../objects/command_list.hh"
 #include "../objects/objects_extern.hh"
 
-//#include "../internal.hh"
-
 void inplace_min(int* a, int b) {
     if(b < *a) {
         *a = b;
@@ -34,7 +32,6 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     ctx->deviceCount = device_count;
     ctx->physicalDevices.resize(device_count);
     ctx->devices.resize(device_count);
-    //ctx->queues.resize(device_count);
     ctx->queue_index_map.resize(device_count);
     ctx->allocators.resize(device_count);
     ctx->glslang_resource_limits = new glslang_resource_t();
@@ -61,6 +58,16 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
         LOG_INFO("Device %d Index: %d", i, device_indicies[i]);
 
         struct PhysicalDeviceDetails* details = &_instance.device_details[device_indicies[i]];
+
+        if(!details->timeline_semaphores) {
+            LOG_ERROR("Physical device %d does not support timeline semaphores", device_indicies[i]);
+            return nullptr;
+        }
+
+        if(!details->scalar_block_layout) {
+            LOG_ERROR("Physical device %d does not support scalar block layout", device_indicies[i]);
+            return nullptr;
+        }
 
         inplace_min(&resource->max_compute_work_group_size_x, details->max_workgroup_size_x);
         inplace_min(&resource->max_compute_work_group_size_y, details->max_workgroup_size_y);
