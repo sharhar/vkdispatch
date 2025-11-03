@@ -55,10 +55,10 @@ class FFTRegisterStageInvocation:
         
         self.register_selection = slice(instance_index * stage_fft_length, (instance_index + 1) * stage_fft_length)
 
-    def get_write_index(self, fft_index: int) -> vc.ShaderVariable:
+    def get_write_index(self, fft_index: int):
         return self.sub_sequence_offset0 + fft_index * self.output_stride
     
-    def get_read_index(self, offset: int) -> vc.ShaderVariable:
+    def get_read_index(self, offset: int):
         return self.instance_id0 + offset
 
 @dataclasses.dataclass

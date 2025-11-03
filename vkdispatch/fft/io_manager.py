@@ -5,8 +5,8 @@ from typing import Optional, Tuple
 
 from .io_proxy import IOProxy
 from .registers import FFTRegisters
-from .global_memory_utils import global_writes_iterator, global_reads_iterator
-from .global_memory_utils import GlobalWriteOp, GlobalReadOp
+from .global_memory_iterators import global_writes_iterator, global_reads_iterator
+from .global_memory_iterators import GlobalWriteOp, GlobalReadOp
 
 __static_global_write_op = None
 __static_global_read_op = None

@@ -9,6 +9,31 @@ import dataclasses
 from .registers import FFTRegisters
 from .memory_iterators import memory_reads_iterator, memory_writes_iterator, MemoryOp
 
+def global_batch_offset(
+        registers: FFTRegisters,
+        r2c: bool = False,
+        is_output: bool = None,
+        inverse: bool = None):
+    config = registers.config
+    grid = registers.resources.grid
+
+    outer_batch_stride = config.N * config.fft_stride
+
+    if r2c:
+        assert inverse is not None, "Must specify inverse for r2c io"
+        assert is_output is not None, "Must specify is_output for r2c io"
+        assert config.fft_stride == 1, "R2C io only supported for contiguous data"
+
+        outer_batch_stride = (config.N // 2) + 1
+
+        # for inverse-r2c write and forward-r2c read, the
+        # outer batch stride is doubled, since we are writting
+        # floats and not vec2s
+        if inverse == is_output:
+            outer_batch_stride *= 2
+
+    return grid.global_outer * outer_batch_stride + grid.global_inner
+
 @dataclasses.dataclass
 class GlobalWriteOp(MemoryOp):
     register: vc.ShaderVariable
@@ -29,21 +54,27 @@ class GlobalWriteOp(MemoryOp):
                    r2c=r2c,
                    inverse=inverse)
 
-    def write_to_buffer(self, buffer: vc.Buff[vc.c64], register: Optional[vc.ShaderVariable] = None):
+    def write_to_buffer(self,
+                        buffer: vc.Buff[vc.c64],
+                        register: Optional[vc.ShaderVariable] = None,
+                        io_index: Optional[vc.ShaderVariable] = None):
         if register is None:
             register = self.register
 
+        if io_index is None:
+            io_index = self.io_index
+
         if not self.r2c:
-            buffer[self.io_index] = register
+            buffer[io_index] = register
             return
 
         if not self.inverse:
             vc.if_statement(self.fft_index < (self.fft_size // 2) + 1)
-            buffer[self.io_index] = register
+            buffer[io_index] = register
             vc.end()
             return
 
-        buffer[self.io_index / 2][self.io_index % 2] = register.x
+        buffer[io_index / 2][io_index % 2] = register.x
 
 def global_writes_iterator(
         registers: FFTRegisters,
@@ -54,20 +85,8 @@ def global_writes_iterator(
 
     resources = registers.resources
     config = registers.config
-    grid = registers.resources.grid
     
-    output_batch_stride_y = config.batch_outer_stride
-
-    if r2c:
-        assert inverse is not None, "Must specify inverse for r2c write"
-
-        if not inverse:
-            output_batch_stride_y = (config.N // 2) + 1
-        if inverse:
-            output_batch_stride_y = ((config.N // 2) + 1) * 2
-
-    resources.output_batch_offset[:] = grid.global_outer * output_batch_stride_y + \
-                                        grid.global_inner * config.batch_inner_stride
+    resources.output_batch_offset[:] = global_batch_offset(registers, r2c=r2c, is_output=True, inverse=inverse)
 
     for write_op in memory_writes_iterator(resources, -1):
         resources.io_index[:] = resources.output_batch_offset + write_op.fft_index * config.fft_stride
@@ -186,6 +205,7 @@ def resolve_signal_range(
 
     return start, end
 
+
 def global_reads_iterator(
         registers: FFTRegisters,
         r2c: bool = False,
@@ -197,20 +217,11 @@ def global_reads_iterator(
 
     vc.comment(f"Reading registers from global memory")
 
-    input_batch_stride_y = registers.config.batch_outer_stride
-
     if r2c:
         assert not format_transposed, "R2C transposed format not supported"
-        assert inverse is not None, "Must specify inverse for r2c read"
-
-        if not inverse:
-            input_batch_stride_y = ((registers.config.N // 2) + 1) * 2
-        if inverse:
-            input_batch_stride_y = (registers.config.N // 2) + 1
 
     resources = registers.resources
     config = registers.config
-    grid = registers.resources.grid
     
     if format_transposed:
         local_index = vc.local_invocation().z * vc.workgroup_size().x * vc.workgroup_size().y + \
@@ -222,9 +233,8 @@ def global_reads_iterator(
         r2c_inverse_offset = None # Transposed r2c not supported anyways
         transpose_stride = np.prod(resources.grid.workgroup_count) * np.prod(resources.grid.local_size)
     else:
-        resources.input_batch_offset[:] = grid.global_outer * input_batch_stride_y + grid.global_inner * config.batch_inner_stride
-        r2c_inverse_offset = 2 * resources.input_batch_offset + \
-                                    config.N * config.fft_stride
+        resources.input_batch_offset[:] = global_batch_offset(registers, r2c=r2c, is_output=False, inverse=inverse)
+        r2c_inverse_offset = 2 * resources.input_batch_offset + config.N * config.fft_stride
 
     for read_op in memory_reads_iterator(resources, 0):
         if format_transposed:
@@ -245,7 +255,6 @@ def global_reads_iterator(
         )
 
         yield global_read_op
-
 
 
 @dataclasses.dataclass
