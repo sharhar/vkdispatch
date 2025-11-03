@@ -14,6 +14,7 @@
  * - Debug messenger (VkDebugUtilsMessengerEXT)
  * - Physical devices (VkPhysicalDevice)
  * - Features of the physical devices (VkPhysicalDeviceFeatures2)
+ * - Scalar block layout features (VkPhysicalDeviceScalarBlockLayoutFeatures)
  * - Shader atomic float features (VkPhysicalDeviceShaderAtomicFloatFeaturesEXT)
  * - Shader float16 and int8 features (VkPhysicalDeviceShaderFloat16Int8Features)
  * - 16-bit storage features (VkPhysicalDevice16BitStorageFeatures)
@@ -32,8 +33,9 @@ typedef struct {
     VkDebugUtilsMessengerEXT debug_messenger;
     std::vector<VkPhysicalDevice> physicalDevices;
     std::vector<VkPhysicalDeviceFeatures2> features;
-    std::vector<VkPhysicalDeviceShaderAtomicFloatFeaturesEXT> atomicFloatFeatures;
-    std::vector<VkPhysicalDeviceShaderFloat16Int8Features> float16int8Features;
+    std::vector<VkPhysicalDeviceScalarBlockLayoutFeatures> scalar_block_layout_features; 
+    std::vector<VkPhysicalDeviceShaderAtomicFloatFeaturesEXT> atomic_float_features;
+    std::vector<VkPhysicalDeviceShaderFloat16Int8Features> float16_int8_features;
     std::vector<VkPhysicalDevice16BitStorageFeatures> storage16bit;
     std::vector<VkPhysicalDeviceProperties2> properties;
     std::vector<VkPhysicalDeviceSubgroupProperties> subgroup_properties;

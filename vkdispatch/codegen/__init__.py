@@ -1,3 +1,4 @@
+from .global_codegen_callbacks import append_contents, new_name
 
 from .arguments import Constant, Variable, ConstantArray, VariableArray
 from .arguments import Buffer, Image1D, Image2D, Image3D
@@ -5,13 +6,15 @@ from .arguments import Buffer, Image1D, Image2D, Image3D
 from .arguments import _ArgType
 from .struct_builder import StructBuilder, StructElement
 
-from .variable import ShaderVariable, BoundVariable, ImageVariable, BufferVariable, SharedBuffer
-from .variable import ShaderDescription
+from .variables.variables import ShaderVariable, SharedBuffer
+from .variables.variables import ShaderDescription
+
+from .variables.bound_variables import BufferVariable, ImageVariable, BoundVariable
 
 from .builder import ShaderBinding
 from .builder import ShaderBuilder, ShaderFlags
 
-from .global_builder import inf_f32, ninf_f32, set_global_builder, comment
+from .global_builder import inf_f32, ninf_f32, set_global_builder, comment, get_global_builder, make_var
 from .global_builder import global_invocation, local_invocation, workgroup
 from .global_builder import workgroup_size, num_workgroups, num_subgroups
 from .global_builder import subgroup_id, subgroup_size, subgroup_invocation, shared_buffer
@@ -39,11 +42,13 @@ from .global_builder import subgroup_min, subgroup_max, subgroup_and
 from .global_builder import subgroup_or, subgroup_xor, subgroup_elect
 from .global_builder import subgroup_barrier, mapping_index, kernel_index, mapping_registers
 from .global_builder import set_kernel_index, set_mapping_index, set_mapping_registers
-from .global_builder import printf, unravel_index
+from .global_builder import printf
 from .global_builder import print_vars as print
 from .global_builder import new, new_float, new_int, new_uint
 from .global_builder import new_vec2, new_ivec2, new_uvec2
 from .global_builder import new_vec3, new_ivec3, new_uvec3
 from .global_builder import new_vec4, new_ivec4, new_uvec4
+
+from .functions.index_raveling import ravel_index, unravel_index
 
 from .abreviations import *

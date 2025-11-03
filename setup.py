@@ -260,7 +260,9 @@ setup(
     packages=[
         "vkdispatch", 
         "vkdispatch.base", 
-        "vkdispatch.codegen", 
+        "vkdispatch.codegen",
+        "vkdispatch.codegen.functions", 
+        "vkdispatch.codegen.variables", 
         "vkdispatch.execution_pipeline", 
         "vkdispatch.shader_generation", 
         "vkdispatch.vkfft",

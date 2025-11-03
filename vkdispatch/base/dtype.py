@@ -6,7 +6,6 @@ class dtype:
     name: str
     item_size: int
     glsl_type: str
-    glsl_type_extern: Optional[str] = None
     dimentions: int
     format_str: str
     child_type: "dtype"
@@ -22,6 +21,7 @@ class _Scalar(dtype):
     shape = (1,)
     numpy_shape = (1,)
     true_numpy_shape = ()
+    child_type = None
     scalar = None
 
 class _I32(_Scalar):
@@ -80,9 +80,8 @@ class _V2F32(_Vector):
 
 class _V3F32(_Vector):
     name = "vec3"
-    item_size = 16
+    item_size = 12
     glsl_type = "vec3"
-    glsl_type_extern = "vec4"
     format_str = "(%f, %f, %f)"
     child_type = float32
     child_count = 3
@@ -117,9 +116,8 @@ class _V2I32(_Vector):
 
 class _V3I32(_Vector):
     name = "ivec3"
-    item_size = 16
+    item_size = 12
     glsl_type = "ivec3"
-    glsl_type_extern = "ivec4"
     format_str = "(%d, %d, %d)"
     child_type = int32
     child_count = 3
@@ -154,9 +152,8 @@ class _V2U32(_Vector):
 
 class _V3U32(_Vector):
     name = "uvec3"
-    item_size = 16
+    item_size = 12
     glsl_type = "uvec3"
-    glsl_type_extern = "uvec4"
     format_str = "(%u, %u, %u)"
     child_type = uint32
     child_count = 3
@@ -259,6 +256,24 @@ def is_vector(dtype: dtype) -> bool:
 
 def is_matrix(dtype: dtype) -> bool:
     return issubclass(dtype, _Matrix) # type: ignore
+
+def is_float_dtype(dtype: dtype) -> bool:
+    if not is_scalar(dtype):
+        dtype = dtype.scalar
+
+    return dtype == float32 or dtype == complex64
+
+def is_integer_dtype(dtype: dtype) -> bool:
+    if not is_scalar(dtype):
+        dtype = dtype.scalar
+
+    return dtype == int32 or dtype == uint32
+
+def vector_size(dtype: dtype) -> int:
+    if not is_vector(dtype):
+        raise ValueError(f"Type ({dtype}) is not a vector!")
+
+    return dtype.child_count
 
 def from_numpy_dtype(dtype: type) -> dtype:
     if dtype == np.int32:

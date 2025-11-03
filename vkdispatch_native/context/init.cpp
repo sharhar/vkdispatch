@@ -186,7 +186,7 @@ void init_extern(bool debug, LogLevel log_level) {
 
     VkInstanceCreateInfo instanceCreateInfo = {};
     instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    instanceCreateInfo.pNext = &validationFeatures;
+    if (debug) instanceCreateInfo.pNext = &validationFeatures;
     instanceCreateInfo.pApplicationInfo = &appInfo;
     instanceCreateInfo.flags = flags;
     instanceCreateInfo.enabledExtensionCount = supportedExtensions.size();
@@ -211,7 +211,6 @@ void init_extern(bool debug, LogLevel log_level) {
     if(debug) {
         LOG_INFO("Initializing Vulkan Debug Messenger...");
 
-
         VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {};
         debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
         debugCreateInfo.pNext = NULL;
@@ -235,8 +234,9 @@ void init_extern(bool debug, LogLevel log_level) {
     VK_CALL(vkEnumeratePhysicalDevices(_instance.instance, &device_count, nullptr));
     _instance.physicalDevices.resize(device_count);
     _instance.features.resize(device_count);
-    _instance.atomicFloatFeatures.resize(device_count);
-    _instance.float16int8Features.resize(device_count);
+    _instance.scalar_block_layout_features.resize(device_count);
+    _instance.atomic_float_features.resize(device_count);
+    _instance.float16_int8_features.resize(device_count);
     _instance.storage16bit.resize(device_count);
     _instance.properties.resize(device_count);
     _instance.subgroup_properties.resize(device_count);
@@ -246,20 +246,24 @@ void init_extern(bool debug, LogLevel log_level) {
     VK_CALL(vkEnumeratePhysicalDevices(_instance.instance, &device_count, _instance.physicalDevices.data()));
 
     for(int i = 0; i < _instance.physicalDevices.size(); i++) {
+        _instance.scalar_block_layout_features[i] = {};
+        _instance.scalar_block_layout_features[i].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES;
+
         _instance.timeline_semaphore_features[i] = {};
         _instance.timeline_semaphore_features[i].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
+        _instance.timeline_semaphore_features[i].pNext = &_instance.scalar_block_layout_features[i];
 
-        _instance.atomicFloatFeatures[i] = {};
-        _instance.atomicFloatFeatures[i].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT;
-        _instance.atomicFloatFeatures[i].pNext = &_instance.timeline_semaphore_features[i];
+        _instance.atomic_float_features[i] = {};
+        _instance.atomic_float_features[i].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT;
+        _instance.atomic_float_features[i].pNext = &_instance.timeline_semaphore_features[i];
         
-        _instance.float16int8Features[i] = {};
-        _instance.float16int8Features[i].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES;
-        _instance.float16int8Features[i].pNext = &_instance.atomicFloatFeatures[i];
+        _instance.float16_int8_features[i] = {};
+        _instance.float16_int8_features[i].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES;
+        _instance.float16_int8_features[i].pNext = &_instance.atomic_float_features[i];
 
         _instance.storage16bit[i] = {};
         _instance.storage16bit[i].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES;
-        _instance.storage16bit[i].pNext = &_instance.float16int8Features[i];
+        _instance.storage16bit[i].pNext = &_instance.float16_int8_features[i];
 
         _instance.features[i] = {};
         _instance.features[i].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
@@ -268,7 +272,7 @@ void init_extern(bool debug, LogLevel log_level) {
         vkGetPhysicalDeviceFeatures2(_instance.physicalDevices[i], &_instance.features[i]);
 
         VkPhysicalDeviceFeatures features = _instance.features[i].features;
-        VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomicFloatFeatures = _instance.atomicFloatFeatures[i];
+        VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomicFloatFeatures = _instance.atomic_float_features[i];
 
         _instance.subgroup_properties[i] = {};
         _instance.subgroup_properties[i].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES;
@@ -304,7 +308,7 @@ void init_extern(bool debug, LogLevel log_level) {
         strcpy((char*)_instance.device_details[i].device_name, properties.deviceName);
 
         _instance.device_details[i].float_64_support = features.shaderFloat64;
-        _instance.device_details[i].float_16_support = _instance.float16int8Features[i].shaderFloat16;
+        _instance.device_details[i].float_16_support = _instance.float16_int8_features[i].shaderFloat16;
         _instance.device_details[i].int_64_support = features.shaderInt64;
         _instance.device_details[i].int_16_support = features.shaderInt16;
 
@@ -346,6 +350,9 @@ void init_extern(bool debug, LogLevel log_level) {
 
         _instance.device_details[i].shader_buffer_float32_atomics = atomicFloatFeatures.shaderBufferFloat32Atomics;
         _instance.device_details[i].shader_buffer_float32_atomic_add = atomicFloatFeatures.shaderBufferFloat32AtomicAdd;
+        
+        _instance.device_details[i].timeline_semaphores = _instance.timeline_semaphore_features[i].timelineSemaphore;
+        _instance.device_details[i].scalar_block_layout = _instance.scalar_block_layout_features[i].scalarBlockLayout;
     }
 }
 

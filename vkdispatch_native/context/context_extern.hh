@@ -60,6 +60,9 @@ struct PhysicalDeviceDetails {
 
     unsigned int queue_family_count;
     struct QueueFamilyProperties* queue_family_properties;
+
+    int scalar_block_layout;
+    int timeline_semaphores;
 };
 
 void init_extern(bool debug, LogLevel log_level);
