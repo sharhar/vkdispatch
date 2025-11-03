@@ -93,7 +93,12 @@ def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tup
 
     return workgroup_index, (workgroups_x, workgroups_y, workgroups_z)
 
-def decompose_workgroup_index(workgroup_index: vc.ShaderVariable, inner_batch_count: int, fft_threads: int, local_size: Tuple[int, int, int]) -> Tuple[vc.ShaderVariable, vc.ShaderVariable]:
+def decompose_workgroup_index(
+        workgroup_index: vc.ShaderVariable,
+        inner_batch_count: int,
+        fft_threads: int,
+        local_size: Tuple[int, int, int]) -> Tuple[vc.ShaderVariable, vc.ShaderVariable]:
+
     if inner_batch_count == None:
         if fft_threads == 1:
             return None, workgroup_index * local_size[0] + vc.local_invocation().x
@@ -203,7 +208,12 @@ class FFTGridManager:
                     self.tid = 0
                     self.local_outer = vc.local_invocation().x
 
-                _, self.global_outer = decompose_workgroup_index(workgroup_index, None, config.batch_threads, self.local_size)
+                _, self.global_outer = decompose_workgroup_index(
+                    workgroup_index,
+                    None,
+                    config.batch_threads,
+                    self.local_size
+                )
 
         self.exec_size = (
             self.local_size[0] * self.workgroup_count[0],

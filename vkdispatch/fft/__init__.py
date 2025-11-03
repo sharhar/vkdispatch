@@ -1,4 +1,4 @@
-from .config import FFTConfig, FFTParams
+from .config import FFTConfig
 from .grid_manager import FFTGridManager
 from .sdata_manager import FFTSDataManager
 from .registers import FFTRegisters
@@ -7,9 +7,9 @@ from .resources import FFTResources
 
 from .memory_iterators import memory_reads_iterator, memory_writes_iterator, MemoryOp
 
-from .global_memory_utils import global_writes_iterator, GlobalWriteOp
-from .global_memory_utils import global_reads_iterator, GlobalReadOp
-from .global_memory_utils import global_trasposed_write_iterator, GlobalTransposedWriteOp
+from .global_memory_iterators import global_writes_iterator, GlobalWriteOp
+from .global_memory_iterators import global_reads_iterator, GlobalReadOp
+from .global_memory_iterators import global_trasposed_write_iterator, GlobalTransposedWriteOp
 
 from .io_proxy import IOProxy
 from .io_manager import IOManager, mapped_read_op, mapped_write_op

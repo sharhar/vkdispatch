@@ -91,25 +91,6 @@ class FFTRegisterStageConfig:
             self.sdata_size = self.sdata_width_padded * int(np.prod(threads_primes))
 
 @dataclasses.dataclass
-class FFTParams:
-    config: "FFTConfig" = None
-    inverse: bool = False
-    normalize: bool = True
-    r2c: bool = False
-    batch_outer_stride: int = None
-    batch_inner_stride: int = None
-    fft_stride: int = None
-    angle_factor: float = None
-    input_sdata: bool = False
-    input_buffers: List[vd.Buffer] = None
-    output_buffers: List[vd.Buffer] = None
-    passthrough: bool = False
-
-    sdata_row_size: Optional[int] = None
-    sdata_row_size_padded: Optional[int] = None
-
-
-@dataclasses.dataclass
 class FFTConfig:
     N: int
     register_count: int
@@ -119,7 +100,6 @@ class FFTConfig:
     fft_stride: int
     batch_outer_stride: int
     batch_outer_count: int
-    batch_inner_stride: int
     batch_inner_count: int
     batch_threads: int
     sdata_allocation: int
@@ -139,7 +119,6 @@ class FFTConfig:
         self.batch_outer_stride = self.fft_stride * N
         self.batch_outer_count = total_buffer_length // self.batch_outer_stride
 
-        self.batch_inner_stride = 1
         self.batch_inner_count = self.fft_stride
         
         self.N = N
@@ -191,29 +170,3 @@ class FFTConfig:
     
     def angle_factor(self, inverse: bool) -> float:
         return 2 * np.pi * (1 if inverse else -1)
-
-    def params(self,
-               inverse: bool = False,
-               normalize: bool = True,
-               r2c: bool = False,
-               input_sdata: bool = False,
-               input_buffers: List[vd.Buffer] = None,
-               output_buffers: List[vd.Buffer] = None,
-               passthrough: bool = False) -> FFTParams:
-        return FFTParams(
-            config=self,
-            inverse=inverse,
-            normalize=normalize,
-            r2c=r2c,
-            batch_outer_stride=self.batch_outer_stride,
-            batch_inner_stride=self.batch_inner_stride,
-            fft_stride=self.fft_stride,
-            angle_factor=2 * np.pi * (1 if inverse else -1),
-            input_sdata=input_sdata,
-            input_buffers=input_buffers,
-            output_buffers=output_buffers,
-            passthrough=passthrough,
-            sdata_row_size=self.sdata_row_size,
-            sdata_row_size_padded=self.sdata_row_size_padded
-        )
-    
