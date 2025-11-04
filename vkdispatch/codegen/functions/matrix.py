@@ -3,6 +3,8 @@ from ..variables.base_variable import BaseVariable
 from .arithmetic import is_number
 from typing import Any, Union, Tuple
 
+from ..global_codegen_callbacks import new_var
+
 import numpy as np
 
 from .common_builtins import dtype_to_floating, resolve_input
@@ -16,7 +18,7 @@ def matrix_comp_mult(x: BaseVariable, y: BaseVariable) -> BaseVariable:
 
     assert x.var_type == y.var_type, "Matrices must have the same shape"
 
-    return x.new_var(
+    return new_var(
         x.var_type,
         f"matrixCompMult({resolve_input(x)}, {resolve_input(y)})",
         parents=[y, x],
@@ -43,7 +45,7 @@ def outer_product(x: BaseVariable, y: BaseVariable) -> BaseVariable:
     else:
         raise AssertionError("Unsupported vector type for outer product")
 
-    return x.new_var(
+    return new_var(
         out_type,
         f"outerProduct({resolve_input(x)}, {resolve_input(y)})",
         parents=[y, x],
@@ -55,7 +57,7 @@ def transpose(var: BaseVariable) ->BaseVariable:
 
     assert dtypes.is_matrix(var.var_type), "Argument must be a matrix"
 
-    return var.new_var(
+    return new_var(
         var.var_type,
         f"transpose({var.resolve()})",
         parents=[var],
@@ -67,7 +69,7 @@ def determinant(var: BaseVariable) -> BaseVariable:
 
     assert dtypes.is_matrix(var.var_type), "Argument must be a matrix"
 
-    return var.new_var(
+    return new_var(
         dtypes.float32,
         f"determinant({var.resolve()})",
         parents=[var],
@@ -79,7 +81,7 @@ def inverse(var: BaseVariable) -> BaseVariable:
 
     assert dtypes.is_matrix(var.var_type), "Argument must be a matrix"
 
-    return var.new_var(
+    return new_var(
         var.var_type,
         f"inverse({var.resolve()})",
         parents=[var],

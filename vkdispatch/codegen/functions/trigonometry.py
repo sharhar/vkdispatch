@@ -3,6 +3,8 @@ from ..variables.base_variable import BaseVariable
 from .arithmetic import is_number
 from typing import Any, Union
 
+from ..global_codegen_callbacks import new_var
+
 import numpy as np
 
 def dtype_to_floating(var_type: dtypes.dtype) -> dtypes.dtype:
@@ -26,7 +28,7 @@ def radians(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"radians({var.resolve()})",
         parents=[var],
@@ -39,7 +41,7 @@ def degrees(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"degrees({var.resolve()})",
         parents=[var],
@@ -52,7 +54,7 @@ def sin(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"sin({var.resolve()})",
         parents=[var],
@@ -65,7 +67,7 @@ def cos(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"cos({var.resolve()})",
         parents=[var],
@@ -78,7 +80,7 @@ def tan(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"tan({var.resolve()})",
         parents=[var],
@@ -91,7 +93,7 @@ def asin(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"asin({var.resolve()})",
         parents=[var],
@@ -104,7 +106,7 @@ def acos(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"acos({var.resolve()})",
         parents=[var],
@@ -117,7 +119,7 @@ def atan(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"atan({var.resolve()})",
         parents=[var],
@@ -129,14 +131,14 @@ def atan2(y: Any, x: Any) -> Union[BaseVariable, float]:
         return float(np.arctan2(y, x))
     
     if is_number(x) and isinstance(y, BaseVariable):
-        return y.new_var(
+        return new_var(
             dtype_to_floating(y.var_type),
             f"atan({y.resolve()}, {x})",
             parents=[y]
         )
     
     if is_number(y) and isinstance(x, BaseVariable):
-        return x.new_var(
+        return new_var(
             dtype_to_floating(x.var_type),
             f"atan({y}, {x.resolve()})",
             parents=[x]
@@ -145,7 +147,7 @@ def atan2(y: Any, x: Any) -> Union[BaseVariable, float]:
     assert isinstance(y, BaseVariable), "First argument must be a ShaderVariable or number"
     assert isinstance(x, BaseVariable), "Second argument must be a ShaderVariable or number"
 
-    return y.new_var(
+    return new_var(
         dtype_to_floating(y.var_type),
         f"atan({y.resolve()}, {x.resolve()})",
         parents=[y, x],
@@ -158,7 +160,7 @@ def sinh(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"sinh({var.resolve()})",
         parents=[var],
@@ -171,7 +173,7 @@ def cosh(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"cosh({var.resolve()})",
         parents=[var],
@@ -184,7 +186,7 @@ def tanh(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"tanh({var.resolve()})",
         parents=[var],
@@ -197,7 +199,7 @@ def asinh(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"asinh({var.resolve()})",
         parents=[var],
@@ -210,7 +212,7 @@ def acosh(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"acosh({var.resolve()})",
         parents=[var],
@@ -223,7 +225,7 @@ def atanh(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"atanh({var.resolve()})",
         parents=[var],

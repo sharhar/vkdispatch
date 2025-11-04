@@ -3,8 +3,7 @@ from ..variables.base_variable import BaseVariable
 from .arithmetic import is_number
 from typing import Any, Union, Tuple
 
-
-import numbers
+from ..global_codegen_callbacks import new_var
 
 import numpy as np
 
@@ -36,7 +35,7 @@ def abs(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"abs({var.resolve()})",
         parents=[var],
@@ -49,7 +48,7 @@ def sign(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"sign({var.resolve()})",
         parents=[var],
@@ -62,7 +61,7 @@ def floor(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"floor({var.resolve()})",
         parents=[var],
@@ -75,7 +74,7 @@ def ceil(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"ceil({var.resolve()})",
         parents=[var],
@@ -88,7 +87,7 @@ def trunc(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"trunc({var.resolve()})",
         parents=[var],
@@ -101,7 +100,7 @@ def round(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"round({var.resolve()})",
         parents=[var],
@@ -114,7 +113,7 @@ def round_even(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"roundEven({var.resolve()})",
         parents=[var],
@@ -127,7 +126,7 @@ def fract(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"fract({var.resolve()})",
         parents=[var],
@@ -147,7 +146,7 @@ def mod(x: Any, y: Any) -> Union[BaseVariable, float]:
     else:
         raise AssertionError("Arguments must be ShaderVariables or numbers")
 
-    return base_var.new_var(
+    return new_var(
         dtype_to_floating(base_var.var_type),
         f"mod({resolve_input(x)}, {resolve_input(y)})",
         parents=[y, x],
@@ -160,14 +159,14 @@ def modf(x: Any, y: Any) -> Tuple[BaseVariable, BaseVariable]:
         return float(a), float(b)
     
     if is_number(x) and isinstance(y, BaseVariable):
-        return y.new_var(
+        return new_var(
             dtype_to_floating(y.var_type),
             f"mod({x}, {y.resolve()})",
             parents=[y]
         )
     
     if is_number(y) and isinstance(x, BaseVariable):
-        return x.new_var(
+        return new_var(
             dtype_to_floating(x.var_type),
             f"mod({x.resolve()}, {y})",
             parents=[x]
@@ -176,7 +175,7 @@ def modf(x: Any, y: Any) -> Tuple[BaseVariable, BaseVariable]:
     assert isinstance(y, BaseVariable), "First argument must be a ShaderVariable or number"
     assert isinstance(x, BaseVariable), "Second argument must be a ShaderVariable or number"
 
-    return y.new_var(
+    return new_var(
         dtype_to_floating(y.var_type),
         f"mod({x.resolve()}, {y.resolve()})",
         parents=[y, x],
@@ -196,7 +195,7 @@ def min(x: Any, y: Any) -> Union[BaseVariable, float]:
     else:
         raise AssertionError("Arguments must be ShaderVariables or numbers")
 
-    return base_var.new_var(
+    return new_var(
         dtype_to_floating(base_var.var_type),
         f"min({resolve_input(x)}, {resolve_input(y)})",
         parents=[y, x],
@@ -216,7 +215,7 @@ def max(x: Any, y: Any) -> Union[BaseVariable, float]:
     else:
         raise AssertionError("Arguments must be ShaderVariables or numbers")
 
-    return base_var.new_var(
+    return new_var(
         dtype_to_floating(base_var.var_type),
         f"max({resolve_input(x)}, {resolve_input(y)})",
         parents=[y, x],
@@ -238,7 +237,7 @@ def clip(x: Any, min_val: Any, max_val: Any) -> Union[BaseVariable, float]:
     else:
         raise AssertionError("Arguments must be ShaderVariables or numbers")
     
-    return base_var.new_var(
+    return new_var(
         dtype_to_floating(base_var.var_type),
         f"clamp({resolve_input(x)}, {resolve_input(min_val)}, {resolve_input(max_val)})",
         parents=[x, min_val, max_val],
@@ -263,7 +262,7 @@ def mix(x: Any, y: Any, a: Any) -> Union[BaseVariable, float]:
     else:
         raise AssertionError("Arguments must be ShaderVariables or numbers")
 
-    return base_var.new_var(
+    return new_var(
         dtype_to_floating(base_var.var_type),
         f"mix({resolve_input(x)}, {resolve_input(y)}, {resolve_input(a)})",
         parents=[y, x, a],
@@ -283,7 +282,7 @@ def step(edge: Any, x: Any) -> Union[BaseVariable, float]:
     else:
         raise AssertionError("Arguments must be ShaderVariables or numbers")
 
-    return base_var.new_var(
+    return new_var(
         dtype_to_floating(base_var.var_type),
         f"step({resolve_input(edge)}, {resolve_input(x)})",
         parents=[edge, x],
@@ -306,7 +305,7 @@ def smoothstep(edge0: Any, edge1: Any, x: Any) -> Union[BaseVariable, float]:
     else:
         raise AssertionError("Arguments must be ShaderVariables or numbers")
 
-    return base_var.new_var(
+    return new_var(
         dtype_to_floating(base_var.var_type),
         f"smoothstep({resolve_input(edge0)}, {resolve_input(edge1)}, {resolve_input(x)})",
         parents=[edge0, edge1, x],
@@ -319,7 +318,7 @@ def isnan(var: Any) -> Union[BaseVariable, bool]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtypes.bool,
         f"isnan({var.resolve()})",
         parents=[var],
@@ -332,7 +331,7 @@ def isinf(var: Any) -> Union[BaseVariable, bool]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtypes.bool,
         f"isinf({var.resolve()})",
         parents=[var],
@@ -345,7 +344,7 @@ def float_bits_to_int(var: Any) -> Union[BaseVariable, int]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtypes.int32,
         f"floatBitsToInt({var.resolve()})",
         parents=[var],
@@ -358,7 +357,7 @@ def float_bits_to_uint(var: Any) -> Union[BaseVariable, int]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtypes.uint32,
         f"floatBitsToUint({var.resolve()})",
         parents=[var],
@@ -371,7 +370,7 @@ def int_bits_to_float(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtypes.float32,
         f"intBitsToFloat({var.resolve()})",
         parents=[var],
@@ -384,7 +383,7 @@ def uint_bits_to_float(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtypes.float32,
         f"uintBitsToFloat({var.resolve()})",
         parents=[var],
@@ -406,7 +405,7 @@ def fma(a: Any, b: Any, c: Any) -> Union[BaseVariable, float]:
     else:
         raise AssertionError("Arguments must be ShaderVariables or numbers")
 
-    return base_var.new_var(
+    return new_var(
         dtype_to_floating(base_var.var_type),
         f"fma({resolve_input(a)}, {resolve_input(b)}, {resolve_input(c)})",
         parents=[a, b, c],

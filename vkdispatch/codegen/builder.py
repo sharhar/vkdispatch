@@ -16,7 +16,7 @@ from typing import Any
 
 import dataclasses
 
-from .variables.variables import ShaderVariable, var_types_to_floating, SharedBuffer, BindingType, ShaderDescription
+from .variables.variables import BaseVariable, ShaderVariable, var_types_to_floating, SharedBuffer, BindingType, ShaderDescription, ScaledAndOfftsetIntVariable
 from .variables.bound_variables import BufferVariable, ImageVariable
 
 @dataclasses.dataclass
@@ -118,6 +118,22 @@ class ShaderBuilder:
             self.if_statement(self.exec_count.z <= self.global_invocation.z)
             self.return_statement()
             self.end()
+
+    def new_var(self,
+                var_type: dtype,
+                name: str,
+                parents: List["ShaderVariable"],
+                lexical_unit: bool = False,
+                settable: bool = False) -> "ShaderVariable":
+        return ShaderVariable(var_type, name, lexical_unit=lexical_unit, settable=settable, parents=parents)
+    
+    def new_scaled_var(self,
+                        var_type: dtypes.dtype,
+                        name: str,
+                        scale: int = 1,
+                        offset: int = 0,
+                        parents: List[BaseVariable] = None):
+        return ScaledAndOfftsetIntVariable(var_type, name, scale=scale, offset=offset, parents=parents)
 
     def set_mapping_index(self, index: ShaderVariable):
         self.mapping_index = index

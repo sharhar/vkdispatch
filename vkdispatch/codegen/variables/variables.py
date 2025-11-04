@@ -128,13 +128,14 @@ class ShaderVariable(BaseVariable):
                  raw_name: Optional[str] = None,
                  lexical_unit: bool = False,
                  settable: bool = False,
+                 register: bool = False,
                  parents: List["ShaderVariable"] = None
         ) -> None:
-        super().__init__(var_type, name, raw_name, lexical_unit, settable, parents)
+        super().__init__(var_type, name, raw_name, lexical_unit, settable, register, parents)
 
-    # Override new_var from BaseVariable
-    def new_var(self, var_type: dtype, name: str, parents: List["ShaderVariable"], lexical_unit: bool = False, settable: bool = False) -> "ShaderVariable":
-        return ShaderVariable(var_type, name, lexical_unit=lexical_unit, settable=settable, parents=parents)
+    # # Override new_var from BaseVariable
+    # def new_var(self, var_type: dtype, name: str, parents: List["ShaderVariable"], lexical_unit: bool = False, settable: bool = False) -> "ShaderVariable":
+    #     return ShaderVariable(var_type, name, lexical_unit=lexical_unit, settable=settable, parents=parents)
        
     def __getitem__(self, index) -> "ShaderVariable":
         if not self.can_index:
@@ -188,16 +189,8 @@ class ShaderVariable(BaseVariable):
 
     def __bool__(self) -> bool:
         raise ValueError(f"Vkdispatch variables cannot be cast to a python boolean")
- 
-    def new_scaled_var(self,
-                        var_type: dtypes.dtype,
-                        name: str,
-                        scale: int = 1,
-                        offset: int = 0,
-                        parents: List["BaseVariable"] = None):
-        return ScaledAndOfftsetIntVariable(var_type, name, scale=scale, offset=offset, parents=parents)
 
-    def copy(self, var_name: str = None):
+    def to_register(self, var_name: str = None):
         """Create a new variable with the same value as the current variable."""
         new_var = self.new(self.var_type, var_name, [], lexical_unit=True, settable=True)
 
