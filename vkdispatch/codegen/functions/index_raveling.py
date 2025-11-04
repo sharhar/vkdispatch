@@ -1,10 +1,10 @@
 import vkdispatch.base.dtype as dtypes
 
-from ..variables.variables import check_is_int
+from ..utils import check_is_int
 from ..builder import ShaderVariable
 from ..global_builder import make_var
 
-from typing import List, Union, Optional, Tuple
+from typing import List, Union, Tuple
 
 def sanitize_input(value: Union[ShaderVariable, Tuple[int, ...]]) -> Tuple[List[Union[ShaderVariable, int]], bool]:
     axes_lengths = []

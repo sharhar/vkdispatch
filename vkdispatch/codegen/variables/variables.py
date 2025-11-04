@@ -3,6 +3,8 @@ from vkdispatch.base.dtype import dtype, is_scalar, is_vector, is_matrix, is_com
 
 import vkdispatch.codegen as vc
 
+from .base_variable import BaseVariable
+
 from ..struct_builder import StructElement, StructBuilder
 
 from typing import Dict
@@ -16,12 +18,14 @@ from typing import Any
 import enum
 import dataclasses
 
+from ..functions import arithmetic
+from ..functions import bitwise
+
 import numpy as np
 
 ENABLE_SCALED_AND_OFFSET_INT = True
 
-def check_is_int(variable):
-    return isinstance(variable, int) or np.issubdtype(type(variable), np.integer)
+from utils import check_is_int
 
 def do_scaled_int_check(other):
     return ENABLE_SCALED_AND_OFFSET_INT and check_is_int(other)
@@ -121,17 +125,7 @@ class ShaderDescription:
         description_string += f"Body:\n{self.body}\n"
         return description_string
 
-class ShaderVariable:
-    var_type: dtype
-    name: str
-    raw_name: str
-    can_index: bool = False
-    use_child_type: bool = True
-    _varying: bool = False
-    lexical_unit: bool = False
-    settable: bool = False
-    parents: List["ShaderVariable"]
-
+class ShaderVariable(BaseVariable):
     def __init__(self,
                  var_type: dtype, 
                  name: Optional[str] = None,
@@ -140,49 +134,7 @@ class ShaderVariable:
                  settable: bool = False,
                  parents: List["ShaderVariable"] = None
         ) -> None:
-        self.var_type = var_type
-        self.lexical_unit = lexical_unit
-
-        self.name = name if name is not None else vc.new_name()
-        self.raw_name = raw_name if raw_name is not None else self.name
-
-        self.settable = settable
-
-        if parents is None:
-            parents = []
-
-        self.parents = []
-
-        for parent_var in parents:
-            if isinstance(parent_var, ShaderVariable):
-                self.parents.append(parent_var)
-
-        if is_complex(self.var_type):
-            self.real = self.new(self.var_type.child_type, f"{self}.x", [self], lexical_unit=True, settable=settable)
-            self.imag = self.new(self.var_type.child_type, f"{self}.y", [self], lexical_unit=True, settable=settable)
-            self.x = self.real
-            self.y = self.imag
-
-            self._register_shape()
-        
-        if is_vector(self.var_type):
-            self.x = self.new(self.var_type.child_type, f"{self}.x", [self], lexical_unit=True, settable=settable)
-            
-            if self.var_type.child_count >= 2:
-                self.y = self.new(self.var_type.child_type, f"{self}.y", [self], lexical_unit=True, settable=settable)
-
-            if self.var_type.child_count >= 3:
-                self.z = self.new(self.var_type.child_type, f"{self}.z", [self], lexical_unit=True, settable=settable)
-
-            if self.var_type.child_count == 4:
-                self.w = self.new(self.var_type.child_type, f"{self}.w", [self], lexical_unit=True, settable=settable)
-            
-            self._register_shape()
-        
-        if is_matrix(self.var_type):
-            self._register_shape()
-
-        self._initilized = True
+        super().__init__(var_type, name, raw_name, lexical_unit, settable, parents)
 
     def __repr__(self) -> str:
         if self.lexical_unit:
@@ -190,15 +142,8 @@ class ShaderVariable:
 
         return f"({self.name})"
 
-    def read_callback(self):
-        for parent in self.parents:
-            parent.read_callback()
-
-    def write_callback(self):
-        for parent in self.parents:
-            parent.write_callback()
-
-    def new(self, var_type: dtype, name: str, parents: List["ShaderVariable"], lexical_unit: bool = False, settable: bool = False) -> "ShaderVariable":
+    # Override new_var from BaseVariable
+    def new_var(self, var_type: dtype, name: str, parents: List["ShaderVariable"], lexical_unit: bool = False, settable: bool = False) -> "ShaderVariable":
         return ShaderVariable(var_type, name, lexical_unit=lexical_unit, settable=settable, parents=parents)
        
     def __getitem__(self, index) -> "ShaderVariable":
@@ -218,7 +163,7 @@ class ShaderVariable:
             assert dtypes.is_scalar(index.var_type), "Indexing variable must be a scalar!"
             assert dtypes.is_integer_dtype(index.var_type), "Indexing variable must be an integer type!"
         
-        return self.new(return_type, f"{self.name}[{shader_var_name(index)}]", [self], settable=self.settable)
+        return self.new_var(return_type, f"{self.name}[{shader_var_name(index)}]", [self], settable=self.settable)
 
     def __setitem__(self, index, value: "ShaderVariable") -> None:
         assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
@@ -251,17 +196,16 @@ class ShaderVariable:
 
         vc.append_contents(f"{self.name}[{shader_var_name(index)}] = {shader_var_name(value)};\n")
 
-    def _register_shape(self, shape_var: "ShaderVariable" = None, shape_name: str = None, use_child_type: bool = True):
-        self.shape = shape_var
-        self.shape_name = shape_name
-        self.can_index = True
-        self.use_child_type = use_child_type
-
     def __bool__(self) -> bool:
         raise ValueError(f"Vkdispatch variables cannot be cast to a python boolean")
  
-    def new_scaled_and_offset_int(self, var_type: dtype, name: str, parents: List["ShaderVariable"] = None) -> "ScaledAndOfftsetIntVariable":
-        return ScaledAndOfftsetIntVariable(var_type, name, parents=parents)
+    def new_scaled_var(self,
+                        var_type: dtypes.dtype,
+                        name: str,
+                        scale: int = 1,
+                        offset: int = 0,
+                        parents: List["BaseVariable"] = None):
+        return ScaledAndOfftsetIntVariable(var_type, name, scale=scale, offset=offset, parents=parents)
 
     def copy(self, var_name: str = None):
         """Create a new variable with the same value as the current variable."""
@@ -272,8 +216,9 @@ class ShaderVariable:
         vc.append_contents(f"{self.var_type.glsl_type} {new_var.name} = {self};\n")
         return new_var
 
-    def cast_to(self, var_type: dtype):
-        return self.new(var_type, f"{var_type.glsl_type}({self.name})", [self], lexical_unit=True)
+    #Override cast_to from BaseVariable, to make return type ShaderVariable
+    def cast_to(self, var_type: dtype) -> "ShaderVariable":
+        return self.new_var(var_type, f"{var_type.glsl_type}({self.name})", [self], lexical_unit=True)
 
     def printf_args(self) -> str:
         total_count = np.prod(self.var_type.shape)
@@ -289,312 +234,64 @@ class ShaderVariable:
         return ",".join(args_list)
 
     def __lt__(self, other):
-        return self.new(dtypes.int32, f"{self} < {other}", [self, other])
+        return self.new_var(dtypes.int32, f"{self} < {other}", [self, other])
 
     def __le__(self, other):
-        return self.new(dtypes.int32, f"{self} <= {other}", [self, other])
+        return self.new_var(dtypes.int32, f"{self} <= {other}", [self, other])
 
     def __eq__(self, other):
-        return self.new(dtypes.int32, f"{self} == {other}", [self, other])
+        return self.new_var(dtypes.int32, f"{self} == {other}", [self, other])
 
     def __ne__(self, other):
-        return self.new(dtypes.int32, f"{self} != {other}", [self, other])
+        return self.new_var(dtypes.int32, f"{self} != {other}", [self, other])
 
     def __gt__(self, other):
-        return self.new(dtypes.int32, f"{self} > {other}", [self, other])
+        return self.new_var(dtypes.int32, f"{self} > {other}", [self, other])
 
     def __ge__(self, other):
-        return self.new(dtypes.int32, f"{self} >= {other}", [self, other])
-
-    def __add__(self, other):
-        if do_scaled_int_check(other):
-            result = self.new_scaled_and_offset_int(self.var_type, f"{self}", [self])
-            return result.new_from_self(offset=other)
-
-        return self.new(self.var_type, f"{self} + {other}", [self, other])
-
-    def __sub__(self, other):
-        if do_scaled_int_check(other):
-            result = self.new_scaled_and_offset_int(self.var_type, f"{self}", [self])
-            return result.__sub__(other)
-        
-        return self.new(self.var_type, f"{self} - {other}", [self, other])
-
-    def __mul__(self, other):
-        if do_scaled_int_check(other):
-            result = self.new_scaled_and_offset_int(self.var_type, f"{self}", [self])
-            return result.__mul__(other)
-
-        return_var_type = self.var_type
-
-        if (self.var_type.dimentions == 2
-            and other.var_type.dimentions == 1):
-            return_var_type = other.var_type
-
-        if(self.var_type == dtypes.int32 or self.var_type == dtypes.uint32):
-            if (isinstance(other, int) and is_int_power_of_2(other)):
-                if other == 1:
-                    return self
-
-                power = int(np.round(np.log2(other)))
-
-                return self.new(self.var_type, f"{self} << {power}", [self])
-            elif (isinstance(other, ShaderVariable) and (other.var_type == dtypes.float32)) or (isinstance(other, float) and np.issubdtype(type(other), np.floating)):
-                return_var_type = dtypes.float32
-
-        return self.new(return_var_type, f"{self} * {other}", [self, other])
-
-    def __truediv__(self, other):
-        if isinstance(other, int) and is_int_power_of_2(other):
-            if other == 1:
-                return self
-            
-            if self.var_type != dtypes.int32 and self.var_type != dtypes.uint32:
-                return self.new(self.var_type, f"{self} / {other}", [self, other])
-
-            power = int(np.round(np.log2(other)))
-
-            return self.new(self.var_type, f"{self} >> {power}", [self])
-
-        return self.new(self.var_type, f"{self} / {other}", [self, other])
-
-    # def __floordiv__(self, other: 'shader_variable') -> 'shader_variable':
-    #    return self.builder.make_var(f"{self} / {other}")
-
-    def __mod__(self, other):
-        return self.new(self.var_type, f"{self} % {other}", [self, other])
-
-    def __pow__(self, other):
-        other_str = str(other)
-
-        if isinstance(other, ShaderVariable):
-            other_str = other.name
-
-        return self.new(self.var_type, f"pow({self.name}, {other_str})", [self, other])
-
-    def __neg__(self):
-        return self.new(self.var_type, f"-{self}", [self])
-
-    def __abs__(self):
-        return self.new(self.var_type, f"abs({self.name})", [self])
-
-    def __invert__(self):
-        return self.new(self.var_type, f"~{self}", [self])
-
-    def __lshift__(self, other):
-        return self.new(self.var_type, f"{self} << {other}", [self, other])
-
-    def __rshift__(self, other):
-        return self.new(self.var_type, f"{self} >> {other}", [self, other])
-
-    def __and__(self, other):
-        return self.new(self.var_type, f"{self} & {other}", [self, other])
-
-    def __xor__(self, other):
-        return self.new(self.var_type, f"{self} ^ {other}", [self, other])
-
-    def __or__(self, other):
-        return self.new(self.var_type, f"({self} | {other}", [self, other])
-
-    def __radd__(self, other):
-        if do_scaled_int_check(other):
-            result = self.new_scaled_and_offset_int(self.var_type, f"{self}", [self])
-            return result.__radd__(other)
-
-        return self.new(self.var_type, f"{other} + {self}", [self, other])
-
-    def __rsub__(self, other):
-        if do_scaled_int_check(other):
-            result = self.new_scaled_and_offset_int(self.var_type, f"{self}", [self])
-            return result.__rsub__(other)
-
-        return self.new(self.var_type, f"{other} - {self}", [self, other])
-
-    def __rmul__(self, other):
-        if do_scaled_int_check(other):
-            result = self.new_scaled_and_offset_int(self.var_type, f"{self}", [self])
-            return result.__rmul__(other)
-        
-        return_var_type = self.var_type
-        
-        if(self.var_type == dtypes.int32 or self.var_type == dtypes.uint32):
-            if (isinstance(other, int) and is_int_power_of_2(other)):
-                if other == 1:
-                    return self
-
-                power = int(np.round(np.log2(other)))
-
-                return self.new(self.var_type, f"{self} << {power}", [self])
-            elif (isinstance(other, ShaderVariable) and (other.var_type == dtypes.float32)) or (isinstance(other, float) and np.issubdtype(type(other), np.floating)):
-                return_var_type = dtypes.float32
-
-        return self.new(return_var_type, f"{other} * {self}", [self, other])
-
-    def __rtruediv__(self, other):
-        return self.new(self.var_type, f"{other} / {self}", [self, other])
-
-    # def __rfloordiv__(self, other: 'shader_variable') -> 'shader_variable':
-    #    return self.builder.make_var(f"{other} / {self}")
-
-    def __rmod__(self, other):
-        return self.new(self.var_type, f"{other} % {self}", [self, other])
-
-    def __rpow__(self, other):
-        other_str = str(other)
-
-        if isinstance(other, ShaderVariable):
-            other_str = other.name
-
-        return self.new(self.var_type, f"pow({other_str}, {self.name})", [self, other])
-
-    def __rand__(self, other):
-        return self.new(self.var_type, f"{other} & {self}", [self, other])
-
-    def __rxor__(self, other):
-        return self.new(self.var_type, f"{other} ^ {self}", [self, other])
-
-    def __ror__(self, other):
-        return self.new(self.var_type, f"{other} | {self}", [self, other])
-
-    def __iadd__(self, other):
-        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
-
-        self.read_callback()
-        self.write_callback()
-        
-        if isinstance(other, ShaderVariable):
-            other.read_callback()
-
-        vc.append_contents(f"{self} += {other};\n")
-        return self
-
-    def __isub__(self, other):
-        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
-
-        self.read_callback()
-        self.write_callback()
-        
-        if isinstance(other, ShaderVariable):
-            other.read_callback()
-
-        vc.append_contents(f"{self} -= {other};\n")
-        return self
-
-    def __imul__(self, other):
-        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
-
-        self.read_callback()
-        self.write_callback()
-        
-        if isinstance(other, ShaderVariable):
-            other.read_callback()
-
-        vc.append_contents(f"{self} *= {other};\n")
-        return self
-
-    def __itruediv__(self, other):
-        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
-
-        self.read_callback()
-        self.write_callback()
-        
-        if isinstance(other, ShaderVariable):
-            other.read_callback()
-
-        vc.append_contents(f"{self} /= {other};\n")
-        return self
-
-    # def __ifloordiv__(self, other: 'shader_variable') -> 'shader_variable':
-    #    self.append_func(f"{self} /= {other};\n")
-    #    return self
-
-    def __imod__(self, other):
-        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
-
-        self.read_callback()
-        self.write_callback()
-        
-        if isinstance(other, ShaderVariable):
-            other.read_callback()
-
-        vc.append_contents(f"{self} %= {other};\n")
-        return self
-
-    def __ipow__(self, other):
-        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
-
-        self.read_callback()
-        self.write_callback()
-        
-        other_str = str(other)
-        
-        if isinstance(other, ShaderVariable):
-            other.read_callback()
-            other_str = other.name
-
-        vc.append_contents(f"{self} = pow({self.name}, {other_str});\n")
-        return self
-
-    def __ilshift__(self, other):
-        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
-
-        self.read_callback()
-        self.write_callback()
-        
-        if isinstance(other, ShaderVariable):
-            other.read_callback()
-
-        vc.append_contents(f"{self} <<= {other};\n")
-        return self
-
-    def __irshift__(self, other):
-        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
-
-        self.read_callback()
-        self.write_callback()
-        
-        if isinstance(other, ShaderVariable):
-            other.read_callback()
-
-        vc.append_contents(f"{self} >>= {other};\n")
-        return self
-
-    def __iand__(self, other):
-        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
-
-        self.read_callback()
-        self.write_callback()
-        
-        if isinstance(other, ShaderVariable):
-            other.read_callback()
-
-        vc.append_contents(f"{self} &= {other};\n")
-        return self
-
-    def __ixor__(self, other):
-        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
-
-        self.read_callback()
-        self.write_callback()
-        
-        if isinstance(other, ShaderVariable):
-            other.read_callback()
-
-        vc.append_contents(f"{self} ^= {other};\n")
-        return self
-
-    def __ior__(self, other):
-        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
-
-        self.read_callback()
-        self.write_callback()
-        
-        if isinstance(other, ShaderVariable):
-            other.read_callback()
-
-        vc.append_contents(f"{self} |= {other};\n")
-        return self
-
+        return self.new_var(dtypes.int32, f"{self} >= {other}", [self, other])
+
+    def __add__(self, other) -> "ShaderVariable": return arithmetic.add(self, other)
+    def __sub__(self, other) -> "ShaderVariable": return arithmetic.sub(self, other)
+    def __mul__(self, other) -> "ShaderVariable": return arithmetic.mul(self, other)
+    def __truediv__(self, other) -> "ShaderVariable": return arithmetic.truediv(self, other)
+    def __floordiv__(self, other) -> 'ShaderVariable': return arithmetic.floordiv(self, other)
+    def __mod__(self, other) -> "ShaderVariable": return arithmetic.mod(self, other)
+    def __pow__(self, other) -> "ShaderVariable": return arithmetic.pow(self, other)
+    def __neg__(self) -> "ShaderVariable": return arithmetic.neg(self)
+    def __abs__(self) -> "ShaderVariable": return arithmetic.absolute(self)
+    def __invert__(self) -> "ShaderVariable": return bitwise.invert(self)
+    def __lshift__(self, other) -> "ShaderVariable": return bitwise.lshift(self, other)
+    def __rshift__(self, other) -> "ShaderVariable": return bitwise.rshift(self, other)
+    def __and__(self, other) -> "ShaderVariable": return bitwise.and_bits(self, other)
+    def __xor__(self, other) -> "ShaderVariable": return bitwise.xor_bits(self, other)
+    def __or__(self, other) -> "ShaderVariable": return bitwise.or_bits(self, other)
+
+    def __radd__(self, other) -> "ShaderVariable": return arithmetic.add(self, other)
+    def __rsub__(self, other) -> "ShaderVariable": return arithmetic.sub(self, other, reverse=True)
+    def __rmul__(self, other) -> "ShaderVariable": return arithmetic.mul(self, other)
+    def __rtruediv__(self, other) -> "ShaderVariable": return arithmetic.truediv(self, other, reverse=True)
+    def __rfloordiv__(self, other) -> "ShaderVariable": return arithmetic.floordiv(self, other, reverse=True)
+    def __rmod__(self, other) -> "ShaderVariable": return arithmetic.mod(self, other, reverse=True)
+    def __rpow__(self, other) -> "ShaderVariable": return arithmetic.pow(self, other, reverse=True)
+    def __rlshift__(self, other) -> "ShaderVariable": return bitwise.lshift(self, other, reverse=True)
+    def __rrshift__(self, other) -> "ShaderVariable": return bitwise.rshift(self, other, reverse=True)
+    def __rand__(self, other) -> "ShaderVariable": return bitwise.and_bits(self, other)
+    def __rxor__(self, other) -> "ShaderVariable": return bitwise.xor_bits(self, other)
+    def __ror__(self, other) -> "ShaderVariable": return bitwise.or_bits(self, other)
+
+    def __iadd__(self, other): return arithmetic.add(self, other, inplace=True)
+    def __isub__(self, other): return arithmetic.sub(self, other, inplace=True)
+    def __imul__(self, other): return arithmetic.mul(self, other, inplace=True)
+    def __itruediv__(self, other): return arithmetic.truediv(self, other, inplace=True)
+    def __ifloordiv__(self, other): return arithmetic.floordiv(self, other, inplace=True)
+    def __imod__(self, other): return arithmetic.mod(self, other, inplace=True)
+    def __ipow__(self, other): return arithmetic.pow(self, other, inplace=True)
+    def __ilshift__(self, other) -> "ShaderVariable": return bitwise.lshift(self, other, inplace=True)
+    def __irshift__(self, other) -> "ShaderVariable": return bitwise.rshift(self, other, inplace=True)
+    def __iand__(self, other) -> "ShaderVariable": return bitwise.and_bits(self, other, inplace=True)
+    def __ixor__(self, other) -> "ShaderVariable": return bitwise.xor_bits(self, other, inplace=True)
+    def __ior__(self, other) -> "ShaderVariable": return bitwise.or_bits(self, other, inplace=True)
 
 class ScaledAndOfftsetIntVariable(ShaderVariable):
     def __init__(self,
@@ -634,10 +331,10 @@ class ScaledAndOfftsetIntVariable(ShaderVariable):
         return f"({self.base_name}{scale_str}{offset_str})"
 
     def __add__(self, other) -> "Union[ShaderVariable, ScaledAndOfftsetIntVariable]":
-        if isinstance(other, ShaderVariable):
-            return super().__add__(other)
-
-        return self.new_from_self(offset=other)
+        if arithmetic.is_scalar_number(other):
+            return self.new_from_self(offset=other)
+        
+        return super().__add__(other)
 
     def __sub__(self, other):
         if isinstance(other, ShaderVariable):
