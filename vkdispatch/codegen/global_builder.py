@@ -3,7 +3,7 @@ import vkdispatch.base.dtype as dtypes
 from .global_codegen_callbacks import set_global_codegen_callbacks
 
 from .builder import ShaderBuilder, ShaderVariable
-from .variables.variables import check_is_int
+#from .variables.variables import check_is_int
 
 from typing import List, Union, Optional, Tuple
 

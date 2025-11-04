@@ -25,10 +25,10 @@ import numpy as np
 
 ENABLE_SCALED_AND_OFFSET_INT = True
 
-from utils import check_is_int
+# from utils import check_is_int
 
-def do_scaled_int_check(other):
-    return ENABLE_SCALED_AND_OFFSET_INT and check_is_int(other)
+# def do_scaled_int_check(other):
+#     return ENABLE_SCALED_AND_OFFSET_INT and check_is_int(other)
 
 def is_int_power_of_2(n: int) -> bool:
     """Check if an integer is a power of 2."""
@@ -36,12 +36,7 @@ def is_int_power_of_2(n: int) -> bool:
 
 def shader_var_name(index: "Union[Any, ShaderVariable]") -> str:
     if isinstance(index, ShaderVariable):
-        result_str = str(index)
-
-        if result_str[0] == "(" and result_str[-1] == ")":
-            result_str = result_str[1:-1]
-        
-        return result_str
+        return index.resolve()
     
     return str(index)
 
@@ -136,12 +131,6 @@ class ShaderVariable(BaseVariable):
         ) -> None:
         super().__init__(var_type, name, raw_name, lexical_unit, settable, parents)
 
-    def __repr__(self) -> str:
-        if self.lexical_unit:
-            return self.name
-
-        return f"({self.name})"
-
     # Override new_var from BaseVariable
     def new_var(self, var_type: dtype, name: str, parents: List["ShaderVariable"], lexical_unit: bool = False, settable: bool = False) -> "ShaderVariable":
         return ShaderVariable(var_type, name, lexical_unit=lexical_unit, settable=settable, parents=parents)
@@ -156,17 +145,17 @@ class ShaderVariable(BaseVariable):
             assert len(index) == 1, "Only single index is supported for tuple indexing!"
             index = index[0]
 
-        if not isinstance(index, ShaderVariable) and not check_is_int(index):
+        if not isinstance(index, ShaderVariable) and not arithmetic.is_int_number(index):
             raise ValueError(f"Unsupported index {index} of type {type(index)}!")
         
         if isinstance(index, ShaderVariable):
             assert dtypes.is_scalar(index.var_type), "Indexing variable must be a scalar!"
             assert dtypes.is_integer_dtype(index.var_type), "Indexing variable must be an integer type!"
         
-        return self.new_var(return_type, f"{self.name}[{shader_var_name(index)}]", [self], settable=self.settable)
+        return self.new_var(return_type, f"{self.resolve()}[{shader_var_name(index)}]", [self], settable=self.settable)
 
     def __setitem__(self, index, value: "ShaderVariable") -> None:
-        assert self.settable, f"Cannot set value of '{self.name}' because it is not a settable variable!"
+        assert self.settable, f"Cannot set value of '{self.resolve()}' because it is not a settable variable!"
 
         if isinstance(index, slice):
             if index.start is None and index.stop is None and index.step is None:
@@ -175,7 +164,7 @@ class ShaderVariable(BaseVariable):
                 if isinstance(value, ShaderVariable):
                     value.read_callback()
 
-                vc.append_contents(f"{self.name} = {shader_var_name(value)};\n")
+                vc.append_contents(f"{self.resolve()} = {shader_var_name(value)};\n")
                 return
             else:
                 raise ValueError("Unsupported slice!")
@@ -183,7 +172,7 @@ class ShaderVariable(BaseVariable):
         if not self.can_index:
             raise ValueError(f"Unsupported indexing {index}!")
         
-        if f"{self.name}[{index}]" == str(value):
+        if f"{self.resolve()}[{index}]" == str(value):
             return
 
         self.write_callback()
@@ -194,7 +183,7 @@ class ShaderVariable(BaseVariable):
         if isinstance(value, ShaderVariable):
             value.read_callback()
 
-        vc.append_contents(f"{self.name}[{shader_var_name(index)}] = {shader_var_name(value)};\n")
+        vc.append_contents(f"{self.resolve()}[{shader_var_name(index)}] = {shader_var_name(value)};\n")
 
     def __bool__(self) -> bool:
         raise ValueError(f"Vkdispatch variables cannot be cast to a python boolean")
@@ -234,22 +223,22 @@ class ShaderVariable(BaseVariable):
         return ",".join(args_list)
 
     def __lt__(self, other):
-        return self.new_var(dtypes.int32, f"{self} < {other}", [self, other])
+        return self.new_var(dtypes.int32, f"{self.resolve()} < {other.resolve()}", [self, other])
 
     def __le__(self, other):
-        return self.new_var(dtypes.int32, f"{self} <= {other}", [self, other])
+        return self.new_var(dtypes.int32, f"{self.resolve()} <= {other.resolve()}", [self, other])
 
     def __eq__(self, other):
-        return self.new_var(dtypes.int32, f"{self} == {other}", [self, other])
+        return self.new_var(dtypes.int32, f"{self.resolve()} == {other.resolve()}", [self, other])
 
     def __ne__(self, other):
-        return self.new_var(dtypes.int32, f"{self} != {other}", [self, other])
+        return self.new_var(dtypes.int32, f"{self.resolve()} != {other.resolve()}", [self, other])
 
     def __gt__(self, other):
-        return self.new_var(dtypes.int32, f"{self} > {other}", [self, other])
+        return self.new_var(dtypes.int32, f"{self.resolve()} > {other.resolve()}", [self, other])
 
     def __ge__(self, other):
-        return self.new_var(dtypes.int32, f"{self} >= {other}", [self, other])
+        return self.new_var(dtypes.int32, f"{self.resolve()} >= {other.resolve()}", [self, other])
 
     def __add__(self, other) -> "ShaderVariable": return arithmetic.add(self, other)
     def __sub__(self, other) -> "ShaderVariable": return arithmetic.sub(self, other)
@@ -321,7 +310,7 @@ class ScaledAndOfftsetIntVariable(ShaderVariable):
             parents=self.parents
         )
 
-    def __repr__(self) -> str:
+    def resolve(self) -> str:        
         scale_str = f" * {self.scale}" if self.scale != 1 else ""
         offset_str = f" + {self.offset}" if self.offset != 0 else ""
 

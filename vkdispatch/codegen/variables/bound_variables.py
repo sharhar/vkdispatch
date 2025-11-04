@@ -11,7 +11,7 @@ class BoundVariable(ShaderVariable):
                  binding: int,
                  name: str,
             ) -> None:
-            super().__init__(var_type, name)
+            super().__init__(var_type, name, lexical_unit=True)
 
             self.binding = binding
 

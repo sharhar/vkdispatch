@@ -40,24 +40,24 @@ class BaseVariable:
                 self.parents.append(parent_var)
 
         if dtypes.is_complex(self.var_type):
-            self.real = self.new_var(self.var_type.child_type, f"{self}.x", [self], lexical_unit=True, settable=settable)
-            self.imag = self.new_var(self.var_type.child_type, f"{self}.y", [self], lexical_unit=True, settable=settable)
+            self.real = self.new_var(self.var_type.child_type, f"{self.resolve()}.x", [self], lexical_unit=True, settable=settable)
+            self.imag = self.new_var(self.var_type.child_type, f"{self.resolve()}.y", [self], lexical_unit=True, settable=settable)
             self.x = self.real
             self.y = self.imag
 
             self._register_shape()
         
         if dtypes.is_vector(self.var_type):
-            self.x = self.new_var(self.var_type.child_type, f"{self}.x", [self], lexical_unit=True, settable=settable)
+            self.x = self.new_var(self.var_type.child_type, f"{self.resolve()}.x", [self], lexical_unit=True, settable=settable)
             
             if self.var_type.child_count >= 2:
-                self.y = self.new_var(self.var_type.child_type, f"{self}.y", [self], lexical_unit=True, settable=settable)
+                self.y = self.new_var(self.var_type.child_type, f"{self.resolve()}.y", [self], lexical_unit=True, settable=settable)
 
             if self.var_type.child_count >= 3:
-                self.z = self.new_var(self.var_type.child_type, f"{self}.z", [self], lexical_unit=True, settable=settable)
+                self.z = self.new_var(self.var_type.child_type, f"{self.resolve()}.z", [self], lexical_unit=True, settable=settable)
 
             if self.var_type.child_count == 4:
-                self.w = self.new_var(self.var_type.child_type, f"{self}.w", [self], lexical_unit=True, settable=settable)
+                self.w = self.new_var(self.var_type.child_type, f"{self.resolve()}.w", [self], lexical_unit=True, settable=settable)
             
             self._register_shape()
         

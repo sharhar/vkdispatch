@@ -292,19 +292,19 @@ class ShaderBuilder:
         return self.make_var(arg.var_type, f"abs({arg})", [arg], lexical_unit=True)
     
     def acos(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"acos({arg})", [arg], lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"acos({arg.resolve()})", [arg], lexical_unit=True)
 
     def acosh(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"acosh({arg})", [arg], lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"acosh({arg.resolve()})", [arg], lexical_unit=True)
 
     def asin(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"asin({arg})", [arg], lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"asin({arg.resolve()})", [arg], lexical_unit=True)
 
     def asinh(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"asinh({arg})", [arg], lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"asinh({arg.resolve()})", [arg], lexical_unit=True)
 
     def atan(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"atan({arg})", [arg], lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"atan({arg.resolve()})", [arg], lexical_unit=True)
     
     def atan2(self, arg1: ShaderVariable, arg2: ShaderVariable):
         # TODO: correctly handle pure float inputs
@@ -314,10 +314,10 @@ class ShaderBuilder:
 
         assert floating_arg1 == floating_arg2, f"Both arguments to atan2 ({arg1.var_type} and {arg2.var_type}) must be of the same dimentionality"
 
-        return self.make_var(floating_arg1, f"atan({arg1}, {arg2})", [arg1, arg2], lexical_unit=True)
+        return self.make_var(floating_arg1, f"atan({arg1.resolve()}, {arg2.resolve()})", [arg1, arg2], lexical_unit=True)
 
     def atanh(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"atanh({arg})", [arg], lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"atanh({arg.resolve()})", [arg], lexical_unit=True)
     
     def atomic_add(self, arg1: ShaderVariable, arg2: ShaderVariable):
         if not isinstance(arg1, ShaderVariable):
@@ -330,7 +330,7 @@ class ShaderBuilder:
             arg2.read_callback()
 
         new_var = self.make_var(arg1.var_type, None, [])
-        self.append_contents(f"{new_var.var_type.glsl_type} {new_var.name} = atomicAdd({arg1}, {arg2});\n")
+        self.append_contents(f"{new_var.var_type.glsl_type} {new_var.name} = atomicAdd({arg1.resolve()}, {arg2.resolve()});\n")
         return new_var
     
     def barrier(self):
@@ -340,10 +340,10 @@ class ShaderBuilder:
         self.append_contents("barrier();\n")
     
     def ceil(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"ceil({arg})", [arg], lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"ceil({arg.resolve()})", [arg], lexical_unit=True)
     
     def clamp(self, arg: ShaderVariable, min_val: ShaderVariable, max_val: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"clamp({arg}, {min_val}, {max_val})", [arg, min_val, max_val], lexical_unit=True)
+        return self.make_var(var_types_to_floating(arg.var_type), f"clamp({arg.resolve()}, {min_val.resolve()}, {max_val.resolve()})", [arg, min_val, max_val], lexical_unit=True)
 
     def cos(self, arg: ShaderVariable):
         return self.make_var(var_types_to_floating(arg.var_type), f"cos({arg})", [arg], lexical_unit=True)
@@ -521,8 +521,11 @@ class ShaderBuilder:
     def proc_bool(self, arg: Union[ShaderVariable, bool]) -> ShaderVariable:
         if isinstance(arg, bool):
             return "true" if arg else "false"
+        
+        if isinstance(arg, ShaderVariable):
+            return arg.resolve()
 
-        return arg
+        raise TypeError(f"Argument of type {type(arg)} cannot be processed as a boolean.")
 
     def if_statement(self, arg: ShaderVariable, command: Optional[str] = None):
         if command is None:
