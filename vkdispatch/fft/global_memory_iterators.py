@@ -283,6 +283,8 @@ def global_trasposed_write_iterator(registers: FFTRegisters):
 
     resources = registers.resources
     
+
+    # https://registry.khronos.org/OpenGL-Refpages/gl4/html/gl_LocalInvocationIndex.xhtml
     local_index = vc.local_invocation().z * vc.workgroup_size().x * vc.workgroup_size().y + \
                     vc.local_invocation().y * vc.workgroup_size().x + vc.local_invocation().x
     work_index = vc.workgroup().z * vc.num_workgroups().x * vc.num_workgroups().y + \
