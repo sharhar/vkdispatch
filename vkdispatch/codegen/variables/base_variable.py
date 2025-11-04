@@ -20,6 +20,7 @@ class BaseVariable:
                  raw_name: Optional[str] = None,
                  lexical_unit: bool = False,
                  settable: bool = False,
+                 register: bool = False,
                  parents: List["BaseVariable"] = None
         ) -> None:
         self.var_type = var_type
@@ -29,6 +30,7 @@ class BaseVariable:
         self.raw_name = raw_name if raw_name is not None else self.name
 
         self.settable = settable
+        self.register = register
 
         if parents is None:
             parents = []
@@ -75,6 +77,9 @@ class BaseVariable:
     def is_setable(self):
         return self.settable
 
+    def is_register(self):
+        return self.register
+
     def resolve(self) -> str:
         if self.lexical_unit:
             return self.name
@@ -92,18 +97,18 @@ class BaseVariable:
     def cast_to(self, var_type: dtypes.dtype) -> "BaseVariable":
         return self.new_var(var_type, f"{var_type.glsl_type}({self.name})", [self], lexical_unit=True)
 
-    def new_var(self,
-                var_type: dtypes.dtype,
-                name: str,
-                parents: List["BaseVariable"],
-                lexical_unit: bool = False,
-                settable: bool = False):
-        raise NotImplementedError("Subclasses should implement this method.")
+    # def new_var(self,
+    #             var_type: dtypes.dtype,
+    #             name: str,
+    #             parents: List["BaseVariable"],
+    #             lexical_unit: bool = False,
+    #             settable: bool = False):
+    #     raise NotImplementedError("Subclasses should implement this method.")
     
-    def new_scaled_var(self,
-                        var_type: dtypes.dtype,
-                        name: str,
-                        scale: int = 1,
-                        offset: int = 0,
-                        parents: List["BaseVariable"] = None):
-        raise NotImplementedError("Subclasses should implement this method.")
+    # def new_scaled_var(self,
+    #                     var_type: dtypes.dtype,
+    #                     name: str,
+    #                     scale: int = 1,
+    #                     offset: int = 0,
+    #                     parents: List["BaseVariable"] = None):
+    #     raise NotImplementedError("Subclasses should implement this method.")

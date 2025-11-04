@@ -3,6 +3,8 @@ import vkdispatch.base.dtype as dtypes
 from ..global_codegen_callbacks import append_contents
 from ..variables.base_variable import BaseVariable
 
+from ..global_codegen_callbacks import new_var, new_scaled_var
+
 from typing import Any
 
 import numpy as np
@@ -78,7 +80,7 @@ def add(var: BaseVariable, other: Any, inplace: bool = False) -> BaseVariable:
 
     if is_scalar_number(other):
         if not inplace:
-            return var.new_scaled_var(
+            return new_scaled_var(
                 return_type,
                 var.resolve(),
                 offset=other,
@@ -90,7 +92,7 @@ def add(var: BaseVariable, other: Any, inplace: bool = False) -> BaseVariable:
     assert isinstance(other, BaseVariable)
 
     if not inplace:
-        return var.new_var(
+        return new_var(
             return_type,
             f"{var.resolve()} + {other.resolve()}",
             parents=[var, other])
@@ -103,7 +105,7 @@ def sub(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
 
     if is_scalar_number(other):
         if not inplace:
-            return var.new_scaled_var(
+            return new_scaled_var(
                 return_type,
                 f"(-{var.resolve()})" if reverse else var.resolve(),
                 offset=other,
@@ -115,7 +117,7 @@ def sub(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
     assert isinstance(other, BaseVariable)
 
     if not inplace:
-        return var.new_var(
+        return new_var(
             return_type,
             (
                 f"{var.resolve()} - {other.resolve()}"
@@ -137,9 +139,9 @@ def mul(var: BaseVariable, other: Any, inplace: bool = False) -> BaseVariable:
 
             if dtypes.is_integer_dtype(var.var_type) and is_int_number(other) and is_int_power_of_2(other):
                 power = int(np.round(np.log2(other)))
-                return var.new_var(var.var_type, f"{var.resolve()} << {power}", [var])
+                return new_var(var.var_type, f"{var.resolve()} << {power}", [var])
 
-            return var.new_scaled_var(
+            return new_scaled_var(
                 return_type,
                 var.resolve(),
                 scale=other,
@@ -157,7 +159,7 @@ def mul(var: BaseVariable, other: Any, inplace: bool = False) -> BaseVariable:
         raise ValueError("Matrix multiplication is not supported via the `*` operator. Use `@` operator instead.")
 
     if not inplace:
-        return var.new_var(
+        return new_var(
             var.var_type,
             f"{var.resolve()} * {other.resolve()}",
             parents=[var, other])
@@ -174,7 +176,7 @@ def truediv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool 
 
     if is_scalar_number(other):
         if not inplace:
-            return var.new_var(
+            return new_var(
                 return_type,
                 (
                     f"{var.cast_to(return_type).resolve()} / {float(other)}"
@@ -195,7 +197,7 @@ def truediv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool 
         raise ValueError("Matrix division is not supported.")
 
     if not inplace:
-        return var.new_var(
+        return new_var(
             return_type,
             (
                 f"{var.cast_to(return_type).resolve()} / {other.cast_to(return_type).resolve()}"
@@ -221,9 +223,9 @@ def floordiv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool
 
             if is_int_power_of_2(other):
                 power = int(np.round(np.log2(other)))
-                return var.new_var(var.var_type, f"{var.resolve()} >> {power}", [var])
+                return new_var(var.var_type, f"{var.resolve()} >> {power}", [var])
 
-            return var.new_var(
+            return new_var(
                 return_type,
                 (
                     f"{var.resolve()} / {other}"
@@ -238,7 +240,7 @@ def floordiv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool
     assert isinstance(other, BaseVariable)
 
     if not inplace:
-        return var.new_var(
+        return new_var(
             return_type,
             (
                 f"{var.resolve()} / {other.resolve()}"
@@ -257,7 +259,7 @@ def mod(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
 
     if is_scalar_number(other):
         if not inplace:
-            return var.new_var(
+            return new_var(
                 return_type,
                 (
                     f"{var.resolve()} % {other}"
@@ -272,7 +274,7 @@ def mod(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
     assert isinstance(other, BaseVariable)
 
     if not inplace:
-        return var.new_var(
+        return new_var(
             return_type,
             (
                 f"{var.resolve()} % {other.resolve()}"
@@ -289,7 +291,7 @@ def pow(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
 
     if is_scalar_number(other):
         if not inplace:
-            return var.new_var(
+            return new_var(
                 return_type,
                 (
                     f"pow({var.resolve()}, {other})"
@@ -304,7 +306,7 @@ def pow(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
     assert isinstance(other, BaseVariable)
 
     if not inplace:
-        return var.new_var(
+        return new_var(
             return_type,
             (
                 f"pow({var.resolve()}, {other.resolve()})"
@@ -317,13 +319,13 @@ def pow(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
     return var
 
 def neg(var: BaseVariable) -> BaseVariable:
-    return var.new_var(
+    return new_var(
         var.var_type,
         f"-{var.resolve()}",
         parents=[var])
 
 def absolute(var: BaseVariable) -> BaseVariable:
-    return var.new_var(
+    return new_var(
         var.var_type,
         f"abs({var.resolve()})",
         parents=[var],

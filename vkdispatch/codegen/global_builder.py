@@ -20,6 +20,8 @@ def set_global_builder(builder: ShaderBuilder):
     set_global_codegen_callbacks(
         append_contents=builder.append_contents,
         new_name=builder.new_name,
+        new_var=builder.new_var,
+        new_scaled_var=builder.new_scaled_var,
     )
 
     return old_value

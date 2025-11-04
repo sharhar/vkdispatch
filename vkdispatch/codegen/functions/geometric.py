@@ -3,6 +3,8 @@ from ..variables.base_variable import BaseVariable
 from .arithmetic import is_number
 from typing import Any, Union, Tuple
 
+from ..global_codegen_callbacks import new_var
+
 import numpy as np
 
 from .common_builtins import dtype_to_floating, resolve_input
@@ -13,7 +15,7 @@ def length(var: Any) -> Union[BaseVariable, float]:
 
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
 
-    return var.new_var(
+    return new_var(
         dtype_to_floating(var.var_type),
         f"length({var.resolve()})",
         parents=[var],
@@ -33,7 +35,7 @@ def distance(x: Any, y: Any) -> Union[BaseVariable, float]:
     else:
         raise AssertionError("Arguments must be ShaderVariables or numbers")
 
-    return base_var.new_var(
+    return new_var(
         dtype_to_floating(base_var.var_type),
         f"distance({resolve_input(x)}, {resolve_input(y)})",
         parents=[y, x],
@@ -53,7 +55,7 @@ def dot(x: Any, y: Any) -> Union[BaseVariable, float]:
     else:
         raise AssertionError("Arguments must be ShaderVariables or numbers")
 
-    return base_var.new_var(
+    return new_var(
         dtype_to_floating(base_var.var_type),
         f"dot({resolve_input(x)}, {resolve_input(y)})",
         parents=[y, x],
@@ -67,7 +69,7 @@ def cross(x: BaseVariable, y: BaseVariable) -> BaseVariable:
     assert x.var_type == dtypes.vec3, "Argument x must be of type vec3 or dvec3"
     assert y.var_type == dtypes.vec3, "Argument y must be of type vec3 or dvec3"
 
-    return x.new_var(
+    return new_var(
         dtypes.vec3,
         f"cross({x.resolve()}, {y.resolve()})",
         parents=[y, x],
@@ -77,7 +79,7 @@ def cross(x: BaseVariable, y: BaseVariable) -> BaseVariable:
 def normalize(var: BaseVariable) -> BaseVariable:
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable"
 
-    return var.new_var(
+    return new_var(
         var.var_type,
         f"normalize({var.resolve()})",
         parents=[var],
