@@ -1,6 +1,6 @@
 import vkdispatch.base.dtype as dtypes
 
-from ..utils import check_is_int
+from .utils import check_is_int
 from ..builder import ShaderVariable
 from ..global_builder import make_var
 
