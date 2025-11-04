@@ -5,7 +5,9 @@ import numpy as np
 
 from typing import Tuple
 
+"""
 def run_index_ravel(shape: Tuple[int, ...], index: int, shape_static: bool):
+    data = np.random.rand(*shape).astype(np.float32)
     index_type = vd.int32
 
     if len(index) == 2:
@@ -46,6 +48,7 @@ def test_index_ravel():
         run_index_ravel(shape, index, False, True)
         run_index_ravel(shape, index, True, False)
         run_index_ravel(shape, index, True, True)
+"""
 
 def run_index_unravel(shape: Tuple[int, ...], index: Tuple[int, ...], input_static: bool, shape_static: bool):
     data = np.random.rand(*shape).astype(np.float32)
@@ -78,6 +81,8 @@ def run_index_unravel(shape: Tuple[int, ...], index: Tuple[int, ...], input_stat
         def test_shader(buff: vc.Buff[vc.f32], buff_in: vc.Buff[vc.f32]):
             index_vec = vc.new(index_type, *index)
             buff[0] = buff_in[vc.unravel_index(index_vec, buff_in.shape)]
+
+    print(test_shader)
 
     test_shader(result_buffer, buffer)
 

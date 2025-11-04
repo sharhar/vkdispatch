@@ -1,12 +1,6 @@
-import vkdispatch.base.dtype as dtypes
 from ..variables.base_variable import BaseVariable
-from .arithmetic import is_number
-from typing import Any, Union, Tuple
 
-import numpy as np
-
-from .common_builtins import dtype_to_floating, resolve_input
-
+from typing import Any
 
 # https://docs.vulkan.org/glsl/latest/chapters/builtinfunctions.html#atomic-memory-functions
 
