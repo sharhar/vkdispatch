@@ -1,23 +1,20 @@
 import vkdispatch.base.dtype as dtypes
-from vkdispatch.base.dtype import dtype, is_scalar, is_vector, is_matrix, is_complex, to_vector
+from vkdispatch.base.dtype import dtype
 
 from .struct_builder import StructElement, StructBuilder
 
 from enum import IntFlag, auto
 
-from typing import Iterable
 from typing import Dict
 from typing import List
-from typing import Tuple
 from typing import Union
 from typing import Optional
-from typing import Callable
-from typing import Any
 
 import dataclasses
 
 from .variables.variables import BaseVariable, ShaderVariable, var_types_to_floating, SharedBuffer, BindingType, ShaderDescription, ScaledAndOfftsetIntVariable
 from .variables.bound_variables import BufferVariable, ImageVariable
+
 
 @dataclasses.dataclass
 class ShaderBinding:
@@ -107,15 +104,11 @@ class ShaderBuilder:
         self.exec_count = self.declare_constant(dtypes.uvec4, var_name="exec_count")
         
         if not (self.flags & ShaderFlags.NO_EXEC_BOUNDS):
-            self.if_statement(self.exec_count.x <= self.global_invocation.x)
-            self.return_statement()
-            self.end()
-
-            self.if_statement(self.exec_count.y <= self.global_invocation.y)
-            self.return_statement()
-            self.end()
-
-            self.if_statement(self.exec_count.z <= self.global_invocation.z)
+            self.if_statement(self.new_var(
+                dtypes.int32,
+                f"any(lessThanEqual({self.exec_count.resolve()}.xyz, {self.global_invocation.resolve()}.xyz))",
+                []
+            ))
             self.return_statement()
             self.end()
 
@@ -124,8 +117,14 @@ class ShaderBuilder:
                 name: str,
                 parents: List["ShaderVariable"],
                 lexical_unit: bool = False,
-                settable: bool = False) -> "ShaderVariable":
-        return ShaderVariable(var_type, name, lexical_unit=lexical_unit, settable=settable, parents=parents)
+                settable: bool = False,
+                register: bool = False) -> "ShaderVariable":
+        return ShaderVariable(var_type,
+                              name,
+                              lexical_unit=lexical_unit,
+                              settable=settable,
+                              register=register,
+                              parents=parents)
     
     def new_scaled_var(self,
                         var_type: dtypes.dtype,
@@ -133,7 +132,11 @@ class ShaderBuilder:
                         scale: int = 1,
                         offset: int = 0,
                         parents: List[BaseVariable] = None):
-        return ScaledAndOfftsetIntVariable(var_type, name, scale=scale, offset=offset, parents=parents)
+        return ScaledAndOfftsetIntVariable(var_type,
+                                           name,
+                                           scale=scale,
+                                           offset=offset,
+                                           parents=parents)
 
     def set_mapping_index(self, index: ShaderVariable):
         self.mapping_index = index

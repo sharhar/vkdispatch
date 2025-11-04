@@ -18,9 +18,12 @@ from typing import Any
 import enum
 import dataclasses
 
+from ..global_codegen_callbacks import new_name
+
 from ..functions import arithmetic
 from ..functions import bitwise
 from ..functions import arithmetic_comparisons
+from ..functions.utils import is_int_number, is_scalar_number
 
 import numpy as np
 
@@ -131,7 +134,47 @@ class ShaderVariable(BaseVariable):
                  register: bool = False,
                  parents: List["ShaderVariable"] = None
         ) -> None:
-        super().__init__(var_type, name, raw_name, lexical_unit, settable, register, parents)
+        super().__init__(
+            var_type,
+            name if name is not None else new_name(),
+            raw_name,
+            lexical_unit,
+            settable,
+            register,
+            parents
+        )
+
+        if dtypes.is_complex(self.var_type):
+            self.real = ShaderVariable(self.var_type.child_type, f"{self.resolve()}.x", parents=[self], lexical_unit=True, settable=settable)
+            self.imag = ShaderVariable(self.var_type.child_type, f"{self.resolve()}.y", parents=[self], lexical_unit=True, settable=settable)
+            self.x = self.real
+            self.y = self.imag
+
+            self._register_shape()
+        
+        if dtypes.is_vector(self.var_type):
+            self.x = ShaderVariable(self.var_type.child_type, f"{self.resolve()}.x", parents=[self], lexical_unit=True, settable=settable)
+            
+            if self.var_type.child_count >= 2:
+                self.y = ShaderVariable(self.var_type.child_type, f"{self.resolve()}.y", parents=[self], lexical_unit=True, settable=settable)
+
+            if self.var_type.child_count >= 3:
+                self.z = ShaderVariable(self.var_type.child_type, f"{self.resolve()}.z", parents=[self], lexical_unit=True, settable=settable)
+
+            if self.var_type.child_count == 4:
+                self.w = ShaderVariable(self.var_type.child_type, f"{self.resolve()}.w", parents=[self], lexical_unit=True, settable=settable)
+            
+            self._register_shape()
+        
+        if dtypes.is_matrix(self.var_type):
+            self._register_shape()
+
+    
+    def _register_shape(self, shape_var: "BaseVariable" = None, shape_name: str = None, use_child_type: bool = True):
+        self.shape = shape_var
+        self.shape_name = shape_name
+        self.can_index = True
+        self.use_child_type = use_child_type
 
     # # Override new_var from BaseVariable
     # def new_var(self, var_type: dtype, name: str, parents: List["ShaderVariable"], lexical_unit: bool = False, settable: bool = False) -> "ShaderVariable":
@@ -147,14 +190,14 @@ class ShaderVariable(BaseVariable):
             assert len(index) == 1, "Only single index is supported for tuple indexing!"
             index = index[0]
 
-        if not isinstance(index, ShaderVariable) and not arithmetic.is_int_number(index):
+        if not isinstance(index, ShaderVariable) and not is_int_number(index):
             raise ValueError(f"Unsupported index {index} of type {type(index)}!")
         
         if isinstance(index, ShaderVariable):
             assert dtypes.is_scalar(index.var_type), "Indexing variable must be a scalar!"
             assert dtypes.is_integer_dtype(index.var_type), "Indexing variable must be an integer type!"
         
-        return self.new_var(return_type, f"{self.resolve()}[{shader_var_name(index)}]", [self], settable=self.settable)
+        return ShaderVariable(return_type, f"{self.resolve()}[{shader_var_name(index)}]", [self], settable=self.settable)
 
     def __setitem__(self, index, value: "ShaderVariable") -> None:
         assert self.settable, f"Cannot set value of '{self.resolve()}' because it is not a settable variable!"
@@ -200,8 +243,10 @@ class ShaderVariable(BaseVariable):
         return new_var
 
     #Override cast_to from BaseVariable, to make return type ShaderVariable
-    def cast_to(self, var_type: dtype) -> "ShaderVariable":
-        return self.new_var(var_type, f"{var_type.glsl_type}({self.name})", [self], lexical_unit=True)
+    def to_type(self, var_type: dtype) -> "ShaderVariable":
+        raise NotImplementedError("Subclasses should implement this method.")
+
+        #return self.new_avar(var_type, f"{var_type.glsl_type}({self.name})", [self], lexical_unit=True)
 
     def printf_args(self) -> str:
         total_count = np.prod(self.var_type.shape)
@@ -303,7 +348,7 @@ class ScaledAndOfftsetIntVariable(ShaderVariable):
         return f"({self.base_name}{scale_str}{offset_str})"
 
     def __add__(self, other) -> "Union[ShaderVariable, ScaledAndOfftsetIntVariable]":
-        if arithmetic.is_scalar_number(other):
+        if is_scalar_number(other):
             return self.new_from_self(offset=other)
         
         return super().__add__(other)
