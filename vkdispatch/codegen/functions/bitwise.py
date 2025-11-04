@@ -1,13 +1,8 @@
 import vkdispatch.base.dtype as dtypes
-
-from ..global_codegen_callbacks import append_contents
 from ..variables.base_variable import BaseVariable
-
-from .arithmetic import number_to_dtype, is_int_number
-
-from ..global_codegen_callbacks import new_var
-
 from typing import Any
+
+from . import utils
 
 def bitwise_op_common(var: BaseVariable,
                          other: Any,
@@ -45,9 +40,9 @@ def bitwise_op_common(var: BaseVariable,
 def lshift(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = False):
     return_type = bitwise_op_common(var, other, reverse=reverse, inplace=inplace)
 
-    if is_int_number(other):
+    if utils.is_int_number(other):
         if not inplace:
-            return new_var(
+            return utils.new_var(
                 return_type,
                 (
                     f"{var.resolve()} << {other}"
@@ -56,13 +51,13 @@ def lshift(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool =
                 ),
                 parents=[var])
 
-        append_contents(f"{var.resolve()} <<= {other};\n")
+        utils.append_contents(f"{var.resolve()} <<= {other};\n")
         return var
 
     assert isinstance(other, BaseVariable)
 
     if not inplace:
-        return new_var(
+        return utils.new_var(
             return_type,
             (
                 f"{var.resolve()} << {other.resolve()}"
@@ -71,15 +66,15 @@ def lshift(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool =
             ),
             parents=[var, other])
     
-    append_contents(f"{var.resolve()} <<= {other.resolve()};\n")
+    utils.append_contents(f"{var.resolve()} <<= {other.resolve()};\n")
     return var
 
 def rshift(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = False):
     return_type = bitwise_op_common(var, other, reverse=reverse, inplace=inplace)
 
-    if is_int_number(other):
+    if utils.is_int_number(other):
         if not inplace:
-            return new_var(
+            return utils.new_var(
                 return_type,
                 (
                     f"{var.resolve()} >> {other}"
@@ -88,13 +83,13 @@ def rshift(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool =
                 ),
                 parents=[var])
 
-        append_contents(f"{var.resolve()} >>= {other};\n")
+        utils.append_contents(f"{var.resolve()} >>= {other};\n")
         return var
 
     assert isinstance(other, BaseVariable)
 
     if not inplace:
-        return new_var(
+        return utils.new_var(
             return_type,
             (
                 f"{var.resolve()} >> {other.resolve()}"
@@ -103,68 +98,68 @@ def rshift(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool =
             ),
             parents=[var, other])
     
-    append_contents(f"{var.resolve()} >>= {other.resolve()};\n")
+    utils.append_contents(f"{var.resolve()} >>= {other.resolve()};\n")
     return var
 
 def and_bits(var: BaseVariable, other: Any, inplace: bool = False):
     return_type = bitwise_op_common(var, other, inplace=inplace)
 
-    if is_int_number(other):
+    if utils.is_int_number(other):
         if not inplace:
-            return new_var(return_type, f"{var.resolve()} & {other}",parents=[var])
+            return utils.new_var(return_type, f"{var.resolve()} & {other}",parents=[var])
 
-        append_contents(f"{var.resolve()} &= {other};\n")
+        utils.append_contents(f"{var.resolve()} &= {other};\n")
         return var
 
     assert isinstance(other, BaseVariable)
 
     if not inplace:
-        return new_var(return_type, f"{var.resolve()} & {other.resolve()}",parents=[var, other])
+        return utils.new_var(return_type, f"{var.resolve()} & {other.resolve()}",parents=[var, other])
     
-    append_contents(f"{var.resolve()} &= {other.resolve()};\n")
+    utils.append_contents(f"{var.resolve()} &= {other.resolve()};\n")
     return var
 
 def xor_bits(var: BaseVariable, other: Any, inplace: bool = False):
     return_type = bitwise_op_common(var, other, inplace=inplace)
 
-    if is_int_number(other):
+    if utils.is_int_number(other):
         if not inplace:
-            return new_var(return_type, f"{var.resolve()} ^ {other}",parents=[var])
+            return utils.new_var(return_type, f"{var.resolve()} ^ {other}",parents=[var])
 
-        append_contents(f"{var.resolve()} ^= {other};\n")
+        utils.append_contents(f"{var.resolve()} ^= {other};\n")
         return var
 
     assert isinstance(other, BaseVariable)
 
     if not inplace:
-        return new_var(return_type, f"{var.resolve()} ^ {other.resolve()}",parents=[var, other])
+        return utils.new_var(return_type, f"{var.resolve()} ^ {other.resolve()}",parents=[var, other])
     
-    append_contents(f"{var.resolve()} ^= {other.resolve()};\n")
+    utils.append_contents(f"{var.resolve()} ^= {other.resolve()};\n")
     return var
 
 def or_bits(var: BaseVariable, other: Any, inplace: bool = False):
     return_type = bitwise_op_common(var, other, inplace=inplace)
 
-    if is_int_number(other):
+    if utils.is_int_number(other):
         if not inplace:
-            return new_var(return_type, f"{var.resolve()} | {other}",parents=[var])
+            return utils.new_var(return_type, f"{var.resolve()} | {other}",parents=[var])
 
-        append_contents(f"{var.resolve()} |= {other};\n")
+        utils.append_contents(f"{var.resolve()} |= {other};\n")
         return var
 
     assert isinstance(other, BaseVariable)
 
     if not inplace:
-        return new_var(return_type, f"{var.resolve()} | {other.resolve()}",parents=[var, other])
+        return utils.new_var(return_type, f"{var.resolve()} | {other.resolve()}",parents=[var, other])
     
-    append_contents(f"{var.resolve()} |= {other.resolve()};\n")
+    utils.append_contents(f"{var.resolve()} |= {other.resolve()};\n")
     return var
 
 def invert(var: BaseVariable):
     assert isinstance(var, BaseVariable), "First argument must be a ShaderVariable"
     assert dtypes.is_integer_dtype(var.var_type), "Bitwise operations only supported on integer types."
 
-    return new_var(
+    return utils.new_var(
         var.var_type,
         f"~{var.resolve()}",
         parents=[var]
