@@ -199,6 +199,18 @@ class _M2F32(_Matrix):
     true_numpy_shape = (2, 2)
     scalar = float32
 
+class _M3F32(_Matrix):
+    name = "mat3"
+    item_size = 36
+    glsl_type = "mat3"
+    format_str = "\\\\n[%f, %f, %f]\\\\n[%f, %f, %f]\\\\n[%f, %f, %f]\\\\n"
+    child_type = vec3
+    child_count = 3
+    shape = (3, 3)
+    numpy_shape = (3, 3)
+    true_numpy_shape = (3, 3)
+    scalar = float32
+
 class _M4F32(_Matrix):
     name = "mat4"
     item_size = 64
@@ -212,6 +224,7 @@ class _M4F32(_Matrix):
     scalar = float32
 
 mat2 = _M2F32
+mat3 = _M3F32
 mat4 = _M4F32
 
 def to_vector(dtype: dtype, count: int) -> dtype: # type: ignore
@@ -261,7 +274,7 @@ def is_float_dtype(dtype: dtype) -> bool:
     if not is_scalar(dtype):
         dtype = dtype.scalar
 
-    return dtype == float32 or dtype == complex64
+    return dtype == float32 # or dtype == complex64
 
 def is_integer_dtype(dtype: dtype) -> bool:
     if not is_scalar(dtype):
@@ -269,11 +282,94 @@ def is_integer_dtype(dtype: dtype) -> bool:
 
     return dtype == int32 or dtype == uint32
 
+def make_floating_dtype(dtype: dtype) -> dtype:
+    if is_scalar(dtype):
+        return float32
+    elif is_vector(dtype):
+        return to_vector(float32, dtype.child_count)
+    elif is_matrix(dtype):
+        return dtype
+    else:
+        raise ValueError(f"Unsupported dtype ({dtype})!")
+
 def vector_size(dtype: dtype) -> int:
     if not is_vector(dtype):
         raise ValueError(f"Type ({dtype}) is not a vector!")
 
     return dtype.child_count
+
+def cross_scalar_scalar(dtype1: dtype, dtype2: dtype) -> dtype:
+    assert is_scalar(dtype1) and is_scalar(dtype2), "Both types must be scalar types!"
+    
+    if dtype1 == float32 or dtype2 == float32:
+        return float32
+    
+    if dtype1 == int32 or dtype2 == int32:
+        return int32
+    
+    return uint32
+
+def cross_vector_scalar(dtype1: dtype, dtype2: dtype) -> dtype:
+    assert is_vector(dtype1) and is_scalar(dtype2), "First type must be vector type and second type must be scalar type!"
+
+    return to_vector(cross_scalar_scalar(dtype1.scalar, dtype2), dtype1.child_count)
+
+def cross_vector_vector(dtype1: dtype, dtype2: dtype) -> dtype:
+    assert is_vector(dtype1) and is_vector(dtype2), "Both types must be vector types!"
+
+    if dtype1.child_count != dtype2.child_count:
+        raise ValueError(f"Cannot cross types of vectors of two sizes! ({dtype1.child_count} != {dtype2.child_count})")
+
+    return cross_scalar_scalar(dtype1.scalar, dtype2.scalar)
+
+def cross_vector(dtype1: dtype, dtype2: dtype) -> dtype:
+    assert is_vector(dtype1), "First type must be vector type!"
+
+    if is_vector(dtype2):
+        return cross_vector_vector(dtype1, dtype2)
+    elif is_scalar(dtype2):
+        return cross_vector_scalar(dtype1, dtype2)
+    elif is_complex(dtype2):
+        raise ValueError("Cannot cross vector and complex types!")
+    else:
+        raise ValueError("Second type must be vector or scalar type!")
+
+def cross_matrix(dtype1: dtype, dtype2: dtype) -> dtype:
+    assert is_matrix(dtype1), "Both types must be matrix types!"
+
+    if is_matrix(dtype2):
+        if dtype1.shape != dtype2.shape:
+            raise ValueError(
+                f"Cannot cross types of matrices with incompatible shapes! ({dtype1.shape} and {dtype2.shape})")
+
+        return dtype1
+
+    if is_vector(dtype2) or is_complex(dtype2):
+        raise ValueError("Cannot cross matrix and vector/complex types!")
+    
+    if is_scalar(dtype2):
+        return dtype1
+    
+    raise ValueError("Second type must be matrix or scalar type!")
+
+def cross_type(dtype1: dtype, dtype2: dtype) -> dtype:
+    if is_matrix(dtype1):
+        return cross_matrix(dtype1, dtype2)
+    elif is_matrix(dtype2):
+        return cross_matrix(dtype2, dtype1)
+
+    if is_vector(dtype1):
+        return cross_vector(dtype1, dtype2)
+    elif is_vector(dtype2):
+        return cross_vector(dtype2, dtype1)
+    
+    if is_complex(dtype1):
+        return complex64
+    elif is_complex(dtype2):
+        return complex64
+    
+    if is_scalar(dtype1) and is_scalar(dtype2):
+        return cross_scalar_scalar(dtype1, dtype2)
 
 def from_numpy_dtype(dtype: type) -> dtype:
     if dtype == np.int32:
