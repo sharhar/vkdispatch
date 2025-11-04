@@ -22,7 +22,7 @@ def is_complex_number(x) -> bool:
     return isinstance(x, numbers.Complex) and not isinstance(x, numbers.Real)
 
 def is_scalar_number(x) -> bool:
-    return is_number() and (is_int_number(x) or is_float_number(x)) and not is_complex_number(x)
+    return is_number(x) and (is_int_number(x) or is_float_number(x)) and not is_complex_number(x)
 
 def is_int_power_of_2(n: int) -> bool:
     """Check if an integer is a power of 2."""
