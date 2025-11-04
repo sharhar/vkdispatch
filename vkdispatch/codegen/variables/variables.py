@@ -20,6 +20,7 @@ import dataclasses
 
 from ..functions import arithmetic
 from ..functions import bitwise
+from ..functions import arithmetic_comparisons
 
 import numpy as np
 
@@ -222,23 +223,12 @@ class ShaderVariable(BaseVariable):
 
         return ",".join(args_list)
 
-    def __lt__(self, other):
-        return self.new_var(dtypes.int32, f"{self.resolve()} < {other.resolve()}", [self, other])
-
-    def __le__(self, other):
-        return self.new_var(dtypes.int32, f"{self.resolve()} <= {other.resolve()}", [self, other])
-
-    def __eq__(self, other):
-        return self.new_var(dtypes.int32, f"{self.resolve()} == {other.resolve()}", [self, other])
-
-    def __ne__(self, other):
-        return self.new_var(dtypes.int32, f"{self.resolve()} != {other.resolve()}", [self, other])
-
-    def __gt__(self, other):
-        return self.new_var(dtypes.int32, f"{self.resolve()} > {other.resolve()}", [self, other])
-
-    def __ge__(self, other):
-        return self.new_var(dtypes.int32, f"{self.resolve()} >= {other.resolve()}", [self, other])
+    def __lt__(self, other) -> "ShaderVariable": return arithmetic_comparisons.less_than(self, other)
+    def __le__(self, other) -> "ShaderVariable": return arithmetic_comparisons.less_or_equal(self, other)
+    def __eq__(self, other) -> "ShaderVariable": return arithmetic_comparisons.equal_to(self, other)
+    def __ne__(self, other) -> "ShaderVariable": return arithmetic_comparisons.not_equal_to(self, other)
+    def __gt__(self, other) -> "ShaderVariable": return arithmetic_comparisons.greater_than(self, other)
+    def __ge__(self, other) -> "ShaderVariable": return arithmetic_comparisons.greater_or_equal(self, other)
 
     def __add__(self, other) -> "ShaderVariable": return arithmetic.add(self, other)
     def __sub__(self, other) -> "ShaderVariable": return arithmetic.sub(self, other)

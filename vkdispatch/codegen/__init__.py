@@ -14,23 +14,31 @@ from .variables.bound_variables import BufferVariable, ImageVariable, BoundVaria
 from .builder import ShaderBinding
 from .builder import ShaderBuilder, ShaderFlags
 
+from .functions.common_builtins import abs, sign, floor, ceil, trunc, round, round_even
+from .functions.common_builtins import fract, mod, modf, min, max, clip, clamp, mix
+from .functions.common_builtins import step, smoothstep, isnan, isinf, float_bits_to_int
+from .functions.common_builtins import float_bits_to_uint, int_bits_to_float, uint_bits_to_float, fma
+
+from .functions.trigonometry import sin, cos, tan, asin, acos, atan, atan2
+from .functions.trigonometry import sinh, cosh, tanh, asinh, acosh, atanh, radians, degrees
+
+from .functions.exponential import exp, exp2, log, log2, pow, sqrt, inversesqrt
+
+from .functions.geometric import length, distance, dot, cross, normalize
+
+from .functions.shader_control import barrier, memory_barrier, memory_barrier_buffer
+from .functions.shader_control import memory_barrier_shared, memory_barrier_image, group_memory_barrier
+
+from .functions.matrix import matrix_comp_mult, outer_product, transpose
+from .functions.matrix import determinant, inverse
+
+from .functions.atomic_memory import atomic_add
+
 from .global_builder import inf_f32, ninf_f32, set_global_builder, comment, get_global_builder, make_var
 from .global_builder import global_invocation, local_invocation, workgroup
 from .global_builder import workgroup_size, num_workgroups, num_subgroups
 from .global_builder import subgroup_id, subgroup_size, subgroup_invocation, shared_buffer
 
-from .global_builder import abs, acos, acosh, asin, asinh
-from .global_builder import atan, atan2, atanh, atomic_add, barrier
-from .global_builder import ceil, clamp, cos, cosh, cross
-from .global_builder import degrees, determinant, distance, dot
-from .global_builder import exp, exp2, float_bits_to_int, float_bits_to_uint
-from .global_builder import floor, fma, int_bits_to_float
-from .global_builder import inverse, inverse_sqrt, isinf, isnan
-from .global_builder import length, log, log2, max, memory_barrier
-from .global_builder import memory_barrier_shared, min, mix, mod
-from .global_builder import normalize, pow, radians, round, round_even
-from .global_builder import sign, sin, sinh, smoothstep, sqrt, step
-from .global_builder import tan, tanh, transpose, trunc, uint_bits_to_float
 from .global_builder import mult_c64, mult_conj_c64, complex_from_euler_angle, mult_c64_by_const
 
 from .global_builder import if_statement, if_any, if_all, else_statement
