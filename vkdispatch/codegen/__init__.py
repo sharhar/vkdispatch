@@ -26,8 +26,8 @@ from .functions.exponential import exp, exp2, log, log2, pow, sqrt, inversesqrt
 
 from .functions.geometric import length, distance, dot, cross, normalize
 
-from .functions.shader_control import barrier, memory_barrier, memory_barrier_buffer
-from .functions.shader_control import memory_barrier_shared, memory_barrier_image, group_memory_barrier
+from .functions.block_synchonization import barrier, memory_barrier, memory_barrier_buffer
+from .functions.block_synchonization import memory_barrier_shared, memory_barrier_image, group_memory_barrier
 
 from .functions.matrix import matrix_comp_mult, outer_product, transpose
 from .functions.matrix import determinant, inverse

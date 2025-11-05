@@ -162,45 +162,6 @@ def subgroup_elect():
 def subgroup_barrier():
     GlobalBuilder.obj.subgroup_barrier()
 
-def new(var_type: dtypes.dtype, *args, var_name: Optional[str] = None):
-    return GlobalBuilder.obj.new(var_type, *args, var_name=var_name)
-
-def new_float(*args, var_name: Optional[str] = None):
-    return new(dtypes.float32, *args, var_name=var_name)
-
-def new_int(*args, var_name: Optional[str] = None):
-    return new(dtypes.int32, *args, var_name=var_name)
-
-def new_uint(*args, var_name: Optional[str] = None):
-    return new(dtypes.uint32, *args, var_name=var_name)
-
-def new_vec2(*args, var_name: Optional[str] = None):
-    return new(dtypes.vec2, *args, var_name=var_name)
-
-def new_vec3(*args, var_name: Optional[str] = None):
-    return new(dtypes.vec3, *args, var_name=var_name)
-
-def new_vec4(*args, var_name: Optional[str] = None):
-    return new(dtypes.vec4, *args, var_name=var_name)
-
-def new_uvec2(*args, var_name: Optional[str] = None):
-    return new(dtypes.uvec2, *args, var_name=var_name)
-
-def new_uvec3(*args, var_name: Optional[str] = None):
-    return new(dtypes.uvec3, *args, var_name=var_name)
-
-def new_uvec4(*args, var_name: Optional[str] = None):
-    return new(dtypes.uvec4, *args, var_name=var_name)
-
-def new_ivec2(*args, var_name: Optional[str] = None):
-    return new(dtypes.ivec2, *args, var_name=var_name)
-
-def new_ivec3(*args, var_name: Optional[str] = None):
-    return new(dtypes.ivec3, *args, var_name=var_name)
-
-def new_ivec4(*args, var_name: Optional[str] = None):
-    return new(dtypes.ivec4, *args, var_name=var_name)
-
 def printf(format: str, *args: Union[ShaderVariable, str], seperator=" "):
     GlobalBuilder.obj.printf(format, *args, seperator=seperator)
 
