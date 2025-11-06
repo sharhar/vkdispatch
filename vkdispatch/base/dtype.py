@@ -289,6 +289,8 @@ def make_floating_dtype(dtype: dtype) -> dtype:
         return to_vector(float32, dtype.child_count)
     elif is_matrix(dtype):
         return dtype
+    elif is_complex(dtype):
+        return complex64
     else:
         raise ValueError(f"Unsupported dtype ({dtype})!")
 

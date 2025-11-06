@@ -20,13 +20,6 @@ def set_global_builder(builder: ShaderBuilder):
 def get_global_builder() -> ShaderBuilder:
     return GlobalBuilder.obj
 
-def make_var(var_type: dtypes.dtype,
-             var_name: Optional[str],
-             parents: List[ShaderVariable],
-             lexical_unit: bool = False,
-             settable: bool = False) -> ShaderVariable:
-    return GlobalBuilder.obj.make_var(var_type, var_name, parents, lexical_unit=lexical_unit, settable=settable)
-
 def set_mapping_index(index: ShaderVariable):
     GlobalBuilder.obj.set_mapping_index(index)
 
@@ -48,8 +41,3 @@ def mapping_registers():
 def shared_buffer(var_type: dtypes.dtype, size: int, var_name: Optional[str] = None):
     return GlobalBuilder.obj.shared_buffer(var_type, size, var_name)
 
-def printf(format: str, *args: Union[ShaderVariable, str], seperator=" "):
-    GlobalBuilder.obj.printf(format, *args, seperator=seperator)
-
-def print_vars(*args: Union[ShaderVariable, str], seperator=" "):
-    GlobalBuilder.obj.print_vars(*args, seperator=seperator)

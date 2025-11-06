@@ -32,7 +32,7 @@ class FFTRegisters:
         self.config = resources.config
         
         self.registers = [
-            vc.new(vc.c64, 0, var_name=f"{name}_reg_{i}") for i in range(count)
+            vc.new_complex_register(var_name=f"{name}_reg_{i}") for i in range(count)
         ]
 
         self.count = count

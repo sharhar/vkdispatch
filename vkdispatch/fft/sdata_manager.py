@@ -58,7 +58,7 @@ class FFTSDataManager:
             if grid.local_inner is not None:
                 sdata_offset_value = sdata_offset_value + grid.local_inner * config.N
 
-            self.sdata_offset = vc.new_uint(sdata_offset_value, var_name="sdata_offset")
+            self.sdata_offset = vc.new_uint_register(sdata_offset_value, var_name="sdata_offset")
     
 
     def do_op(self, op: bool):

@@ -1,5 +1,3 @@
-from .global_codegen_callbacks import append_contents, new_name
-
 from .arguments import Constant, Variable, ConstantArray, VariableArray
 from .arguments import Buffer, Image1D, Image2D, Image3D
 
@@ -40,7 +38,7 @@ from .functions.type_casting import to_ivec2, to_ivec3, to_ivec4
 from .functions.type_casting import to_mat2, to_mat3, to_mat4
 
 from .functions.registers import new_register, new_float_register, new_int_register, new_uint_register
-from .functions.registers import new_vec2_register, new_ivec2_register, new_uvec2_register
+from .functions.registers import new_vec2_register, new_ivec2_register, new_uvec2_register, new_complex_register
 from .functions.registers import new_vec3_register, new_ivec3_register, new_uvec3_register
 from .functions.registers import new_vec4_register, new_ivec4_register, new_uvec4_register
 from .functions.registers import new_mat2_register, new_mat3_register, new_mat4_register
@@ -70,7 +68,7 @@ from .functions.printing import print_vars as print
 from .builder import ShaderBinding
 from .builder import ShaderBuilder, ShaderFlags
 
-from .global_builder import set_global_builder, get_global_builder, make_var
+from .global_builder import set_global_builder, get_global_builder, shared_buffer
 
 from .global_builder import mapping_index, kernel_index, mapping_registers
 from .global_builder import set_kernel_index, set_mapping_index, set_mapping_registers

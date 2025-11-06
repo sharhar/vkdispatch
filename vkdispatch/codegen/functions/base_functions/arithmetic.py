@@ -141,9 +141,9 @@ def truediv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool 
             return base_utils.new_base_var(
                 return_type,
                 (
-                    f"{var.cast_to(return_type).resolve()} / {float(other)}"
+                    f"{base_utils.to_dtype_base(return_type, var).resolve()} / {float(other)}"
                     if not reverse else
-                    f"{float(other)} / {var.cast_to(return_type).resolve()}"
+                    f"{float(other)} / {base_utils.to_dtype_base(return_type, var).resolve()}"
                 ),
                 parents=[var])
 

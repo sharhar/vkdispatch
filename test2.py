@@ -36,21 +36,21 @@ current_shape = (275, 5)
 data = make_circle_signal(current_shape, 20).astype(np.complex64)
 data2 = make_square_signal(current_shape, 15).astype(np.complex64)
 
-np.save('test_signal.npy', data)
-np.save('test_kernel.npy', data2)
+#np.save('test_signal.npy', data)
+#np.save('test_kernel.npy', data2)
 
 test_data = vd.asbuffer(data)
 kernel_data = vd.asbuffer(data2)
 
 vd.fft.fft2(kernel_data)
 
-np.save("ffted_kernel.npy", kernel_data.read(0))
+#np.save("ffted_kernel.npy", kernel_data.read(0))
 
-np.save("ffted_kernel_reference.npy", np.fft.fft2(data2).astype(np.complex64))
+#np.save("ffted_kernel_reference.npy", np.fft.fft2(data2).astype(np.complex64))
 
 kernel_transposed = vd.fft.transpose(kernel_data, axis=0, print_shader=True)
 
-np.save("transposed_kernel.npy", kernel_transposed.read(0).reshape(275, -1))
+#np.save("transposed_kernel.npy", kernel_transposed.read(0).reshape(275, -1))
 
 print(kernel_data.shape)
 print(kernel_transposed.shape)

@@ -59,6 +59,8 @@ class ShaderBuilder(ShaderWriter):
     flags: ShaderFlags
 
     def __init__(self, flags: ShaderFlags = ShaderFlags.NONE, is_apple_device: bool = False) -> None:
+        super().__init__()
+
         self.flags = flags
         self.is_apple_device = is_apple_device
 
@@ -256,81 +258,6 @@ class ShaderBuilder(ShaderWriter):
 
         return new_var
     
-    def mult_c64(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        new_var = self.make_var(
-            arg1.var_type,
-            f"vec2({arg1}.x * {arg2}.x - {arg1}.y * {arg2}.y, {arg1}.x * {arg2}.y + {arg1}.y * {arg2}.x)",
-            [arg1, arg2],
-            lexical_unit=True
-        )
-        return new_var
-    
-    def mult_c64_by_const(self, arg1: ShaderVariable, number: complex):
-        if isinstance(number, ShaderVariable):
-            raise ValueError("Cannot multiply complex number by a variable, use mult_c64 instead.")
-
-        new_var = self.make_var(
-            arg1.var_type,
-            f"vec2({arg1}.x * {number.real} - {arg1}.y * {number.imag}, {arg1}.x * {number.imag} + {arg1}.y * {number.real})",
-            [arg1],
-            lexical_unit=True
-        )
-        return new_var
-    
-    def mult_conj_c64(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        new_var = self.make_var(
-            arg1.var_type,
-            f"vec2({arg1}.x * {arg2}.x + {arg1}.y * {arg2}.y, {arg1}.y * {arg2}.x - {arg1}.x * {arg2}.y)",
-            [arg1, arg2],
-            lexical_unit=True
-        )
-        return new_var
-
-    def new(self, var_type: dtype, *args, var_name: Optional[str] = None):
-        new_var = self.make_var(var_type, var_name, [], lexical_unit=True, settable=True)
-
-        for arg in args:
-            if isinstance(arg, ShaderVariable):
-                arg.read_callback()
-
-        decleration_suffix = ""
-        if len(args) > 0:
-            decleration_suffix = f" = {var_type.glsl_type}({', '.join([str(elem) for elem in args])})"
-
-        self.append_contents(f"{new_var.var_type.glsl_type} {new_var.name}{decleration_suffix};\n")
-
-        return new_var
-
-    def printf(self, format: str, *args: Union[ShaderVariable, str], seperator=" "):
-        args_string = ""
-
-        for arg in args:
-            args_string += f", {arg}"
-
-        self.append_contents(f'debugPrintfEXT("{format}" {args_string});\n')
-
-    def print_vars(self, *args: Union[ShaderVariable, str], seperator=" "):
-        args_list = []
-
-        fmts = []
-
-        for arg in args:
-            if isinstance(arg, ShaderVariable):
-                args_list.append(arg.printf_args())
-                fmts.append(arg.var_type.format_str)
-            else:
-                fmts.append(str(arg))
-
-        fmt = seperator.join(fmts)
-        
-        args_argument = ""
-
-        if len(args_list) > 0:
-            args_argument = f", {','.join(args_list)}"
-
-        self.append_contents(f'debugPrintfEXT("{fmt}"{args_argument});\n')
-    
-
     def compose_struct_decleration(self, elements: List[StructElement]) -> str:
         declerations = []
 

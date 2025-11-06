@@ -70,8 +70,8 @@ def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tup
     if not declare_variables:
         return None, (workgroups_x, workgroups_y, workgroups_z)
 
-    workgroup_index = vc.new_uint(
-        vc.workgroup().x,
+    workgroup_index = vc.new_uint_register(
+        vc.workgroup_id().x,
         var_name="workgroup_index"
     )
 
@@ -81,7 +81,7 @@ def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tup
             vd.get_context().max_workgroup_count[1]
         )
 
-        workgroup_index += workgroups_x * vc.workgroup().y
+        workgroup_index += workgroups_x * vc.workgroup_id().y
 
         if workgroups_y != total_count // workgroups_x:
             workgroups_z = set_to_multiple_with_max(
@@ -89,7 +89,7 @@ def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tup
                 vd.get_context().max_workgroup_count[2]
             )
 
-            workgroup_index += workgroups_x * workgroups_y * vc.workgroup().z
+            workgroup_index += workgroups_x * workgroups_y * vc.workgroup_id().z
 
     return workgroup_index, (workgroups_x, workgroups_y, workgroups_z)
 
@@ -101,17 +101,17 @@ def decompose_workgroup_index(
 
     if inner_batch_count == None:
         if fft_threads == 1:
-            return None, workgroup_index * local_size[0] + vc.local_invocation().x
+            return None, workgroup_index * local_size[0] + vc.local_invocation_id().x
 
-        return None, workgroup_index * local_size[1] + vc.local_invocation().y 
+        return None, workgroup_index * local_size[1] + vc.local_invocation_id().y 
 
-    global_inner = vc.new_uint(
-        (workgroup_index % inner_batch_count) * local_size[0] + vc.local_invocation().x,
+    global_inner = vc.new_uint_register(
+        (workgroup_index % inner_batch_count) * local_size[0] + vc.local_invocation_id().x,
         var_name="global_inner_index"
     )
 
-    global_outer = vc.new_uint(
-        (workgroup_index / inner_batch_count) * local_size[2] + vc.local_invocation().z,
+    global_outer = vc.new_uint_register(
+        (workgroup_index / inner_batch_count) * local_size[2] + vc.local_invocation_id().z,
         var_name="global_outer_index"
     )
 
@@ -175,8 +175,8 @@ class FFTGridManager:
             )
 
             if declare_variables:
-                self.local_inner = vc.local_invocation().x
-                self.local_outer = vc.local_invocation().z
+                self.local_inner = vc.local_invocation_id().x
+                self.local_outer = vc.local_invocation_id().z
 
                 self.global_inner, self.global_outer = decompose_workgroup_index(
                     workgroup_index,
@@ -185,7 +185,7 @@ class FFTGridManager:
                     self.local_size
                 )
                 
-                self.tid = vc.local_invocation().y.copy("tid")
+                self.tid = vc.local_invocation_id().y.to_register("tid")
         else:
             self.local_inner = None
             self.global_inner = 0
@@ -202,11 +202,11 @@ class FFTGridManager:
             
             if declare_variables:
                 if config.batch_threads > 1:
-                    self.tid = vc.local_invocation().x.copy("tid")
-                    self.local_outer = vc.local_invocation().y
+                    self.tid = vc.local_invocation_id().x.to_register("tid")
+                    self.local_outer = vc.local_invocation_id().y
                 else:
                     self.tid = 0
-                    self.local_outer = vc.local_invocation().x
+                    self.local_outer = vc.local_invocation_id().x
 
                 _, self.global_outer = decompose_workgroup_index(
                     workgroup_index,
