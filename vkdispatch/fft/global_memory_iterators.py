@@ -224,10 +224,10 @@ def global_reads_iterator(
     config = registers.config
     
     if format_transposed:
-        local_index = vc.local_invocation().z * vc.workgroup_size().x * vc.workgroup_size().y + \
-                      vc.local_invocation().y * vc.workgroup_size().x + vc.local_invocation().x
-        work_index = vc.workgroup().z * vc.num_workgroups().x * vc.num_workgroups().y + \
-                     vc.workgroup().y * vc.num_workgroups().x + vc.workgroup().x
+        local_index = vc.local_invocation_id().z * vc.workgroup_size().x * vc.workgroup_size().y + \
+                      vc.local_invocation_id().y * vc.workgroup_size().x + vc.local_invocation_id().x
+        work_index = vc.workgroup_id().z * vc.num_workgroups().x * vc.num_workgroups().y + \
+                     vc.workgroup_id().y * vc.num_workgroups().x + vc.workgroup_id().x
 
         resources.input_batch_offset[:] = local_index + work_index * (vc.workgroup_size().x * vc.workgroup_size().y * vc.workgroup_size().z)
         r2c_inverse_offset = None # Transposed r2c not supported anyways
@@ -285,10 +285,10 @@ def global_trasposed_write_iterator(registers: FFTRegisters):
     
 
     # https://registry.khronos.org/OpenGL-Refpages/gl4/html/gl_LocalInvocationIndex.xhtml
-    local_index = vc.local_invocation().z * vc.workgroup_size().x * vc.workgroup_size().y + \
-                    vc.local_invocation().y * vc.workgroup_size().x + vc.local_invocation().x
-    work_index = vc.workgroup().z * vc.num_workgroups().x * vc.num_workgroups().y + \
-                    vc.workgroup().y * vc.num_workgroups().x + vc.workgroup().x
+    local_index = vc.local_invocation_id().z * vc.workgroup_size().x * vc.workgroup_size().y + \
+                    vc.local_invocation_id().y * vc.workgroup_size().x + vc.local_invocation_id().x
+    work_index = vc.workgroup_id().z * vc.num_workgroups().x * vc.num_workgroups().y + \
+                    vc.workgroup_id().y * vc.num_workgroups().x + vc.workgroup_id().x
 
     resources.input_batch_offset[:] = local_index + work_index * (vc.workgroup_size().x * vc.workgroup_size().y * vc.workgroup_size().z)
     transpose_stride = np.prod(resources.grid.workgroup_count) * np.prod(resources.grid.local_size)

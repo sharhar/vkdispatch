@@ -85,15 +85,15 @@ class FFTResources:
         self.tid = grid.tid
         self.grid = grid
         self.config = config
-        self.input_batch_offset = vc.new_uint(var_name="input_batch_offset")
-        self.output_batch_offset = vc.new_uint(var_name="output_batch_offset")
-        self.omega_register = vc.new(c64, 0, var_name="omega_register")
-        self.subsequence_offset = vc.new_uint(0, var_name="subsequence_offset")
-        self.io_index = vc.new_uint(0, var_name="io_index")
-        self.io_index_2 = vc.new_uint(0, var_name="io_index_2")
+        self.input_batch_offset = vc.new_uint_register(var_name="input_batch_offset")
+        self.output_batch_offset = vc.new_uint_register(var_name="output_batch_offset")
+        self.omega_register = vc.new_complex_register(var_name="omega_register")
+        self.subsequence_offset = vc.new_uint_register(var_name="subsequence_offset")
+        self.io_index = vc.new_uint_register(var_name="io_index")
+        self.io_index_2 = vc.new_uint_register(var_name="io_index_2")
 
         self.radix_registers = [
-            vc.new(c64, 0, var_name=f"radix_register_{i}") for i in range(config.max_prime_radix)
+            vc.new_complex_register(var_name=f"radix_register_{i}") for i in range(config.max_prime_radix)
         ]
 
         self.output_strides = []

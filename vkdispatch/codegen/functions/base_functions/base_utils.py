@@ -69,6 +69,8 @@ def dtype_to_floating(var_type: dtypes.dtype) -> dtypes.dtype:
     return var_type
 
 def resolve_input(var: Any) -> str:
+    #print("Resolving input:", var)
+
     if is_number(var):
         return str(var)
     

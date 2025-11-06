@@ -327,7 +327,7 @@ class ScaledAndOfftsetIntVariable(ShaderVariable):
         return f"({self.base_name}{scale_str}{offset_str})"
 
     def __add__(self, other) -> "Union[ShaderVariable, ScaledAndOfftsetIntVariable]":
-        if is_scalar_number(other):
+        if base_utils.is_scalar_number(other):
             return self.new_from_self(offset=other)
         
         return super().__add__(other)

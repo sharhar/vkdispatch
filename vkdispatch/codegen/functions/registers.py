@@ -4,7 +4,7 @@ from typing import Optional
 
 from . import utils
 
-from .type_casting import to_dtype
+from .type_casting import to_dtype, to_complex
 
 def new_register(var_type: dtypes.dtype, *args, var_name: Optional[str] = None):
     new_var = utils.new_var(
@@ -20,6 +20,9 @@ def new_register(var_type: dtypes.dtype, *args, var_name: Optional[str] = None):
         if isinstance(arg, ShaderVariable):
             arg.read_callback()
 
+    if len(args) == 0:
+        args = (0,)
+
     decleration = to_dtype(var_type, *args).resolve()
 
     utils.append_contents(f"{new_var.var_type.glsl_type} {new_var.name} = {decleration};\n")
@@ -34,6 +37,14 @@ def new_int_register(*args, var_name: Optional[str] = None):
 
 def new_uint_register(*args, var_name: Optional[str] = None):
     return new_register(dtypes.uint32, *args, var_name=var_name)
+
+def new_complex_register(*args, var_name: Optional[str] = None):
+    if len(args) > 0:
+        true_args = to_complex(*args)
+    else:
+        true_args = (0,)
+
+    return new_register(dtypes.complex64, *true_args, var_name=var_name)
 
 def new_vec2_register(*args, var_name: Optional[str] = None):
     return new_register(dtypes.vec2, *args, var_name=var_name)

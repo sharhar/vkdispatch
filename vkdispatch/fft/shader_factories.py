@@ -84,10 +84,10 @@ def make_convolution_shader(
         def kernel_map_func(kernel_buffer: vc.Buffer[c64]):
             read_op = vd.fft.mapped_read_op()
             
-            kernel_val = vc.new_vec2(0)
+            kernel_val = vc.new_complex_register()
             read_op.read_from_buffer(kernel_buffer, register=kernel_val)
             
-            read_op.register[:] = vc.mult_conj_c64(read_op.register, kernel_val)
+            read_op.register[:] = vc.mult_complex_conj(read_op.register, kernel_val)
 
         kernel_map = vd.map(kernel_map_func, input_types=[vc.Buffer[c64]])
 
