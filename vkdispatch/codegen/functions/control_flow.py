@@ -1,52 +1,84 @@
+import vkdispatch.base.dtype as dtypes
+
 from ..variables.base_variable import BaseVariable
 
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from . import utils
 
+def proc_bool(arg: Union[BaseVariable, bool]) -> BaseVariable:
+    if isinstance(arg, bool):
+        return "true" if arg else "false"
+    
+    if isinstance(arg, BaseVariable):
+        return arg.resolve()
+
+    raise TypeError(f"Argument of type {type(arg)} cannot be processed as a boolean.")
+
 def if_statement(arg: BaseVariable, command: Optional[str] = None):
     if command is None:
-        utils.append_contents(f"if({self.proc_bool(arg)}) {'{'}\n")
-        self.scope_num += 1
+        utils.append_contents(f"if({proc_bool(arg)}) {'{'}\n")
+        utils.scope_increment()
         return
     
-    self.append_contents(f"if({self.proc_bool(arg)})\n")
-    self.scope_num += 1
-    self.append_contents(f"{command}\n")
-    self.scope_num -= 1
+    utils.append_contents(f"if({proc_bool(arg)})\n")
+    utils.scope_increment()
+    utils.append_contents(f"{command}\n")
+    utils.scope_decrement()
 
 def if_any(*args: List[BaseVariable]):
-    GlobalBuilder.obj.if_any(*args)
+    utils.append_contents(f"if({' || '.join([str(proc_bool(elem)) for elem in args])}) {'{'}\n")
+    utils.scope_increment()
 
 def if_all(*args: List[BaseVariable]):
-    GlobalBuilder.obj.if_all(*args)
+    utils.append_contents(f"if({' && '.join([str(proc_bool(elem)) for elem in args])}) {'{'}\n")
+    utils.scope_increment()
 
 def else_statement():
-    GlobalBuilder.obj.else_statement()
+    utils.scope_decrement()
+    utils.append_contents("} else {\n")
+    utils.scope_increment()
 
 def else_if_statement(arg: BaseVariable):
-    GlobalBuilder.obj.else_if_statement(arg)
+    utils.scope_decrement()
+    utils.append_contents(f"}} else if({proc_bool(arg)}) {'{'}\n")
+    utils.scope_increment()
 
 def else_if_any(*args: List[BaseVariable]):
-    GlobalBuilder.obj.else_if_any(*args)
+    utils.scope_decrement()
+    utils.append_contents(f"}} else if({' || '.join([str(proc_bool(elem)) for elem in args])}) {'{'}\n")
+    utils.scope_increment()
 
 def else_if_all(*args: List[BaseVariable]):
-    GlobalBuilder.obj.else_if_all(*args)
+    utils.scope_decrement()
+    utils.append_contents(f"}} else if({' && '.join([str(proc_bool(elem)) for elem in args])}) {'{'}\n")
+    utils.scope_increment()
 
 def return_statement(arg=None):
-    GlobalBuilder.obj.return_statement(arg)
+    arg = arg if arg is not None else ""
+    utils.append_contents(f"return {arg};\n")
 
 def while_statement(arg: BaseVariable):
-    GlobalBuilder.obj.while_statement(arg)
+    utils.append_contents(f"while({proc_bool(arg)}) {'{'}\n")
+    utils.scope_increment()
 
 def new_scope(indent: bool = True, comment: str = None):
-    GlobalBuilder.obj.new_scope(indent=indent, comment=comment)
+    if comment is None:
+        utils.append_contents("{\n")
+    else:
+        utils.append_contents("{ " + f"/* {comment} */\n")
+    
+    if indent:
+        utils.scope_increment()
 
 def end(indent: bool = True):
-    GlobalBuilder.obj.end(indent=indent)
+    if indent:
+        utils.scope_decrement()
+        
+    utils.append_contents("}\n")
 
 def logical_and(arg1: BaseVariable, arg2: BaseVariable):
-    return GlobalBuilder.obj.logical_and(arg1, arg2)
+    return utils.new_var(dtypes.int32, f"({arg1} && {arg2})", [arg1, arg2])
 
 def logical_or(arg1: BaseVariable, arg2: BaseVariable):
-    return GlobalBuilder.obj.logical_or(arg1, arg2)
+    return utils.new_var(dtypes.int32, f"({arg1} || {arg2})", [arg1, arg2])

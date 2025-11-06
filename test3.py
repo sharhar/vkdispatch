@@ -74,12 +74,12 @@ def run_index_unravel(shape: Tuple[int, ...], index: Tuple[int, ...], input_stat
     elif not input_static and shape_static:
         @vd.shader(1)
         def test_shader(buff: vc.Buff[vc.f32], buff_in: vc.Buff[vc.f32]):
-            index_vec = vc.new(index_type, *index)
+            index_vec = vc.new_register(index_type, *index)
             buff[0] = buff_in[vc.unravel_index(index_vec, shape)]
     elif not input_static and not shape_static:
         @vd.shader(1)
         def test_shader(buff: vc.Buff[vc.f32], buff_in: vc.Buff[vc.f32]):
-            index_vec = vc.new(index_type, *index)
+            index_vec = vc.new_register(index_type, *index)
             buff[0] = buff_in[vc.unravel_index(index_vec, buff_in.shape)]
 
     print(test_shader)

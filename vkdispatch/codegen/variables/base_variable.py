@@ -1,6 +1,8 @@
 import vkdispatch.base.dtype as dtypes
 from typing import List, Optional
 
+import numpy as np
+
 class BaseVariable:
     var_type: dtypes.dtype
     name: str
@@ -27,6 +29,9 @@ class BaseVariable:
 
         self.name = name
         self.raw_name = raw_name if raw_name is not None else self.name
+
+        if register:
+            assert settable, "An unsettable register makes no sense"
 
         self.settable = settable
         self.register = register
@@ -60,21 +65,15 @@ class BaseVariable:
         for parent in self.parents:
             parent.write_callback()
 
-    # def cast_to(self, var_type: dtypes.dtype) -> "BaseVariable":
-    #     return self.new_var(var_type, f"{var_type.glsl_type}({self.name})", [self], lexical_unit=True)
+    def printf_args(self) -> str:
+        total_count = np.prod(self.var_type.shape)
 
-    # def new_var(self,
-    #             var_type: dtypes.dtype,
-    #             name: str,
-    #             parents: List["BaseVariable"],
-    #             lexical_unit: bool = False,
-    #             settable: bool = False):
-    #     raise NotImplementedError("Subclasses should implement this method.")
-    
-    # def new_scaled_var(self,
-    #                     var_type: dtypes.dtype,
-    #                     name: str,
-    #                     scale: int = 1,
-    #                     offset: int = 0,
-    #                     parents: List["BaseVariable"] = None):
-    #     raise NotImplementedError("Subclasses should implement this method.")
+        if total_count == 1:
+            return self.name
+
+        args_list = []
+
+        for i in range(0, total_count):
+            args_list.append(f"{self.name}[{i}]")
+
+        return ",".join(args_list)

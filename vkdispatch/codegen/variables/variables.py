@@ -1,38 +1,29 @@
 import vkdispatch.base.dtype as dtypes
-from vkdispatch.base.dtype import dtype, is_scalar, is_vector, is_matrix, is_complex, to_vector
 
-import vkdispatch.codegen as vc
+from ..shader_writer import append_contents, new_name
 
 from .base_variable import BaseVariable
 
-from ..struct_builder import StructElement, StructBuilder
+from ..struct_builder import StructElement
 
-from typing import Dict
 from typing import List
 from typing import Tuple
 from typing import Union
 from typing import Optional
-from typing import Callable
 from typing import Any
 
 import enum
 import dataclasses
 
-from ..global_codegen_callbacks import new_name
-
-from ..functions import arithmetic
-from ..functions import bitwise
-from ..functions import arithmetic_comparisons
+from ..functions.base_functions import arithmetic
+from ..functions.base_functions import bitwise
+from ..functions.base_functions import arithmetic_comparisons
 from ..functions.utils import is_int_number, is_scalar_number
 
-import numpy as np
+from ..functions.type_casting import to_dtype
+from ..functions.registers import new_register
 
 ENABLE_SCALED_AND_OFFSET_INT = True
-
-# from utils import check_is_int
-
-# def do_scaled_int_check(other):
-#     return ENABLE_SCALED_AND_OFFSET_INT and check_is_int(other)
 
 def is_int_power_of_2(n: int) -> bool:
     """Check if an integer is a power of 2."""
@@ -44,7 +35,7 @@ def shader_var_name(index: "Union[Any, ShaderVariable]") -> str:
     
     return str(index)
 
-def var_types_to_floating(var_type: dtype) -> dtype:
+def var_types_to_floating(var_type: dtypes.dtype) -> dtypes.dtype:
     if var_type == dtypes.int32 or var_type == dtypes.uint32:
         return dtypes.float32
 
@@ -59,7 +50,6 @@ def var_types_to_floating(var_type: dtype) -> dtype:
     
     return var_type
 
-
 @dataclasses.dataclass
 class SharedBuffer:
     """
@@ -70,7 +60,7 @@ class SharedBuffer:
         size (int): The size of the shared buffer.
         name (str): The name of the shared buffer within the shader code.
     """
-    dtype: dtype
+    dtype: dtypes.dtype
     size: int
     name: str
 
@@ -126,7 +116,7 @@ class ShaderDescription:
 
 class ShaderVariable(BaseVariable):
     def __init__(self,
-                 var_type: dtype, 
+                 var_type: dtypes.dtype, 
                  name: Optional[str] = None,
                  raw_name: Optional[str] = None,
                  lexical_unit: bool = False,
@@ -169,16 +159,11 @@ class ShaderVariable(BaseVariable):
         if dtypes.is_matrix(self.var_type):
             self._register_shape()
 
-    
     def _register_shape(self, shape_var: "BaseVariable" = None, shape_name: str = None, use_child_type: bool = True):
         self.shape = shape_var
         self.shape_name = shape_name
         self.can_index = True
         self.use_child_type = use_child_type
-
-    # # Override new_var from BaseVariable
-    # def new_var(self, var_type: dtype, name: str, parents: List["ShaderVariable"], lexical_unit: bool = False, settable: bool = False) -> "ShaderVariable":
-    #     return ShaderVariable(var_type, name, lexical_unit=lexical_unit, settable=settable, parents=parents)
        
     def __getitem__(self, index) -> "ShaderVariable":
         if not self.can_index:
@@ -209,7 +194,7 @@ class ShaderVariable(BaseVariable):
                 if isinstance(value, ShaderVariable):
                     value.read_callback()
 
-                vc.append_contents(f"{self.resolve()} = {shader_var_name(value)};\n")
+                append_contents(f"{self.resolve()} = {shader_var_name(value)};\n")
                 return
             else:
                 raise ValueError("Unsupported slice!")
@@ -228,38 +213,16 @@ class ShaderVariable(BaseVariable):
         if isinstance(value, ShaderVariable):
             value.read_callback()
 
-        vc.append_contents(f"{self.resolve()}[{shader_var_name(index)}] = {shader_var_name(value)};\n")
+        append_contents(f"{self.resolve()}[{shader_var_name(index)}] = {shader_var_name(value)};\n")
 
     def __bool__(self) -> bool:
         raise ValueError(f"Vkdispatch variables cannot be cast to a python boolean")
 
-    def to_register(self, var_name: str = None):
-        """Create a new variable with the same value as the current variable."""
-        new_var = self.new(self.var_type, var_name, [], lexical_unit=True, settable=True)
+    def to_register(self, var_name: str = None) -> "ShaderVariable":
+        return new_register(self.var_type, self, var_name=var_name)
 
-        self.read_callback()
-
-        vc.append_contents(f"{self.var_type.glsl_type} {new_var.name} = {self};\n")
-        return new_var
-
-    #Override cast_to from BaseVariable, to make return type ShaderVariable
-    def to_type(self, var_type: dtype) -> "ShaderVariable":
-        raise NotImplementedError("Subclasses should implement this method.")
-
-        #return self.new_avar(var_type, f"{var_type.glsl_type}({self.name})", [self], lexical_unit=True)
-
-    def printf_args(self) -> str:
-        total_count = np.prod(self.var_type.shape)
-
-        if total_count == 1:
-            return self.name
-
-        args_list = []
-
-        for i in range(0, total_count):
-            args_list.append(f"{self.name}[{i}]")
-
-        return ",".join(args_list)
+    def to_dtype(self, var_type: dtypes.dtype) -> "ShaderVariable":
+        return to_dtype(self, var_type)
 
     def __lt__(self, other) -> "ShaderVariable": return arithmetic_comparisons.less_than(self, other)
     def __le__(self, other) -> "ShaderVariable": return arithmetic_comparisons.less_or_equal(self, other)
