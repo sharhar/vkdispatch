@@ -1,10 +1,10 @@
-from ..variables.base_variable import BaseVariable
+from ..variables.variables import ShaderVariable
 
 from typing import Any
 
 # https://docs.vulkan.org/glsl/latest/chapters/builtinfunctions.html#atomic-memory-functions
 
-def atomic_add(mem: BaseVariable, y: Any) -> BaseVariable:
+def atomic_add(mem: ShaderVariable, y: Any) -> ShaderVariable:
     raise NotImplementedError("atomic_add is not implemented yet")
 
     # assert isinstance(mem, BaseVariable), "mem must be a BaseVariable"

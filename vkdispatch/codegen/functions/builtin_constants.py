@@ -1,7 +1,4 @@
 import vkdispatch.base.dtype as dtypes
-
-from ..variables.base_variable import BaseVariable
-
 from . import utils
 
 def inf_f32():

@@ -1,11 +1,11 @@
 import vkdispatch.base.dtype as dtypes
-from ..variables.base_variable import BaseVariable
+from ..variables.variables import ShaderVariable
 
 from . import utils
 
-def matrix_comp_mult(x: BaseVariable, y: BaseVariable) -> BaseVariable:
-    assert isinstance(y, BaseVariable), "Second argument must be a ShaderVariable"
-    assert isinstance(x, BaseVariable), "First argument must be a ShaderVariable"
+def matrix_comp_mult(x: ShaderVariable, y: ShaderVariable) -> ShaderVariable:
+    assert isinstance(y, ShaderVariable), "Second argument must be a ShaderVariable"
+    assert isinstance(x, ShaderVariable), "First argument must be a ShaderVariable"
 
     assert dtypes.is_matrix(x.var_type), "First argument must be a matrix"
     assert dtypes.is_matrix(y.var_type), "Second argument must be a matrix"
@@ -19,9 +19,9 @@ def matrix_comp_mult(x: BaseVariable, y: BaseVariable) -> BaseVariable:
         lexical_unit=True
     )
 
-def outer_product(x: BaseVariable, y: BaseVariable) -> BaseVariable:
-    assert isinstance(y, BaseVariable), "Second argument must be a ShaderVariable"
-    assert isinstance(x, BaseVariable), "First argument must be a ShaderVariable"
+def outer_product(x: ShaderVariable, y: ShaderVariable) -> ShaderVariable:
+    assert isinstance(y, ShaderVariable), "Second argument must be a ShaderVariable"
+    assert isinstance(x, ShaderVariable), "First argument must be a ShaderVariable"
 
     assert dtypes.is_vector(x.var_type), "First argument must be a matrix"
     assert dtypes.is_vector(y.var_type), "Second argument must be a matrix"
@@ -46,8 +46,8 @@ def outer_product(x: BaseVariable, y: BaseVariable) -> BaseVariable:
         lexical_unit=True
     )
 
-def transpose(var: BaseVariable) ->BaseVariable:
-    assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable"
+def transpose(var: ShaderVariable) ->ShaderVariable:
+    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable"
 
     assert dtypes.is_matrix(var.var_type), "Argument must be a matrix"
 
@@ -58,8 +58,8 @@ def transpose(var: BaseVariable) ->BaseVariable:
         lexical_unit=True
     )
 
-def determinant(var: BaseVariable) -> BaseVariable:
-    assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable"
+def determinant(var: ShaderVariable) -> ShaderVariable:
+    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable"
 
     assert dtypes.is_matrix(var.var_type), "Argument must be a matrix"
 
@@ -70,8 +70,8 @@ def determinant(var: BaseVariable) -> BaseVariable:
         lexical_unit=True
     )
 
-def inverse(var: BaseVariable) -> BaseVariable:
-    assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable"
+def inverse(var: ShaderVariable) -> ShaderVariable:
+    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable"
 
     assert dtypes.is_matrix(var.var_type), "Argument must be a matrix"
 

@@ -64,6 +64,9 @@ from .functions.builtin_constants import subgroup_size, subgroup_invocation_id, 
 
 from .functions.index_raveling import ravel_index, unravel_index
 
+from .functions.printing import printf
+from .functions.printing import print_vars as print
+
 from .builder import ShaderBinding
 from .builder import ShaderBuilder, ShaderFlags
 
@@ -71,8 +74,5 @@ from .global_builder import set_global_builder, get_global_builder, make_var
 
 from .global_builder import mapping_index, kernel_index, mapping_registers
 from .global_builder import set_kernel_index, set_mapping_index, set_mapping_registers
-from .global_builder import printf
-from .global_builder import print_vars as print
-
 
 from .abreviations import *

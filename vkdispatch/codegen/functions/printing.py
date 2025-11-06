@@ -1,4 +1,4 @@
-from ..variables.base_variable import BaseVariable
+from ..variables.variables import ShaderVariable
 from typing import Any
 from . import utils
 
@@ -22,7 +22,7 @@ def print_vars(*args: Any, seperator=" "):
     fmts = []
 
     for arg in args:
-        if isinstance(arg, BaseVariable):
+        if isinstance(arg, ShaderVariable):
             args_list.append(arg.printf_args())
             fmts.append(arg.var_type.format_str)
         else:

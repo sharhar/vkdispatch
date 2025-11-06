@@ -18,10 +18,10 @@ import dataclasses
 from ..functions.base_functions import arithmetic
 from ..functions.base_functions import bitwise
 from ..functions.base_functions import arithmetic_comparisons
-from ..functions.utils import is_int_number, is_scalar_number
+from ..functions.base_functions import base_utils
 
-from ..functions.type_casting import to_dtype
-from ..functions.registers import new_register
+#from ..functions.type_casting import to_dtype
+#from ..functions.registers import new_register
 
 ENABLE_SCALED_AND_OFFSET_INT = True
 
@@ -175,7 +175,7 @@ class ShaderVariable(BaseVariable):
             assert len(index) == 1, "Only single index is supported for tuple indexing!"
             index = index[0]
 
-        if not isinstance(index, ShaderVariable) and not is_int_number(index):
+        if not isinstance(index, ShaderVariable) and not base_utils.is_int_number(index):
             raise ValueError(f"Unsupported index {index} of type {type(index)}!")
         
         if isinstance(index, ShaderVariable):
@@ -219,10 +219,26 @@ class ShaderVariable(BaseVariable):
         raise ValueError(f"Vkdispatch variables cannot be cast to a python boolean")
 
     def to_register(self, var_name: str = None) -> "ShaderVariable":
-        return new_register(self.var_type, self, var_name=var_name)
+        new_var = base_utils.new_base_var(
+            self.var_type,
+            var_name,
+            [],
+            lexical_unit=True,
+            settable=True,
+            register=True
+        )
+
+        self.read_callback()
+        base_utils.append_contents(f"{new_var.var_type.glsl_type} {new_var.name} = {self.resolve()};\n")
+        return new_var
 
     def to_dtype(self, var_type: dtypes.dtype) -> "ShaderVariable":
-        return to_dtype(self, var_type)
+        return base_utils.new_base_var(
+            var_type,
+            f"{var_type.glsl_type}({self.resolve()})", 
+            [self],
+            lexical_unit=True
+        )
 
     def __lt__(self, other) -> "ShaderVariable": return arithmetic_comparisons.less_than(self, other)
     def __le__(self, other) -> "ShaderVariable": return arithmetic_comparisons.less_or_equal(self, other)
