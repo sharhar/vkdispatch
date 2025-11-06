@@ -1,15 +1,15 @@
 import vkdispatch.base.dtype as dtypes
-from ..variables.base_variable import BaseVariable
-from typing import Any, Union, Tuple
+from ..variables.variables import ShaderVariable
+from typing import Any, Union
 import numpy as np
 
 from . import utils
 
-def length(var: Any) -> Union[BaseVariable, float]:
+def length(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return float(np.abs(var))
 
-    assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
+    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
     return utils.new_var(
         utils.dtype_to_floating(var.var_type),
@@ -18,15 +18,15 @@ def length(var: Any) -> Union[BaseVariable, float]:
         lexical_unit=True
     )
 
-def distance(x: Any, y: Any) -> Union[BaseVariable, float]:
+def distance(x: Any, y: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(y) and utils.is_number(x):
         return float(np.abs(y - x))
     
     base_var = None
 
-    if isinstance(y, BaseVariable):
+    if isinstance(y, ShaderVariable):
         base_var = y
-    elif isinstance(x, BaseVariable):
+    elif isinstance(x, ShaderVariable):
         base_var = x
     else:
         raise AssertionError("Arguments must be ShaderVariables or numbers")
@@ -38,15 +38,15 @@ def distance(x: Any, y: Any) -> Union[BaseVariable, float]:
         lexical_unit=True
     )
 
-def dot(x: Any, y: Any) -> Union[BaseVariable, float]:
+def dot(x: Any, y: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(y) and utils.is_number(x):
         return float(np.dot(x, y))
     
     base_var = None
 
-    if isinstance(y, BaseVariable):
+    if isinstance(y, ShaderVariable):
         base_var = y
-    elif isinstance(x, BaseVariable):
+    elif isinstance(x, ShaderVariable):
         base_var = x
     else:
         raise AssertionError("Arguments must be ShaderVariables or numbers")
@@ -58,9 +58,9 @@ def dot(x: Any, y: Any) -> Union[BaseVariable, float]:
         lexical_unit=True
     )
 
-def cross(x: BaseVariable, y: BaseVariable) -> BaseVariable:
-    assert isinstance(x, BaseVariable), "Argument x must be a ShaderVariable"
-    assert isinstance(y, BaseVariable), "Argument y must be a ShaderVariable"
+def cross(x: ShaderVariable, y: ShaderVariable) -> ShaderVariable:
+    assert isinstance(x, ShaderVariable), "Argument x must be a ShaderVariable"
+    assert isinstance(y, ShaderVariable), "Argument y must be a ShaderVariable"
 
     assert x.var_type == dtypes.vec3, "Argument x must be of type vec3 or dvec3"
     assert y.var_type == dtypes.vec3, "Argument y must be of type vec3 or dvec3"
@@ -72,8 +72,8 @@ def cross(x: BaseVariable, y: BaseVariable) -> BaseVariable:
         lexical_unit=True
     )
 
-def normalize(var: BaseVariable) -> BaseVariable:
-    assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable"
+def normalize(var: ShaderVariable) -> ShaderVariable:
+    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable"
 
     return utils.new_var(
         var.var_type,

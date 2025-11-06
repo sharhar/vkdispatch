@@ -1,5 +1,5 @@
 import vkdispatch.base.dtype as dtypes
-from ..variables.base_variable import BaseVariable
+from ..variables.variables import ShaderVariable
 from typing import Optional
 
 from . import utils
@@ -17,7 +17,7 @@ def new_register(var_type: dtypes.dtype, *args, var_name: Optional[str] = None):
     )
 
     for arg in args:
-        if isinstance(arg, BaseVariable):
+        if isinstance(arg, ShaderVariable):
             arg.read_callback()
 
     decleration = to_dtype(var_type, *args).resolve()

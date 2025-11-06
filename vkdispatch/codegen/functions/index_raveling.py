@@ -1,8 +1,8 @@
 import vkdispatch.base.dtype as dtypes
 
-from .utils import check_is_int
-from ..builder import ShaderVariable
-from ..global_builder import make_var
+from ..variables.variables import ShaderVariable
+
+from . import utils
 
 from typing import List, Union, Tuple
 
@@ -29,7 +29,7 @@ def sanitize_input(value: Union[ShaderVariable, Tuple[int, ...]]) -> Tuple[List[
         for i in range(elem_count):
             axes_lengths.append(value[i])
     else:
-        if check_is_int(value):
+        if utils.check_is_int(value):
             return [value], True
 
         is_static = True
@@ -39,7 +39,7 @@ def sanitize_input(value: Union[ShaderVariable, Tuple[int, ...]]) -> Tuple[List[
         assert elem_count >= 1 or elem_count <= 3, f"Value has {elem_count} elements, but it must have 1, 2, or 3 elements!"
 
         for i in range(elem_count):
-            assert check_is_int(value[i]), "When value is a list/tuple, all its elements must be integers!"
+            assert utils.check_is_int(value[i]), "When value is a list/tuple, all its elements must be integers!"
 
             axes_lengths.append(value[i])
 
@@ -80,7 +80,7 @@ def ravel_index(index: Union[ShaderVariable, int], shape: Union[ShaderVariable, 
     else:
         raise RuntimeError("Ravel index only supports shapes with 2 or 3 elements!")
 
-    return make_var(
+    return utils.new_var(
         out_type,
         variable_text,
         [index, shape],
