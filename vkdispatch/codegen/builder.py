@@ -3,6 +3,8 @@ from vkdispatch.base.dtype import dtype
 
 from .struct_builder import StructElement, StructBuilder
 
+from .shader_writer import ShaderWriter
+
 from enum import IntFlag, auto
 
 from typing import Dict
@@ -43,8 +45,7 @@ class ShaderFlags(IntFlag):
     NO_PRINTF = auto()
     NO_EXEC_BOUNDS = auto()
 
-class ShaderBuilder:
-    var_count: int
+class ShaderBuilder(ShaderWriter):
     binding_count: int
     binding_read_access: Dict[int, bool]
     binding_write_access: Dict[int, bool]
@@ -54,7 +55,6 @@ class ShaderBuilder:
     pc_struct: StructBuilder
     uniform_struct: StructBuilder
     exec_count: Optional[ShaderVariable]
-    contents: str
     pre_header: str
     flags: ShaderFlags
 
@@ -72,22 +72,9 @@ class ShaderBuilder:
         if not (self.flags & ShaderFlags.NO_PRINTF):
             self.pre_header += "#extension GL_EXT_debug_printf : require\n"
         
-        self.global_invocation = self.make_var(dtypes.uvec3, "gl_GlobalInvocationID", [], lexical_unit=True)
-        self.local_invocation = self.make_var(dtypes.uvec3, "gl_LocalInvocationID", [], lexical_unit=True)
-        self.workgroup = self.make_var(dtypes.uvec3, "gl_WorkGroupID", [], lexical_unit=True)
-        self.workgroup_size = self.make_var(dtypes.uvec3, "gl_WorkGroupSize", [], lexical_unit=True)
-        self.num_workgroups = self.make_var(dtypes.uvec3, "gl_NumWorkGroups", [], lexical_unit=True)
-
-        self.num_subgroups = self.make_var(dtypes.uint32, "gl_NumSubgroups", [], lexical_unit=True)
-        self.subgroup_id = self.make_var(dtypes.uint32, "gl_SubgroupID", [], lexical_unit=True)
-
-        self.subgroup_size = self.make_var(dtypes.uint32, "gl_SubgroupSize", [], lexical_unit=True)
-        self.subgroup_invocation = self.make_var(dtypes.uint32, "gl_SubgroupInvocationID", [], lexical_unit=True)
-        
         self.reset()
 
     def reset(self) -> None:
-        self.var_count = 0
         self.binding_count = 0
         self.pc_struct = StructBuilder()
         self.uniform_struct = StructBuilder()
@@ -96,7 +83,6 @@ class ShaderBuilder:
         self.binding_write_access = {}
         self.shared_buffers = []
         self.scope_num = 1
-        self.contents = ""
         self.mapping_index: ShaderVariable = None
         self.kernel_index: ShaderVariable = None
         self.mapping_registers: List[ShaderVariable] = None
@@ -104,13 +90,9 @@ class ShaderBuilder:
         self.exec_count = self.declare_constant(dtypes.uvec4, var_name="exec_count")
         
         if not (self.flags & ShaderFlags.NO_EXEC_BOUNDS):
-            self.if_statement(self.new_var(
-                dtypes.int32,
-                f"any(lessThanEqual({self.exec_count.resolve()}.xyz, {self.global_invocation.resolve()}.xyz))",
-                []
-            ))
-            self.return_statement()
-            self.end()
+            self.append_contents(
+                f"if(any(lessThanEqual({self.exec_count.resolve()}.xyz, gl_GlobalInvocationID))) {{ return; }}"
+            )
 
     def new_var(self,
                 var_type: dtype,
@@ -145,41 +127,8 @@ class ShaderBuilder:
         self.kernel_index = index
 
     def set_mapping_registers(self, registers: ShaderVariable):
-        self.mapping_registers = list(registers)
-
-    def append_contents(self, contents: str) -> None:
-        self.contents += ("    " * self.scope_num) + contents
-
-    def comment(self, comment: str) -> None:
-        self.append_contents("\n")
-        self.append_contents(f"/* {comment} */\n")
-
-    def new_name(self) -> str:
-        new_var = f"var{self.var_count}"
-        self.var_count += 1
-        return new_var
+        self.mapping_registers = list(registers)    
     
-    # def get_name_func(self, prefix: Optional[str] = None, suffix: Optional[str] = None):
-    #     my_prefix = [prefix]
-    #     my_suffix = [suffix]
-    #     def get_name_val(var_name: Union[str, None] = None):
-    #         new_var = f"var{self.var_count}" if var_name is None else var_name
-    #         raw_name = new_var
-            
-    #         if var_name is None:
-    #             self.var_count += 1
-
-    #         if my_prefix[0] is not None:
-    #             new_var = f"{my_prefix[0]}{new_var}"
-    #             my_prefix[0] = None
-            
-    #         if my_suffix[0] is not None:
-    #             new_var = f"{new_var}{my_suffix[0]}"
-    #             my_suffix[0] = None
-
-    #         return new_var, raw_name
-    #     return get_name_val
-
     def make_var(self,
                  var_type: dtype,
                  var_name: Optional[str],
@@ -307,206 +256,6 @@ class ShaderBuilder:
 
         return new_var
     
-    def abs(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"abs({arg})", [arg], lexical_unit=True)
-    
-    def acos(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"acos({arg.resolve()})", [arg], lexical_unit=True)
-
-    def acosh(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"acosh({arg.resolve()})", [arg], lexical_unit=True)
-
-    def asin(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"asin({arg.resolve()})", [arg], lexical_unit=True)
-
-    def asinh(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"asinh({arg.resolve()})", [arg], lexical_unit=True)
-
-    def atan(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"atan({arg.resolve()})", [arg], lexical_unit=True)
-    
-    def atan2(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        # TODO: correctly handle pure float inputs
-
-        floating_arg1 = var_types_to_floating(arg1.var_type)
-        floating_arg2 = var_types_to_floating(arg2.var_type)
-
-        assert floating_arg1 == floating_arg2, f"Both arguments to atan2 ({arg1.var_type} and {arg2.var_type}) must be of the same dimentionality"
-
-        return self.make_var(floating_arg1, f"atan({arg1.resolve()}, {arg2.resolve()})", [arg1, arg2], lexical_unit=True)
-
-    def atanh(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"atanh({arg.resolve()})", [arg], lexical_unit=True)
-    
-    def atomic_add(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        if not isinstance(arg1, ShaderVariable):
-            raise TypeError("First argument to atomic_add must be a ShaderVariable")
-        
-        arg1.read_callback()
-        arg1.write_callback()
-
-        if isinstance(arg2, ShaderVariable):
-            arg2.read_callback()
-
-        new_var = self.make_var(arg1.var_type, None, [])
-        self.append_contents(f"{new_var.var_type.glsl_type} {new_var.name} = atomicAdd({arg1.resolve()}, {arg2.resolve()});\n")
-        return new_var
-    
-    def barrier(self):
-        if self.is_apple_device:
-            self.memory_barrier()
-
-        self.append_contents("barrier();\n")
-    
-    def ceil(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"ceil({arg.resolve()})", [arg], lexical_unit=True)
-    
-    def clamp(self, arg: ShaderVariable, min_val: ShaderVariable, max_val: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"clamp({arg.resolve()}, {min_val.resolve()}, {max_val.resolve()})", [arg, min_val, max_val], lexical_unit=True)
-
-    def cos(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"cos({arg})", [arg], lexical_unit=True)
-    
-    def cosh(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"cosh({arg})", [arg], lexical_unit=True)
-    
-    def cross(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        return self.make_var(dtypes.vec3, f"cross({arg1}, {arg2})", [arg1, arg2], lexical_unit=True)
-    
-    def degrees(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"degrees({arg})", [arg], lexical_unit=True)
-    
-    def determinant(self, arg: ShaderVariable):
-        return self.make_var(dtypes.float32, f"determinant({arg})", [arg], lexical_unit=True)
-    
-    def distance(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        return self.make_var(dtypes.float32, f"distance({arg1}, {arg2})", [arg1, arg2], lexical_unit=True)
-    
-    def dot(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        return self.make_var(dtypes.float32, f"dot({arg1}, {arg2})", [arg1, arg2], lexical_unit=True)
-    
-    def exp(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"exp({arg})", [arg], lexical_unit=True)
-    
-    def exp2(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"exp2({arg})", [arg], lexical_unit=True)
-
-    def float_bits_to_int(self, arg: ShaderVariable):
-        return self.make_var(dtypes.int32, f"floatBitsToInt({arg})", [arg], lexical_unit=True)
-    
-    def float_bits_to_uint(self, arg: ShaderVariable):
-        return self.make_var(dtypes.uint32, f"floatBitsToUint({arg})", [arg], lexical_unit=True)
-
-    def floor(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"floor({arg})", [arg], lexical_unit=True)
-    
-    def fma(self, arg1: ShaderVariable, arg2: ShaderVariable, arg3: ShaderVariable):
-        # TODO: properly handle type conversion and float inputs
-
-        return self.make_var(arg1.var_type, f"fma({arg1}, {arg2}, {arg3})", [arg1, arg2, arg3], lexical_unit=True)
-    
-    def int_bits_to_float(self, arg: ShaderVariable):
-        return self.make_var(dtypes.float32, f"intBitsToFloat({arg})", [arg], lexical_unit=True)
-
-    def inverse(self, arg: ShaderVariable):
-        assert arg.var_type.dimentions == 2, f"Cannot apply inverse to non-matrix type {arg.var_type}"
-
-        return self.make_var(arg.var_type, f"inverse({arg})", [arg], lexical_unit=True)
-    
-    def inverse_sqrt(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"inversesqrt({arg})", [arg], lexical_unit=True)
-    
-    def isinf(self, arg: ShaderVariable):
-        return self.make_var(dtypes.int32, f"any(isinf({arg}))", [arg], lexical_unit=True)
-    
-    def isnan(self, arg: ShaderVariable):
-        return self.make_var(dtypes.int32, f"any(isnan({arg}))", [arg], lexical_unit=True)
-
-    def length(self, arg: ShaderVariable):
-        return self.make_var(dtypes.float32, f"length({arg})", [arg], lexical_unit=True)
-
-    def log(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"log({arg})", [arg], lexical_unit=True)
-
-    def log2(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"log2({arg})", [arg], lexical_unit=True)
-
-    def max(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        # TODO: properly handle type conversion and float inputs
-
-        return self.make_var(arg1.var_type, f"max({arg1}, {arg2})", [arg1, arg2], lexical_unit=True)
-
-    def memory_barrier(self):
-        self.append_contents("memoryBarrier();\n")
-
-    def memory_barrier_shared(self):
-        self.append_contents("memoryBarrierShared();\n")
-
-    def min(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        # TODO: properly handle type conversion and float inputs
-
-        return self.make_var(arg1.var_type, f"min({arg1}, {arg2})", [arg1, arg2], lexical_unit=True)
-    
-    def mix(self, arg1: ShaderVariable, arg2: ShaderVariable, arg3: ShaderVariable):
-        # TODO: properly handle type conversion and float inputs
-
-        return self.make_var(arg1.var_type, f"mix({arg1}, {arg2}, {arg3})", [arg1, arg2, arg3],  lexical_unit=True)
-
-    def mod(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        # TODO: properly handle type conversion and float inputs
-
-        return self.make_var(arg1.var_type, f"mod({arg1}, {arg2})", [arg1, arg2], lexical_unit=True)
-    
-    def normalize(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"normalize({arg})", [arg], lexical_unit=True)
-    
-    def pow(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        return self.make_var(arg1.var_type, f"pow({arg1}, {arg2})", [arg1, arg2], lexical_unit=True)
-    
-    def radians(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"radians({arg})", [arg], lexical_unit=True)
-    
-    def round(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"round({arg})", [arg], lexical_unit=True)
-    
-    def round_even(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"roundEven({arg})", [arg], lexical_unit=True)
-
-    def sign(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"sign({arg})", [arg], lexical_unit=True)
-
-    def sin(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"sin({arg})", [arg], lexical_unit=True)
-    
-    def sinh(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"sinh({arg})", [arg], lexical_unit=True)
-    
-    def smoothstep(self, arg1: ShaderVariable, arg2: ShaderVariable, arg3: ShaderVariable):
-        # TODO: properly handle type conversion and float inputs
-
-        return self.make_var(arg1.var_type, f"smoothstep({arg1}, {arg2}, {arg3})", [arg1, arg2, arg3], lexical_unit=True)
-
-    def sqrt(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"sqrt({arg})", [arg], lexical_unit=True)
-    
-    def step(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        return self.make_var(arg1.var_type, f"step({arg1}, {arg2})", [arg1, arg2], lexical_unit=True)
-
-    def tan(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"tan({arg})", [arg], lexical_unit=True)
-    
-    def tanh(self, arg: ShaderVariable):
-        return self.make_var(var_types_to_floating(arg.var_type), f"tanh({arg})", [arg], lexical_unit=True)
-    
-    def transpose(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"transpose({arg})", [arg], lexical_unit=True)
-    
-    def trunc(self, arg: ShaderVariable):
-        return self.make_var(arg.var_type, f"trunc({arg})", [arg], lexical_unit=True)
-
-    def uint_bits_to_float(self, arg: ShaderVariable):
-        return self.make_var(dtypes.float32, f"uintBitsToFloat({arg})", [arg], lexical_unit=True)
-    
     def mult_c64(self, arg1: ShaderVariable, arg2: ShaderVariable):
         new_var = self.make_var(
             arg1.var_type,
@@ -536,110 +285,6 @@ class ShaderBuilder:
             lexical_unit=True
         )
         return new_var
-
-    def proc_bool(self, arg: Union[ShaderVariable, bool]) -> ShaderVariable:
-        if isinstance(arg, bool):
-            return "true" if arg else "false"
-        
-        if isinstance(arg, ShaderVariable):
-            return arg.resolve()
-
-        raise TypeError(f"Argument of type {type(arg)} cannot be processed as a boolean.")
-
-    def if_statement(self, arg: ShaderVariable, command: Optional[str] = None):
-        if command is None:
-            self.append_contents(f"if({self.proc_bool(arg)}) {'{'}\n")
-            self.scope_num += 1
-            return
-        
-        self.append_contents(f"if({self.proc_bool(arg)})\n")
-        self.scope_num += 1
-        self.append_contents(f"{command}\n")
-        self.scope_num -= 1
-
-    def if_any(self, *args: List[ShaderVariable]):
-        self.append_contents(f"if({' || '.join([str(self.proc_bool(elem)) for elem in args])}) {'{'}\n")
-        self.scope_num += 1
-
-    def if_all(self, *args: List[ShaderVariable]):
-        self.append_contents(f"if({' && '.join([str(self.proc_bool(elem)) for elem in args])}) {'{'}\n")
-        self.scope_num += 1
-
-    def else_statement(self):
-        self.scope_num -= 1
-        self.append_contents("} else {\n")
-        self.scope_num += 1
-
-    def else_if_statement(self, arg: ShaderVariable):
-        self.scope_num -= 1
-        self.append_contents(f"}} else if({self.proc_bool(arg)}) {'{'}\n")
-        self.scope_num += 1
-
-    def else_if_any(self, *args: List[ShaderVariable]):
-        self.scope_num -= 1
-        self.append_contents(f"}} else if({' || '.join([str(self.proc_bool(elem)) for elem in args])}) {'{'}\n")
-        self.scope_num += 1
-    
-    def else_if_all(self, *args: List[ShaderVariable]):
-        self.scope_num -= 1
-        self.append_contents(f"}} else if({' && '.join([str(self.proc_bool(elem)) for elem in args])}) {'{'}\n")
-        self.scope_num += 1
-
-    def return_statement(self, arg=None):
-        arg = arg if arg is not None else ""
-        self.append_contents(f"return {arg};\n")
-
-    def while_statement(self, arg: ShaderVariable):
-        self.append_contents(f"while({self.proc_bool(arg)}) {'{'}\n")
-        self.scope_num += 1
-
-    def new_scope(self, indent: bool = True, comment: str = None):
-        if comment is None:
-            self.append_contents("{\n")
-        else:
-            self.append_contents("{ " + f"/* {comment} */\n")
-        
-        if indent:
-            self.scope_num += 1
-
-    def end(self, indent: bool = True):
-        if indent:
-            self.scope_num -= 1
-            
-        self.append_contents("}\n")
-
-    def logical_and(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        return self.make_var(dtypes.int32, f"({arg1} && {arg2})", [arg1, arg2])
-
-    def logical_or(self, arg1: ShaderVariable, arg2: ShaderVariable):
-        return self.make_var(dtypes.int32, f"({arg1} || {arg2})", [arg1, arg2])
-
-    def subgroup_add(self, arg1: ShaderVariable):
-        return self.make_var(arg1.var_type, f"subgroupAdd({arg1})", [arg1], lexical_unit=True)
-
-    def subgroup_mul(self, arg1: ShaderVariable):
-        return self.make_var(arg1.var_type, f"subgroupMul({arg1})", [arg1], lexical_unit=True)
-
-    def subgroup_min(self, arg1: ShaderVariable):
-        return self.make_var(arg1.var_type, f"subgroupMin({arg1})", [arg1], lexical_unit=True)
-
-    def subgroup_max(self, arg1: ShaderVariable):
-        return self.make_var(arg1.var_type, f"subgroupMax({arg1})", [arg1], lexical_unit=True)
-
-    def subgroup_and(self, arg1: ShaderVariable):
-        return self.make_var(arg1.var_type, f"subgroupAnd({arg1})", [arg1], lexical_unit=True)
-
-    def subgroup_or(self, arg1: ShaderVariable):
-        return self.make_var(arg1.var_type, f"subgroupOr({arg1})", [arg1], lexical_unit=True)
-
-    def subgroup_xor(self, arg1: ShaderVariable):
-        return self.make_var(arg1.var_type, f"subgroupXor({arg1})", [arg1], lexical_unit=True)
-
-    def subgroup_elect(self):
-        return self.make_var(dtypes.int32, f"subgroupElect()", [], lexical_unit=True)
-
-    def subgroup_barrier(self):
-        self.append_contents("subgroupBarrier();\n")
 
     def new(self, var_type: dtype, *args, var_name: Optional[str] = None):
         new_var = self.make_var(var_type, var_name, [], lexical_unit=True, settable=True)
@@ -685,8 +330,6 @@ class ShaderBuilder:
 
         self.append_contents(f'debugPrintfEXT("{fmt}"{args_argument});\n')
     
-    def complex_from_euler_angle(self, angle: ShaderVariable):
-        return self.make_var(dtypes.vec2, f"vec2({self.cos(angle)}, {self.sin(angle)})", [angle])
 
     def compose_struct_decleration(self, elements: List[StructElement]) -> str:
         declerations = []

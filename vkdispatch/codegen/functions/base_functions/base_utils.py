@@ -1,11 +1,21 @@
 import vkdispatch.base.dtype as dtypes
-from ..variables.base_variable import BaseVariable
+from vkdispatch.codegen.variables.base_variable import BaseVariable
 import numpy as np
-from typing import Any
+from typing import Any, Optional
 
 import numbers
 
-from ..shader_writer import new_var, new_scaled_var, append_contents, scope_increment, scope_decrement
+from vkdispatch.codegen.shader_writer import new_scaled_var, append_contents
+
+from vkdispatch.codegen.shader_writer import new_var as new_var_impl
+
+def new_base_var(var_type: dtypes.dtype,
+            var_name: Optional[str],
+            parents: list,
+            lexical_unit: bool = False,
+            settable: bool = False,
+            register: bool = False) -> BaseVariable:
+    return new_var_impl(var_type, var_name, parents, lexical_unit, settable, register)
 
 def is_number(x) -> bool:
     return isinstance(x, numbers.Number) and not isinstance(x, bool)
@@ -65,3 +75,11 @@ def resolve_input(var: Any) -> str:
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
     return var.resolve()
 
+
+def to_dtype_base(var_type: dtypes.dtype, *args):
+    return new_base_var(
+        var_type,
+        f"{var_type.glsl_type}({', '.join([resolve_input(elem) for elem in args])})", 
+        args,
+        lexical_unit=True
+    )

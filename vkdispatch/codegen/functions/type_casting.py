@@ -7,7 +7,7 @@ def to_dtype(var_type: dtypes.dtype, *args):
     return utils.new_var(
         var_type,
         f"{var_type.glsl_type}({', '.join([utils.resolve_input(elem) for elem in args])})", 
-        [],
+        args,
         lexical_unit=True
     )
 
@@ -34,6 +34,14 @@ def to_int(*args):
 
 def to_uint(*args):
     return to_dtype(dtypes.uint32, *args)
+
+def to_complex(*args):
+    assert len(args) == 1 or len(args) == 2, "Must give one of two arguments for complex init"
+
+    if len(args) == 1:
+        return to_dtype(dtypes.complex64, args[0], 0)
+
+    return to_dtype(dtypes.complex64, *args)
 
 def to_vec2(*args):
     return to_dtype(dtypes.vec2, *args)

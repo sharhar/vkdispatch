@@ -1,0 +1,1907 @@
+WARNING:root:openblas_set_num_threads not found
+============================= test session starts ==============================
+platform darwin -- Python 3.11.4, pytest-8.3.2, pluggy-1.5.0
+rootdir: /Users/shaharsandhaus/TemplateMatching/vkdispatch
+configfile: pyproject.toml
+plugins: dash-2.17.0, napari-0.5.4, npe2-0.7.7, langsmith-0.4.25, anyio-4.10.0, napari-plugin-engine-0.2.0
+collected 52 items
+
+tests/test_async_processing.py .                                         [  1%]
+tests/test_buffer.py ......                                              [ 13%]
+tests/test_builder.py .                                                  [ 15%]
+tests/test_codegen.py F                                                  [ 17%]
+tests/test_command_graph.py .                                            [ 19%]
+tests/test_conv.py FFF                                                   [ 25%]
+tests/test_fft.py FFFFFFFFFFFF                                           [ 48%]
+tests/test_fft_padded.py FFFF                                            [ 55%]
+tests/test_image.py ...FF                                                [ 65%]
+tests/test_reductions.py Exception ignored in: <function Image.__del__ at 0x1771c34c0>
+Traceback (most recent call last):
+  File "/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/vkdispatch/base/image.py", line 371, in __del__
+    self.destroy()
+  File "/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/vkdispatch/base/context.py", line 94, in destroy
+    assert len(self.children_dict) == 0, "Not all children were destroyed!"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Not all children were destroyed!
+Exception ignored in: <function Sampler.__del__ at 0x1771c32e0>
+Traceback (most recent call last):
+  File "/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/vkdispatch/base/image.py", line 290, in __del__
+    self.destroy()
+  File "/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/vkdispatch/base/context.py", line 101, in destroy
+    self.clear_parents()
+  File "/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/vkdispatch/base/context.py", line 57, in clear_parents
+    parent.remove_child_handle(self)
+  File "/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/vkdispatch/base/context.py", line 75, in remove_child_handle
+    raise ValueError(f"Child handle {child._handle} does not exist in parent handle!")
+ValueError: Child handle 5917836544 does not exist in parent handle!
+FFFFFF                                          [ 76%]
+tests/test_vkfft.py FFFFFFFFF...                                         [100%]
+
+=================================== FAILURES ===================================
+_______________________________ test_arithmetic ________________________________
+
+    def test_arithmetic():
+        pass_count = 10
+    
+        for _ in range(pass_count):
+            array_size = np.random.randint(1000, 10000)
+    
+            signal = np.random.rand(array_size).astype(np.float32)
+            signal2 = np.random.rand(array_size).astype(np.float32)
+    
+            buffer = vd.asbuffer(signal)
+            buffer2 = vd.asbuffer(signal2)
+    
+            repeat_count = np.random.randint(10, 64)
+    
+            for _ in range(repeat_count):
+                op_count = np.random.randint(2, 200)
+    
+                @vd.shader(exec_size=lambda args: args.a.size)
+                def my_shader(a: Buff[f32], b: Buff[f32]):
+                    nonlocal signal, signal2
+    
+                    tid = vc.global_invocation().x
+    
+                    out_val = a[tid].copy()
+                    other_val = b[tid].copy()
+    
+                    for _ in range(op_count):
+                        op_number = np.random.randint(0, 4)
+    
+                        if op_number == 0:
+                            out_val[:] = out_val + other_val
+                            signal = signal + signal2
+                        elif op_number == 1:
+                            out_val[:] = out_val - other_val
+                            signal = signal - signal2
+                        elif op_number == 2:
+                            out_val[:] = out_val * other_val
+                            signal = signal * signal2
+                        elif op_number == 3:
+                            out_val[:] = out_val * vc.sin(other_val)
+                            signal = signal * np.sin(signal2).astype(np.float32)
+    
+                    a[tid] = out_val
+    
+>               my_shader(buffer, buffer2)
+
+tests/test_codegen.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/shader_function.py:245: in __call__
+    self.build()
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/shader_function.py:203: in build
+    self.func(*signature.get_variables())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = <vkdispatch.codegen.variables.bound_variables.BufferVariable object at 0x312263a10>
+b = <vkdispatch.codegen.variables.bound_variables.BufferVariable object at 0x312262750>
+
+    @vd.shader(exec_size=lambda args: args.a.size)
+    def my_shader(a: Buff[f32], b: Buff[f32]):
+        nonlocal signal, signal2
+    
+        tid = vc.global_invocation().x
+    
+>       out_val = a[tid].copy()
+E       AttributeError: 'ShaderVariable' object has no attribute 'copy'
+
+tests/test_codegen.py:30: AttributeError
+_____________________________ test_convolution_2d ______________________________
+
+    def test_convolution_2d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(TEST_COUNT):
+            dims = pick_dim_count(2)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.complex64)
+                data2 = np.random.rand(*current_shape).astype(np.complex64)
+    
+                test_data = vd.asbuffer(data)
+                kernel_data = vd.asbuffer(data2)
+    
+>               vd.fft.fft2(kernel_data)
+
+tests/test_conv.py:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:42: in fft2
+    fft(buffer, graph=graph, print_shader=print_shader, axis=len(buffer.shape) - 2, input_map=input_map)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:25: in fft
+    fft_shader = make_fft_shader(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/shader_factories.py:21: in make_fft_shader
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+../../miniconda3/lib/python3.11/contextlib.py:137: in __enter__
+    return next(self.gen)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:151: in fft_context
+    fft_context = FFTContext(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:39: in __init__
+    self.grid = FFTGridManager(self.config, True, True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:172: in __init__
+    workgroup_index, self.workgroup_count = allocate_workgroups(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+total_count = 11, declare_variables = True
+
+    def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+        workgroups_x = set_to_multiple_with_max(
+            total_count,
+            vd.get_context().max_workgroup_count[0]
+        )
+        workgroups_y = 1
+        workgroups_z = 1
+    
+        if not declare_variables:
+            return None, (workgroups_x, workgroups_y, workgroups_z)
+    
+>       workgroup_index = vc.new_uint(
+            vc.workgroup().x,
+            var_name="workgroup_index"
+        )
+E       AttributeError: module 'vkdispatch.codegen' has no attribute 'new_uint'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:73: AttributeError
+________________________ test_convolution_2d_transpose _________________________
+
+    def test_convolution_2d_transpose():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        kernel_transposed_buffer = vd.Buffer((2048,), var_type=vd.complex64)
+    
+        for _ in range(TEST_COUNT):
+            dims = pick_dim_count(2)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.complex64)
+                data2 = np.random.rand(*current_shape).astype(np.complex64)
+    
+                test_data = vd.asbuffer(data)
+                kernel_data = vd.asbuffer(data2)
+    
+                transpose_size  = vd.fft.get_transposed_size(
+                    tuple(current_shape),
+                    axis=len(kernel_data.shape)-2
+                )
+    
+                # Allocate new transposed buffer if needed
+                if transpose_size > kernel_transposed_buffer.size:
+                    kernel_transposed_buffer.destroy()
+                    kernel_transposed_buffer = vd.Buffer((transpose_size,), var_type=vd.complex64)
+    
+>               vd.fft.fft2(kernel_data)
+
+tests/test_conv.py:86: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:42: in fft2
+    fft(buffer, graph=graph, print_shader=print_shader, axis=len(buffer.shape) - 2, input_map=input_map)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:25: in fft
+    fft_shader = make_fft_shader(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/shader_factories.py:21: in make_fft_shader
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+../../miniconda3/lib/python3.11/contextlib.py:137: in __enter__
+    return next(self.gen)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:151: in fft_context
+    fft_context = FFTContext(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:39: in __init__
+    self.grid = FFTGridManager(self.config, True, True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:172: in __init__
+    workgroup_index, self.workgroup_count = allocate_workgroups(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+total_count = 11, declare_variables = True
+
+    def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+        workgroups_x = set_to_multiple_with_max(
+            total_count,
+            vd.get_context().max_workgroup_count[0]
+        )
+        workgroups_y = 1
+        workgroups_z = 1
+    
+        if not declare_variables:
+            return None, (workgroups_x, workgroups_y, workgroups_z)
+    
+>       workgroup_index = vc.new_uint(
+            vc.workgroup().x,
+            var_name="workgroup_index"
+        )
+E       AttributeError: module 'vkdispatch.codegen' has no attribute 'new_uint'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:73: AttributeError
+___________________________ test_convolution_2d_real ___________________________
+
+    def test_convolution_2d_real():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(TEST_COUNT):
+            dims = pick_dim_count(2)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.float32)
+                data2 = np.random.rand(*current_shape).astype(np.float32)
+    
+                test_data = vd.asrfftbuffer(data)
+                kernel_data = vd.asrfftbuffer(data2)
+    
+>               vd.fft.rfft2(kernel_data)
+
+tests/test_conv.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:84: in rfft2
+    rfft(buffer, graph=graph, print_shader=print_shader)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:79: in rfft
+    fft(buffer, buffer_shape=buffer.real_shape, graph=graph, print_shader=print_shader, name=name, r2c=True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:25: in fft
+    fft_shader = make_fft_shader(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/shader_factories.py:21: in make_fft_shader
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+../../miniconda3/lib/python3.11/contextlib.py:137: in __enter__
+    return next(self.gen)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:151: in fft_context
+    fft_context = FFTContext(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:39: in __init__
+    self.grid = FFTGridManager(self.config, True, True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:198: in __init__
+    workgroup_index, self.workgroup_count = allocate_workgroups(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+total_count = 13, declare_variables = True
+
+    def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+        workgroups_x = set_to_multiple_with_max(
+            total_count,
+            vd.get_context().max_workgroup_count[0]
+        )
+        workgroups_y = 1
+        workgroups_z = 1
+    
+        if not declare_variables:
+            return None, (workgroups_x, workgroups_y, workgroups_z)
+    
+>       workgroup_index = vc.new_uint(
+            vc.workgroup().x,
+            var_name="workgroup_index"
+        )
+E       AttributeError: module 'vkdispatch.codegen' has no attribute 'new_uint'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:73: AttributeError
+_________________________________ test_fft_1d __________________________________
+
+    def test_fft_1d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(TEST_COUNT):
+            dims = pick_dim_count(1)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.complex64)
+                test_data = vd.Buffer(data.shape, vd.complex64)
+    
+                for axis in range(dims):
+                    test_data.write(data)
+    
+>                   vd.fft.fft(test_data, axis=axis)
+
+tests/test_fft.py:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:25: in fft
+    fft_shader = make_fft_shader(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/shader_factories.py:21: in make_fft_shader
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+../../miniconda3/lib/python3.11/contextlib.py:137: in __enter__
+    return next(self.gen)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:151: in fft_context
+    fft_context = FFTContext(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:39: in __init__
+    self.grid = FFTGridManager(self.config, True, True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:198: in __init__
+    workgroup_index, self.workgroup_count = allocate_workgroups(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+total_count = 1, declare_variables = True
+
+    def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+        workgroups_x = set_to_multiple_with_max(
+            total_count,
+            vd.get_context().max_workgroup_count[0]
+        )
+        workgroups_y = 1
+        workgroups_z = 1
+    
+        if not declare_variables:
+            return None, (workgroups_x, workgroups_y, workgroups_z)
+    
+>       workgroup_index = vc.new_uint(
+            vc.workgroup().x,
+            var_name="workgroup_index"
+        )
+E       AttributeError: module 'vkdispatch.codegen' has no attribute 'new_uint'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:73: AttributeError
+_________________________________ test_fft_2d __________________________________
+
+    def test_fft_2d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(TEST_COUNT):
+            dims = pick_dim_count(2)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.complex64)
+                test_data = vd.Buffer(data.shape, vd.complex64)
+    
+                test_data.write(data)
+    
+>               vd.fft.fft2(test_data)
+
+tests/test_fft.py:70: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:42: in fft2
+    fft(buffer, graph=graph, print_shader=print_shader, axis=len(buffer.shape) - 2, input_map=input_map)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:25: in fft
+    fft_shader = make_fft_shader(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/shader_factories.py:21: in make_fft_shader
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+../../miniconda3/lib/python3.11/contextlib.py:137: in __enter__
+    return next(self.gen)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:151: in fft_context
+    fft_context = FFTContext(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:39: in __init__
+    self.grid = FFTGridManager(self.config, True, True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:172: in __init__
+    workgroup_index, self.workgroup_count = allocate_workgroups(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+total_count = 1, declare_variables = True
+
+    def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+        workgroups_x = set_to_multiple_with_max(
+            total_count,
+            vd.get_context().max_workgroup_count[0]
+        )
+        workgroups_y = 1
+        workgroups_z = 1
+    
+        if not declare_variables:
+            return None, (workgroups_x, workgroups_y, workgroups_z)
+    
+>       workgroup_index = vc.new_uint(
+            vc.workgroup().x,
+            var_name="workgroup_index"
+        )
+E       AttributeError: module 'vkdispatch.codegen' has no attribute 'new_uint'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:73: AttributeError
+_________________________________ test_fft_3d __________________________________
+
+    def test_fft_3d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(TEST_COUNT):
+            dims = 3
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.complex64)
+                test_data = vd.Buffer(data.shape, vd.complex64)
+    
+                test_data.write(data)
+    
+>               vd.fft.fft3(test_data)
+
+tests/test_fft.py:93: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:48: in fft3
+    fft(buffer, graph=graph, print_shader=print_shader, axis=0, input_map=input_map)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:25: in fft
+    fft_shader = make_fft_shader(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/shader_factories.py:21: in make_fft_shader
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+../../miniconda3/lib/python3.11/contextlib.py:137: in __enter__
+    return next(self.gen)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:151: in fft_context
+    fft_context = FFTContext(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:39: in __init__
+    self.grid = FFTGridManager(self.config, True, True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:172: in __init__
+    workgroup_index, self.workgroup_count = allocate_workgroups(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+total_count = 7, declare_variables = True
+
+    def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+        workgroups_x = set_to_multiple_with_max(
+            total_count,
+            vd.get_context().max_workgroup_count[0]
+        )
+        workgroups_y = 1
+        workgroups_z = 1
+    
+        if not declare_variables:
+            return None, (workgroups_x, workgroups_y, workgroups_z)
+    
+>       workgroup_index = vc.new_uint(
+            vc.workgroup().x,
+            var_name="workgroup_index"
+        )
+E       AttributeError: module 'vkdispatch.codegen' has no attribute 'new_uint'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:73: AttributeError
+_________________________________ test_ifft_1d _________________________________
+
+    def test_ifft_1d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(TEST_COUNT):
+            dims = pick_dim_count(1)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.complex64)
+                test_data = vd.Buffer(data.shape, vd.complex64)
+    
+                for axis in range(dims):
+                    test_data.write(data)
+    
+>                   vd.fft.ifft(test_data, axis=axis)
+
+tests/test_fft.py:117: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:62: in ifft
+    fft(buffer, graph=graph, print_shader=print_shader, axis=axis, name=name, inverse=True, normalize_inverse=normalize, input_map=input_map, output_map=output_map)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:25: in fft
+    fft_shader = make_fft_shader(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/shader_factories.py:21: in make_fft_shader
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+../../miniconda3/lib/python3.11/contextlib.py:137: in __enter__
+    return next(self.gen)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:151: in fft_context
+    fft_context = FFTContext(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:39: in __init__
+    self.grid = FFTGridManager(self.config, True, True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:172: in __init__
+    workgroup_index, self.workgroup_count = allocate_workgroups(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+total_count = 7, declare_variables = True
+
+    def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+        workgroups_x = set_to_multiple_with_max(
+            total_count,
+            vd.get_context().max_workgroup_count[0]
+        )
+        workgroups_y = 1
+        workgroups_z = 1
+    
+        if not declare_variables:
+            return None, (workgroups_x, workgroups_y, workgroups_z)
+    
+>       workgroup_index = vc.new_uint(
+            vc.workgroup().x,
+            var_name="workgroup_index"
+        )
+E       AttributeError: module 'vkdispatch.codegen' has no attribute 'new_uint'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:73: AttributeError
+_________________________________ test_ifft_2d _________________________________
+
+    def test_ifft_2d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(TEST_COUNT):
+            dims = pick_dim_count(2)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.complex64)
+                test_data = vd.Buffer(data.shape, vd.complex64)
+    
+                test_data.write(data)
+    
+>               vd.fft.ifft2(test_data)
+
+tests/test_fft.py:140: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:67: in ifft2
+    ifft(buffer, graph=graph, print_shader=print_shader, axis=len(buffer.shape) - 2, normalize=normalize, input_map=input_map)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:62: in ifft
+    fft(buffer, graph=graph, print_shader=print_shader, axis=axis, name=name, inverse=True, normalize_inverse=normalize, input_map=input_map, output_map=output_map)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:25: in fft
+    fft_shader = make_fft_shader(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/shader_factories.py:21: in make_fft_shader
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+../../miniconda3/lib/python3.11/contextlib.py:137: in __enter__
+    return next(self.gen)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:151: in fft_context
+    fft_context = FFTContext(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:39: in __init__
+    self.grid = FFTGridManager(self.config, True, True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:172: in __init__
+    workgroup_index, self.workgroup_count = allocate_workgroups(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+total_count = 11, declare_variables = True
+
+    def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+        workgroups_x = set_to_multiple_with_max(
+            total_count,
+            vd.get_context().max_workgroup_count[0]
+        )
+        workgroups_y = 1
+        workgroups_z = 1
+    
+        if not declare_variables:
+            return None, (workgroups_x, workgroups_y, workgroups_z)
+    
+>       workgroup_index = vc.new_uint(
+            vc.workgroup().x,
+            var_name="workgroup_index"
+        )
+E       AttributeError: module 'vkdispatch.codegen' has no attribute 'new_uint'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:73: AttributeError
+_________________________________ test_ifft_3d _________________________________
+
+    def test_ifft_3d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(TEST_COUNT):
+            dims = 3
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.complex64)
+                test_data = vd.Buffer(data.shape, vd.complex64)
+    
+                test_data.write(data)
+    
+>               vd.fft.ifft3(test_data)
+
+tests/test_fft.py:163: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:73: in ifft3
+    ifft(buffer, graph=graph, print_shader=print_shader, axis=0, normalize=normalize, input_map=input_map)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:62: in ifft
+    fft(buffer, graph=graph, print_shader=print_shader, axis=axis, name=name, inverse=True, normalize_inverse=normalize, input_map=input_map, output_map=output_map)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:25: in fft
+    fft_shader = make_fft_shader(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/shader_factories.py:21: in make_fft_shader
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+../../miniconda3/lib/python3.11/contextlib.py:137: in __enter__
+    return next(self.gen)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:151: in fft_context
+    fft_context = FFTContext(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:39: in __init__
+    self.grid = FFTGridManager(self.config, True, True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:172: in __init__
+    workgroup_index, self.workgroup_count = allocate_workgroups(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+total_count = 143, declare_variables = True
+
+    def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+        workgroups_x = set_to_multiple_with_max(
+            total_count,
+            vd.get_context().max_workgroup_count[0]
+        )
+        workgroups_y = 1
+        workgroups_z = 1
+    
+        if not declare_variables:
+            return None, (workgroups_x, workgroups_y, workgroups_z)
+    
+>       workgroup_index = vc.new_uint(
+            vc.workgroup().x,
+            var_name="workgroup_index"
+        )
+E       AttributeError: module 'vkdispatch.codegen' has no attribute 'new_uint'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:73: AttributeError
+_________________________________ test_rfft_1d _________________________________
+
+    def test_rfft_1d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(TEST_COUNT):
+            dims = pick_dim_count(1)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.float32)
+                test_data = vd.RFFTBuffer(data.shape)
+    
+                test_data.write_real(data)
+    
+>               vd.fft.rfft(test_data)
+
+tests/test_fft.py:186: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:79: in rfft
+    fft(buffer, buffer_shape=buffer.real_shape, graph=graph, print_shader=print_shader, name=name, r2c=True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:25: in fft
+    fft_shader = make_fft_shader(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/shader_factories.py:21: in make_fft_shader
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+../../miniconda3/lib/python3.11/contextlib.py:137: in __enter__
+    return next(self.gen)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:151: in fft_context
+    fft_context = FFTContext(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:39: in __init__
+    self.grid = FFTGridManager(self.config, True, True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:198: in __init__
+    workgroup_index, self.workgroup_count = allocate_workgroups(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+total_count = 1, declare_variables = True
+
+    def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+        workgroups_x = set_to_multiple_with_max(
+            total_count,
+            vd.get_context().max_workgroup_count[0]
+        )
+        workgroups_y = 1
+        workgroups_z = 1
+    
+        if not declare_variables:
+            return None, (workgroups_x, workgroups_y, workgroups_z)
+    
+>       workgroup_index = vc.new_uint(
+            vc.workgroup().x,
+            var_name="workgroup_index"
+        )
+E       AttributeError: module 'vkdispatch.codegen' has no attribute 'new_uint'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:73: AttributeError
+_________________________________ test_rfft_2d _________________________________
+
+    def test_rfft_2d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(TEST_COUNT):
+            dims = pick_dim_count(2)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.float32)
+                test_data = vd.RFFTBuffer(data.shape)
+    
+                test_data.write_real(data)
+    
+>               vd.fft.rfft2(test_data)
+
+tests/test_fft.py:209: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:84: in rfft2
+    rfft(buffer, graph=graph, print_shader=print_shader)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:79: in rfft
+    fft(buffer, buffer_shape=buffer.real_shape, graph=graph, print_shader=print_shader, name=name, r2c=True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:25: in fft
+    fft_shader = make_fft_shader(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/shader_factories.py:21: in make_fft_shader
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+../../miniconda3/lib/python3.11/contextlib.py:137: in __enter__
+    return next(self.gen)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:151: in fft_context
+    fft_context = FFTContext(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:39: in __init__
+    self.grid = FFTGridManager(self.config, True, True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:198: in __init__
+    workgroup_index, self.workgroup_count = allocate_workgroups(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+total_count = 13, declare_variables = True
+
+    def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+        workgroups_x = set_to_multiple_with_max(
+            total_count,
+            vd.get_context().max_workgroup_count[0]
+        )
+        workgroups_y = 1
+        workgroups_z = 1
+    
+        if not declare_variables:
+            return None, (workgroups_x, workgroups_y, workgroups_z)
+    
+>       workgroup_index = vc.new_uint(
+            vc.workgroup().x,
+            var_name="workgroup_index"
+        )
+E       AttributeError: module 'vkdispatch.codegen' has no attribute 'new_uint'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:73: AttributeError
+_________________________________ test_rfft_3d _________________________________
+
+    def test_rfft_3d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(TEST_COUNT):
+            dims = 3
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.float32)
+                test_data = vd.RFFTBuffer(data.shape)
+    
+                test_data.write_real(data)
+    
+>               vd.fft.rfft3(test_data)
+
+tests/test_fft.py:232: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:90: in rfft3
+    rfft(buffer, graph=graph, print_shader=print_shader)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:79: in rfft
+    fft(buffer, buffer_shape=buffer.real_shape, graph=graph, print_shader=print_shader, name=name, r2c=True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:25: in fft
+    fft_shader = make_fft_shader(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/shader_factories.py:21: in make_fft_shader
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+../../miniconda3/lib/python3.11/contextlib.py:137: in __enter__
+    return next(self.gen)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:151: in fft_context
+    fft_context = FFTContext(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:39: in __init__
+    self.grid = FFTGridManager(self.config, True, True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:198: in __init__
+    workgroup_index, self.workgroup_count = allocate_workgroups(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+total_count = 7, declare_variables = True
+
+    def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+        workgroups_x = set_to_multiple_with_max(
+            total_count,
+            vd.get_context().max_workgroup_count[0]
+        )
+        workgroups_y = 1
+        workgroups_z = 1
+    
+        if not declare_variables:
+            return None, (workgroups_x, workgroups_y, workgroups_z)
+    
+>       workgroup_index = vc.new_uint(
+            vc.workgroup().x,
+            var_name="workgroup_index"
+        )
+E       AttributeError: module 'vkdispatch.codegen' has no attribute 'new_uint'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:73: AttributeError
+________________________________ test_irfft_1d _________________________________
+
+    def test_irfft_1d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(TEST_COUNT):
+            dims = pick_dim_count(1)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.float32)
+    
+                test_data = vd.asrfftbuffer(data)
+    
+>               vd.fft.rfft(test_data)
+
+tests/test_fft.py:254: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:79: in rfft
+    fft(buffer, buffer_shape=buffer.real_shape, graph=graph, print_shader=print_shader, name=name, r2c=True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:25: in fft
+    fft_shader = make_fft_shader(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/shader_factories.py:21: in make_fft_shader
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+../../miniconda3/lib/python3.11/contextlib.py:137: in __enter__
+    return next(self.gen)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:151: in fft_context
+    fft_context = FFTContext(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:39: in __init__
+    self.grid = FFTGridManager(self.config, True, True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:198: in __init__
+    workgroup_index, self.workgroup_count = allocate_workgroups(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+total_count = 1, declare_variables = True
+
+    def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+        workgroups_x = set_to_multiple_with_max(
+            total_count,
+            vd.get_context().max_workgroup_count[0]
+        )
+        workgroups_y = 1
+        workgroups_z = 1
+    
+        if not declare_variables:
+            return None, (workgroups_x, workgroups_y, workgroups_z)
+    
+>       workgroup_index = vc.new_uint(
+            vc.workgroup().x,
+            var_name="workgroup_index"
+        )
+E       AttributeError: module 'vkdispatch.codegen' has no attribute 'new_uint'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:73: AttributeError
+________________________________ test_irfft_2d _________________________________
+
+    def test_irfft_2d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(TEST_COUNT):
+            dims = pick_dim_count(2)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.float32)
+    
+                test_data = vd.asrfftbuffer(data)
+    
+>               vd.fft.rfft2(test_data)
+
+tests/test_fft.py:277: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:84: in rfft2
+    rfft(buffer, graph=graph, print_shader=print_shader)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:79: in rfft
+    fft(buffer, buffer_shape=buffer.real_shape, graph=graph, print_shader=print_shader, name=name, r2c=True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:25: in fft
+    fft_shader = make_fft_shader(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/shader_factories.py:21: in make_fft_shader
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+../../miniconda3/lib/python3.11/contextlib.py:137: in __enter__
+    return next(self.gen)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:151: in fft_context
+    fft_context = FFTContext(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:39: in __init__
+    self.grid = FFTGridManager(self.config, True, True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:198: in __init__
+    workgroup_index, self.workgroup_count = allocate_workgroups(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+total_count = 1, declare_variables = True
+
+    def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+        workgroups_x = set_to_multiple_with_max(
+            total_count,
+            vd.get_context().max_workgroup_count[0]
+        )
+        workgroups_y = 1
+        workgroups_z = 1
+    
+        if not declare_variables:
+            return None, (workgroups_x, workgroups_y, workgroups_z)
+    
+>       workgroup_index = vc.new_uint(
+            vc.workgroup().x,
+            var_name="workgroup_index"
+        )
+E       AttributeError: module 'vkdispatch.codegen' has no attribute 'new_uint'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:73: AttributeError
+________________________________ test_irfft_3d _________________________________
+
+    def test_irfft_3d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(TEST_COUNT):
+            dims = 3
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.float32)
+    
+                test_data = vd.asrfftbuffer(data)
+    
+>               vd.fft.rfft3(test_data)
+
+tests/test_fft.py:300: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:90: in rfft3
+    rfft(buffer, graph=graph, print_shader=print_shader)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:79: in rfft
+    fft(buffer, buffer_shape=buffer.real_shape, graph=graph, print_shader=print_shader, name=name, r2c=True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:25: in fft
+    fft_shader = make_fft_shader(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/shader_factories.py:21: in make_fft_shader
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+../../miniconda3/lib/python3.11/contextlib.py:137: in __enter__
+    return next(self.gen)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:151: in fft_context
+    fft_context = FFTContext(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:39: in __init__
+    self.grid = FFTGridManager(self.config, True, True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:198: in __init__
+    workgroup_index, self.workgroup_count = allocate_workgroups(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+total_count = 1, declare_variables = True
+
+    def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+        workgroups_x = set_to_multiple_with_max(
+            total_count,
+            vd.get_context().max_workgroup_count[0]
+        )
+        workgroups_y = 1
+        workgroups_z = 1
+    
+        if not declare_variables:
+            return None, (workgroups_x, workgroups_y, workgroups_z)
+    
+>       workgroup_index = vc.new_uint(
+            vc.workgroup().x,
+            var_name="workgroup_index"
+        )
+E       AttributeError: module 'vkdispatch.codegen' has no attribute 'new_uint'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:73: AttributeError
+_________________________________ test_fft_1d __________________________________
+
+    def test_fft_1d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(TEST_COUNT):
+            dims = pick_dim_count(1)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.complex64)
+                test_data = vd.Buffer(data.shape, vd.complex64)
+    
+                for axis in range(dims):
+                    test_data.write(data)
+    
+>                   vd.fft.fft(test_data, axis=axis)
+
+tests/test_fft_padded.py:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:25: in fft
+    fft_shader = make_fft_shader(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/shader_factories.py:21: in make_fft_shader
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+../../miniconda3/lib/python3.11/contextlib.py:137: in __enter__
+    return next(self.gen)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:151: in fft_context
+    fft_context = FFTContext(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:39: in __init__
+    self.grid = FFTGridManager(self.config, True, True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:172: in __init__
+    workgroup_index, self.workgroup_count = allocate_workgroups(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+total_count = 11, declare_variables = True
+
+    def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+        workgroups_x = set_to_multiple_with_max(
+            total_count,
+            vd.get_context().max_workgroup_count[0]
+        )
+        workgroups_y = 1
+        workgroups_z = 1
+    
+        if not declare_variables:
+            return None, (workgroups_x, workgroups_y, workgroups_z)
+    
+>       workgroup_index = vc.new_uint(
+            vc.workgroup().x,
+            var_name="workgroup_index"
+        )
+E       AttributeError: module 'vkdispatch.codegen' has no attribute 'new_uint'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:73: AttributeError
+_________________________________ test_fft_2d __________________________________
+
+    def test_fft_2d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(TEST_COUNT):
+            dims = pick_dim_count(2)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.complex64)
+                test_data = vd.Buffer(data.shape, vd.complex64)
+    
+                test_data.write(data)
+    
+>               vd.fft.fft2(test_data)
+
+tests/test_fft_padded.py:70: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:42: in fft2
+    fft(buffer, graph=graph, print_shader=print_shader, axis=len(buffer.shape) - 2, input_map=input_map)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:25: in fft
+    fft_shader = make_fft_shader(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/shader_factories.py:21: in make_fft_shader
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+../../miniconda3/lib/python3.11/contextlib.py:137: in __enter__
+    return next(self.gen)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:151: in fft_context
+    fft_context = FFTContext(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:39: in __init__
+    self.grid = FFTGridManager(self.config, True, True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:172: in __init__
+    workgroup_index, self.workgroup_count = allocate_workgroups(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+total_count = 7, declare_variables = True
+
+    def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+        workgroups_x = set_to_multiple_with_max(
+            total_count,
+            vd.get_context().max_workgroup_count[0]
+        )
+        workgroups_y = 1
+        workgroups_z = 1
+    
+        if not declare_variables:
+            return None, (workgroups_x, workgroups_y, workgroups_z)
+    
+>       workgroup_index = vc.new_uint(
+            vc.workgroup().x,
+            var_name="workgroup_index"
+        )
+E       AttributeError: module 'vkdispatch.codegen' has no attribute 'new_uint'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:73: AttributeError
+_________________________________ test_rfft_1d _________________________________
+
+    def test_rfft_1d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(TEST_COUNT):
+            dims = pick_dim_count(1)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.float32)
+                test_data = vd.RFFTBuffer(data.shape)
+    
+                test_data.write_real(data)
+    
+>               vd.fft.rfft(test_data)
+
+tests/test_fft_padded.py:93: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:79: in rfft
+    fft(buffer, buffer_shape=buffer.real_shape, graph=graph, print_shader=print_shader, name=name, r2c=True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:25: in fft
+    fft_shader = make_fft_shader(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/shader_factories.py:21: in make_fft_shader
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+../../miniconda3/lib/python3.11/contextlib.py:137: in __enter__
+    return next(self.gen)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:151: in fft_context
+    fft_context = FFTContext(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:39: in __init__
+    self.grid = FFTGridManager(self.config, True, True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:198: in __init__
+    workgroup_index, self.workgroup_count = allocate_workgroups(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+total_count = 1, declare_variables = True
+
+    def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+        workgroups_x = set_to_multiple_with_max(
+            total_count,
+            vd.get_context().max_workgroup_count[0]
+        )
+        workgroups_y = 1
+        workgroups_z = 1
+    
+        if not declare_variables:
+            return None, (workgroups_x, workgroups_y, workgroups_z)
+    
+>       workgroup_index = vc.new_uint(
+            vc.workgroup().x,
+            var_name="workgroup_index"
+        )
+E       AttributeError: module 'vkdispatch.codegen' has no attribute 'new_uint'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:73: AttributeError
+_________________________________ test_rfft_2d _________________________________
+
+    def test_rfft_2d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(TEST_COUNT):
+            dims = pick_dim_count(2)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.float32)
+                test_data = vd.RFFTBuffer(data.shape)
+    
+                test_data.write_real(data)
+    
+>               vd.fft.rfft2(test_data)
+
+tests/test_fft_padded.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:84: in rfft2
+    rfft(buffer, graph=graph, print_shader=print_shader)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:79: in rfft
+    fft(buffer, buffer_shape=buffer.real_shape, graph=graph, print_shader=print_shader, name=name, r2c=True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/functions.py:25: in fft
+    fft_shader = make_fft_shader(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/shader_factories.py:21: in make_fft_shader
+    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+../../miniconda3/lib/python3.11/contextlib.py:137: in __enter__
+    return next(self.gen)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:151: in fft_context
+    fft_context = FFTContext(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/context.py:39: in __init__
+    self.grid = FFTGridManager(self.config, True, True)
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:198: in __init__
+    workgroup_index, self.workgroup_count = allocate_workgroups(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+total_count = 1, declare_variables = True
+
+    def allocate_workgroups(total_count: int, declare_variables: bool = True) -> Tuple[vc.ShaderVariable, Tuple[int, int, int]]:
+        workgroups_x = set_to_multiple_with_max(
+            total_count,
+            vd.get_context().max_workgroup_count[0]
+        )
+        workgroups_y = 1
+        workgroups_z = 1
+    
+        if not declare_variables:
+            return None, (workgroups_x, workgroups_y, workgroups_z)
+    
+>       workgroup_index = vc.new_uint(
+            vc.workgroup().x,
+            var_name="workgroup_index"
+        )
+E       AttributeError: module 'vkdispatch.codegen' has no attribute 'new_uint'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/fft/grid_manager.py:73: AttributeError
+________________________ test_1d_image_linear_sampling _________________________
+
+    def test_1d_image_linear_sampling():
+    
+        # Create a 1D image
+        signal = np.sin(np.array([i/8 for i in range(0, 50, 1)])).astype(np.float32)
+        sample_factor = 10
+    
+        test_line = vd.Image1D(len(signal), vd.float32)
+        test_line.write(signal)
+    
+        result_arr = vd.Buffer((len(signal) * (sample_factor - 1),), vd.float32)
+    
+        @vd.shader("buff.size")
+        def do_approx(buff: Buff[f32], line: Img1[f32]):
+            ind = vc.global_invocation().x.copy()
+            buff[ind] = line.sample((ind.cast_to(f32)) / sample_factor).x
+    
+>       do_approx(result_arr, test_line.sample())
+
+tests/test_image.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/shader_function.py:245: in __call__
+    self.build()
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/shader_function.py:203: in build
+    self.func(*signature.get_variables())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+buff = <vkdispatch.codegen.variables.bound_variables.BufferVariable object at 0x32566c9d0>
+line = <vkdispatch.codegen.variables.bound_variables.ImageVariable object at 0x32566e290>
+
+    @vd.shader("buff.size")
+    def do_approx(buff: Buff[f32], line: Img1[f32]):
+>       ind = vc.global_invocation().x.copy()
+E       AttributeError: 'ShaderVariable' object has no attribute 'copy'
+
+tests/test_image.py:50: AttributeError
+________________________ test_2d_image_linear_sampling _________________________
+
+    def test_2d_image_linear_sampling():
+        # Create a 2D image
+        signal_2d = np.sin(np.array([[i/8 + j/17 for i in range(0, 50, 1)] for j in range(0, 50, 1)])).astype(np.float32)
+        sample_factor = 10
+    
+        test_img = vd.Image2D(signal_2d.shape, vd.float32)
+        test_img.write(signal_2d)
+    
+        result_arr = vd.Buffer((signal_2d.shape[0] * (sample_factor - 1), signal_2d.shape[1] * (sample_factor - 1)), vd.float32)
+    
+        @vd.shader("buff.size")
+        def do_approx(buff: Buff[f32], img: Img2[f32]):
+            ind = vc.global_invocation().x.copy()
+            ind_2d = vc.unravel_index(ind, buff.shape)
+            buff[ind] = img.sample((ind_2d.cast_to(v2)) / sample_factor).x
+    
+>       do_approx(result_arr, test_img.sample())
+
+tests/test_image.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/shader_function.py:245: in __call__
+    self.build()
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/shader_function.py:203: in build
+    self.func(*signature.get_variables())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+buff = <vkdispatch.codegen.variables.bound_variables.BufferVariable object at 0x3122aec50>
+img = <vkdispatch.codegen.variables.bound_variables.ImageVariable object at 0x3122acad0>
+
+    @vd.shader("buff.size")
+    def do_approx(buff: Buff[f32], img: Img2[f32]):
+>       ind = vc.global_invocation().x.copy()
+E       AttributeError: 'ShaderVariable' object has no attribute 'copy'
+
+tests/test_image.py:71: AttributeError
+_____________________________ test_reductions_sum ______________________________
+
+    def test_reductions_sum():
+        # Create a buffer
+        buf = vd.Buffer((1536,) , vd.float32)
+    
+        # Create a numpy array
+        data = np.random.rand(1536).astype(np.float32)
+    
+        # Write the data to the buffer
+        buf.write(data)
+    
+        @vd.map_reduce(vd.SubgroupAdd)
+        def sum_map(buffer: Buff[f32]) -> f32:
+            return buffer[vc.mapping_index()]
+    
+>       res_buf = sum_map(buf)
+
+tests/test_reductions.py:25: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_object.py:57: in __call__
+    self.make_stages()
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_object.py:35: in make_stages
+    self.stage1 = vd.make_reduction_stage(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_stage.py:145: in make_reduction_stage
+    reduction_aggregate = global_reduce(reduction, out_type, input_buffers, params, map_func)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reduction = ReductionOperation(name='add', reduction=<function <lambda> at 0x17725de40>, identity=0, subgroup_reduction=<function subgroup_add at 0x177227b00>)
+out_type = <class 'vkdispatch.base.dtype._F32'>
+buffers = [<vkdispatch.codegen.variables.bound_variables.BufferVariable object at 0x3340e5f10>]
+params = ReductionParams(input_offset=<vkdispatch.codegen.variables.variables.ShaderVariable object at 0x3340e63d0>, input_size...t at 0x3340e6410>, output_z_batch_stride=<vkdispatch.codegen.variables.variables.ShaderVariable object at 0x17712ff10>)
+map_func = <bound method MappingFunction.callback of MappingFunction(buffer_types=[vkdispatch.codegen.arguments.Buffer[vkdispatch...nction test_reductions_sum.<locals>.sum_map at 0x3122ecc20>, instance_id=UUID('4a90dc8d-bc78-4f62-922a-50c93c013165'))>
+
+    def global_reduce(
+            reduction: vd.ReductionOperation,
+            out_type: vd.dtype,
+            buffers: List[vc.BufferVariable],
+            params: ReductionParams,
+            map_func: Callable = None):
+    
+>       ind = (vc.global_invocation().x * params.input_stride).copy("ind")
+E       AttributeError: 'ShaderVariable' object has no attribute 'copy'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_stage.py:29: AttributeError
+____________________________ test_mapped_reductions ____________________________
+
+    def test_mapped_reductions():
+        # Create a buffer
+        buf = vd.Buffer((1024,) , vd.float32)
+    
+        # Create a numpy array
+        data = np.random.rand(1024).astype(np.float32)
+    
+        # Write the data to the buffer
+        buf.write(data)
+    
+        @vd.map_reduce(vd.SubgroupAdd)
+        def sum_map(buffer: Buff[f32]) -> f32:
+            return vc.sin(buffer[vc.mapping_index()])
+    
+>       res_buf = sum_map(buf)
+
+tests/test_reductions.py:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_object.py:57: in __call__
+    self.make_stages()
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_object.py:35: in make_stages
+    self.stage1 = vd.make_reduction_stage(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_stage.py:145: in make_reduction_stage
+    reduction_aggregate = global_reduce(reduction, out_type, input_buffers, params, map_func)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reduction = ReductionOperation(name='add', reduction=<function <lambda> at 0x17725de40>, identity=0, subgroup_reduction=<function subgroup_add at 0x177227b00>)
+out_type = <class 'vkdispatch.base.dtype._F32'>
+buffers = [<vkdispatch.codegen.variables.bound_variables.BufferVariable object at 0x32566a350>]
+params = ReductionParams(input_offset=<vkdispatch.codegen.variables.variables.ShaderVariable object at 0x325669290>, input_size...t at 0x32566bf90>, output_z_batch_stride=<vkdispatch.codegen.variables.variables.ShaderVariable object at 0x325669190>)
+map_func = <bound method MappingFunction.callback of MappingFunction(buffer_types=[vkdispatch.codegen.arguments.Buffer[vkdispatch...ion test_mapped_reductions.<locals>.sum_map at 0x3122ed3a0>, instance_id=UUID('19b02d8e-692a-4559-8483-3b2b7edf9f4f'))>
+
+    def global_reduce(
+            reduction: vd.ReductionOperation,
+            out_type: vd.dtype,
+            buffers: List[vc.BufferVariable],
+            params: ReductionParams,
+            map_func: Callable = None):
+    
+>       ind = (vc.global_invocation().x * params.input_stride).copy("ind")
+E       AttributeError: 'ShaderVariable' object has no attribute 'copy'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_stage.py:29: AttributeError
+____________________________ test_listed_reductions ____________________________
+
+    def test_listed_reductions():
+        # Create a buffer
+        buf = vd.Buffer((1024,) , v2)
+        buf2 = vd.Buffer((1024,) , v2)
+    
+        # Create a numpy array
+        data = np.random.rand(1024, 2).astype(np.float32)
+        data2 = np.random.rand(1024, 2).astype(np.float32)
+    
+        # Write the data to the buffer
+        buf.write(data)
+        buf2.write(data2)
+    
+        @vd.map_reduce(vd.SubgroupAdd)
+        def sum_map(buffer: Buff[v2], buffer2: Buff[v2]) -> v2:
+            ind = vc.mapping_index()
+            return vc.sin(buffer[ind] + buffer2[ind])
+    
+        graph = vd.CommandGraph()
+    
+        old_graph = vd.set_global_graph(graph)
+>       res_buf = sum_map(buf, buf2, graph=graph)
+
+tests/test_reductions.py:76: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_object.py:57: in __call__
+    self.make_stages()
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_object.py:35: in make_stages
+    self.stage1 = vd.make_reduction_stage(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_stage.py:145: in make_reduction_stage
+    reduction_aggregate = global_reduce(reduction, out_type, input_buffers, params, map_func)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reduction = ReductionOperation(name='add', reduction=<function <lambda> at 0x17725de40>, identity=0, subgroup_reduction=<function subgroup_add at 0x177227b00>)
+out_type = <class 'vkdispatch.base.dtype._V2F32'>
+buffers = [<vkdispatch.codegen.variables.bound_variables.BufferVariable object at 0x176232610>, <vkdispatch.codegen.variables.bound_variables.BufferVariable object at 0x1771777d0>]
+params = ReductionParams(input_offset=<vkdispatch.codegen.variables.variables.ShaderVariable object at 0x177177450>, input_size...t at 0x312239990>, output_z_batch_stride=<vkdispatch.codegen.variables.variables.ShaderVariable object at 0x312239a50>)
+map_func = <bound method MappingFunction.callback of MappingFunction(buffer_types=[vkdispatch.codegen.arguments.Buffer[vkdispatch...ion test_listed_reductions.<locals>.sum_map at 0x3122eda80>, instance_id=UUID('825460bf-dc1a-48cb-bbfc-8f921f04b427'))>
+
+    def global_reduce(
+            reduction: vd.ReductionOperation,
+            out_type: vd.dtype,
+            buffers: List[vc.BufferVariable],
+            params: ReductionParams,
+            map_func: Callable = None):
+    
+>       ind = (vc.global_invocation().x * params.input_stride).copy("ind")
+E       AttributeError: 'ShaderVariable' object has no attribute 'copy'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_stage.py:29: AttributeError
+_____________________________ test_pure_reductions _____________________________
+
+    def test_pure_reductions():
+        # Create a buffer
+    
+        data_size = 300000
+    
+        # Create a numpy array
+        data = np.random.rand(data_size).astype(np.float32)
+    
+        # Write the data to the buffer
+        buf = vd.asbuffer(data)
+    
+        @vd.reduce(0)
+        def sum_reduce(a: f32, b: f32) -> f32:
+            result = (a + b).copy()
+            return result
+    
+>       res_buf = sum_reduce(buf)
+
+tests/test_reductions.py:103: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_object.py:57: in __call__
+    self.make_stages()
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_object.py:35: in make_stages
+    self.stage1 = vd.make_reduction_stage(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_stage.py:145: in make_reduction_stage
+    reduction_aggregate = global_reduce(reduction, out_type, input_buffers, params, map_func)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reduction = ReductionOperation(name='sum_reduce', reduction=<function test_pure_reductions.<locals>.sum_reduce at 0x3122ee340>, identity=0, subgroup_reduction=None)
+out_type = <class 'vkdispatch.base.dtype._F32'>
+buffers = [<vkdispatch.codegen.variables.bound_variables.BufferVariable object at 0x32562b990>]
+params = ReductionParams(input_offset=<vkdispatch.codegen.variables.variables.ShaderVariable object at 0x325628cd0>, input_size...t at 0x1771bbc10>, output_z_batch_stride=<vkdispatch.codegen.variables.variables.ShaderVariable object at 0x1771b8cd0>)
+map_func = <bound method MappingFunction.callback of MappingFunction(buffer_types=[vkdispatch.codegen.arguments.Buffer[vkdispatch...reduce.<locals>.decorator.<locals>.<lambda> at 0x3122ed3a0>, instance_id=UUID('250acd39-8f2e-4b8c-a163-1b6b07a294b9'))>
+
+    def global_reduce(
+            reduction: vd.ReductionOperation,
+            out_type: vd.dtype,
+            buffers: List[vc.BufferVariable],
+            params: ReductionParams,
+            map_func: Callable = None):
+    
+>       ind = (vc.global_invocation().x * params.input_stride).copy("ind")
+E       AttributeError: 'ShaderVariable' object has no attribute 'copy'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_stage.py:29: AttributeError
+__________________ test_pure_reductions_with_mapping_function __________________
+
+    def test_pure_reductions_with_mapping_function():
+        # Create a buffer
+    
+        data_size = 300000
+    
+        # Create a numpy array
+        data = np.random.rand(data_size).astype(np.float32)
+    
+        # Write the data to the buffer
+        buf = vd.asbuffer(data)
+    
+        @vd.map
+        def reduction_map(input: Buff[f32]) -> f32:
+            return vc.sin(input[vc.mapping_index()])
+    
+        @vd.reduce(0, mapping_function=reduction_map)
+        def sum_reduce(a: f32, b: f32) -> f32:
+            result = (a + b).copy()
+            return result
+    
+>       res_buf = sum_reduce(buf)
+
+tests/test_reductions.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_object.py:57: in __call__
+    self.make_stages()
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_object.py:35: in make_stages
+    self.stage1 = vd.make_reduction_stage(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_stage.py:145: in make_reduction_stage
+    reduction_aggregate = global_reduce(reduction, out_type, input_buffers, params, map_func)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reduction = ReductionOperation(name='sum_reduce', reduction=<function test_pure_reductions_with_mapping_function.<locals>.sum_reduce at 0x3122ee8e0>, identity=0, subgroup_reduction=None)
+out_type = <class 'vkdispatch.base.dtype._F32'>
+buffers = [<vkdispatch.codegen.variables.bound_variables.BufferVariable object at 0x177141050>]
+params = ReductionParams(input_offset=<vkdispatch.codegen.variables.variables.ShaderVariable object at 0x177140bd0>, input_size...t at 0x30af92710>, output_z_batch_stride=<vkdispatch.codegen.variables.variables.ShaderVariable object at 0x30af92a10>)
+map_func = <bound method MappingFunction.callback of MappingFunction(buffer_types=[vkdispatch.codegen.arguments.Buffer[vkdispatch...ith_mapping_function.<locals>.reduction_map at 0x3122ee840>, instance_id=UUID('61647d98-3584-4267-973a-67242e5c451c'))>
+
+    def global_reduce(
+            reduction: vd.ReductionOperation,
+            out_type: vd.dtype,
+            buffers: List[vc.BufferVariable],
+            params: ReductionParams,
+            map_func: Callable = None):
+    
+>       ind = (vc.global_invocation().x * params.input_stride).copy("ind")
+E       AttributeError: 'ShaderVariable' object has no attribute 'copy'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_stage.py:29: AttributeError
+________________________ test_batched_mapped_reductions ________________________
+
+    def test_batched_mapped_reductions():
+        batch_size = 10
+        data_size = 300000
+    
+        # Create a numpy array
+        data = np.random.rand(batch_size, data_size).astype(np.float32)
+    
+        # Write the data to the buffer
+        buf = vd.asbuffer(data)
+    
+        @vd.map_reduce(vd.SubgroupAdd, axes=[1])
+        def sum_map(buffer: Buff[f32]) -> f32:
+            return vc.sin(buffer[vc.mapping_index()])
+    
+>       res_buf = sum_map(buf)
+
+tests/test_reductions.py:157: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_object.py:57: in __call__
+    self.make_stages()
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_object.py:35: in make_stages
+    self.stage1 = vd.make_reduction_stage(
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_stage.py:145: in make_reduction_stage
+    reduction_aggregate = global_reduce(reduction, out_type, input_buffers, params, map_func)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reduction = ReductionOperation(name='add', reduction=<function <lambda> at 0x17725de40>, identity=0, subgroup_reduction=<function subgroup_add at 0x177227b00>)
+out_type = <class 'vkdispatch.base.dtype._F32'>
+buffers = [<vkdispatch.codegen.variables.bound_variables.BufferVariable object at 0x32560b890>]
+params = ReductionParams(input_offset=<vkdispatch.codegen.variables.variables.ShaderVariable object at 0x3256089d0>, input_size...t at 0x325609c50>, output_z_batch_stride=<vkdispatch.codegen.variables.variables.ShaderVariable object at 0x32560abd0>)
+map_func = <bound method MappingFunction.callback of MappingFunction(buffer_types=[vkdispatch.codegen.arguments.Buffer[vkdispatch..._batched_mapped_reductions.<locals>.sum_map at 0x3122eef20>, instance_id=UUID('5fef8866-c3f9-467a-8a7f-150fdaaf45fc'))>
+
+    def global_reduce(
+            reduction: vd.ReductionOperation,
+            out_type: vd.dtype,
+            buffers: List[vc.BufferVariable],
+            params: ReductionParams,
+            map_func: Callable = None):
+    
+>       ind = (vc.global_invocation().x * params.input_stride).copy("ind")
+E       AttributeError: 'ShaderVariable' object has no attribute 'copy'
+
+../../miniconda3/lib/python3.11/site-packages/vkdispatch/shader_generation/reduction_stage.py:29: AttributeError
+_________________________________ test_fft_1d __________________________________
+
+    def test_fft_1d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(4):
+            dims = pick_dim_count(1)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.complex64)
+                test_data = vd.Buffer(data.shape, vd.complex64)
+    
+                for axis in range(dims):
+                    test_data.write(data)
+    
+                    vd.vkfft.fft(test_data, axis=axis)
+    
+>                   assert np.allclose(np.fft.fft(data, axis=axis), test_data.read(0), atol=1e-3)
+E                   AssertionError: assert False
+E                    +  where False = <function allclose at 0x109d9b5b0>(array([[ 3.08511707e+00+0.j        ,  2.91547536e+00+0.j        ,\n         2.59831986e+00+0.j        ,  2.37311477e+00...1-0.20941241j,\n         3.98499053e-01-0.13044695j,  7.35447308e-01-0.38385926j,\n         3.63934489e-01-0.41458235j]]), array([[0.16800544+0.j, 0.02852523+0.j, 0.7400515 +0.j, 0.8182936 +0.j,\n        0.7452409 +0.j, 0.3607652 +0.j, 0.1271...718124 +0.j, 0.44468296+0.j, 0.75991404+0.j,\n        0.8267272 +0.j, 0.47356728+0.j, 0.61554056+0.j]], dtype=complex64), atol=0.001)
+E                    +    where <function allclose at 0x109d9b5b0> = np.allclose
+E                    +    and   array([[ 3.08511707e+00+0.j        ,  2.91547536e+00+0.j        ,\n         2.59831986e+00+0.j        ,  2.37311477e+00...1-0.20941241j,\n         3.98499053e-01-0.13044695j,  7.35447308e-01-0.38385926j,\n         3.63934489e-01-0.41458235j]]) = <function fft at 0x10b3dc530>(array([[0.16800544+0.j, 0.02852523+0.j, 0.7400515 +0.j, 0.8182936 +0.j,\n        0.7452409 +0.j, 0.3607652 +0.j, 0.1271...718124 +0.j, 0.44468296+0.j, 0.75991404+0.j,\n        0.8267272 +0.j, 0.47356728+0.j, 0.61554056+0.j]], dtype=complex64), axis=0)
+E                    +      where <function fft at 0x10b3dc530> = <module 'numpy.fft' from '/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/numpy/fft/__init__.py'>.fft
+E                    +        where <module 'numpy.fft' from '/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/numpy/fft/__init__.py'> = np.fft
+E                    +    and   array([[0.16800544+0.j, 0.02852523+0.j, 0.7400515 +0.j, 0.8182936 +0.j,\n        0.7452409 +0.j, 0.3607652 +0.j, 0.1271...718124 +0.j, 0.44468296+0.j, 0.75991404+0.j,\n        0.8267272 +0.j, 0.47356728+0.j, 0.61554056+0.j]], dtype=complex64) = read(0)
+E                    +      where read = <vkdispatch.base.buffer.Buffer object at 0x3122aff10>.read
+
+tests/test_vkfft.py:40: AssertionError
+_________________________________ test_fft_2d __________________________________
+
+    def test_fft_2d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(4):
+            dims = pick_dim_count(2)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.complex64)
+                test_data = vd.Buffer(data.shape, vd.complex64)
+    
+                test_data.write(data)
+    
+                vd.vkfft.fft2(test_data)
+    
+>               assert np.allclose(np.fft.fft2(data), test_data.read(0), atol=1e-2)
+E               AssertionError: assert False
+E                +  where False = <function allclose at 0x109d9b5b0>(array([[[ 1.35581974e+01+0.j        ,  4.07430932e-01+0.05845517j,\n          5.81283739e-01-0.66427431j,  1.77830742e+....69125206j,\n          6.81612951e-01+0.94686851j,  9.00215169e-01+0.09981783j,\n         -1.21739454e+00+1.41230683j]]]), array([[[0.9856728 +0.j, 0.55079544+0.j, 0.5771485 +0.j, 0.64588636+0.j,\n         0.83769095+0.j, 0.06991225+0.j, 0.78...,\n         0.5899734 +0.j, 0.51513714+0.j, 0.82384187+0.j, 0.92271024+0.j,\n         0.9268422 +0.j]]], dtype=complex64), atol=0.01)
+E                +    where <function allclose at 0x109d9b5b0> = np.allclose
+E                +    and   array([[[ 1.35581974e+01+0.j        ,  4.07430932e-01+0.05845517j,\n          5.81283739e-01-0.66427431j,  1.77830742e+....69125206j,\n          6.81612951e-01+0.94686851j,  9.00215169e-01+0.09981783j,\n         -1.21739454e+00+1.41230683j]]]) = <function fft2 at 0x10b3dd4f0>(array([[[0.9856728 +0.j, 0.55079544+0.j, 0.5771485 +0.j, 0.64588636+0.j,\n         0.83769095+0.j, 0.06991225+0.j, 0.78...,\n         0.5899734 +0.j, 0.51513714+0.j, 0.82384187+0.j, 0.92271024+0.j,\n         0.9268422 +0.j]]], dtype=complex64))
+E                +      where <function fft2 at 0x10b3dd4f0> = <module 'numpy.fft' from '/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/numpy/fft/__init__.py'>.fft2
+E                +        where <module 'numpy.fft' from '/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/numpy/fft/__init__.py'> = np.fft
+E                +    and   array([[[0.9856728 +0.j, 0.55079544+0.j, 0.5771485 +0.j, 0.64588636+0.j,\n         0.83769095+0.j, 0.06991225+0.j, 0.78...,\n         0.5899734 +0.j, 0.51513714+0.j, 0.82384187+0.j, 0.92271024+0.j,\n         0.9268422 +0.j]]], dtype=complex64) = read(0)
+E                +      where read = <vkdispatch.base.buffer.Buffer object at 0x30af9d0d0>.read
+
+tests/test_vkfft.py:63: AssertionError
+_________________________________ test_fft_3d __________________________________
+
+    def test_fft_3d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(4):
+            dims = 3
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.complex64)
+                test_data = vd.Buffer(data.shape, vd.complex64)
+    
+                test_data.write(data)
+    
+                vd.vkfft.fft3(test_data)
+    
+>               assert np.allclose(np.fft.fftn(data), test_data.read(0), atol=5e-2)
+E               AssertionError: assert False
+E                +  where False = <function allclose at 0x109d9b5b0>(array([[[ 9.54142288+0.j        ,  0.80689053+0.90510658j,\n          0.80689053-0.90510658j],\n        [ 1.23270222+0.j....89658579+0.99531681j],\n        [ 0.61084326+0.30073597j, -0.80944568+0.63714911j,\n         -1.27475649+0.2767456j ]]]), array([[[0.32703432+0.j, 0.39641055+0.j, 0.96261555+0.j],\n        [0.76153463+0.j, 0.05391245+0.j, 0.05248377+0.j]],\n\n....j, 0.7320219 +0.j, 0.85402393+0.j],\n        [0.5731777 +0.j, 0.88395464+0.j, 0.49129844+0.j]]],\n      dtype=complex64), atol=0.05)
+E                +    where <function allclose at 0x109d9b5b0> = np.allclose
+E                +    and   array([[[ 9.54142288+0.j        ,  0.80689053+0.90510658j,\n          0.80689053-0.90510658j],\n        [ 1.23270222+0.j....89658579+0.99531681j],\n        [ 0.61084326+0.30073597j, -0.80944568+0.63714911j,\n         -1.27475649+0.2767456j ]]]) = <function fftn at 0x10b3dd270>(array([[[0.32703432+0.j, 0.39641055+0.j, 0.96261555+0.j],\n        [0.76153463+0.j, 0.05391245+0.j, 0.05248377+0.j]],\n\n....j, 0.7320219 +0.j, 0.85402393+0.j],\n        [0.5731777 +0.j, 0.88395464+0.j, 0.49129844+0.j]]],\n      dtype=complex64))
+E                +      where <function fftn at 0x10b3dd270> = <module 'numpy.fft' from '/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/numpy/fft/__init__.py'>.fftn
+E                +        where <module 'numpy.fft' from '/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/numpy/fft/__init__.py'> = np.fft
+E                +    and   array([[[0.32703432+0.j, 0.39641055+0.j, 0.96261555+0.j],\n        [0.76153463+0.j, 0.05391245+0.j, 0.05248377+0.j]],\n\n....j, 0.7320219 +0.j, 0.85402393+0.j],\n        [0.5731777 +0.j, 0.88395464+0.j, 0.49129844+0.j]]],\n      dtype=complex64) = read(0)
+E                +      where read = <vkdispatch.base.buffer.Buffer object at 0x312290590>.read
+
+tests/test_vkfft.py:86: AssertionError
+_________________________________ test_ifft_1d _________________________________
+
+    def test_ifft_1d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(4):
+            dims = pick_dim_count(1)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.complex64)
+                test_data = vd.Buffer(data.shape, vd.complex64)
+    
+                for axis in range(dims):
+                    test_data.write(data)
+    
+                    vd.vkfft.ifft(test_data, axis=axis)
+    
+>                   assert np.allclose(np.fft.ifft(data, axis=axis), test_data.read(0), atol=1e-3)
+E                   AssertionError: assert False
+E                    +  where False = <function allclose at 0x109d9b5b0>(array([[[ 0.45764176+0.j        ,  0.51378741+0.j        ,\n          0.52417414+0.j        ,  0.40198585+0.j        ,\n...0.01548175-0.07036745j,\n         -0.0979345 -0.05949516j, -0.01584874-0.0415191j ,\n          0.05008221+0.06468653j]]]), array([[[9.9337566e-01+0.j, 8.8378716e-01+0.j, 1.4244436e-01+0.j,\n         4.3287989e-01+0.j, 5.6823540e-01+0.j],\n    ...21710e-01+0.j, 6.6537666e-01+0.j, 4.2105559e-01+0.j,\n         2.1486281e-01+0.j, 2.2240211e-01+0.j]]], dtype=complex64), atol=0.001)
+E                    +    where <function allclose at 0x109d9b5b0> = np.allclose
+E                    +    and   array([[[ 0.45764176+0.j        ,  0.51378741+0.j        ,\n          0.52417414+0.j        ,  0.40198585+0.j        ,\n...0.01548175-0.07036745j,\n         -0.0979345 -0.05949516j, -0.01584874-0.0415191j ,\n          0.05008221+0.06468653j]]]) = <function ifft at 0x10b3dcab0>(array([[[9.9337566e-01+0.j, 8.8378716e-01+0.j, 1.4244436e-01+0.j,\n         4.3287989e-01+0.j, 5.6823540e-01+0.j],\n    ...21710e-01+0.j, 6.6537666e-01+0.j, 4.2105559e-01+0.j,\n         2.1486281e-01+0.j, 2.2240211e-01+0.j]]], dtype=complex64), axis=0)
+E                    +      where <function ifft at 0x10b3dcab0> = <module 'numpy.fft' from '/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/numpy/fft/__init__.py'>.ifft
+E                    +        where <module 'numpy.fft' from '/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/numpy/fft/__init__.py'> = np.fft
+E                    +    and   array([[[9.9337566e-01+0.j, 8.8378716e-01+0.j, 1.4244436e-01+0.j,\n         4.3287989e-01+0.j, 5.6823540e-01+0.j],\n    ...21710e-01+0.j, 6.6537666e-01+0.j, 4.2105559e-01+0.j,\n         2.1486281e-01+0.j, 2.2240211e-01+0.j]]], dtype=complex64) = read(0)
+E                    +      where read = <vkdispatch.base.buffer.Buffer object at 0x1771bb3d0>.read
+
+tests/test_vkfft.py:110: AssertionError
+_________________________________ test_ifft_2d _________________________________
+
+    def test_ifft_2d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(4):
+            dims = pick_dim_count(2)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.complex64)
+                test_data = vd.Buffer(data.shape, vd.complex64)
+    
+                test_data.write(data)
+    
+                vd.vkfft.ifft2(test_data)
+    
+>               assert np.allclose(np.fft.ifft2(data), test_data.read(0), atol=1e-2)
+E               AssertionError: assert False
+E                +  where False = <function allclose at 0x109d9b5b0>(array([[[ 4.58788469e-01+0.j        ,  1.35955732e-03-0.01718631j,\n         -3.86232616e-02-0.01906518j, -4.51054066e-....03376372j,\n          6.28242065e-02+0.00045378j,  1.91088919e-02-0.00804101j,\n          1.70411803e-02-0.01843843j]]]), array([[[0.30898136+0.j, 0.4254185 +0.j, 0.01930028+0.j, 0.5452005 +0.j,\n         0.5469084 +0.j, 0.6716363 +0.j, 0.64...0.j, 0.24306618+0.j, 0.31135374+0.j,\n         0.779697  +0.j, 0.77657235+0.j, 0.11227651+0.j]]],\n      dtype=complex64), atol=0.01)
+E                +    where <function allclose at 0x109d9b5b0> = np.allclose
+E                +    and   array([[[ 4.58788469e-01+0.j        ,  1.35955732e-03-0.01718631j,\n         -3.86232616e-02-0.01906518j, -4.51054066e-....03376372j,\n          6.28242065e-02+0.00045378j,  1.91088919e-02-0.00804101j,\n          1.70411803e-02-0.01843843j]]]) = <function ifft2 at 0x10b3dd670>(array([[[0.30898136+0.j, 0.4254185 +0.j, 0.01930028+0.j, 0.5452005 +0.j,\n         0.5469084 +0.j, 0.6716363 +0.j, 0.64...0.j, 0.24306618+0.j, 0.31135374+0.j,\n         0.779697  +0.j, 0.77657235+0.j, 0.11227651+0.j]]],\n      dtype=complex64))
+E                +      where <function ifft2 at 0x10b3dd670> = <module 'numpy.fft' from '/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/numpy/fft/__init__.py'>.ifft2
+E                +        where <module 'numpy.fft' from '/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/numpy/fft/__init__.py'> = np.fft
+E                +    and   array([[[0.30898136+0.j, 0.4254185 +0.j, 0.01930028+0.j, 0.5452005 +0.j,\n         0.5469084 +0.j, 0.6716363 +0.j, 0.64...0.j, 0.24306618+0.j, 0.31135374+0.j,\n         0.779697  +0.j, 0.77657235+0.j, 0.11227651+0.j]]],\n      dtype=complex64) = read(0)
+E                +      where read = <vkdispatch.base.buffer.Buffer object at 0x30af585d0>.read
+
+tests/test_vkfft.py:133: AssertionError
+_________________________________ test_ifft_3d _________________________________
+
+    def test_ifft_3d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(4):
+            dims = 3
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.complex64)
+                test_data = vd.Buffer(data.shape, vd.complex64)
+    
+                test_data.write(data)
+    
+                vd.vkfft.ifft3(test_data)
+    
+>               assert np.allclose(np.fft.ifftn(data), test_data.read(0), atol=5e-2)
+E               AssertionError: assert False
+E                +  where False = <function allclose at 0x109d9b5b0>(array([[[ 5.12112223e-01+0.j        ,  2.00847587e-03+0.j        ],\n        [ 3.49140702e-03+0.01007597j,  1.35465467e...62e-02+0.03059222j,  2.15944815e-02+0.01302759j],\n        [ 1.37699476e-02+0.01829946j, -6.54720118e-03-0.03077062j]]]), array([[[0.01783435+0.j, 0.29862866+0.j],\n        [0.25812507+0.j, 0.7825289 +0.j],\n        [0.12106162+0.j, 0.2152018...0.55779594+0.j],\n        [0.9464589 +0.j, 0.9412332 +0.j],\n        [0.55406576+0.j, 0.5633486 +0.j]]], dtype=complex64), atol=0.05)
+E                +    where <function allclose at 0x109d9b5b0> = np.allclose
+E                +    and   array([[[ 5.12112223e-01+0.j        ,  2.00847587e-03+0.j        ],\n        [ 3.49140702e-03+0.01007597j,  1.35465467e...62e-02+0.03059222j,  2.15944815e-02+0.01302759j],\n        [ 1.37699476e-02+0.01829946j, -6.54720118e-03-0.03077062j]]]) = <function ifftn at 0x10b3dd3f0>(array([[[0.01783435+0.j, 0.29862866+0.j],\n        [0.25812507+0.j, 0.7825289 +0.j],\n        [0.12106162+0.j, 0.2152018...0.55779594+0.j],\n        [0.9464589 +0.j, 0.9412332 +0.j],\n        [0.55406576+0.j, 0.5633486 +0.j]]], dtype=complex64))
+E                +      where <function ifftn at 0x10b3dd3f0> = <module 'numpy.fft' from '/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/numpy/fft/__init__.py'>.ifftn
+E                +        where <module 'numpy.fft' from '/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/numpy/fft/__init__.py'> = np.fft
+E                +    and   array([[[0.01783435+0.j, 0.29862866+0.j],\n        [0.25812507+0.j, 0.7825289 +0.j],\n        [0.12106162+0.j, 0.2152018...0.55779594+0.j],\n        [0.9464589 +0.j, 0.9412332 +0.j],\n        [0.55406576+0.j, 0.5633486 +0.j]]], dtype=complex64) = read(0)
+E                +      where read = <vkdispatch.base.buffer.Buffer object at 0x176232590>.read
+
+tests/test_vkfft.py:156: AssertionError
+_________________________________ test_rfft_1d _________________________________
+
+    def test_rfft_1d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(4):
+            dims = pick_dim_count(1)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.float32)
+                test_data = vd.RFFTBuffer(data.shape)
+    
+                test_data.write_real(data)
+    
+                vd.vkfft.rfft(test_data)
+    
+>               assert np.allclose(np.fft.rfft(data), test_data.read_fourier(0), atol=1e-3)
+E               AssertionError: assert False
+E                +  where False = <function allclose at 0x109d9b5b0>(array([[ 1.69475892e+00+0.j        ,  2.64024287e-02+0.70558128j],\n       [ 6.87574875e-01+0.j        , -3.14166423e-0...2022e+00+0.j        ,  2.53352184e-01-0.5188345j ],\n       [ 1.48074701e+00+0.j        ,  1.06164962e-02+0.14660075j]]), array([[0.58252126+0.14875129j, 0.9634864 +0.j        ],\n       [0.01974734+0.5016899j , 0.16613762+0.j        ],\n    ...897486+0.6051719j , 0.00607344+0.j        ],\n       [0.50066   +0.40540352j, 0.5746835 +0.j        ]], dtype=complex64), atol=0.001)
+E                +    where <function allclose at 0x109d9b5b0> = np.allclose
+E                +    and   array([[ 1.69475892e+00+0.j        ,  2.64024287e-02+0.70558128j],\n       [ 6.87574875e-01+0.j        , -3.14166423e-0...2022e+00+0.j        ,  2.53352184e-01-0.5188345j ],\n       [ 1.48074701e+00+0.j        ,  1.06164962e-02+0.14660075j]]) = <function rfft at 0x10b3dcc30>(array([[0.58252126, 0.14875129, 0.9634864 ],\n       [0.01974734, 0.5016899 , 0.16613762],\n       [0.0844265 , 0.390954... 0.26072204],\n       [0.55897486, 0.6051719 , 0.00607344],\n       [0.50066   , 0.40540352, 0.5746835 ]], dtype=float32))
+E                +      where <function rfft at 0x10b3dcc30> = <module 'numpy.fft' from '/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/numpy/fft/__init__.py'>.rfft
+E                +        where <module 'numpy.fft' from '/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/numpy/fft/__init__.py'> = np.fft
+E                +    and   array([[0.58252126+0.14875129j, 0.9634864 +0.j        ],\n       [0.01974734+0.5016899j , 0.16613762+0.j        ],\n    ...897486+0.6051719j , 0.00607344+0.j        ],\n       [0.50066   +0.40540352j, 0.5746835 +0.j        ]], dtype=complex64) = read_fourier(0)
+E                +      where read_fourier = <vkdispatch.base.buffer.RFFTBuffer object at 0x1771667d0>.read_fourier
+
+tests/test_vkfft.py:179: AssertionError
+_________________________________ test_rfft_2d _________________________________
+
+    def test_rfft_2d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(4):
+            dims = pick_dim_count(2)
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.float32)
+                test_data = vd.RFFTBuffer(data.shape)
+    
+                test_data.write_real(data)
+    
+                vd.vkfft.rfft2(test_data)
+    
+>               assert np.allclose(np.fft.rfft2(data), test_data.read_fourier(0), atol=1e-2)
+E               AssertionError: assert False
+E                +  where False = <function allclose at 0x109d9b5b0>(array([[ 2.16645307e+01+0.j        ,  3.18135119e+00+1.04027986j,\n        -1.08286205e-01+0.41963773j, -1.15164490e+00...55186e-02-0.19895488j, -2.82682463e-02-0.18146764j,\n        -3.57487816e-01+0.61979354j, -8.00464664e-01+1.62135111j]]), array([[3.3920044e-01+0.55983144j, 1.2905452e-01+0.31387892j,\n        3.4164304e-01+0.13332087j, 7.1588504e-01+0.j    ...373j, 7.0197123e-01+0.08803505j,\n        1.3487698e-01+0.6349824j , 7.8138101e-01+0.j        ]],\n      dtype=complex64), atol=0.01)
+E                +    where <function allclose at 0x109d9b5b0> = np.allclose
+E                +    and   array([[ 2.16645307e+01+0.j        ,  3.18135119e+00+1.04027986j,\n        -1.08286205e-01+0.41963773j, -1.15164490e+00...55186e-02-0.19895488j, -2.82682463e-02-0.18146764j,\n        -3.57487816e-01+0.61979354j, -8.00464664e-01+1.62135111j]]) = <function rfft2 at 0x10b3dd8f0>(array([[3.3920044e-01, 5.5983144e-01, 1.2905452e-01, 3.1387892e-01,\n        3.4164304e-01, 1.3332087e-01, 7.1588504e-0...-01, 4.2203373e-01, 7.0197123e-01, 8.8035047e-02,\n        1.3487698e-01, 6.3498241e-01, 7.8138101e-01]], dtype=float32))
+E                +      where <function rfft2 at 0x10b3dd8f0> = <module 'numpy.fft' from '/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/numpy/fft/__init__.py'>.rfft2
+E                +        where <module 'numpy.fft' from '/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/numpy/fft/__init__.py'> = np.fft
+E                +    and   array([[3.3920044e-01+0.55983144j, 1.2905452e-01+0.31387892j,\n        3.4164304e-01+0.13332087j, 7.1588504e-01+0.j    ...373j, 7.0197123e-01+0.08803505j,\n        1.3487698e-01+0.6349824j , 7.8138101e-01+0.j        ]],\n      dtype=complex64) = read_fourier(0)
+E                +      where read_fourier = <vkdispatch.base.buffer.RFFTBuffer object at 0x1772b6110>.read_fourier
+
+tests/test_vkfft.py:202: AssertionError
+_________________________________ test_rfft_3d _________________________________
+
+    def test_rfft_3d():
+        max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    
+        max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+    
+        for _ in range(4):
+            dims = 3
+            current_shape = [pick_radix_prime() for _ in range(dims)]
+    
+            while check_fft_dims(current_shape, max_fft_size):
+                data = np.random.rand(*current_shape).astype(np.float32)
+                test_data = vd.RFFTBuffer(data.shape)
+    
+                test_data.write_real(data)
+    
+                vd.vkfft.rfft3(test_data)
+    
+>               assert np.allclose(np.fft.rfftn(data), test_data.read_fourier(0), atol=5e-2)
+E               AssertionError: assert False
+E                +  where False = <function allclose at 0x109d9b5b0>(array([[[ 9.04684502e+01+0.j        ,  3.57912072e+00+0.j        ],\n        [-1.11608898e+00-4.39412146j, -2.04687369e...14e+00+5.67443794j,  5.24419202e-01+1.47986565j],\n        [-1.91733297e+00+5.88715759j, -6.04737485e+00-0.4038103j ]]]), array([[[0.17170595+0.8791957j , 0.        +0.j        ],\n        [0.10676339+0.74808997j, 0.        +0.j        ],\n  ....29722697j, 0.        +0.j        ],\n        [0.11436757+0.6460538j , 0.        +0.j        ]]],\n      dtype=complex64), atol=0.05)
+E                +    where <function allclose at 0x109d9b5b0> = np.allclose
+E                +    and   array([[[ 9.04684502e+01+0.j        ,  3.57912072e+00+0.j        ],\n        [-1.11608898e+00-4.39412146j, -2.04687369e...14e+00+5.67443794j,  5.24419202e-01+1.47986565j],\n        [-1.91733297e+00+5.88715759j, -6.04737485e+00-0.4038103j ]]]) = <function rfftn at 0x10b3dd7f0>(array([[[0.17170595, 0.8791957 ],\n        [0.10676339, 0.74808997],\n        [0.02100834, 0.31269228],\n        [0.73616...\n        [0.7950472 , 0.78196716],\n        [0.48461825, 0.29722697],\n        [0.11436757, 0.6460538 ]]], dtype=float32))
+E                +      where <function rfftn at 0x10b3dd7f0> = <module 'numpy.fft' from '/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/numpy/fft/__init__.py'>.rfftn
+E                +        where <module 'numpy.fft' from '/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/numpy/fft/__init__.py'> = np.fft
+E                +    and   array([[[0.17170595+0.8791957j , 0.        +0.j        ],\n        [0.10676339+0.74808997j, 0.        +0.j        ],\n  ....29722697j, 0.        +0.j        ],\n        [0.11436757+0.6460538j , 0.        +0.j        ]]],\n      dtype=complex64) = read_fourier(0)
+E                +      where read_fourier = <vkdispatch.base.buffer.RFFTBuffer object at 0x325669290>.read_fourier
+
+tests/test_vkfft.py:225: AssertionError
+=============================== warnings summary ===============================
+tests/test_vkfft.py::test_ifft_1d
+  /Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/_pytest/unraisableexception.py:85: PytestUnraisableExceptionWarning: Exception ignored in: <function Sampler.__del__ at 0x1771c32e0>
+  
+  Traceback (most recent call last):
+    File "/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/vkdispatch/base/image.py", line 290, in __del__
+      self.destroy()
+    File "/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/vkdispatch/base/context.py", line 101, in destroy
+      self.clear_parents()
+    File "/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/vkdispatch/base/context.py", line 57, in clear_parents
+      parent.remove_child_handle(self)
+    File "/Users/shaharsandhaus/miniconda3/lib/python3.11/site-packages/vkdispatch/base/context.py", line 75, in remove_child_handle
+      raise ValueError(f"Child handle {child._handle} does not exist in parent handle!")
+  ValueError: Child handle 5917852144 does not exist in parent handle!
+  
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_codegen.py::test_arithmetic - AttributeError: 'ShaderVariab...
+FAILED tests/test_conv.py::test_convolution_2d - AttributeError: module 'vkdi...
+FAILED tests/test_conv.py::test_convolution_2d_transpose - AttributeError: mo...
+FAILED tests/test_conv.py::test_convolution_2d_real - AttributeError: module ...
+FAILED tests/test_fft.py::test_fft_1d - AttributeError: module 'vkdispatch.co...
+FAILED tests/test_fft.py::test_fft_2d - AttributeError: module 'vkdispatch.co...
+FAILED tests/test_fft.py::test_fft_3d - AttributeError: module 'vkdispatch.co...
+FAILED tests/test_fft.py::test_ifft_1d - AttributeError: module 'vkdispatch.c...
+FAILED tests/test_fft.py::test_ifft_2d - AttributeError: module 'vkdispatch.c...
+FAILED tests/test_fft.py::test_ifft_3d - AttributeError: module 'vkdispatch.c...
+FAILED tests/test_fft.py::test_rfft_1d - AttributeError: module 'vkdispatch.c...
+FAILED tests/test_fft.py::test_rfft_2d - AttributeError: module 'vkdispatch.c...
+FAILED tests/test_fft.py::test_rfft_3d - AttributeError: module 'vkdispatch.c...
+FAILED tests/test_fft.py::test_irfft_1d - AttributeError: module 'vkdispatch....
+FAILED tests/test_fft.py::test_irfft_2d - AttributeError: module 'vkdispatch....
+FAILED tests/test_fft.py::test_irfft_3d - AttributeError: module 'vkdispatch....
+FAILED tests/test_fft_padded.py::test_fft_1d - AttributeError: module 'vkdisp...
+FAILED tests/test_fft_padded.py::test_fft_2d - AttributeError: module 'vkdisp...
+FAILED tests/test_fft_padded.py::test_rfft_1d - AttributeError: module 'vkdis...
+FAILED tests/test_fft_padded.py::test_rfft_2d - AttributeError: module 'vkdis...
+FAILED tests/test_image.py::test_1d_image_linear_sampling - AttributeError: '...
+FAILED tests/test_image.py::test_2d_image_linear_sampling - AttributeError: '...
+FAILED tests/test_reductions.py::test_reductions_sum - AttributeError: 'Shade...
+FAILED tests/test_reductions.py::test_mapped_reductions - AttributeError: 'Sh...
+FAILED tests/test_reductions.py::test_listed_reductions - AttributeError: 'Sh...
+FAILED tests/test_reductions.py::test_pure_reductions - AttributeError: 'Shad...
+FAILED tests/test_reductions.py::test_pure_reductions_with_mapping_function
+FAILED tests/test_reductions.py::test_batched_mapped_reductions - AttributeEr...
+FAILED tests/test_vkfft.py::test_fft_1d - AssertionError: assert False
+FAILED tests/test_vkfft.py::test_fft_2d - AssertionError: assert False
+FAILED tests/test_vkfft.py::test_fft_3d - AssertionError: assert False
+FAILED tests/test_vkfft.py::test_ifft_1d - AssertionError: assert False
+FAILED tests/test_vkfft.py::test_ifft_2d - AssertionError: assert False
+FAILED tests/test_vkfft.py::test_ifft_3d - AssertionError: assert False
+FAILED tests/test_vkfft.py::test_rfft_1d - AssertionError: assert False
+FAILED tests/test_vkfft.py::test_rfft_2d - AssertionError: assert False
+FAILED tests/test_vkfft.py::test_rfft_3d - AssertionError: assert False
+================== 37 failed, 15 passed, 1 warning in 24.61s ===================

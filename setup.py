@@ -262,6 +262,7 @@ setup(
         "vkdispatch.base", 
         "vkdispatch.codegen",
         "vkdispatch.codegen.functions", 
+        "vkdispatch.codegen.functions.base_functions", 
         "vkdispatch.codegen.variables", 
         "vkdispatch.execution_pipeline", 
         "vkdispatch.shader_generation", 

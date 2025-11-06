@@ -5,6 +5,10 @@ import numpy as np
 
 from . import utils
 
+def comment(self, comment: str) -> None:
+    utils.append_contents("\n")
+    utils.append_contents(f"/* {comment} */\n")
+
 def abs(var: Any) -> Union[BaseVariable, float]:
     if utils.is_number(var):
         return abs(var)
