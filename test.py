@@ -58,23 +58,21 @@ def test_convolution_2d_transpose():
     vd.fft.cache_clear()
 
 
-test_convolution_2d_transpose()
+#test_convolution_2d_transpose()
 
 #test_fft_1d()
 
-data = np.random.rand(55, 2).astype(np.complex64)
-test_data = vd.Buffer(data.shape, vd.complex64)
+#data = np.random.rand(11, 2, 5).astype(np.complex64)
+data = np.random.rand(11, 2, 5).astype(np.complex64)
+data2 = np.random.rand(11, 2, 5).astype(np.complex64)
 
-test_data.write(data)
+test_data = vd.asbuffer(data)
+kernel_data = vd.asbuffer(data2)
 
-vd.fft.fft(test_data, axis=0, print_shader=True)
+vd.fft.fft2(kernel_data)
+#kernel_transposed = vd.fft.transpose(kernel_data, axis=len(kernel_data.shape)-2)
+vd.fft.convolve2D(test_data, kernel_data, print_shader=True) #, transposed_kernel=True)
 
-fft_data = test_data.read(0)
-np_data = np.fft.fft(data, axis=0)
+reference_data = numpy_convolution(data, data2)
 
-#print(np_data[0])
-
-# np.save("fft_np.npy", np_data.reshape(1001, 22))
-# np.save("fft_vk.npy", fft_data.reshape(1001, 22))
-
-assert np.allclose(np_data, fft_data, atol=1e-3)
+assert np.allclose(reference_data, test_data.read(0), atol=1e-3)
