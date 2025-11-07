@@ -36,7 +36,7 @@ def mult_complex_conj(arg1: ShaderVariable, arg2: ShaderVariable):
     a1 = validate_complex_number(arg1)
     a2 = validate_complex_number(arg2)
 
-    return to_complex(a1.real * a2.real + a1.imag * a2.imag, a1.real * a2.imag - a1.imag * a2.real)
+    return to_complex(a1.real * a2.real + a1.imag * a2.imag, a1.imag * a2.real - a1.real * a2.imag)
 
 
 def mult_complex_fma(register_out: ShaderVariable, register_a: ShaderVariable, register_b: complex):
@@ -61,5 +61,5 @@ def mult_complex_conj_fma(register_out: ShaderVariable, register_a: ShaderVariab
     r_out.real = r_a.imag * r_b.imag
     r_out.real = fma(r_a.real, r_b.real, r_out.real)
 
-    r_out.imag = r_a.imag * -r_b.real
-    r_out.imag = fma(r_a.real, r_b.imag, r_out.imag)
+    r_out.imag = r_a.imag * r_b.real
+    r_out.imag = fma(r_a.real, -r_b.imag, r_out.imag)
