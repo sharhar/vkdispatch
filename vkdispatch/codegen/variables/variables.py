@@ -20,9 +20,6 @@ from ..functions.base_functions import bitwise
 from ..functions.base_functions import arithmetic_comparisons
 from ..functions.base_functions import base_utils
 
-#from ..functions.type_casting import to_dtype
-#from ..functions.registers import new_register
-
 ENABLE_SCALED_AND_OFFSET_INT = True
 
 def is_int_power_of_2(n: int) -> bool:
@@ -115,6 +112,8 @@ class ShaderDescription:
         return description_string
 
 class ShaderVariable(BaseVariable):
+    _initilized: bool = False
+
     def __init__(self,
                  var_type: dtypes.dtype, 
                  name: Optional[str] = None,
@@ -158,6 +157,8 @@ class ShaderVariable(BaseVariable):
         
         if dtypes.is_matrix(self.var_type):
             self._register_shape()
+
+        self._initilized = True
 
     def _register_shape(self, shape_var: "BaseVariable" = None, shape_name: str = None, use_child_type: bool = True):
         self.shape = shape_var
@@ -214,6 +215,80 @@ class ShaderVariable(BaseVariable):
             value.read_callback()
 
         append_contents(f"{self.resolve()}[{shader_var_name(index)}] = {shader_var_name(value)};\n")
+
+    def __setattr__(self, name: str, value: "ShaderVariable") -> "ShaderVariable":
+        attrib_error = False
+        attrib_error_msg = ""
+
+        try:
+            if self._initilized:
+                if dtypes.is_complex(self.var_type):
+                    if name == "real":
+                        self.write_callback()
+
+                        if isinstance(value, ShaderVariable):
+                            value.read_callback()
+
+                        base_utils.append_contents(f"{self.resolve()}.x = {shader_var_name(value)};\n")
+                        return
+                    
+                    if name == "imag":
+                        self.write_callback()
+
+                        if isinstance(value, ShaderVariable):
+                            value.read_callback()
+                        
+                        base_utils.append_contents(f"{self.resolve()}.y = {shader_var_name(value)};\n")
+                        return
+                
+                    if name == "x" or name == "y":
+                        self.write_callback()
+
+                        if isinstance(value, ShaderVariable):
+                            value.read_callback()
+                            
+                        base_utils.append_contents(f"{self.resolve()}.{name} = {shader_var_name(value)};\n")
+                        return
+                
+                if dtypes.is_vector(self.var_type):
+                    if name == "y" and self.var_type.shape[0] < 2:
+                        attrib_error = True
+                        attrib_error_msg = f"Cannot set attribute '{name}' in a {self.var_type.name}!"
+                    
+                    if name == "z" and self.var_type.shape[0] < 3:
+                        attrib_error = True
+                        attrib_error_msg = f"Cannot set attribute '{name}' in a {self.var_type.name}!"
+
+                    if name == "w" and self.var_type.shape[0] < 4:
+                        attrib_error = True
+                        attrib_error_msg = f"Cannot set attribute '{name}' in a {self.var_type.name}!"
+
+                    if not attrib_error and (name == "x" or name == "y" or name == "z" or name == "w"):
+                        self.write_callback()
+
+                        if isinstance(value, ShaderVariable):
+                            value.read_callback()
+                            
+                        base_utils.append_contents(f"{self.resolve()}.{name} = {shader_var_name(value)};\n")
+                        return
+                
+                if dtypes.is_scalar(self.var_type):
+                    if name == "x":
+                        self.write_callback()
+
+                        if isinstance(value, ShaderVariable):
+                            value.read_callback()
+                            
+                        base_utils.append_contents(f"{self.resolve()} = {shader_var_name(value)};\n")
+                        return
+        except:
+            super().__setattr__(name, value)
+            return
+        
+        if attrib_error:
+            raise AttributeError(attrib_error_msg)
+
+        super().__setattr__(name, value)
 
     def __bool__(self) -> bool:
         raise ValueError(f"Vkdispatch variables cannot be cast to a python boolean")

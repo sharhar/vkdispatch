@@ -83,7 +83,7 @@ class FFTSDataManager:
             self.resources.io_index[:] = read_op.fft_index + self.sdata_offset
 
             if self.use_padding:
-                self.resources.io_index[:] = self.resources.io_index + (self.resources.io_index / self.sdata_row_size)
+                self.resources.io_index[:] = self.resources.io_index + (self.resources.io_index // self.sdata_row_size)
             
             registers[read_op.register_id] = self.sdata[self.resources.io_index]
 
@@ -99,6 +99,6 @@ class FFTSDataManager:
             self.resources.io_index[:] = write_op.fft_index + self.sdata_offset
 
             if self.use_padding:
-                self.resources.io_index[:] = self.resources.io_index + (self.resources.io_index / self.sdata_row_size)
+                self.resources.io_index[:] = self.resources.io_index + (self.resources.io_index // self.sdata_row_size)
 
             self.sdata[self.resources.io_index] = registers[write_op.register_id]
