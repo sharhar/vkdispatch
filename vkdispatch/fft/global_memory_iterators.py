@@ -74,7 +74,7 @@ class GlobalWriteOp(MemoryOp):
             vc.end()
             return
 
-        buffer[io_index / 2][io_index % 2] = register.x
+        buffer[io_index // 2][io_index % 2] = register.x
 
 def global_writes_iterator(
         registers: FFTRegisters,
@@ -162,7 +162,7 @@ class GlobalReadOp(MemoryOp):
             return
 
         vc.else_statement()
-        register[:] = "vec2(0)"
+        register[:] = vc.to_complex(0) #"vec2(0)"
         vc.end()
 
     def read_from_buffer(self, buffer: vc.Buff[vc.c64], register: Optional[vc.ShaderVariable] = None):
@@ -176,8 +176,8 @@ class GlobalReadOp(MemoryOp):
             return
 
         if not self.inverse:
-            real_value = buffer[self.io_index / 2][self.io_index % 2]
-            register[:] = f"vec2({real_value}, 0)"
+            real_value = buffer[self.io_index // 2][self.io_index % 2]
+            register[:] = vc.to_complex(real_value) # f"vec2({real_value}, 0)"
             return
 
         vc.if_statement(self.fft_index >= (self.fft_size // 2) + 1)
