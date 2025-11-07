@@ -26,17 +26,17 @@ def global_reduce(
         params: ReductionParams,
         map_func: Callable = None):
     
-    ind = (vc.global_invocation().x * params.input_stride).copy("ind")
-    reduction_aggregate = vc.new(out_type, reduction.identity, var_name="reduction_aggregate")
+    ind = (vc.global_invocation_id().x * params.input_stride).to_register("ind")
+    reduction_aggregate = vc.new_register(out_type, reduction.identity, var_name="reduction_aggregate")
 
-    batch_offset = vc.workgroup().y * params.input_y_batch_stride
-    inside_batch_offset = vc.workgroup().z * params.input_z_batch_stride
+    batch_offset = vc.workgroup_id().y * params.input_y_batch_stride
+    inside_batch_offset = vc.workgroup_id().z * params.input_z_batch_stride
 
-    start_index = vc.new_uint(params.input_offset + inside_batch_offset + batch_offset, var_name="start_index")
+    start_index = vc.new_uint_register(params.input_offset + inside_batch_offset + batch_offset, var_name="start_index")
 
-    current_index = vc.new_uint(start_index + ind, var_name="current_index")
+    current_index = vc.new_uint_register(start_index + ind, var_name="current_index")
 
-    end_index = vc.new_uint(start_index + params.input_size, var_name="end_index")
+    end_index = vc.new_uint_register(start_index + params.input_size, var_name="end_index")
 
     vc.while_statement(current_index < end_index)
 
@@ -60,7 +60,7 @@ def workgroup_reduce(
         reduction: vd.ReductionOperation,
         out_type: vd.dtype,
         group_size: int):
-    tid = vc.local_invocation().x
+    tid = vc.local_invocation_id().x
     
     sdata = vc.shared_buffer(out_type, group_size, var_name="sdata")
 
@@ -76,7 +76,7 @@ def workgroup_reduce(
             vc.end()
         else:
             vc.else_if_statement(tid < 2*vc.subgroup_size())
-            sdata[tid] = vc.new(out_type, 0)
+            sdata[tid] = vc.new_register(out_type, 0)
             vc.end()
         
         vc.barrier()
@@ -89,7 +89,7 @@ def subgroup_reduce(
         sdata: vc.ShaderVariable,
         reduction: vd.ReductionOperation,
         group_size: int):
-    tid = vc.local_invocation().x
+    tid = vc.local_invocation_id().x
     subgroup_size = vd.get_context().subgroup_size
 
     if group_size > subgroup_size:
@@ -100,7 +100,7 @@ def subgroup_reduce(
     
     
     if reduction.subgroup_reduction is not None:
-        local_var = sdata[tid].copy("local_var")
+        local_var = sdata[tid].to_register("local_var")
         local_var[:] = reduction.subgroup_reduction(local_var)
 
         return local_var
@@ -146,10 +146,10 @@ def make_reduction_stage(
         sdata = workgroup_reduce(reduction_aggregate, reduction, out_type, group_size)
         local_var = subgroup_reduce(sdata, reduction, group_size)
 
-        batch_offset = vc.workgroup().y * params.output_y_batch_stride
-        output_offset = vc.workgroup().x * params.output_stride
+        batch_offset = vc.workgroup_id().y * params.output_y_batch_stride
+        output_offset = vc.workgroup_id().x * params.output_stride
 
-        vc.if_statement(vc.local_invocation().x == 0)
+        vc.if_statement(vc.local_invocation_id().x == 0)
         input_variables[0][batch_offset + output_offset + params.output_offset] = local_var
         vc.end()
 

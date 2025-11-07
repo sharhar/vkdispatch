@@ -33,7 +33,7 @@ class MappingFunction:
             vc.end(indent=False)
             return
 
-        return_var = vc.new(self.return_type)
+        return_var = vc.new_register(self.return_type)
 
         vc.new_scope(indent=False)
         return_var[:] = self.mapping_function(*args)

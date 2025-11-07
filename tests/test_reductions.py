@@ -97,8 +97,7 @@ def test_pure_reductions():
 
     @vd.reduce(0)
     def sum_reduce(a: f32, b: f32) -> f32:
-        result = (a + b).copy()
-        return result
+        return a + b
 
     res_buf = sum_reduce(buf)
 
@@ -127,8 +126,7 @@ def test_pure_reductions_with_mapping_function():
 
     @vd.reduce(0, mapping_function=reduction_map)
     def sum_reduce(a: f32, b: f32) -> f32:
-        result = (a + b).copy()
-        return result
+        return a + b
 
     res_buf = sum_reduce(buf)
 
