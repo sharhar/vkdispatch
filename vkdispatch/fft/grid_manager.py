@@ -111,7 +111,7 @@ def decompose_workgroup_index(
     )
 
     global_outer = vc.new_uint_register(
-        (workgroup_index / inner_batch_count) * local_size[2] + vc.local_invocation_id().z,
+        (workgroup_index // inner_batch_count) * local_size[2] + vc.local_invocation_id().z,
         var_name="global_outer_index"
     )
 
