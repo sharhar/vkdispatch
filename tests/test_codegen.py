@@ -25,10 +25,10 @@ def test_arithmetic():
             def my_shader(a: Buff[f32], b: Buff[f32]):
                 nonlocal signal, signal2
 
-                tid = vc.global_invocation().x
+                tid = vc.global_invocation_id().x
 
-                out_val = a[tid].copy()
-                other_val = b[tid].copy()
+                out_val = a[tid].to_register()
+                other_val = b[tid].to_register()
                 
                 for _ in range(op_count):
                     op_number = np.random.randint(0, 4)
