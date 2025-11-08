@@ -33,6 +33,14 @@ def local_invocation_id():
         lexical_unit=True
     )
 
+def local_invocation_index():
+    return utils.new_var(
+        dtypes.uint32,
+        "gl_LocalInvocationIndex",
+        [],
+        lexical_unit=True
+    )
+
 def workgroup_id():
     return utils.new_var(
         dtypes.uvec3,

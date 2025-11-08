@@ -56,7 +56,7 @@ from .functions.control_flow import logical_and, logical_or
 from .functions.complex_numbers import mult_complex, mult_complex_conj, complex_conjugate, complex_from_euler_angle
 from .functions.complex_numbers import mult_complex_fma, mult_complex_conj_fma
 
-from .functions.builtin_constants import global_invocation_id, local_invocation_id, workgroup_id
+from .functions.builtin_constants import global_invocation_id, local_invocation_id, workgroup_id, local_invocation_index
 from .functions.builtin_constants import workgroup_size, num_workgroups, num_subgroups, subgroup_id
 from .functions.builtin_constants import subgroup_size, subgroup_invocation_id, inf_f32, ninf_f32
 
