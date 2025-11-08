@@ -1,6 +1,8 @@
 from .variables import ShaderVariable
 import vkdispatch.base.dtype as dtypes
 
+from ..functions import type_casting
+
 from typing import Callable, Optional
 
 class BoundVariable(ShaderVariable):
@@ -78,15 +80,24 @@ class ImageVariable(BoundVariable):
         sample_coord_string = ""
 
         if self.dimensions == 1:
-            sample_coord_string = f"((({coord}) + 0.5) / textureSize({self}, 0))"        
+            sample_coord_string = f"((({coord.resolve()}) + 0.5) / textureSize({self.resolve()}, 0))"        
         elif self.dimensions == 2:
-            sample_coord_string = f"((vec2({coord}.xy) + 0.5) / vec2(textureSize({self}, 0)))"
+            sample_coord_string = f"((vec2({coord.resolve()}.xy) + 0.5) / vec2(textureSize({self.resolve()}, 0)))"
         elif self.dimensions == 3:
-            sample_coord_string = f"((vec3({coord}.xyz) + 0.5) / vec3(textureSize({self}, 0)))"
+            sample_coord_string = f"((vec3({coord.resolve()}.xyz) + 0.5) / vec3(textureSize({self.resolve()}, 0)))"
         else:
             raise ValueError("Unsupported number of dimensions!")
 
         if lod is None:
-            return self.new(dtypes.vec4, f"texture({self}, {sample_coord_string})", [self])
+            return type_casting.str_to_dtype(
+                 dtypes.vec4,
+                 f"texture({self.resolve()}, {sample_coord_string})",
+                 [self],
+                 lexical_unit=True)
         
-        return self.new(dtypes.vec4, f"textureLod({self}, {sample_coord_string}, {lod})", [self])
+        return type_casting.str_to_dtype(
+                 dtypes.vec4,
+                 f"texture({self.resolve()}, {sample_coord_string}, {lod.resolve()})",
+                 [self, lod],
+                 lexical_unit=True)
+        

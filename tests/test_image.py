@@ -69,8 +69,9 @@ def test_2d_image_linear_sampling():
     @vd.shader("buff.size")
     def do_approx(buff: Buff[f32], img: Img2[f32]):
         ind = vc.global_invocation_id().x.to_register()
-        ind_2d = vc.unravel_index(ind, buff.shape)
-        buff[ind] = img.sample((ind_2d.to_dtype(v2)) / sample_factor).x
+        ind_2d = vc.ravel_index(ind, buff.shape).to_register()
+        ind_2d_transposed = vc.new_vec2_register(ind_2d.y, ind_2d.x)
+        buff[ind] = img.sample(ind_2d_transposed / sample_factor).x
 
     do_approx(result_arr, test_img.sample())
 
