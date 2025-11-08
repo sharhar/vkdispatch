@@ -2,6 +2,8 @@ import vkdispatch.base.dtype as dtypes
 
 from ..variables.variables import ShaderVariable
 
+from . import type_casting
+
 from . import utils
 
 from typing import List, Union, Tuple
@@ -53,39 +55,18 @@ def ravel_index(index: Union[ShaderVariable, int], shape: Union[ShaderVariable, 
     assert len(sanitized_shape) == 2 or len(sanitized_shape) == 3, f"Shape must have 2 or 3 elements, not '{shape}'!"
 
     if len(sanitized_shape) == 2:
-        out_type = dtypes.ivec2
+        x = sanitized_index[0] // sanitized_shape[1]
+        y = sanitized_index[0] % sanitized_shape[1]
 
-        if static_index and static_shape:
-            x = sanitized_index[0] // sanitized_shape[1]
-            y = sanitized_index[0] % sanitized_shape[1]
-        else:
-            x = sanitized_index[0] / sanitized_shape[1]
-            y = sanitized_index[0] % sanitized_shape[1]
-
-        variable_text = f"uvec2({x}, {y})"
-
+        return type_casting.to_uvec2(x, y)
     elif len(sanitized_shape) == 3:
-        out_type = dtypes.ivec3
+        x = sanitized_index[0] // (sanitized_shape[1] * sanitized_shape[2])
+        y = (sanitized_index[0] // sanitized_shape[2]) % sanitized_shape[1]
+        z = sanitized_index[0] % sanitized_shape[2]
 
-        if static_index and static_shape:
-            x = sanitized_index[0] // (sanitized_shape[1] * sanitized_shape[2])
-            y = (sanitized_index[0] // sanitized_shape[2]) % sanitized_shape[1]
-            z = sanitized_index[0] % sanitized_shape[2]
-        else:
-            x = sanitized_index[0] / (sanitized_shape[1] * sanitized_shape[2])
-            y = (sanitized_index[0] / sanitized_shape[2]) % sanitized_shape[1]
-            z = sanitized_index[0] % sanitized_shape[2]
-
-        variable_text = f"uvec3({x}, {y}, {z})"
+        return type_casting.to_uvec3(x, y, z)
     else:
         raise RuntimeError("Ravel index only supports shapes with 2 or 3 elements!")
-
-    return utils.new_var(
-        out_type,
-        variable_text,
-        [index, shape],
-        lexical_unit=True
-    )
 
 def unravel_index(index: Union[ShaderVariable, Tuple[int, ...]], shape: Union[ShaderVariable, Tuple[int, ...]]):
     sanitized_shape, _ = sanitize_input(shape)
