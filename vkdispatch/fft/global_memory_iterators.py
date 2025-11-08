@@ -134,15 +134,6 @@ class GlobalReadOp(MemoryOp):
                    signal_range=signal_range
                 )
 
-    def write_transpose(self, buffer: vc.Buff[vc.c64], register: Optional[vc.ShaderVariable] = None):
-        assert self.format_transposed, "Transpose write called on non-transposed read op"
-        assert not self.r2c, "Transpose write not supported for r2c"
-
-        if register is None:
-            register = self.register
-
-        register[:] = buffer[self.io_index]
-
     def check_in_signal_range(self) -> bool:
         if self.signal_range == (0, self.fft_size):
             return
@@ -162,7 +153,7 @@ class GlobalReadOp(MemoryOp):
             return
 
         vc.else_statement()
-        register[:] = vc.to_complex(0) #"vec2(0)"
+        register[:] = vc.to_complex(0)
         vc.end()
 
     def read_from_buffer(self, buffer: vc.Buff[vc.c64], register: Optional[vc.ShaderVariable] = None):
@@ -173,11 +164,13 @@ class GlobalReadOp(MemoryOp):
 
         if not self.r2c:
             register[:] = buffer[self.io_index]
+            self.signal_range_end(register)
             return
 
         if not self.inverse:
             real_value = buffer[self.io_index // 2][self.io_index % 2]
-            register[:] = vc.to_complex(real_value) # f"vec2({real_value}, 0)"
+            register[:] = vc.to_complex(real_value)
+            self.signal_range_end(register)
             return
 
         vc.if_statement(self.fft_index >= (self.fft_size // 2) + 1)
@@ -205,14 +198,13 @@ def resolve_signal_range(
 
     return start, end
 
-
 def global_reads_iterator(
         registers: FFTRegisters,
         r2c: bool = False,
         inverse: bool = None,
         format_transposed: bool = False,
         signal_range: Optional[Tuple[Optional[int], Optional[int]]] = None):
-    
+
     signal_range = resolve_signal_range(signal_range, registers.config.N)
 
     vc.comment(f"Reading registers from global memory")
@@ -224,12 +216,11 @@ def global_reads_iterator(
     config = registers.config
     
     if format_transposed:
-        local_index = vc.local_invocation_id().z * vc.workgroup_size().x * vc.workgroup_size().y + \
-                      vc.local_invocation_id().y * vc.workgroup_size().x + vc.local_invocation_id().x
         work_index = vc.workgroup_id().z * vc.num_workgroups().x * vc.num_workgroups().y + \
                      vc.workgroup_id().y * vc.num_workgroups().x + vc.workgroup_id().x
 
-        resources.input_batch_offset[:] = local_index + work_index * (vc.workgroup_size().x * vc.workgroup_size().y * vc.workgroup_size().z)
+        resources.input_batch_offset[:] = vc.local_invocation_index() + \
+                                            work_index * (vc.workgroup_size().x * vc.workgroup_size().y * vc.workgroup_size().z)
         r2c_inverse_offset = None # Transposed r2c not supported anyways
         transpose_stride = np.prod(resources.grid.workgroup_count) * np.prod(resources.grid.local_size)
     else:
@@ -283,14 +274,11 @@ def global_trasposed_write_iterator(registers: FFTRegisters):
 
     resources = registers.resources
     
-
-    # https://registry.khronos.org/OpenGL-Refpages/gl4/html/gl_LocalInvocationIndex.xhtml
-    local_index = vc.local_invocation_id().z * vc.workgroup_size().x * vc.workgroup_size().y + \
-                    vc.local_invocation_id().y * vc.workgroup_size().x + vc.local_invocation_id().x
     work_index = vc.workgroup_id().z * vc.num_workgroups().x * vc.num_workgroups().y + \
                     vc.workgroup_id().y * vc.num_workgroups().x + vc.workgroup_id().x
 
-    resources.input_batch_offset[:] = local_index + work_index * (vc.workgroup_size().x * vc.workgroup_size().y * vc.workgroup_size().z)
+    resources.input_batch_offset[:] = vc.local_invocation_index() + \
+                                     work_index * (vc.workgroup_size().x * vc.workgroup_size().y * vc.workgroup_size().z)
     transpose_stride = np.prod(resources.grid.workgroup_count) * np.prod(resources.grid.local_size)
 
     for read_op in memory_reads_iterator(resources, 0): # Iterate in read order to match register format when reading

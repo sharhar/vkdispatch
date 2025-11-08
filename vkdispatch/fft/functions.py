@@ -2,7 +2,7 @@ import vkdispatch as vd
 
 from .shader_factories import make_fft_shader, make_convolution_shader, make_transpose_shader, get_transposed_size
 
-from typing import Tuple, Union
+from typing import Tuple, Union, Optional
 
 def fft(
         *buffers: vd.Buffer,
@@ -15,7 +15,8 @@ def fft(
         normalize_inverse: bool = True,
         r2c: bool = False,
         input_map: vd.MappingFunction = None,
-        output_map: vd.MappingFunction = None):
+        output_map: vd.MappingFunction = None,
+        input_signal_range: Union[Tuple[Optional[int], Optional[int]], None] = None):
     
     assert len(buffers) >= 1, "At least one buffer must be provided"
     
@@ -29,7 +30,8 @@ def fft(
         normalize_inverse=normalize_inverse,
         r2c=r2c,
         input_map=input_map,
-        output_map=output_map)
+        output_map=output_map,
+        input_signal_range=input_signal_range)
 
     if print_shader:
         print(fft_shader)
@@ -119,7 +121,8 @@ def convolve(
         name: str = None,
         transposed_kernel: bool = False,
         input_map: vd.MappingFunction = None,
-        output_map: vd.MappingFunction = None):
+        output_map: vd.MappingFunction = None,
+        input_signal_range: Union[Tuple[Optional[int], Optional[int]], None] = None):
     if buffer_shape is None:
         buffer_shape = buffers[0].shape
 
@@ -131,7 +134,8 @@ def convolve(
         transposed_kernel=transposed_kernel,
         normalize=normalize,
         input_map=input_map,
-        output_map=output_map)
+        output_map=output_map,
+        input_signal_range=input_signal_range)
 
     if print_shader:
         print(fft_shader)
