@@ -128,14 +128,15 @@ def make_convolution_shader(
 
             set_global_kernel_index(kern_index)
             io_manager.read_kernel(format_transposed=transposed_kernel)
-            set_global_kernel_index(None)
-            
+                        
             ctx.execute(inverse=True)
 
             if normalize:
                 ctx.registers.normalize()
 
             io_manager.write_output(inverse=True)
+
+            set_global_kernel_index(None)
     
     return ctx.get_callable()
 
