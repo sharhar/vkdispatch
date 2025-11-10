@@ -1,8 +1,8 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
+from typing import List, Optional
 
-from typing import Callable
-from typing import List
+from .operations import ReduceOp
 
 import dataclasses
 
@@ -19,12 +19,21 @@ class ReductionParams:
     output_y_batch_stride: vd.int32
     output_z_batch_stride: vd.int32
 
+__static_global_io_index: vc.ShaderVariable = None
+
+def set_mapped_io_index(io_index: vc.ShaderVariable):
+    global __static_global_io_index
+    __static_global_io_index = io_index
+
+def mapped_io_index() -> vc.ShaderVariable:
+    return __static_global_io_index
+
 def global_reduce(
-        reduction: vd.ReductionOperation, 
+        reduction: ReduceOp, 
         out_type: vd.dtype, 
         buffers: List[vc.BufferVariable], 
         params: ReductionParams,
-        map_func: Callable = None):
+        map_func: Optional[vd.MappingFunction] = None):
     
     ind = (vc.global_invocation_id().x * params.input_stride).to_register("ind")
     reduction_aggregate = vc.new_register(out_type, reduction.identity, var_name="reduction_aggregate")
@@ -42,10 +51,10 @@ def global_reduce(
 
     mapped_value = buffers[0][current_index]
 
-
     if map_func is not None:
-        vc.set_mapping_index(current_index)
-        mapped_value = map_func(*buffers)
+        set_mapped_io_index(current_index)
+        mapped_value = map_func.callback(*buffers)
+        set_mapped_io_index(None)
 
     reduction_aggregate[:] = reduction.reduction(reduction_aggregate, mapped_value)
 
@@ -57,7 +66,7 @@ def global_reduce(
 
 def workgroup_reduce(
         reduction_aggregate: vc.ShaderVariable,
-        reduction: vd.ReductionOperation,
+        reduction: ReduceOp,
         out_type: vd.dtype,
         group_size: int):
     tid = vc.local_invocation_id().x
@@ -87,7 +96,7 @@ def workgroup_reduce(
 
 def subgroup_reduce(
         sdata: vc.ShaderVariable,
-        reduction: vd.ReductionOperation,
+        reduction: ReduceOp,
         group_size: int):
     tid = vc.local_invocation_id().x
     subgroup_size = vd.get_context().subgroup_size
@@ -119,11 +128,11 @@ def subgroup_reduce(
         return result
 
 def make_reduction_stage(
-        reduction: vd.ReductionOperation, 
+        reduction: ReduceOp, 
         out_type: vd.dtype, 
         group_size: int, 
         output_is_input: bool,
-        map_func: Callable = None,
+        map_func: Optional[vd.MappingFunction] = None,
         input_types: List = None) -> vd.ShaderFunction:
     
     with vd.shader_context() as context:

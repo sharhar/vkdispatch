@@ -85,9 +85,9 @@ class ShaderBuilder(ShaderWriter):
         self.binding_write_access = {}
         self.shared_buffers = []
         self.scope_num = 1
-        self.mapping_index: ShaderVariable = None
-        self.kernel_index: ShaderVariable = None
-        self.mapping_registers: List[ShaderVariable] = None
+        # self.mapping_index: ShaderVariable = None
+        # self.kernel_index: ShaderVariable = None
+        # self.mapping_registers: List[ShaderVariable] = None
         
         self.exec_count = self.declare_constant(dtypes.uvec4, var_name="exec_count")
         
@@ -122,29 +122,6 @@ class ShaderBuilder(ShaderWriter):
                                            offset=offset,
                                            parents=parents)
 
-    def set_mapping_index(self, index: ShaderVariable):
-        self.mapping_index = index
-
-    def set_kernel_index(self, index: ShaderVariable):
-        self.kernel_index = index
-
-    def set_mapping_registers(self, registers: ShaderVariable):
-        self.mapping_registers = list(registers)    
-    
-    def make_var(self,
-                 var_type: dtype,
-                 var_name: Optional[str],
-                 parents: List[ShaderVariable],
-                 lexical_unit: bool = False,
-                 settable: bool = False) -> ShaderVariable:
-        return ShaderVariable(
-            var_type,
-            var_name,
-            lexical_unit=lexical_unit,
-            settable=settable,
-            parents=parents
-        )
-    
     def declare_constant(self, var_type: dtype, count: int = 1, var_name: Optional[str] = None):
         if var_name is None:
             var_name = self.new_name()

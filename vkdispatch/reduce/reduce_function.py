@@ -1,22 +1,24 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
-from typing import Callable
-from typing import List
+from .operations import ReduceOp
+from .stage import make_reduction_stage, ReductionParams
+
+from typing import List, Optional
 
 import numpy as np
 
-class ReductionObject:
+class ReduceFunction:
     def __init__(self,
-                 reduction: vd.ReductionOperation,
+                 reduction: ReduceOp,
                  group_size: int = None, 
                  axes: List[int] = None,
-                 mapping_function: vd.MappingFunction = None):
+                 mapping_function: Optional[vd.MappingFunction] = None):
         self.reduction = reduction
-        self.out_type = mapping_function.return_type #out_type
+        self.out_type = mapping_function.return_type
         self.group_size = group_size
-        self.map_func = mapping_function.callback # map_func
-        self.input_types = mapping_function.buffer_types # input_types if input_types is not None else [vc.Buffer[out_type]]
+        self.map_func = mapping_function
+        self.input_types = mapping_function.buffer_types
         self.axes = axes
 
         self.stage1 = None
@@ -32,7 +34,7 @@ class ReductionObject:
         if self.group_size % vd.get_context().subgroup_size != 0:
             raise ValueError("Group size must be a multiple of the sub-group size!")
         
-        self.stage1 = vd.make_reduction_stage(
+        self.stage1 = make_reduction_stage(
             self.reduction, 
             self.out_type, 
             self.group_size, 
@@ -41,7 +43,7 @@ class ReductionObject:
             input_types=self.input_types
         )
 
-        self.stage2 = vd.make_reduction_stage(
+        self.stage2 = make_reduction_stage(
             self.reduction, 
             self.out_type, 
             self.group_size, 
@@ -111,7 +113,7 @@ class ReductionObject:
 
         reduction_buffer = vd.Buffer(tuple(output_buffer_shape), self.out_type)
 
-        stage1_params = vd.ReductionParams(
+        stage1_params = ReductionParams(
             input_offset=0,
             input_size=input_size,
             input_stride=input_stride,
@@ -127,7 +129,7 @@ class ReductionObject:
 
         self.stage1(reduction_buffer, *args, stage1_params, exec_size=stage1_exec_size, graph=my_graph)
 
-        stage2_params = vd.ReductionParams(
+        stage2_params = ReductionParams(
             input_offset=batch_count,
             input_size=workgroups_x,
             input_stride=1,

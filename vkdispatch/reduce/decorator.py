@@ -4,6 +4,9 @@ import vkdispatch.codegen as vc
 import inspect
 from typing import Callable, TypeVar
 
+from .stage import mapped_io_index, ReduceOp
+from .reduce_function import ReduceFunction
+
 import sys
 
 RetType = TypeVar('RetType')
@@ -12,29 +15,9 @@ RetType2 = TypeVar('RetType2')
 if sys.version_info >= (3, 10):
     from typing import ParamSpec
     P = ParamSpec('P')
-    P2 = ParamSpec('P2')
 else:
     P = ...  # Placeholder for older Python versions
-    P2 = ...  # Placeholder for older Python versions
 
-def shader(
-        exec_size=None,
-        local_size=None,
-        workgroups=None,    
-        flags: vc.ShaderFlags = vc.ShaderFlags.NONE):
-    if workgroups is not None and exec_size is not None:
-        raise ValueError("Cannot specify both 'workgroups' and 'exec_size'")
-
-    def decorator(func: Callable[P, None]) -> Callable[P, None]:
-        return vd.ShaderFunction(
-            func,
-            local_size=local_size,
-            workgroups=workgroups,
-            exec_count=exec_size,
-            flags=flags
-        )
-    
-    return decorator
 
 def reduce(identity, axes=None, group_size=None, mapping_function: vd.MappingFunction = None):
     def decorator(func: Callable[..., RetType]) -> Callable[[vd.Buffer[RetType]], vd.Buffer[RetType]]:
@@ -47,14 +30,14 @@ def reduce(identity, axes=None, group_size=None, mapping_function: vd.MappingFun
         
         if used_mapping_function is None:
             used_mapping_function = vd.map(
-                func = lambda buffer: buffer[vc.mapping_index()],
+                func = lambda buffer: buffer[mapped_io_index()],
                 return_type=func_signature.return_annotation,
                 input_types=[vc.Buffer[func_signature.return_annotation]])
         else:
             assert used_mapping_function.return_type == func_signature.return_annotation, "Mapping function return type must match the return type of the reduction function"
 
-        return vd.ReductionObject(
-            reduction=vd.ReductionOperation(
+        return ReduceFunction(
+            reduction=ReduceOp(
                 name=func.__name__,
                 reduction=func,
                 identity=identity
@@ -67,15 +50,15 @@ def reduce(identity, axes=None, group_size=None, mapping_function: vd.MappingFun
     
     return decorator
 
-def map_reduce(reduction: vd.ReductionOperation, axes=None, group_size=None):
-    def decorator(func: Callable[P2, RetType2]) -> Callable[P2, vd.Buffer[RetType2]]:
+def map_reduce(reduction: ReduceOp, axes=None, group_size=None):
+    def decorator_callback(func: Callable[P, RetType2]) -> Callable[P, vd.Buffer[RetType2]]:
         mapping_func = vd.map(func)
 
-        return vd.ReductionObject(
+        return ReduceFunction(
            reduction=reduction,
             group_size=group_size,
             axes=axes,
             mapping_function=mapping_func
         )
     
-    return decorator
+    return decorator_callback
