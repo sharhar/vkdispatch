@@ -12,6 +12,10 @@ from typing import Tuple
 #vd.initialize(debug_mode=True)
 vd.make_context(use_cpu=True)
 
+from vkdispatch.base.compute_plan import ComputePlan
+from vkdispatch.base.descriptor_set import DescriptorSet
+from vkdispatch.base.command_list import CommandList
+
 import numpy as np
 
 class CommandType(enum.Enum):
@@ -171,13 +175,13 @@ void main() {
 
     return header + body + ending
 
-program_cache: Dict[int, vd.ComputePlan] = {}
+program_cache: Dict[int, ComputePlan] = {}
 
-def get_program(index: int, config: RunConfig) -> vd.ComputePlan:
+def get_program(index: int, config: RunConfig) -> ComputePlan:
     global program_cache
 
     if index not in program_cache:
-        program_cache[index] = vd.ComputePlan(
+        program_cache[index] = ComputePlan(
             shader_source=make_source(config.program_commands[index]),
             binding_type_list=[1, 1],
             pc_size=4,
@@ -186,9 +190,9 @@ def get_program(index: int, config: RunConfig) -> vd.ComputePlan:
 
     return program_cache[index]
 
-descriptor_set_cache: Dict[Tuple[int, int, int], vd.DescriptorSet] = {}
+descriptor_set_cache: Dict[Tuple[int, int, int], DescriptorSet] = {}
 
-def get_descriptor_set(out_buffer: int, in_buffer: int, program: vd.ComputePlan, config: RunConfig) -> vd.DescriptorSet:
+def get_descriptor_set(out_buffer: int, in_buffer: int, program: ComputePlan, config: RunConfig) -> DescriptorSet:
     global descriptor_set_cache
 
     dict_key = (out_buffer, in_buffer, program._handle)
@@ -197,7 +201,7 @@ def get_descriptor_set(out_buffer: int, in_buffer: int, program: vd.ComputePlan,
         output_buffer = get_buffer(out_buffer, config)
         input_buffer = get_buffer(in_buffer, config)
 
-        descriptor_set = vd.DescriptorSet(program)
+        descriptor_set = DescriptorSet(program)
         descriptor_set.bind_buffer(output_buffer, 0)
         descriptor_set.bind_buffer(input_buffer, 1)
 
@@ -216,7 +220,7 @@ def clear_caches():
     program_cache.clear()
     descriptor_set_cache.clear()
 
-def do_vkdispatch_command(cmd_list: vd.CommandList, out_buffer: int, in_buffer: int, program: int, config: RunConfig):
+def do_vkdispatch_command(cmd_list: CommandList, out_buffer: int, in_buffer: int, program: int, config: RunConfig):
     compute_plan = get_program(program, config)
     descriptor_set = get_descriptor_set(out_buffer, in_buffer, compute_plan, config)
 
@@ -271,7 +275,7 @@ def test_async_commands():
         
         config = make_random_config()
 
-        cmd_list = vd.CommandList()
+        cmd_list = CommandList()
 
         exec_count = np.random.randint(1, 250)
 

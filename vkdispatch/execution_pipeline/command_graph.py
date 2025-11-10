@@ -1,17 +1,17 @@
 from typing import Any
-from typing import Callable
 from typing import List
 from typing import Dict
-from typing import Union
 from typing import Tuple
-from typing import Optional
 
 import uuid
 
-import numpy as np
 
 import vkdispatch as vd
 import vkdispatch.codegen as vc
+
+from vkdispatch.base.command_list import CommandList
+from vkdispatch.base.compute_plan import ComputePlan
+from vkdispatch.base.descriptor_set import DescriptorSet
 
 from .buffer_builder import BufferUsage
 from .buffer_builder import BufferBuilder
@@ -35,7 +35,7 @@ class ImageBindInfo:
     read_access: bool
     write_access: bool
 
-class CommandGraph(vd.CommandList):
+class CommandGraph(CommandList):
     """TODO: Docstring"""
 
     _reset_on_submit: bool
@@ -53,7 +53,7 @@ class CommandGraph(vd.CommandList):
     uniform_constants_size: int
     uniform_constants_buffer: vd.Buffer
 
-    uniform_descriptors: List[Tuple[vd.DescriptorSet, int, int]]
+    uniform_descriptors: List[Tuple[DescriptorSet, int, int]]
 
     name_to_pc_key_dict: Dict[str, List[Tuple[str, str]]]
     queued_pc_values: Dict[Tuple[str, str], Any]
@@ -113,7 +113,7 @@ class CommandGraph(vd.CommandList):
             self.queued_pc_values[key] = value
     
     def record_shader(self, 
-                      plan: vd.ComputePlan,
+                      plan: ComputePlan,
                       shader_description: vc.ShaderDescription, 
                       exec_limits: Tuple[int, int, int], 
                       blocks: Tuple[int, int, int],
@@ -123,7 +123,7 @@ class CommandGraph(vd.CommandList):
                       pc_values: Dict[str, Any] = {},
                       shader_uuid: str = None
                     ) -> None:
-        descriptor_set = vd.DescriptorSet(plan)
+        descriptor_set = DescriptorSet(plan)
 
         if shader_uuid is None:
             shader_uuid = shader_description.name + "_" + str(uuid.uuid4())

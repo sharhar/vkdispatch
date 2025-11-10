@@ -7,6 +7,8 @@ import vkdispatch as vd
 from typing import List
 from typing import Tuple
 
+from vkdispatch.base.errors import check_for_errors
+
 from ..base.context import get_context, Context, Handle
 
 class VkFFTPlan(Handle):
@@ -84,31 +86,31 @@ class VkFFTPlan(Handle):
             single_kernel_multiple_batches,
             keep_shader_code
         )
-        vd.check_for_errors()
+        check_for_errors()
 
         self.register_handle(handle)
 
     def _destroy(self):
         vkdispatch_native.stage_fft_plan_destroy(self._handle)
-        vd.check_for_errors()
+        check_for_errors()
 
     def __del__(self):
         self.destroy()
 
-    def record(self, command_list: vd.CommandList, buffer: vd.Buffer, inverse: bool = False, kernel: vd.Buffer = None, input: vd.Buffer = None):
+    def record(self, graph: vd.CommandGraph, buffer: vd.Buffer, inverse: bool = False, kernel: vd.Buffer = None, input: vd.Buffer = None):
         vkdispatch_native.stage_fft_record(
-            command_list._handle, 
+            graph._handle, 
             self._handle, 
             buffer._handle, 
             1 if inverse else -1, 
             kernel._handle if kernel is not None else 0,
             input._handle if input is not None else 0
         )
-        vd.check_for_errors()
+        check_for_errors()
 
-    def record_forward(self, command_list: vd.CommandList, buffer: vd.Buffer):
-        self.record(command_list, buffer, False)
+    def record_forward(self, graph: vd.CommandGraph, buffer: vd.Buffer):
+        self.record(graph, buffer, False)
 
-    def record_inverse(self, command_list: vd.CommandList, buffer: vd.Buffer):
-        self.record(command_list, buffer, True)
+    def record_inverse(self, graph: vd.CommandGraph, buffer: vd.Buffer):
+        self.record(graph, buffer, True)
 

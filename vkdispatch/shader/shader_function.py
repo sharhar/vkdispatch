@@ -7,6 +7,10 @@ from typing import Callable
 from typing import List
 from typing import Any
 
+from vkdispatch.base.compute_plan import ComputePlan
+
+from .signature import ShaderArgumentType, ShaderSignature
+
 import uuid
 
 import dataclasses
@@ -129,10 +133,10 @@ class ExectionBounds:
         return (my_blocks, my_limits)
 
 class ShaderFunction:
-    plan: vd.ComputePlan
+    plan: ComputePlan
     func: Callable
     shader_description: vc.ShaderDescription
-    shader_signature: vd.ShaderSignature
+    shader_signature: ShaderSignature
     bounds: ExectionBounds
     ready: bool
     source: str
@@ -159,7 +163,7 @@ class ShaderFunction:
 
     def from_description(
         shader_description: vc.ShaderDescription,
-        shader_signature: vd.ShaderSignature,
+        shader_signature: ShaderSignature,
         local_size=None,
         workgroups=None,
         exec_count=None,
@@ -198,7 +202,7 @@ class ShaderFunction:
             )
             old_builder = vc.set_global_builder(builder)
 
-            signature = vd.ShaderSignature.from_inspectable_function(builder, self.func)
+            signature = ShaderSignature.from_inspectable_function(builder, self.func)
             
             self.func(*signature.get_variables())
 
@@ -214,7 +218,7 @@ class ShaderFunction:
         )
 
         try:
-            self.plan = vd.ComputePlan(
+            self.plan = ComputePlan(
                 self.source, 
                 self.shader_description.binding_type_list, 
                 self.shader_description.pc_size, 
@@ -281,7 +285,7 @@ class ShaderFunction:
                 else:
                     arg = kwargs[shader_arg.name]
 
-            if shader_arg.arg_type == vd.ShaderArgumentType.BUFFER:
+            if shader_arg.arg_type == ShaderArgumentType.BUFFER:
                 if not isinstance(arg, vd.Buffer):
                     raise ValueError(f"Expected a buffer for argument '{shader_arg.name}' but got '{arg}'!")
                 
@@ -293,7 +297,7 @@ class ShaderFunction:
                     write_access=self.shader_description.binding_access[shader_arg.binding][1]
                 ))
 
-            elif shader_arg.arg_type == vd.ShaderArgumentType.IMAGE:
+            elif shader_arg.arg_type == ShaderArgumentType.IMAGE:
                 if not isinstance(arg, vd.Sampler):
                     raise ValueError(f"Expected an image for argument '{shader_arg.name}'!")
                 
@@ -304,20 +308,20 @@ class ShaderFunction:
                     write_access=self.shader_description.binding_access[shader_arg.binding][1]
                 ))
             
-            elif shader_arg.arg_type == vd.ShaderArgumentType.CONSTANT:
+            elif shader_arg.arg_type == ShaderArgumentType.CONSTANT:
                 if callable(arg):
                     raise ValueError("Cannot use LaunchVariables for Constants")
 
                 uniform_values[shader_arg.shader_name] = arg
             
-            elif shader_arg.arg_type == vd.ShaderArgumentType.CONSTANT_DATACLASS:
+            elif shader_arg.arg_type == ShaderArgumentType.CONSTANT_DATACLASS:
                 if callable(arg):
                     raise ValueError("Cannot use LaunchVariables for Constants")
                 
                 for field in dataclasses.fields(arg):
                     uniform_values[shader_arg.shader_name[field.name]] = getattr(arg, field.name)
 
-            elif shader_arg.arg_type == vd.ShaderArgumentType.VARIABLE:
+            elif shader_arg.arg_type == ShaderArgumentType.VARIABLE:
                 if len(self.shader_description.pc_structure) == 0:
                     raise ValueError("Something went wrong with push constants!!")
 

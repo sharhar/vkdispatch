@@ -68,6 +68,15 @@ def make_transpose_shader(
 
     return ctx.get_callable()
 
+__static_global_kernel_index: int = None
+
+def set_global_kernel_index(index: Optional[int]):
+    global __static_global_kernel_index
+    __static_global_kernel_index = index
+
+def mapped_kernel_index() -> Optional[int]:
+    return __static_global_kernel_index
+
 @lru_cache(maxsize=None)
 def make_convolution_shader(
         buffer_shape: Tuple,
@@ -117,8 +126,10 @@ def make_convolution_shader(
             if backup_registers is not None:
                 ctx.registers.read_from_registers(backup_registers)
 
-            vc.set_kernel_index(kern_index)
+            set_global_kernel_index(kern_index)
             io_manager.read_kernel(format_transposed=transposed_kernel)
+            set_global_kernel_index(None)
+            
             ctx.execute(inverse=True)
 
             if normalize:

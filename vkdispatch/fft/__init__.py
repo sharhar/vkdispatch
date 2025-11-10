@@ -16,7 +16,7 @@ from .io_manager import IOManager, mapped_read_op, mapped_write_op
 
 from .context import fft_context
 
-from .shader_factories import make_fft_shader, get_cache_info, cache_clear, print_cache_info
+from .shader_factories import make_fft_shader, get_cache_info, cache_clear, print_cache_info, mapped_kernel_index
 from .shader_factories import make_convolution_shader, make_transpose_shader, get_transposed_size
 
 from .functions import fft, fft2, fft3, ifft, ifft2, ifft3

@@ -265,7 +265,7 @@ setup(
         "vkdispatch.codegen.functions.base_functions", 
         "vkdispatch.codegen.variables", 
         "vkdispatch.execution_pipeline", 
-        "vkdispatch.shader_generation", 
+        "vkdispatch.shader", 
         "vkdispatch.reduce",
         "vkdispatch.vkfft",
         "vkdispatch.fft"
