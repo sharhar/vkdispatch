@@ -2,7 +2,7 @@ from .arguments import Constant, Variable, ConstantArray, VariableArray
 from .arguments import Buffer, Image1D, Image2D, Image3D
 
 from .arguments import _ArgType
-from .struct_builder import StructBuilder, StructElement
+from .struct_builder import StructElement
 
 from .variables.variables import ShaderVariable, SharedBuffer
 from .variables.variables import ShaderDescription
@@ -69,8 +69,5 @@ from .builder import ShaderBinding
 from .builder import ShaderBuilder, ShaderFlags
 
 from .global_builder import set_global_builder, get_global_builder, shared_buffer
-
-#from .global_builder import mapping_index, kernel_index, mapping_registers
-#from .global_builder import set_kernel_index, set_mapping_index, set_mapping_registers
 
 from .abreviations import *

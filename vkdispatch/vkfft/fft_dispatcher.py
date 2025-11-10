@@ -1,6 +1,6 @@
 
 from typing import Tuple
-from typing import Union
+from typing import Union, Optional
 from typing import List
 
 import numpy as np
@@ -55,7 +55,7 @@ def execute_fft_plan(
         config: FFTConfig,
         kernel: vd.Buffer = None,
         input: vd.Buffer = None,
-        graph: Union[vd.CommandList, vd.CommandGraph, None] = None):
+        graph: Optional[vd.CommandGraph] = None):
     if graph is None:
         graph = vd.global_graph()
     
@@ -103,7 +103,7 @@ def convolve_2Dreal(
         input: Union[vd.Buffer[vd.float32], vd.RFFTBuffer] = None,
         normalize: bool = False,
         conjugate_kernel: bool = False,
-        graph: Union[vd.CommandList, vd.CommandGraph, None] = None,
+        graph: Optional[vd.CommandGraph] = None,
         keep_shader_code: bool = False):
 
     buffer_shape = sanitize_2d_convolution_buffer_shape(buffer)
@@ -147,7 +147,7 @@ def create_kernel_2Dreal(
         kernel: vd.RFFTBuffer,
         shape: Tuple[int, ...] = None,
         feature_count: int = 1,
-        graph: Union[vd.CommandList, vd.CommandGraph, None] = None,
+        graph: Optional[vd.CommandGraph] = None,
         keep_shader_code: bool = False) -> vd.RFFTBuffer:
     
     if shape is None:
@@ -180,7 +180,7 @@ def convolve_2D(
         kernel: Union[vd.Buffer[vd.float32], vd.Buffer],
         normalize: bool = False,
         conjugate_kernel: bool = False,
-        graph: Union[vd.CommandList, vd.CommandGraph, None] = None,
+        graph: Optional[vd.CommandGraph] = None,
         keep_shader_code: bool = False,
         padding: Tuple[Tuple[int, int]] = None):
 

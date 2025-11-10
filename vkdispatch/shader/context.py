@@ -1,13 +1,15 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
+from .signature import ShaderSignature
+
 from typing import List
 
 import contextlib
 
 class ShaderContext:
     builder: vc.ShaderBuilder
-    signature: vd.ShaderSignature
+    signature: ShaderSignature
     shader_function: vd.ShaderFunction
 
     def __init__(self, builder: vc.ShaderBuilder):
@@ -27,7 +29,7 @@ class ShaderContext:
         )
     
     def declare_input_arguments(self, annotations: List):
-        self.signature = vd.ShaderSignature.from_type_annotations(self.builder, annotations)
+        self.signature = ShaderSignature.from_type_annotations(self.builder, annotations)
         return self.signature.get_variables()
 
 @contextlib.contextmanager

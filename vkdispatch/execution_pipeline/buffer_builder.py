@@ -13,6 +13,8 @@ import numpy as np
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
+from vkdispatch.base.dtype import to_numpy_dtype
+
 @dataclasses.dataclass
 class BufferedStructEntry:
     memory_slice: slice
@@ -67,7 +69,7 @@ class BufferBuilder:
         offset = self.instance_bytes
 
         for elem in elements:
-            np_dtype = np.dtype(vd.to_numpy_dtype(elem.dtype if elem.dtype.scalar is None else elem.dtype.scalar))
+            np_dtype = np.dtype(to_numpy_dtype(elem.dtype if elem.dtype.scalar is None else elem.dtype.scalar))
 
             np_shape = elem.dtype.numpy_shape
 

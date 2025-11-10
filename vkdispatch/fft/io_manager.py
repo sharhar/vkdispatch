@@ -31,8 +31,6 @@ class IOManager:
     input_proxy: IOProxy
     kernel_proxy: IOProxy
 
-    signature: vd.ShaderSignature
-
     def __init__(self,
                     default_registers: FFTRegisters,
                     shader_context: vd.ShaderContext,
