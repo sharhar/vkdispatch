@@ -1,36 +1,15 @@
 import vkdispatch.base.dtype as dtypes
 
-from ..shader_writer import append_contents, new_name
-
 from .base_variable import BaseVariable
-
-from ..struct_builder import StructElement
-
-from typing import List
-from typing import Tuple
-from typing import Union
-from typing import Optional
-from typing import Any
-
-import enum
-import dataclasses
 
 from ..functions.base_functions import arithmetic
 from ..functions.base_functions import bitwise
 from ..functions.base_functions import arithmetic_comparisons
 from ..functions.base_functions import base_utils
 
+from typing import List, Union, Optional
+
 ENABLE_SCALED_AND_OFFSET_INT = True
-
-def is_int_power_of_2(n: int) -> bool:
-    """Check if an integer is a power of 2."""
-    return n > 0 and (n & (n - 1)) == 0
-
-def shader_var_name(index: "Union[Any, ShaderVariable]") -> str:
-    if isinstance(index, ShaderVariable):
-        return index.resolve()
-    
-    return str(index)
 
 def var_types_to_floating(var_type: dtypes.dtype) -> dtypes.dtype:
     if var_type == dtypes.int32 or var_type == dtypes.uint32:
@@ -47,72 +26,10 @@ def var_types_to_floating(var_type: dtypes.dtype) -> dtypes.dtype:
     
     return var_type
 
-@dataclasses.dataclass
-class SharedBuffer:
-    """
-    A dataclass that represents a shared buffer in a shader.
-
-    Attributes:
-        dtype (vd.dtype): The dtype of the shared buffer.
-        size (int): The size of the shared buffer.
-        name (str): The name of the shared buffer within the shader code.
-    """
-    dtype: dtypes.dtype
-    size: int
-    name: str
-
-class BindingType(enum.Enum):
-    """
-    A dataclass that represents the type of a binding in a shader. Either a
-    STORAGE_BUFFER, UNIFORM_BUFFER, or SAMPLER.
-    """
-    STORAGE_BUFFER = 1
-    UNIFORM_BUFFER = 3
-    SAMPLER = 5
-
-@dataclasses.dataclass
-class ShaderDescription:
-    """
-    A dataclass that represents a description of a shader object.
-
-    Attributes:
-        source (str): The source code of the shader.
-        pc_size (int): The size of the push constant buffer in bytes.
-        pc_structure (List[vc.StructElement]): The structure of the push constant buffer.
-        uniform_structure (List[vc.StructElement]): The structure of the uniform buffer.
-        binding_type_list (List[BindingType]): The list of binding types.
-    """
-
-    header: str
-    body: str
-    name: str
-    pc_size: int
-    pc_structure: List[StructElement]
-    uniform_structure: List[StructElement]
-    binding_type_list: List[BindingType]
-    binding_access: List[Tuple[bool, bool]] # List of tuples indicating read and write access for each binding
-    exec_count_name: str
-
-    def make_source(self, x: int, y: int, z: int) -> str:
-        layout_str = f"layout(local_size_x = {x}, local_size_y = {y}, local_size_z = {z}) in;"
-        return f"{self.header}\n{layout_str}\n{self.body}"
-    
-    def __repr__(self):
-        description_string = ""
-
-        description_string += f"Shader Name: {self.name}\n"
-        description_string += f"Push Constant Size: {self.pc_size} bytes\n"
-        description_string += f"Push Constant Structure: {self.pc_structure}\n"
-        description_string += f"Uniform Structure: {self.uniform_structure}\n"
-        description_string += f"Binding Types: {self.binding_type_list}\n"
-        description_string += f"Binding Access: {self.binding_access}\n"
-        description_string += f"Execution Count Name: {self.exec_count_name}\n"
-        description_string += f"Header:\n{self.header}\n"
-        description_string += f"Body:\n{self.body}\n"
-        return description_string
-
 class ShaderVariable(BaseVariable):
-    _initilized: bool = False
+    _initilized: bool
+    is_complex: bool
+    is_conjugate: Optional[bool]
 
     def __init__(self,
                  var_type: dtypes.dtype, 
@@ -121,11 +38,14 @@ class ShaderVariable(BaseVariable):
                  lexical_unit: bool = False,
                  settable: bool = False,
                  register: bool = False,
-                 parents: List["ShaderVariable"] = None
+                 parents: List["ShaderVariable"] = None,
+                 is_conjugate: bool = False
         ) -> None:
+        super().__setattr__("_initilized", False)
+
         super().__init__(
             var_type,
-            name if name is not None else new_name(),
+            name if name is not None else base_utils.new_name(),
             raw_name,
             lexical_unit,
             settable,
@@ -133,160 +53,160 @@ class ShaderVariable(BaseVariable):
             parents
         )
 
+        self.is_complex = False
+        self.is_conjugate = None
+
         if dtypes.is_complex(self.var_type):
-            self.real = ShaderVariable(self.var_type.child_type, f"{self.resolve()}.x", parents=[self], lexical_unit=True, settable=settable)
-            self.imag = ShaderVariable(self.var_type.child_type, f"{self.resolve()}.y", parents=[self], lexical_unit=True, settable=settable)
-            self.x = self.real
-            self.y = self.imag
-
-            self._register_shape()
-        
-        if dtypes.is_vector(self.var_type):
-            self.x = ShaderVariable(self.var_type.child_type, f"{self.resolve()}.x", parents=[self], lexical_unit=True, settable=settable)
+            self.can_index = True
+            self.is_complex = True
+            self.is_conjugate = is_conjugate
             
-            if self.var_type.child_count >= 2:
-                self.y = ShaderVariable(self.var_type.child_type, f"{self.resolve()}.y", parents=[self], lexical_unit=True, settable=settable)
+            self.real = self.swizzle("x")
+            self.imag = self.swizzle("y")
 
-            if self.var_type.child_count >= 3:
-                self.z = ShaderVariable(self.var_type.child_type, f"{self.resolve()}.z", parents=[self], lexical_unit=True, settable=settable)
-
-            if self.var_type.child_count == 4:
-                self.w = ShaderVariable(self.var_type.child_type, f"{self.resolve()}.w", parents=[self], lexical_unit=True, settable=settable)
+            if is_conjugate:
+                self.imag = -self.imag
             
-            self._register_shape()
-        
-        if dtypes.is_matrix(self.var_type):
-            self._register_shape()
+        elif dtypes.is_vector(self.var_type):
+            self.can_index = True
+
+            self.x = self.swizzle("x")
+            if self.var_type.child_count >= 2: self.y = self.swizzle("y")
+            if self.var_type.child_count >= 3: self.z = self.swizzle("z")
+            if self.var_type.child_count == 4: self.w = self.swizzle("w")
+        elif dtypes.is_matrix(self.var_type):
+            self.can_index = True
 
         self._initilized = True
-
-    def _register_shape(self, shape_var: "BaseVariable" = None, shape_name: str = None, use_child_type: bool = True):
-        self.shape = shape_var
-        self.shape_name = shape_name
-        self.can_index = True
-        self.use_child_type = use_child_type
        
     def __getitem__(self, index) -> "ShaderVariable":
-        if not self.can_index:
-            raise ValueError("Unsupported indexing!")
-        
+        assert self.can_index, f"Variable '{self.resolve()}' of type '{self.var_type.name}' cannot be indexed into!"
+
         return_type = self.var_type.child_type if self.use_child_type else self.var_type
 
         if isinstance(index, tuple):
-            assert len(index) == 1, "Only single index is supported for tuple indexing!"
+            assert len(index) == 1, "Only single index is supported, cannot use multi-dimentional indexing!"
             index = index[0]
 
-        if not isinstance(index, ShaderVariable) and not base_utils.is_int_number(index):
-            raise ValueError(f"Unsupported index {index} of type {type(index)}!")
+        if base_utils.is_int_number(index):
+            return ShaderVariable(return_type, f"{self.resolve()}[{index}]", [self], settable=self.settable)
         
-        if isinstance(index, ShaderVariable):
-            assert dtypes.is_scalar(index.var_type), "Indexing variable must be a scalar!"
-            assert dtypes.is_integer_dtype(index.var_type), "Indexing variable must be an integer type!"
+        assert isinstance(index, ShaderVariable), f"Index must be a ShaderVariable or int type, not {type(index)}!"
+        assert dtypes.is_scalar(index.var_type), "Indexing variable must be a scalar!"
+        assert dtypes.is_integer_dtype(index.var_type), "Indexing variable must be an integer type!"
         
-        return ShaderVariable(return_type, f"{self.resolve()}[{shader_var_name(index)}]", [self], settable=self.settable)
+        return ShaderVariable(return_type, f"{self.resolve()}[{index.resolve()}]", [self, index], settable=self.settable)
+
+    def swizzle(self, components: str) -> "ShaderVariable":
+        assert dtypes.is_vector(self.var_type) or dtypes.is_complex(self.var_type) or dtypes.is_scalar(self.var_type), f"Variable '{self.resolve()}' of type '{self.var_type.name}' does not support swizzling!"
+        assert self.use_child_type, f"Variable '{self.resolve()}' does not support swizzling!"
+
+        assert len(components) >= 1 and len(components) <= 4, f"Swizzle must have between 1 and 4 components, got {len(components)}!"
+
+        for c in components:
+            assert c in ['x', 'y', 'z', 'w'], f"Invalid swizzle component '{c}'!"
+
+        sample_type = self.var_type if dtypes.is_scalar(self.var_type) else self.var_type.child_type
+        return_type = sample_type if len(components) == 1 else dtypes.to_vector(sample_type, len(components))
+
+        if dtypes.is_scalar(self.var_type):
+            assert all(c == 'x' for c in components), f"Cannot swizzle scalar variable '{self.resolve()}' with components other than 'x'!"
+
+            return ShaderVariable(
+                var_type=return_type,
+                name=f"{self.resolve()}.{components}",
+                parents=[self],
+                lexical_unit=True,
+                settable=self.settable,
+                register=self.register
+            )
+
+        if self.var_type.shape[0] < 4:
+            assert 'w' not in components, f"Cannot swizzle variable '{self.resolve()}' of type '{self.var_type.name}' with component 'w'!"
+
+        if self.var_type.shape[0] < 3:
+            assert 'z' not in components, f"Cannot swizzle variable '{self.resolve()}' of type '{self.var_type.name}' with component 'z'!"
+        
+        if self.var_type.shape[0] < 2:
+            assert 'y' not in components, f"Cannot swizzle variable '{self.resolve()}' of type '{self.var_type.name}' with component 'y'!"
+
+        return ShaderVariable(
+            var_type=return_type,
+            name=f"{self.resolve()}.{components}",
+            parents=[self],
+            lexical_unit=True,
+            settable=self.settable,
+            register=self.register
+        )
+    
+    def conjugate(self) -> "ShaderVariable":
+        assert self.is_complex, f"Variable '{self.resolve()}' of type '{self.var_type.name}' is not a complex variable and cannot be conjugated!"
+
+        return ShaderVariable(
+            var_type=self.var_type,
+            name=self.name,
+            raw_name=self.raw_name,
+            lexical_unit=self.lexical_unit,
+            settable=False,
+            register=False,
+            parents=[self],
+            is_conjugate=not self.is_conjugate
+        )
+
+    def set_value(self, value: "ShaderVariable") -> None:
+        assert self.settable, f"Cannot set value of '{self.resolve()}' because it is not a settable variable!"
+
+        self.write_callback()
+        self.read_callback()
+
+        if base_utils.is_number(value):
+            base_utils.append_contents(f"{self.resolve()} = {value};\n")
+            return
+
+        assert self.var_type == value.var_type, f"Cannot set variable of type '{self.var_type.name}' to value of type '{value.var_type.name}'!"
+        value.read_callback()
+
+        base_utils.append_contents(f"{self.resolve()} = {value.resolve()};\n")
 
     def __setitem__(self, index, value: "ShaderVariable") -> None:
         assert self.settable, f"Cannot set value of '{self.resolve()}' because it is not a settable variable!"
 
         if isinstance(index, slice):
-            if index.start is None and index.stop is None and index.step is None:
-                self.write_callback()
-
-                if isinstance(value, ShaderVariable):
-                    value.read_callback()
-
-                append_contents(f"{self.resolve()} = {shader_var_name(value)};\n")
-                return
-            else:
-                raise ValueError("Unsupported slice!")
-
-        if not self.can_index:
-            raise ValueError(f"Unsupported indexing {index}!")
+            assert index.start is None and index.stop is None and index.step is None, "Only full slice (:) is supported!"
+            self.set_value(value)
+            return
         
+        # ignore if setting variable to itself (happens in some inplace operations)
         if f"{self.resolve()}[{index}]" == str(value):
             return
 
-        self.write_callback()
-
-        if isinstance(index, ShaderVariable):
-            index.read_callback()
-
-        if isinstance(value, ShaderVariable):
-            value.read_callback()
-
-        append_contents(f"{self.resolve()}[{shader_var_name(index)}] = {shader_var_name(value)};\n")
+        self[index].set_value(value)
 
     def __setattr__(self, name: str, value: "ShaderVariable") -> "ShaderVariable":
-        attrib_error = False
-        attrib_error_msg = ""
-
-        try:
-            if self._initilized:
-                if dtypes.is_complex(self.var_type):
-                    if name == "real":
-                        self.write_callback()
-
-                        if isinstance(value, ShaderVariable):
-                            value.read_callback()
-
-                        base_utils.append_contents(f"{self.resolve()}.x = {shader_var_name(value)};\n")
-                        return
-                    
-                    if name == "imag":
-                        self.write_callback()
-
-                        if isinstance(value, ShaderVariable):
-                            value.read_callback()
-                        
-                        base_utils.append_contents(f"{self.resolve()}.y = {shader_var_name(value)};\n")
-                        return
-                
-                    if name == "x" or name == "y":
-                        self.write_callback()
-
-                        if isinstance(value, ShaderVariable):
-                            value.read_callback()
-                            
-                        base_utils.append_contents(f"{self.resolve()}.{name} = {shader_var_name(value)};\n")
-                        return
-                
-                if dtypes.is_vector(self.var_type):
-                    if name == "y" and self.var_type.shape[0] < 2:
-                        attrib_error = True
-                        attrib_error_msg = f"Cannot set attribute '{name}' in a {self.var_type.name}!"
-                    
-                    if name == "z" and self.var_type.shape[0] < 3:
-                        attrib_error = True
-                        attrib_error_msg = f"Cannot set attribute '{name}' in a {self.var_type.name}!"
-
-                    if name == "w" and self.var_type.shape[0] < 4:
-                        attrib_error = True
-                        attrib_error_msg = f"Cannot set attribute '{name}' in a {self.var_type.name}!"
-
-                    if not attrib_error and (name == "x" or name == "y" or name == "z" or name == "w"):
-                        self.write_callback()
-
-                        if isinstance(value, ShaderVariable):
-                            value.read_callback()
-                            
-                        base_utils.append_contents(f"{self.resolve()}.{name} = {shader_var_name(value)};\n")
-                        return
-                
-                if dtypes.is_scalar(self.var_type):
-                    if name == "x":
-                        self.write_callback()
-
-                        if isinstance(value, ShaderVariable):
-                            value.read_callback()
-                            
-                        base_utils.append_contents(f"{self.resolve()} = {shader_var_name(value)};\n")
-                        return
-        except:
+        if not self._initilized:
             super().__setattr__(name, value)
             return
         
-        if attrib_error:
-            raise AttributeError(attrib_error_msg)
+        if dtypes.is_complex(self.var_type) and (name == "real" or name == "imag"):
+            if name == "real":
+                self.real.set_value(value)
+            else:
+                self.imag.set_value(value)
+            
+            return
+        
+        if dtypes.is_vector(self.var_type) and (name == "x" or name == "y" or name == "z" or name == "w"):
+            if name == "x":
+                self.x.set_value(value)
+            elif name == "y":
+                self.y.set_value(value)
+            elif name == "z":
+                assert self.var_type.shape[0] >= 3, f"Variable '{self.resolve()}' of type '{self.var_type.name}' does not have 'z' component!"
+                self.z.set_value(value)
+            elif name == "w":
+                assert self.var_type.shape[0] == 4, f"Variable '{self.resolve()}' of type '{self.var_type.name}' does not have 'w' component!"
+                self.w.set_value(value)
+            return
 
         super().__setattr__(name, value)
 
@@ -351,13 +271,13 @@ class ShaderVariable(BaseVariable):
     def __rxor__(self, other) -> "ShaderVariable": return bitwise.xor_bits(self, other)
     def __ror__(self, other) -> "ShaderVariable": return bitwise.or_bits(self, other)
 
-    def __iadd__(self, other): return arithmetic.add(self, other, inplace=True)
-    def __isub__(self, other): return arithmetic.sub(self, other, inplace=True)
-    def __imul__(self, other): return arithmetic.mul(self, other, inplace=True)
-    def __itruediv__(self, other): return arithmetic.truediv(self, other, inplace=True)
-    def __ifloordiv__(self, other): return arithmetic.floordiv(self, other, inplace=True)
-    def __imod__(self, other): return arithmetic.mod(self, other, inplace=True)
-    def __ipow__(self, other): return arithmetic.pow(self, other, inplace=True)
+    def __iadd__(self, other) -> "ShaderVariable": return arithmetic.add(self, other, inplace=True)
+    def __isub__(self, other) -> "ShaderVariable": return arithmetic.sub(self, other, inplace=True)
+    def __imul__(self, other) -> "ShaderVariable": return arithmetic.mul(self, other, inplace=True)
+    def __itruediv__(self, other) -> "ShaderVariable": return arithmetic.truediv(self, other, inplace=True)
+    def __ifloordiv__(self, other) -> "ShaderVariable": return arithmetic.floordiv(self, other, inplace=True)
+    def __imod__(self, other) -> "ShaderVariable": return arithmetic.mod(self, other, inplace=True)
+    def __ipow__(self, other) -> "ShaderVariable": return arithmetic.pow(self, other, inplace=True)
     def __ilshift__(self, other) -> "ShaderVariable": return bitwise.lshift(self, other, inplace=True)
     def __irshift__(self, other) -> "ShaderVariable": return bitwise.rshift(self, other, inplace=True)
     def __iand__(self, other) -> "ShaderVariable": return bitwise.and_bits(self, other, inplace=True)
@@ -372,12 +292,12 @@ class ScaledAndOfftsetIntVariable(ShaderVariable):
                  offset: int = 0,
                  parents: List["ShaderVariable"] = None
         ) -> None:
+        super().__init__(var_type, name, parents=parents)
+
         self.base_name = str(name)
         self.scale = scale
         self.offset = offset
         
-        super().__init__(var_type, name, parents=parents)
-    
     def new_from_self(self, scale: int = 1, offset: int = 0):
         child_vartype = self.var_type
 

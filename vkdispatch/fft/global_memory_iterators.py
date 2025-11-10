@@ -74,7 +74,7 @@ class GlobalWriteOp(MemoryOp):
             vc.end()
             return
 
-        buffer[io_index // 2][io_index % 2] = register.x
+        buffer[io_index // 2][io_index % 2] = register.real
 
 def global_writes_iterator(
         registers: FFTRegisters,
@@ -176,7 +176,7 @@ class GlobalReadOp(MemoryOp):
         vc.if_statement(self.fft_index >= (self.fft_size // 2) + 1)
         self.io_index_2[:] = self.r2c_inverse_offset - self.io_index
         register[:] = buffer[self.io_index_2]
-        register.y = -register.y
+        register.imag = -register.imag
         vc.else_statement()
         register[:] = buffer[self.io_index]
         vc.end()

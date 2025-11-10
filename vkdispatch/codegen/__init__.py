@@ -4,8 +4,7 @@ from .arguments import Buffer, Image1D, Image2D, Image3D
 from .arguments import _ArgType
 from .struct_builder import StructElement
 
-from .variables.variables import ShaderVariable, SharedBuffer
-from .variables.variables import ShaderDescription
+from .variables.variables import ShaderVariable
 
 from .variables.bound_variables import BufferVariable, ImageVariable, BoundVariable
 
@@ -53,8 +52,7 @@ from .functions.control_flow import else_if_statement, else_if_any, else_if_all
 from .functions.control_flow import return_statement, while_statement, new_scope, end
 from .functions.control_flow import logical_and, logical_or
 
-from .functions.complex_numbers import mult_complex, mult_complex_conj, complex_conjugate, complex_from_euler_angle
-from .functions.complex_numbers import mult_complex_fma, mult_complex_conj_fma
+from .functions.complex_numbers import mult_complex, complex_from_euler_angle
 
 from .functions.builtin_constants import global_invocation_id, local_invocation_id, workgroup_id, local_invocation_index
 from .functions.builtin_constants import workgroup_size, num_workgroups, num_subgroups, subgroup_id
@@ -65,7 +63,7 @@ from .functions.index_raveling import ravel_index, unravel_index
 from .functions.printing import printf
 from .functions.printing import print_vars as print
 
-from .builder import ShaderBinding
+from .builder import ShaderBinding, ShaderDescription
 from .builder import ShaderBuilder, ShaderFlags
 
 from .global_builder import set_global_builder, get_global_builder, shared_buffer

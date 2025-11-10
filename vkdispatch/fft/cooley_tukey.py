@@ -1,21 +1,12 @@
 import vkdispatch.codegen as vc
 from .resources import FFTResources
 
-from typing import List
+from typing import List, Union
 
 import numpy as np
 
 def get_angle_factor(inverse: bool) -> float:
     return 2 * np.pi * (1 if inverse else -1)
-
-def do_c64_mult_const(register_out: vc.ShaderVariable, register_in: vc.ShaderVariable, constant: complex):
-    vc.comment(f"Multiplying {register_in} by {constant}")
-
-    register_out.x = register_in.y * -constant.imag
-    register_out.x = vc.fma(register_in.x, constant.real, register_out.x)
-
-    register_out.y = register_in.y * constant.real
-    register_out.y = vc.fma(register_in.x, constant.imag, register_out.y)
 
 def radix_P(resources: FFTResources, inverse: bool, register_list: List[vc.ShaderVariable]):
     assert len(register_list) <= len(resources.radix_registers), "Too many registers for radix_P"
@@ -49,13 +40,19 @@ def radix_P(resources: FFTResources, inverse: bool, register_list: List[vc.Shade
                 continue
 
             omega = np.exp(1j * angle_factor * i * j / len(register_list))
-            do_c64_mult_const(resources.omega_register, register_list[j], omega)
+            resources.omega_register[:] = vc.mult_complex(register_list[j], omega)
             resources.radix_registers[i] += resources.omega_register
 
     for i in range(0, len(register_list)):
         register_list[i][:] = resources.radix_registers[i]
 
-def apply_twiddle_factors(resources: FFTResources, inverse: bool, register_list: List[vc.ShaderVariable], twiddle_index: int = 0, twiddle_N: int = 1):
+def apply_twiddle_factors(
+        resources: FFTResources,
+        inverse: bool,
+        register_list: List[vc.ShaderVariable],
+        twiddle_index: Union[int, vc.ShaderVariable] = 0,
+        twiddle_N: int = 1):
+
     if isinstance(twiddle_index, int) and twiddle_index == 0:
         return
 
@@ -64,10 +61,9 @@ def apply_twiddle_factors(resources: FFTResources, inverse: bool, register_list:
     angle_factor = get_angle_factor(inverse)
 
     if not isinstance(twiddle_index, int):
-        resources.omega_register.x = angle_factor * twiddle_index / twiddle_N
-        resources.omega_register[:] = vc.complex_from_euler_angle(resources.omega_register.x)
-    
-    inited_radix = False
+        resources.omega_register.real = (angle_factor / twiddle_N) * twiddle_index 
+        resources.omega_register[:] = vc.complex_from_euler_angle(resources.omega_register.real)
+        resources.radix_registers[1][:] = resources.omega_register
 
     for i in range(len(register_list)):
         if i == 0:
@@ -86,31 +82,28 @@ def apply_twiddle_factors(resources: FFTResources, inverse: bool, register_list:
                 angle_int = int(rounded_angle)
 
                 if angle_int == 1:
-                    resources.omega_register.x = register_list[i].x
-                    register_list[i].x = -register_list[i].y
-                    register_list[i].y = resources.omega_register.x
+                    resources.omega_register.real = register_list[i].real
+                    register_list[i].real = -register_list[i].imag
+                    register_list[i].imag = resources.omega_register.real
                 elif angle_int == -1:
-                    resources.omega_register.x = register_list[i].x
-                    register_list[i].x = register_list[i].y
-                    register_list[i].y = -resources.omega_register.x
+                    resources.omega_register.real = register_list[i].real
+                    register_list[i].real = register_list[i].imag
+                    register_list[i].imag = -resources.omega_register.real
                 elif angle_int == 2 or angle_int == -2:
                     register_list[i][:] = -register_list[i]
                 
                 continue
 
-            do_c64_mult_const(resources.omega_register, register_list[i], omega)
+            resources.omega_register[:] = vc.mult_complex(register_list[i], omega)
             register_list[i][:] = resources.omega_register
             continue
         
-        if not inited_radix:
-            resources.radix_registers[1][:] = resources.omega_register
-            inited_radix = True
 
-        do_c64_mult_const(resources.radix_registers[0], register_list[i], resources.radix_registers[1])
+        resources.radix_registers[0][:] = vc.mult_complex(register_list[i], resources.radix_registers[1])
         register_list[i][:] = resources.radix_registers[0]
 
         if i < len(register_list) - 1:
-            do_c64_mult_const(resources.radix_registers[0], resources.omega_register, resources.radix_registers[1])
+            resources.radix_registers[0][:] = vc.mult_complex(resources.omega_register, resources.radix_registers[1])
             resources.radix_registers[1][:] = resources.radix_registers[0]
 
 def radix_composite(resources: FFTResources, inverse: bool, register_list: List[vc.ShaderVariable], primes: List[int]):

@@ -96,7 +96,7 @@ def make_convolution_shader(
             kernel_val = vc.new_complex_register()
             read_op.read_from_buffer(kernel_buffer, register=kernel_val)
             
-            read_op.register[:] = vc.mult_complex_conj(read_op.register, kernel_val)
+            read_op.register[:] = vc.mult_complex(read_op.register, kernel_val.conjugate())
 
         kernel_map = vd.map(kernel_map_func, input_types=[vc.Buffer[c64]])
 

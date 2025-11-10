@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 import numbers
 
-from vkdispatch.codegen.shader_writer import new_scaled_var, append_contents
+from vkdispatch.codegen.shader_writer import new_scaled_var, append_contents, new_name
 
 from vkdispatch.codegen.shader_writer import new_var as new_var_impl
 

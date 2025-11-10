@@ -52,6 +52,8 @@ def test_fft_1d():
 
     vd.fft.cache_clear()
 
+test_fft_1d()
+
 def test_fft_2d():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 

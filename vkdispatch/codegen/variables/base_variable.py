@@ -7,10 +7,10 @@ class BaseVariable:
     var_type: dtypes.dtype
     name: str
     raw_name: str
-    can_index: bool = False
-    use_child_type: bool = True
-    lexical_unit: bool = False
-    settable: bool = False
+    can_index: bool
+    use_child_type: bool
+    lexical_unit: bool
+    settable: bool
     parents: List["BaseVariable"]
 
     def __init__(self,
@@ -24,6 +24,8 @@ class BaseVariable:
         ) -> None:
         self.var_type = var_type
         self.lexical_unit = lexical_unit
+        self.can_index = False
+        self.use_child_type = True
 
         assert name is not None, "Variable name cannot be None!"
 

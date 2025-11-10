@@ -7,16 +7,78 @@ from .shader_writer import ShaderWriter
 
 from enum import IntFlag, auto
 
-from typing import Dict
-from typing import List
-from typing import Union
-from typing import Optional
+from typing import Dict, List, Optional, Tuple
 
 import dataclasses
 
-from .variables.variables import BaseVariable, ShaderVariable, var_types_to_floating, SharedBuffer, BindingType, ShaderDescription, ScaledAndOfftsetIntVariable
+import enum
+
+from .variables.variables import BaseVariable, ShaderVariable, ScaledAndOfftsetIntVariable
 from .variables.bound_variables import BufferVariable, ImageVariable
 
+@dataclasses.dataclass
+class SharedBuffer:
+    """
+    A dataclass that represents a shared buffer in a shader.
+
+    Attributes:
+        dtype (vd.dtype): The dtype of the shared buffer.
+        size (int): The size of the shared buffer.
+        name (str): The name of the shared buffer within the shader code.
+    """
+    dtype: dtypes.dtype
+    size: int
+    name: str
+
+class BindingType(enum.Enum):
+    """
+    A dataclass that represents the type of a binding in a shader. Either a
+    STORAGE_BUFFER, UNIFORM_BUFFER, or SAMPLER.
+    """
+    STORAGE_BUFFER = 1
+    UNIFORM_BUFFER = 3
+    SAMPLER = 5
+
+@dataclasses.dataclass
+class ShaderDescription:
+    """
+    A dataclass that represents a description of a shader object.
+
+    Attributes:
+        source (str): The source code of the shader.
+        pc_size (int): The size of the push constant buffer in bytes.
+        pc_structure (List[vc.StructElement]): The structure of the push constant buffer.
+        uniform_structure (List[vc.StructElement]): The structure of the uniform buffer.
+        binding_type_list (List[BindingType]): The list of binding types.
+    """
+
+    header: str
+    body: str
+    name: str
+    pc_size: int
+    pc_structure: List[StructElement]
+    uniform_structure: List[StructElement]
+    binding_type_list: List[BindingType]
+    binding_access: List[Tuple[bool, bool]] # List of tuples indicating read and write access for each binding
+    exec_count_name: str
+
+    def make_source(self, x: int, y: int, z: int) -> str:
+        layout_str = f"layout(local_size_x = {x}, local_size_y = {y}, local_size_z = {z}) in;"
+        return f"{self.header}\n{layout_str}\n{self.body}"
+    
+    def __repr__(self):
+        description_string = ""
+
+        description_string += f"Shader Name: {self.name}\n"
+        description_string += f"Push Constant Size: {self.pc_size} bytes\n"
+        description_string += f"Push Constant Structure: {self.pc_structure}\n"
+        description_string += f"Uniform Structure: {self.uniform_structure}\n"
+        description_string += f"Binding Types: {self.binding_type_list}\n"
+        description_string += f"Binding Access: {self.binding_access}\n"
+        description_string += f"Execution Count Name: {self.exec_count_name}\n"
+        description_string += f"Header:\n{self.header}\n"
+        description_string += f"Body:\n{self.body}\n"
+        return description_string
 
 @dataclasses.dataclass
 class ShaderBinding:
@@ -65,7 +127,6 @@ class ShaderBuilder(ShaderWriter):
         self.is_apple_device = is_apple_device
 
         self.pre_header = "#version 450\n"
-        self.pre_header += "#extension GL_ARB_separate_shader_objects : require\n"
         self.pre_header += "#extension GL_EXT_scalar_block_layout : require\n"
 
         if not (self.flags & ShaderFlags.NO_SUBGROUP_OPS):
@@ -85,15 +146,12 @@ class ShaderBuilder(ShaderWriter):
         self.binding_write_access = {}
         self.shared_buffers = []
         self.scope_num = 1
-        # self.mapping_index: ShaderVariable = None
-        # self.kernel_index: ShaderVariable = None
-        # self.mapping_registers: List[ShaderVariable] = None
         
         self.exec_count = self.declare_constant(dtypes.uvec4, var_name="exec_count")
         
         if not (self.flags & ShaderFlags.NO_EXEC_BOUNDS):
             self.append_contents(
-                f"if(any(lessThanEqual({self.exec_count.resolve()}.xyz, gl_GlobalInvocationID))) {{ return; }}"
+                f"if(any(lessThanEqual({self.exec_count.resolve()}.xyz, gl_GlobalInvocationID))) {{ return; }}\n"
             )
 
     def new_var(self,
@@ -154,8 +212,6 @@ class ShaderBuilder(ShaderWriter):
             settable=False,
             parents=[]
         )
-
-        new_var._varying = True
 
         if count > 1:
             new_var.use_child_type = False
@@ -259,7 +315,7 @@ class ShaderBuilder(ShaderWriter):
         
         uniform_decleration_contents = self.compose_struct_decleration(uniform_elements)
         if len(uniform_decleration_contents) > 0:
-            header += f"\nlayout(set = 0, binding = 0) uniform UniformObjectBuffer {{\n { uniform_decleration_contents } \n}} UBO;\n"
+            header += f"\nlayout(set = 0, binding = 0, scalar) uniform UniformObjectBuffer {{\n { uniform_decleration_contents } \n}} UBO;\n"
 
         binding_type_list = [BindingType.UNIFORM_BUFFER]
         binding_access = [(True, False)]  # UBO is read-only
@@ -268,7 +324,7 @@ class ShaderBuilder(ShaderWriter):
             if binding.binding_type == BindingType.STORAGE_BUFFER:
                 true_type = binding.dtype.glsl_type
 
-                header += f"layout(set = 0, binding = {ii + 1}) buffer Buffer{ii + 1} {{ {true_type} data[]; }} {binding.name};\n"
+                header += f"layout(set = 0, binding = {ii + 1}, scalar) buffer Buffer{ii + 1} {{ {true_type} data[]; }} {binding.name};\n"
                 binding_type_list.append(binding.binding_type)
                 binding_access.append((
                     self.binding_read_access[ii + 1],
@@ -287,7 +343,7 @@ class ShaderBuilder(ShaderWriter):
         pc_decleration_contents = self.compose_struct_decleration(pc_elements)
         
         if len(pc_decleration_contents) > 0:
-            header += f"\nlayout(push_constant) uniform PushConstant {{\n { pc_decleration_contents } \n}} PC;\n"
+            header += f"\nlayout(push_constant, scalar) uniform PushConstant {{\n { pc_decleration_contents } \n}} PC;\n"
 
         return ShaderDescription(
             header=header,
