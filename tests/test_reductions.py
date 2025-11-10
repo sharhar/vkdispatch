@@ -18,9 +18,9 @@ def test_reductions_sum():
     # Write the data to the buffer
     buf.write(data)
 
-    @vd.map_reduce(vd.SubgroupAdd)
+    @vd.reduce.map_reduce(vd.reduce.SubgroupAdd)
     def sum_map(buffer: Buff[f32]) -> f32:
-        return buffer[vc.mapping_index()]
+        return buffer[vd.reduce.mapped_io_index()]
 
     res_buf = sum_map(buf)
 
@@ -40,9 +40,9 @@ def test_mapped_reductions():
     # Write the data to the buffer
     buf.write(data)
 
-    @vd.map_reduce(vd.SubgroupAdd)
+    @vd.reduce.map_reduce(vd.reduce.SubgroupAdd)
     def sum_map(buffer: Buff[f32]) -> f32:
-        return vc.sin(buffer[vc.mapping_index()])
+        return vc.sin(buffer[vd.reduce.mapped_io_index()])
     
     res_buf = sum_map(buf)
 
@@ -65,9 +65,9 @@ def test_listed_reductions():
     buf.write(data)
     buf2.write(data2)
 
-    @vd.map_reduce(vd.SubgroupAdd)
+    @vd.reduce.map_reduce(vd.reduce.SubgroupAdd)
     def sum_map(buffer: Buff[v2], buffer2: Buff[v2]) -> v2:
-        ind = vc.mapping_index()
+        ind = vd.reduce.mapped_io_index()
         return vc.sin(buffer[ind] + buffer2[ind])
 
     graph = vd.CommandGraph()
@@ -95,7 +95,7 @@ def test_pure_reductions():
     # Write the data to the buffer
     buf = vd.asbuffer(data)
 
-    @vd.reduce(0)
+    @vd.reduce.reduce(0)
     def sum_reduce(a: f32, b: f32) -> f32:
         return a + b
 
@@ -122,9 +122,9 @@ def test_pure_reductions_with_mapping_function():
 
     @vd.map
     def reduction_map(input: Buff[f32]) -> f32:
-        return vc.sin(input[vc.mapping_index()])
+        return vc.sin(input[vd.reduce.mapped_io_index()])
 
-    @vd.reduce(0, mapping_function=reduction_map)
+    @vd.reduce.reduce(0, mapping_function=reduction_map)
     def sum_reduce(a: f32, b: f32) -> f32:
         return a + b
 
@@ -148,9 +148,9 @@ def test_batched_mapped_reductions():
     # Write the data to the buffer
     buf = vd.asbuffer(data)
 
-    @vd.map_reduce(vd.SubgroupAdd, axes=[1])
+    @vd.reduce.map_reduce(vd.reduce.SubgroupAdd, axes=[1])
     def sum_map(buffer: Buff[f32]) -> f32:
-        return vc.sin(buffer[vc.mapping_index()])
+        return vc.sin(buffer[vd.reduce.mapped_io_index()])
     
     res_buf = sum_map(buf)
 
