@@ -22,44 +22,8 @@ def validate_complex_number(arg1: Any) -> Union[ShaderVariable, complex]:
     
     return complex(arg1)
 
-def complex_conjugate(arg: ShaderVariable):
-    a = validate_complex_number(arg)
-    return to_complex(a.real, -a.imag)
-
 def mult_complex(arg1: ShaderVariable, arg2: ShaderVariable):
     a1 = validate_complex_number(arg1)
     a2 = validate_complex_number(arg2)
 
-    return to_complex(a1.real * a2.real - a1.imag * a2.imag, a1.real * a2.imag + a1.imag * a2.real)
-
-def mult_complex_conj(arg1: ShaderVariable, arg2: ShaderVariable):
-    a1 = validate_complex_number(arg1)
-    a2 = validate_complex_number(arg2)
-
-    return to_complex(a1.real * a2.real + a1.imag * a2.imag, a1.imag * a2.real - a1.real * a2.imag)
-
-
-def mult_complex_fma(register_out: ShaderVariable, register_a: ShaderVariable, register_b: complex):
-    r_out = validate_complex_number(register_out)
-    r_a = validate_complex_number(register_a)
-    r_b = validate_complex_number(register_b)
-
-    r_out.real = r_a.imag * -r_b.imag
-    r_out.real = fma(r_a.real, r_b.real, r_out.real)
-
-    r_out.imag = r_a.imag * r_b.real
-    r_out.imag = fma(r_a.real, r_b.imag, r_out.imag)
-
-def mult_complex_conj_fma(register_out: ShaderVariable, register_a: ShaderVariable, register_b: complex):
-    r_out = validate_complex_number(register_out)
-    r_a = validate_complex_number(register_a)
-    r_b = validate_complex_number(register_b)
-
-    assert isinstance(register_out, ShaderVariable), "Out register must be a ShaderVariable"
-    assert register_out.is_register(), "Our register must be a register"
-
-    r_out.real = r_a.imag * r_b.imag
-    r_out.real = fma(r_a.real, r_b.real, r_out.real)
-
-    r_out.imag = r_a.imag * r_b.real
-    r_out.imag = fma(r_a.real, -r_b.imag, r_out.imag)
+    return to_complex(fma(a1.real, a2.real, -a1.imag * a2.imag), fma(a1.real, a2.imag, a1.imag * a2.real))

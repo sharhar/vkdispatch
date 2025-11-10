@@ -10,16 +10,14 @@ from typing import List, Union, Tuple
 
 def sanitize_input(value: Union[ShaderVariable, Tuple[int, ...]]) -> Tuple[List[Union[ShaderVariable, int]], bool]:
     axes_lengths = []
-    is_static = None
 
     if isinstance(value, ShaderVariable):
-        is_static = False
         assert dtypes.is_vector(value.var_type) or dtypes.is_scalar(value.var_type), f"Value is of type '{value.var_type.name}', but it must be a vector or integer!"
         assert dtypes.is_integer_dtype(value.var_type), f"Value is of type '{value.var_type.name}', but it must be of integer type!"
         
         if dtypes.is_scalar(value.var_type):
             axes_lengths.append(value)
-            return axes_lengths, is_static
+            return axes_lengths
         
         elem_count = value.var_type.child_count
         assert elem_count >= 2 and elem_count <= 4, f"Value is of type '{value.var_type.name}', but it must have 2, 3 or 4 components!"
@@ -32,9 +30,8 @@ def sanitize_input(value: Union[ShaderVariable, Tuple[int, ...]]) -> Tuple[List[
             axes_lengths.append(value[i])
     else:
         if utils.check_is_int(value):
-            return [value], True
+            return [value]
 
-        is_static = True
         assert isinstance(value, (list, tuple)), "Value must be a ShaderVariable or a list/tuple of integers!"
 
         elem_count = len(value)
@@ -45,11 +42,11 @@ def sanitize_input(value: Union[ShaderVariable, Tuple[int, ...]]) -> Tuple[List[
 
             axes_lengths.append(value[i])
 
-    return axes_lengths, is_static
+    return axes_lengths
 
 def ravel_index(index: Union[ShaderVariable, int], shape: Union[ShaderVariable, Tuple[int, ...]]):
-    sanitized_shape, static_shape = sanitize_input(shape)
-    sanitized_index, static_index = sanitize_input(index)
+    sanitized_shape = sanitize_input(shape)
+    sanitized_index = sanitize_input(index)
 
     assert len(sanitized_index) == 1, f"Index must be a single integer value, not '{index}'!"
     assert len(sanitized_shape) == 2 or len(sanitized_shape) == 3, f"Shape must have 2 or 3 elements, not '{shape}'!"
@@ -69,8 +66,8 @@ def ravel_index(index: Union[ShaderVariable, int], shape: Union[ShaderVariable, 
         raise RuntimeError("Ravel index only supports shapes with 2 or 3 elements!")
 
 def unravel_index(index: Union[ShaderVariable, Tuple[int, ...]], shape: Union[ShaderVariable, Tuple[int, ...]]):
-    sanitized_shape, _ = sanitize_input(shape)
-    sanitized_index, _ = sanitize_input(index)
+    sanitized_shape = sanitize_input(shape)
+    sanitized_index = sanitize_input(index)
 
     assert len(sanitized_index) <= len(sanitized_shape), f"Index ({index}) must have the same number of elements as shape ({sanitized_shape})!"
 

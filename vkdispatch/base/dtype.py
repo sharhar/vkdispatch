@@ -228,25 +228,31 @@ mat3 = _M3F32
 mat4 = _M4F32
 
 def to_vector(dtype: dtype, count: int) -> dtype: # type: ignore
-    if count < 2 or count > 4:
+    if count < 1 or count > 4:
         raise ValueError(f"Unsupported count ({count})!")
 
     if dtype == int32:
-        if count == 2:
+        if count == 1:
+            return int32
+        elif count == 2:
             return ivec2
         elif count == 3:
             return ivec3
         elif count == 4:
             return ivec4
     elif dtype == uint32:
-        if count == 2:
+        if count == 1:
+            return uint32
+        elif count == 2:
             return uvec2
         elif count == 3:
             return uvec3
         elif count == 4:
             return uvec4
     elif dtype == float32:
-        if count == 2:
+        if count == 1:
+            return float32
+        elif count == 2:
             return vec2
         elif count == 3:
             return vec3
@@ -322,7 +328,7 @@ def cross_vector_vector(dtype1: dtype, dtype2: dtype) -> dtype:
     if dtype1.child_count != dtype2.child_count:
         raise ValueError(f"Cannot cross types of vectors of two sizes! ({dtype1.child_count} != {dtype2.child_count})")
 
-    return cross_scalar_scalar(dtype1.scalar, dtype2.scalar)
+    return to_vector(cross_scalar_scalar(dtype1.scalar, dtype2.scalar), dtype1.child_count)
 
 def cross_vector(dtype1: dtype, dtype2: dtype) -> dtype:
     assert is_vector(dtype1), "First type must be vector type!"

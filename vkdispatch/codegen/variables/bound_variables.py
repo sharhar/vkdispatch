@@ -40,7 +40,12 @@ class BufferVariable(BoundVariable):
             self.read_lambda = read_lambda
             self.write_lambda = write_lambda
 
-            self._register_shape(shape_var=shape_var, shape_name=shape_name, use_child_type=False)
+            self.shape = shape_var
+            self.shape_name = shape_name
+            self.can_index = True
+            self.use_child_type = False
+
+            #self._register_shape(shape_var=shape_var, shape_name=shape_name, use_child_type=False)
 
     def read_callback(self):
         self.read_lambda()
