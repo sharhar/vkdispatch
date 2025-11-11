@@ -1,5 +1,4 @@
 import vkdispatch.base.dtype as dtypes
-from vkdispatch.base.dtype import dtype
 
 from .struct_builder import StructElement, StructBuilder
 
@@ -96,7 +95,7 @@ class ShaderBinding:
         binding_type (BindingType): The type of the binding. Either
             STORAGE_BUFFER, UNIFORM_BUFFER, or SAMPLER.
     """
-    dtype: dtype
+    dtype: dtypes.dtype
     name: str
     dimension: int
     binding_type: BindingType
@@ -155,7 +154,7 @@ class ShaderBuilder(ShaderWriter):
             )
 
     def new_var(self,
-                var_type: dtype,
+                var_type: dtypes.dtype,
                 name: str,
                 parents: List["ShaderVariable"],
                 lexical_unit: bool = False,
@@ -180,7 +179,7 @@ class ShaderBuilder(ShaderWriter):
                                            offset=offset,
                                            parents=parents)
 
-    def declare_constant(self, var_type: dtype, count: int = 1, var_name: Optional[str] = None):
+    def declare_constant(self, var_type: dtypes.dtype, count: int = 1, var_name: Optional[str] = None):
         if var_name is None:
             var_name = self.new_name()
 
@@ -200,7 +199,7 @@ class ShaderBuilder(ShaderWriter):
         self.uniform_struct.register_element(new_var.raw_name, var_type, count)
         return new_var
 
-    def declare_variable(self, var_type: dtype, count: int = 1, var_name: Optional[str] = None):
+    def declare_variable(self, var_type: dtypes.dtype, count: int = 1, var_name: Optional[str] = None):
         if var_name is None:
             var_name = self.new_name()
 
@@ -220,7 +219,7 @@ class ShaderBuilder(ShaderWriter):
         self.pc_struct.register_element(new_var.raw_name, var_type, count)
         return new_var
     
-    def declare_buffer(self, var_type: dtype, var_name: Optional[str] = None):
+    def declare_buffer(self, var_type: dtypes.dtype, var_name: Optional[str] = None):
         self.binding_count += 1
 
         buffer_name = f"buf{self.binding_count}" if var_name is None else var_name
@@ -271,7 +270,7 @@ class ShaderBuilder(ShaderWriter):
             write_lambda=write_lambda
         )
     
-    def shared_buffer(self, var_type: dtype, size: int, var_name: Optional[str] = None):
+    def shared_buffer(self, var_type: dtypes.dtype, size: int, var_name: Optional[str] = None):
         if var_name is None:
             var_name = self.new_name()
         
