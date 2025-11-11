@@ -174,10 +174,9 @@ def create_kernel_2Dreal(
 
     return kernel
 
-
 def convolve_2D(
         buffer: vd.Buffer,
-        kernel: Union[vd.Buffer[vd.float32], vd.Buffer],
+        kernel: vd.Buffer,
         normalize: bool = False,
         conjugate_kernel: bool = False,
         graph: Optional[vd.CommandGraph] = None,
@@ -210,6 +209,66 @@ def convolve_2D(
             convolution_features=1, #feature_count,
             keep_shader_code=keep_shader_code,
             num_batches=buffer.shape[0], # if kernel_count == 1 else 1,
+            padding=padding
+        ),
+        kernel=kernel
+    )
+
+
+def transpose_kernel2D(
+        kernel: vd.Buffer,
+        shape: Tuple[int, ...] = None,
+        graph: Optional[vd.CommandGraph] = None,
+        keep_shader_code: bool = False):
+    if shape is None:
+        shape = kernel.shape
+
+    if len(shape) == 2:
+        shape = (1,) + shape
+
+    assert len(shape) == 3, "Kernel shape must be 2D or 3D!"
+    
+    execute_fft_plan(
+        kernel,
+        False,
+        graph = graph,
+        config = FFTConfig(
+            buffer_handle=kernel._handle,
+            shape=shape[1:],
+            kernel_convolution=True,
+            convolution_features=1,
+            num_batches=shape[0],
+            keep_shader_code=keep_shader_code
+        )
+    )
+
+def convolve2D(
+        buffer: vd.Buffer,
+        kernel: Union[vd.Buffer[vd.float32], vd.Buffer],
+        normalize: bool = False,
+        conjugate_kernel: bool = False,
+        graph: Optional[vd.CommandGraph] = None,
+        keep_shader_code: bool = False,
+        padding: Tuple[Tuple[int, int]] = None):
+
+    in_shape = sanitize_input_tuple(buffer.shape)
+
+    if len(in_shape) == 2:
+        in_shape = (1,) + in_shape
+
+    execute_fft_plan(
+        buffer,
+        False,
+        graph = graph,
+        config = FFTConfig(
+            buffer_handle=buffer._handle,
+            shape=in_shape[1:],
+            normalize=normalize,
+            kernel_count=1,
+            conjugate_convolution=conjugate_kernel,
+            convolution_features=1,
+            keep_shader_code=keep_shader_code,
+            num_batches=buffer.shape[0],
             padding=padding
         ),
         kernel=kernel
