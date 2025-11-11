@@ -1,4 +1,3 @@
-import vkdispatch as vd
 import vkdispatch.codegen as vc
 
 from typing import Optional, Tuple
@@ -156,29 +155,36 @@ class GlobalReadOp(MemoryOp):
         register[:] = vc.to_complex(0)
         vc.end()
 
-    def read_from_buffer(self, buffer: vc.Buff[vc.c64], register: Optional[vc.ShaderVariable] = None):
+    def read_from_buffer(self,
+                         buffer: vc.Buff[vc.c64],
+                         register: Optional[vc.ShaderVariable] = None,
+                         io_index: Optional[vc.ShaderVariable] = None):
+                        # buffer: vc.Buff[vc.c64], register: Optional[vc.ShaderVariable] = None):
         self.check_in_signal_range()
+
+        if io_index is None:
+            io_index = self.io_index
 
         if register is None:
             register = self.register
 
         if not self.r2c:
-            register[:] = buffer[self.io_index]
+            register[:] = buffer[io_index]
             self.signal_range_end(register)
             return
 
         if not self.inverse:
-            real_value = buffer[self.io_index // 2][self.io_index % 2]
+            real_value = buffer[io_index // 2][io_index % 2]
             register[:] = vc.to_complex(real_value)
             self.signal_range_end(register)
             return
 
         vc.if_statement(self.fft_index >= (self.fft_size // 2) + 1)
-        self.io_index_2[:] = self.r2c_inverse_offset - self.io_index
+        self.io_index_2[:] = self.r2c_inverse_offset - io_index
         register[:] = buffer[self.io_index_2]
         register.imag = -register.imag
         vc.else_statement()
-        register[:] = buffer[self.io_index]
+        register[:] = buffer[io_index]
         vc.end()
 
         self.signal_range_end(register)
@@ -263,11 +269,17 @@ class GlobalTransposedWriteOp(MemoryOp):
                    io_index=io_index
                 )
 
-    def write_to_buffer(self, buffer: vc.Buff[vc.c64], register: Optional[vc.ShaderVariable] = None):
+    def write_to_buffer(self,
+                        buffer: vc.Buff[vc.c64],
+                        register: Optional[vc.ShaderVariable] = None,
+                        io_index: Optional[vc.ShaderVariable] = None):
+        if io_index is None:
+            io_index = self.io_index
+
         if register is None:
             register = self.register
 
-        buffer[self.io_index] = register
+        buffer[io_index] = register
 
 def global_trasposed_write_iterator(registers: FFTRegisters):
     vc.comment(f"Writing registers to global memory in transposed format")
