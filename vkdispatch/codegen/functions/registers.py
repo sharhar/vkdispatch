@@ -40,7 +40,7 @@ def new_uint_register(*args, var_name: Optional[str] = None):
 
 def new_complex_register(*args, var_name: Optional[str] = None):
     if len(args) > 0:
-        true_args = to_complex(*args)
+        true_args = (to_complex(*args),)
     else:
         true_args = (0,)
 
