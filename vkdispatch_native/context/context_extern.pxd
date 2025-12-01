@@ -66,6 +66,11 @@ cdef extern from "context/context_extern.hh":
 
         unsigned int queue_family_count
         QueueFamilyProperties* queue_family_properties
+
+        int scalar_block_layout
+        int timeline_semaphores
+
+        unsigned char* uuid
     
     void init_extern(bool debug, LogLevel log_level)
     PhysicalDeviceDetails* get_devices_extern(int* count)
@@ -138,7 +143,10 @@ cpdef inline get_devices():
             device.supported_operations,
             device.quad_operations_in_all_stages,
             device.max_compute_shared_memory_size,
-            [(device.queue_family_properties[j].queueCount, device.queue_family_properties[j].queueFlags) for j in range(device.queue_family_count)]
+            [(device.queue_family_properties[j].queueCount, device.queue_family_properties[j].queueFlags) for j in range(device.queue_family_count)],
+            device.scalar_block_layout,
+            device.timeline_semaphores,
+            bytes([device.uuid[k] for k in range(16)]) if device.uuid != NULL else None
         )
         device_list.append(device_info)
 

@@ -63,6 +63,8 @@ struct PhysicalDeviceDetails {
 
     int scalar_block_layout;
     int timeline_semaphores;
+
+    unsigned char* uuid;
 };
 
 void init_extern(bool debug, LogLevel log_level);
