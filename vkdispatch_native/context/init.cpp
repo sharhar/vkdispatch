@@ -240,6 +240,7 @@ void init_extern(bool debug, LogLevel log_level) {
     _instance.storage16bit.resize(device_count);
     _instance.properties.resize(device_count);
     _instance.subgroup_properties.resize(device_count);
+    _instance.id_properties.resize(device_count);
     _instance.device_details.resize(device_count);
     _instance.queue_family_properties.resize(device_count);
     _instance.timeline_semaphore_features.resize(device_count);
@@ -274,8 +275,12 @@ void init_extern(bool debug, LogLevel log_level) {
         VkPhysicalDeviceFeatures features = _instance.features[i].features;
         VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomicFloatFeatures = _instance.atomic_float_features[i];
 
+        _instance.id_properties[i] = {};
+        _instance.id_properties[i].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES;
+
         _instance.subgroup_properties[i] = {};
         _instance.subgroup_properties[i].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES;
+        _instance.subgroup_properties[i].pNext = &_instance.id_properties[i];
 
         _instance.properties[i] = {};
         _instance.properties[i].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
@@ -353,6 +358,8 @@ void init_extern(bool debug, LogLevel log_level) {
         
         _instance.device_details[i].timeline_semaphores = _instance.timeline_semaphore_features[i].timelineSemaphore;
         _instance.device_details[i].scalar_block_layout = _instance.scalar_block_layout_features[i].scalarBlockLayout;
+
+        _instance.device_details[i].uuid = _instance.id_properties[i].deviceUUID;
     }
 }
 

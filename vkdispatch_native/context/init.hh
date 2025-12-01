@@ -39,6 +39,7 @@ typedef struct {
     std::vector<VkPhysicalDevice16BitStorageFeatures> storage16bit;
     std::vector<VkPhysicalDeviceProperties2> properties;
     std::vector<VkPhysicalDeviceSubgroupProperties> subgroup_properties;
+    std::vector<VkPhysicalDeviceIDProperties> id_properties;
     std::vector<struct PhysicalDeviceDetails> device_details;
     std::vector<std::vector<VkQueueFamilyProperties>> queue_family_properties;
     std::vector<VkPhysicalDeviceTimelineSemaphoreFeatures> timeline_semaphore_features;
