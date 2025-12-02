@@ -1,6 +1,7 @@
-import typing
+
 from enum import Enum
 import os
+from typing import Tuple, List, Optional
 
 import inspect
 
@@ -31,7 +32,7 @@ device_type_ranks_dict = {
     4: 1
 }
 
-def get_queue_type_strings(queue_type: int, verbose: bool) -> typing.List[str]:
+def get_queue_type_strings(queue_type: int, verbose: bool) -> List[str]:
     """
     A function which returns a list of strings representing the queue's supported operations.
 
@@ -154,9 +155,9 @@ class DeviceInfo:
         uniform_and_storage_buffer_16_bit_access: int,
         storage_push_constant_16: int,
         storage_input_output_16: int,
-        max_workgroup_size: typing.Tuple[int, int, int],
+        max_workgroup_size: Tuple[int, int, int],
         max_workgroup_invocations: int,
-        max_workgroup_count: typing.Tuple[int, int, int],
+        max_workgroup_count: Tuple[int, int, int],
         max_bound_descriptor_sets: int,
         max_push_constant_size: int,
         max_storage_buffer_range: int,
@@ -167,12 +168,13 @@ class DeviceInfo:
         supported_operations: int,
         quad_operations_in_all_stages: int,
         max_compute_shared_memory_size: int,
-        queue_properties: typing.List[typing.Tuple[int, int]],
+        queue_properties: List[Tuple[int, int]],
         scalar_block_layout: int,
         timeline_semaphores: int,
-        uuid: typing.Optional[bytes],
+        uuid: Optional[bytes],
     ):
         self.dev_index = dev_index
+        self.sorted_index = -1  # to be set later
 
         self.version_variant = version_variant
         self.version_major = version_major
@@ -252,7 +254,7 @@ class DeviceInfo:
             str: A string representation of the device information.
         """
 
-        result = f"Device {self.dev_index}: {self.device_name}\n"
+        result = f"Device {self.sorted_index}: {self.device_name}\n"
 
         result += f"\tVulkan Version: {self.version_major}.{self.version_minor}.{self.version_patch}\n"
         result += f"\tDevice Type: {device_type_id_to_str_dict[self.device_type]}\n"
@@ -334,7 +336,7 @@ class DeviceInfo:
         return self.get_info_string()
 
 __initilized_instance: bool = False
-__device_infos: typing.List[DeviceInfo] = None
+__device_infos: List[DeviceInfo] = None
 
 def is_initialized() -> bool:
     """
@@ -347,6 +349,45 @@ def is_initialized() -> bool:
     global __initilized_instance
 
     return __initilized_instance
+
+def get_cuda_device_map():
+    """
+    Returns a dict mapping CUDA device index -> UUID (bytes).
+    Format: { 0: b'\x00...', 1: b'\x01...' }
+
+    If the CUDA driver bindings are not available, returns None.
+    """
+    try:
+        from cuda.bindings import driver
+    except (ImportError, ModuleNotFoundError):
+        __log_noinit("'cuda-python' not installed, skipping CUDA device matching", level=LogLevel.WARNING)
+        return None
+
+    try:
+        err, = driver.cuInit(0)
+        if err != driver.CUresult.CUDA_SUCCESS:
+            raise RuntimeError("Failed to initialize CUDA Driver API")
+
+        err, count = driver.cuDeviceGetCount()
+        if err != driver.CUresult.CUDA_SUCCESS:
+            raise RuntimeError("Failed to get CUDA device count")
+
+        uuid_map = {}
+
+        for i in range(count):
+            err, device = driver.cuDeviceGet(i)
+            if err != driver.CUresult.CUDA_SUCCESS:
+                continue
+
+            err, uuid_bytes = driver.cuDeviceGetUuid(device)
+            if err == driver.CUresult.CUDA_SUCCESS:
+                assert len(uuid_bytes.bytes) == 16
+                uuid_map[i] = uuid_bytes.bytes
+    except Exception as e:
+        __log_noinit(f"Error while querying CUDA devices: {e}", level=LogLevel.WARNING)
+        return None
+
+    return uuid_map
 
 def initialize(debug_mode: bool = False, log_level: LogLevel = LogLevel.WARNING, loader_debug_logs: bool = False):
     """
@@ -379,11 +420,15 @@ def initialize(debug_mode: bool = False, log_level: LogLevel = LogLevel.WARNING,
         for ii, dev_obj in enumerate(vkdispatch_native.get_devices())
     ]
 
-    cuda_uuids = get_cuda_device_map()
+    is_cuda = any(dev.is_nvidia() for dev in devivces)
+
+    cuda_uuids = get_cuda_device_map() if is_cuda else None
 
     if cuda_uuids is None:
         __initilized_instance = True
         __device_infos = devivces
+        for ii, dev in enumerate(__device_infos):
+            dev.sorted_index = ii
         return
     
     # try to match CUDA devices to Vulkan devices by UUID
@@ -391,68 +436,32 @@ def initialize(debug_mode: bool = False, log_level: LogLevel = LogLevel.WARNING,
         uuid_bytes: cuda_index
         for cuda_index, uuid_bytes in cuda_uuids.items()
     }
-    matched_devices = []
-    unmatched_devices = []
-    unmatched_device_ids = []
-    for ii, dev in enumerate(devivces):
+    matched_devices: List[Tuple[int, DeviceInfo, int]]= []
+    unmatched_devices: List[DeviceInfo] = []
+    for dev in devivces:
         if dev.uuid is not None and dev.uuid in cuda_uuid_to_index:
-            print(f"Matched Vulkan device {ii} ({dev.device_name}) to CUDA device {cuda_uuid_to_index[dev.uuid]} with UUID {dev.uuid.hex()}")
-            matched_devices.append( (cuda_uuid_to_index[dev.uuid], dev, ii) )
+            #print(f"Matched Vulkan device {ii} ({dev.device_name}) to CUDA device {cuda_uuid_to_index[dev.uuid]} with UUID {dev.uuid.hex()}")
+            matched_devices.append( (cuda_uuid_to_index[dev.uuid], dev) )
         else:
-            print(f"Could not match Vulkan device {ii} ({dev.device_name}) with UUID {dev.uuid.hex()} to any CUDA device")
+            #print(f"Could not match Vulkan device {ii} ({dev.device_name}) with UUID {dev.uuid.hex()} to any CUDA device")
             unmatched_devices.append(dev)
-            unmatched_device_ids.append(ii)
 
     # sort matched devices by CUDA index
     matched_devices.sort(key=lambda x: x[0])
 
     # return matched devices first (by CUDA index), then unmatched devices (by Vulkan order)
-    result = [dev for _, dev, _ in matched_devices] + unmatched_devices
-    result_ids = [ii for _, _, ii in matched_devices] + unmatched_device_ids
+    result = [dev for _, dev in matched_devices] + unmatched_devices
+    #result_ids = [ii for _, _, ii in matched_devices] + unmatched_device_ids
+
+    for dev_id, dev in enumerate(result):
+        #print(f"Final device order index {dev.sorted_index} -> Vulkan device {dev_id} ({dev.device_name})")
+        dev.sorted_index = dev_id
     
     __initilized_instance = True
     __device_infos = result
 
-    print("Vulkan Devices (sorted by CUDA index when possible):")
-    for dev_id, dev in zip(result_ids, result):
-        print(f"--- Device {dev_id} ---")
-        print(dev)
 
-def get_cuda_device_map():
-    """
-    Returns a dict mapping CUDA device index -> UUID (bytes).
-    Format: { 0: b'\x00...', 1: b'\x01...' }
-
-    If the CUDA driver bindings are not available, returns None.
-    """
-    try:
-        from cuda.bindings import driver
-    except ImportError as e:
-        return None
-
-    err, = driver.cuInit(0)
-    if err != driver.CUresult.CUDA_SUCCESS:
-        raise RuntimeError("Failed to initialize CUDA Driver API")
-
-    err, count = driver.cuDeviceGetCount()
-    if err != driver.CUresult.CUDA_SUCCESS:
-        raise RuntimeError("Failed to get CUDA device count")
-
-    uuid_map = {}
-
-    for i in range(count):
-        err, device = driver.cuDeviceGet(i)
-        if err != driver.CUresult.CUDA_SUCCESS:
-            continue
-
-        err, uuid_bytes = driver.cuDeviceGetUuid(device)
-        if err == driver.CUresult.CUDA_SUCCESS:
-            assert len(uuid_bytes.bytes) == 16
-            uuid_map[i] = uuid_bytes.bytes
-
-    return uuid_map
-
-def get_devices() -> typing.List[DeviceInfo]:
+def get_devices() -> List[DeviceInfo]:
     """
     Get a list of DeviceInfo instances representing all the Vulkan devices on the system.
 
@@ -466,6 +475,23 @@ def get_devices() -> typing.List[DeviceInfo]:
     
     return __device_infos
 
+def __log_noinit(text: str, end: str = '\n', level: LogLevel = LogLevel.ERROR, stack_offset: int = 1):
+    """
+    A function which logs a message at the specified log level.
+
+    Args:
+        level (`LogLevel`): The log level.
+        message (`str`): The message to log.
+    """
+
+    frame = inspect.stack()[stack_offset]
+    vkdispatch_native.log(
+        level.value, 
+        (text + end).encode(), 
+        os.path.relpath(frame.filename, os.getcwd()).encode(), 
+        frame.lineno
+    )
+
 def log(text: str, end: str = '\n', level: LogLevel = LogLevel.ERROR, stack_offset: int = 1):
     """
     A function which logs a message at the specified log level.
@@ -477,13 +503,7 @@ def log(text: str, end: str = '\n', level: LogLevel = LogLevel.ERROR, stack_offs
 
     initialize()
 
-    frame = inspect.stack()[stack_offset]
-    vkdispatch_native.log(
-        level.value, 
-        (text + end).encode(), 
-        os.path.relpath(frame.filename, os.getcwd()).encode(), 
-        frame.lineno
-    )
+    __log_noinit(text, end, level, stack_offset + 1)
 
 def log_error(text: str, end: str = '\n'):
     """

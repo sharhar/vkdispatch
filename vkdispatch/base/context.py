@@ -125,7 +125,8 @@ class Context:
     """
 
     _handle: int
-    devices: List[int]
+    device_ids: List[int]
+    mapped_device_ids: List[int]
     device_infos: List[DeviceInfo]
     queue_families: List[List[int]]
     queue_count: int
@@ -139,15 +140,16 @@ class Context:
 
     def __init__(
         self,
-        devices: List[int],
+        device_ids: List[int],
         queue_families: List[List[int]]
     ) -> None:
-        self.devices = devices
-        self.device_infos = [get_devices()[dev] for dev in devices]
+        self.device_ids = device_ids
+        self.device_infos = [get_devices()[dev] for dev in device_ids]
         self.queue_families = queue_families
         self.queue_count = sum([len(i) for i in queue_families])
         self.handles_dict = weakref.WeakValueDictionary()
-        self._handle = vkdispatch_native.context_create(devices, queue_families)
+        self.mapped_device_ids = [dev.dev_index for dev in self.device_infos]
+        self._handle = vkdispatch_native.context_create(self.mapped_device_ids, queue_families)
         check_for_errors()
         
         subgroup_sizes = []
