@@ -66,6 +66,6 @@ from .functions.printing import print_vars as print
 from .builder import ShaderBinding, ShaderDescription
 from .builder import ShaderBuilder, ShaderFlags
 
-from .global_builder import set_global_builder, get_global_builder, shared_buffer
+from .global_builder import set_builder, get_builder, shared_buffer
 
 from .abreviations import *

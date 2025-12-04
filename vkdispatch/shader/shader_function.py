@@ -200,13 +200,13 @@ class ShaderFunction:
                 flags=self.flags,
                 is_apple_device=vd.get_context().is_apple()
             )
-            old_builder = vc.set_global_builder(builder)
+            old_builder = vc.set_builder(builder)
 
             signature = ShaderSignature.from_inspectable_function(builder, self.func)
             
             self.func(*signature.get_variables())
 
-            vc.set_global_builder(old_builder)
+            vc.set_builder(old_builder)
 
             self.shader_description = builder.build(self.func.__module__ + "." + self.func.__name__)
             self.shader_signature = signature

@@ -17,7 +17,19 @@ import typing
 _ArgType = typing.TypeVar('_ArgType', bound=dtype)
 
 class Buffer(Handle, typing.Generic[_ArgType]):
-    """TODO: Docstring"""
+    """
+    Represents a contiguous block of memory on the GPU (or shared across multiple devices).
+
+    Buffers are the primary mechanism for transferring data between the host (CPU) 
+    and the device (GPU). They are typed using ``vkdispatch.dtype`` and support 
+    multi-dimensional shapes, similar to NumPy arrays.
+
+    :param shape: The dimensions of the buffer. Must be a tuple of 1, 2, or 3 integers.
+    :type shape: Tuple[int, ...]
+    :param var_type: The data type of the elements stored in the buffer.
+    :type var_type: vkdispatch.base.dtype.dtype
+    :raises ValueError: If the shape has more than 3 dimensions or if the requested size exceeds 2^30 elements.
+    """
 
     var_type: dtype
     shape: Tuple[int]
@@ -62,17 +74,18 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         self.destroy()
 
     def write(self, data: Union[bytes, np.ndarray], index: int = -1) -> None:
-        """Given data in some numpy array, write that data to the buffer at the
-        specified index. The default index of -1 will write to
-        all buffers.
+        """
+        Uploads data from the host to the GPU buffer.
 
-        Parameters:
-        data (np.ndarray): The data to write to the buffer.
-        index (int): The  index to write the data to. Default is -1 and
-            will write to all buffers.
+        If ``index`` is -1, the data is broadcast to the memory of all active devices 
+        in the context. Otherwise, it writes only to the device specified by the index.
 
-        Returns:
-        None
+        :param data: The source data. Can be a raw ``bytes`` object or a ``numpy.ndarray``.
+                     If a numpy array is provided, its size and dtype must match the buffer's capacity.
+        :type data: Union[bytes, np.ndarray]
+        :param index: The device index to write to. Defaults to -1 (all devices).
+        :type index: int
+        :raises ValueError: If the data size exceeds the buffer size or if the index is invalid.
         """
         if index < -1:
             raise ValueError(f"Invalid buffer index {index}!")
@@ -96,14 +109,15 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         check_for_errors()
 
     def read(self, index: Union[int, None] = None) -> np.ndarray:
-        """Read the data in the buffer at the specified device index and return it as a
-        numpy array.
+        """
+        Downloads data from the GPU buffer to the host.
 
-        Parameters:
-        index (int): The index to read the data from. Default is 0.
-
-        Returns:
-        (np.ndarray): The data in the buffer as a numpy array.
+        :param index: The device index to read from. If ``None``, reads from all devices 
+                      and returns a stacked array with an extra dimension for the device index.
+        :type index: Union[int, None]
+        :return: A numpy array containing the buffer data.
+        :rtype: np.ndarray
+        :raises ValueError: If the specified index is invalid.
         """
 
         true_scalar = self.var_type.scalar

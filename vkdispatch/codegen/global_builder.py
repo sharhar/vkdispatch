@@ -1,20 +1,29 @@
+import threading
 import vkdispatch.base.dtype as dtypes
-from .shader_writer import set_global_shader_writer
+from .shader_writer import set_shader_writer
 from .builder import ShaderBuilder
 from typing import Optional
 
-class GlobalBuilder:
-    obj = ShaderBuilder()
+_builder_context = threading.local()
 
-def set_global_builder(builder: ShaderBuilder):
-    old_value = GlobalBuilder.obj
-    GlobalBuilder.obj = builder  # Update the global reference.
-    set_global_shader_writer(builder)
-    return old_value
+def _get_builder() -> Optional['ShaderBuilder']:
+    return getattr(_builder_context, 'active_builder', None)
 
-def get_global_builder() -> ShaderBuilder:
-    return GlobalBuilder.obj
+def set_builder(builder: ShaderBuilder):
+    if builder is None:
+        _builder_context.active_builder = None
+        set_shader_writer(None)
+        return
+
+    assert _get_builder() is None, "A global ShaderBuilder is already set for the current thread!"
+    set_shader_writer(builder)
+    _builder_context.active_builder = builder
+
+def get_builder() -> ShaderBuilder:
+    builder = _get_builder()
+    assert builder is not None, "No global ShaderBuilder is set for the current thread!"
+    return builder
 
 def shared_buffer(var_type: dtypes.dtype, size: int, var_name: Optional[str] = None):
-    return GlobalBuilder.obj.shared_buffer(var_type, size, var_name)
+    return get_builder().shared_buffer(var_type, size, var_name)
 

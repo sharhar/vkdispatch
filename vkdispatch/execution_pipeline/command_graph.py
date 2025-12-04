@@ -36,7 +36,19 @@ class ImageBindInfo:
     write_access: bool
 
 class CommandGraph(CommandList):
-    """TODO: Docstring"""
+    """
+    A high-level abstraction over ``CommandList`` that manages resource binding and push constants automatically.
+
+    Unlike a raw ``CommandList``, a ``CommandGraph`` tracks variable state and handles the 
+    complexities of ``BufferBuilder`` for push constants and uniform buffers. It serves 
+    as the default recording target for shader functions.
+
+    :param reset_on_submit: If True, the graph clears its recorded commands immediately after submission.
+    :type reset_on_submit: bool
+    :param submit_on_record: If True, commands are submitted to the GPU immediately upon recording 
+                             (simulating immediate mode execution).
+    :type submit_on_record: bool
+    """
 
     _reset_on_submit: bool
     submit_on_record: bool
@@ -123,6 +135,24 @@ class CommandGraph(CommandList):
                       pc_values: Dict[str, Any] = {},
                       shader_uuid: str = None
                     ) -> None:
+        """
+        Internal method to record a high-level shader execution.
+
+        This method handles the creation of ``DescriptorSet`` objects, binding of buffers 
+        and images, and populating push constant/uniform data before calling the base 
+        ``record_compute_plan``.
+
+        :param plan: The compute plan to execute.
+        :param shader_description: Metadata about the shader source and layout.
+        :param exec_limits: The execution limits (grid size) in x, y, z.
+        :param blocks: The number of workgroups to dispatch.
+        :param bound_buffers: List of buffers to bind.
+        :param bound_samplers: List of images/samplers to bind.
+        :param uniform_values: Dictionary of values for uniform buffer objects.
+        :param pc_values: Dictionary of values for push constants.
+        :param shader_uuid: Unique identifier for this shader instance (for caching).
+        """
+
         descriptor_set = DescriptorSet(plan)
 
         if shader_uuid is None:
