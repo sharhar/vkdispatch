@@ -25,12 +25,6 @@ def test_basic():
     test_shader(buff, 1.0, graph=graph)
     test_shader(buff, 1.0, graph=graph)
 
-    #test_shader(buff, 2.0, graph=graph)
-    #test_shader(buff, 3.0, graph=graph)
-
     graph.submit()
-
-    print(buff.read(0))
-    print(signal + 3)
 
     assert np.allclose(buff.read(0), signal + 3, atol=0.00025)

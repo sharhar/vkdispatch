@@ -334,8 +334,6 @@ class ShaderFunction:
                     pc_values[shader_arg.shader_name] = arg
             else:
                 raise ValueError(f"Something very wrong happened!")
-
-        print("Recording shader:", self.shader_description.name, "with UUID:", shader_uuid )
         
         my_graph.record_shader(
             self.plan, 

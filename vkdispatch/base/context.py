@@ -86,10 +86,12 @@ class Handle:
         if self.destroyed:
             return
 
-        child_list = list(self.children_dict.values())
+        child_keys = list(self.children_dict.keys())
 
-        for child in child_list:
-            child.destroy()
+        for child_handle in child_keys:
+            if child_handle in self.children_dict:
+                child = self.children_dict[child_handle]
+                child.destroy()
 
         assert len(self.children_dict) == 0, "Not all children were destroyed!"
         

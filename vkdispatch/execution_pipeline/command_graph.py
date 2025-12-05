@@ -230,8 +230,6 @@ class CommandGraph(CommandList):
             for descriptor_set, offset, size in self.uniform_descriptors:
                 descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, True, write_access=False)
 
-            print(self.uniform_builder)
-
             self.uniform_constants_buffer.write(self.uniform_builder.tobytes())
 
         if not self.buffers_valid:

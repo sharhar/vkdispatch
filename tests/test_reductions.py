@@ -78,6 +78,8 @@ def test_listed_reductions():
 
     graph.submit()
 
+    vd.queue_wait_idle()
+
     # Read the data from the buffer
     read_data = res_buf.read(0)
 

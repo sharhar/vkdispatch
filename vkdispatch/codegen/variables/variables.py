@@ -89,13 +89,13 @@ class ShaderVariable(BaseVariable):
             index = index[0]
 
         if base_utils.is_int_number(index):
-            return ShaderVariable(return_type, f"{self.resolve()}[{index}]", [self], settable=self.settable, lexical_unit=True)
+            return ShaderVariable(return_type, f"{self.resolve()}[{index}]", parents=[self], settable=self.settable, lexical_unit=True)
         
         assert isinstance(index, ShaderVariable), f"Index must be a ShaderVariable or int type, not {type(index)}!"
         assert dtypes.is_scalar(index.var_type), "Indexing variable must be a scalar!"
         assert dtypes.is_integer_dtype(index.var_type), "Indexing variable must be an integer type!"
         
-        return ShaderVariable(return_type, f"{self.resolve()}[{index.resolve()}]", [self, index], settable=self.settable, lexical_unit=True)
+        return ShaderVariable(return_type, f"{self.resolve()}[{index.resolve()}]", parents=[self, index], settable=self.settable, lexical_unit=True)
 
     def swizzle(self, components: str) -> "ShaderVariable":
         assert dtypes.is_vector(self.var_type) or dtypes.is_complex(self.var_type) or dtypes.is_scalar(self.var_type), f"Variable '{self.resolve()}' of type '{self.var_type.name}' does not support swizzling!"
