@@ -8,7 +8,7 @@ _thread_context = threading.local()
 def _get_shader_writer() -> Optional['ShaderWriter']:
     return getattr(_thread_context, 'writer', None)
 
-def get_shader_writer() -> 'ShaderWriter':
+def shader_writer() -> 'ShaderWriter':
     writer = _get_shader_writer()
     assert writer is not None, "No global ShaderWriter is set for the current thread!"
     return writer
@@ -63,16 +63,16 @@ class ShaderWriter:
         raise NotImplementedError
 
 def append_contents(contents: str):
-    get_shader_writer().append_contents(contents)
+    shader_writer().append_contents(contents)
 
 def new_name() -> str:
-    return get_shader_writer().new_name()
+    return shader_writer().new_name()
 
 def scope_increment():
-    get_shader_writer().scope_increment()
+    shader_writer().scope_increment()
 
 def scope_decrement():
-    get_shader_writer().scope_decrement()
+    shader_writer().scope_decrement()
 
 def new_var(var_type: dtypes.dtype,
             var_name: Optional[str],
@@ -80,11 +80,11 @@ def new_var(var_type: dtypes.dtype,
             lexical_unit: bool = False,
             settable: bool = False,
             register: bool = False) -> BaseVariable:
-    return get_shader_writer().new_var(var_type, var_name, parents, lexical_unit, settable, register)
+    return shader_writer().new_var(var_type, var_name, parents, lexical_unit, settable, register)
 
 def new_scaled_var(var_type: dtypes.dtype,
                      name: str,
                      scale: int = 1,
                      offset: int = 0,
                      parents: list = None):
-     return get_shader_writer().new_scaled_var(var_type, name, scale, offset, parents)
+     return shader_writer().new_scaled_var(var_type, name, scale, offset, parents)

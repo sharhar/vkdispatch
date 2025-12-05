@@ -36,11 +36,11 @@ class ShaderContext:
 def shader_context(flags: vc.ShaderFlags = vc.ShaderFlags.NONE):
 
     builder = vc.ShaderBuilder(flags=flags, is_apple_device=vd.get_context().is_apple())
-    old_builder = vc.set_global_builder(builder)
+    old_builder = vc.set_builder(builder)
 
     context = ShaderContext(builder)
 
     try:
         yield context
     finally:
-        vc.set_global_builder(old_builder)
+        vc.set_builder(old_builder)

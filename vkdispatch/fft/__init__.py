@@ -12,7 +12,7 @@ from .global_memory_iterators import global_reads_iterator, GlobalReadOp
 from .global_memory_iterators import global_trasposed_write_iterator, GlobalTransposedWriteOp
 
 from .io_proxy import IOProxy
-from .io_manager import IOManager, mapped_read_op, mapped_write_op
+from .io_manager import IOManager, read_op, write_op
 
 from .context import fft_context
 
