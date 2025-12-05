@@ -244,6 +244,21 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
             VkBuffer stagingBuffer = (VkBuffer)ctx->handle_manager->get_handle(indicies.queue_index, staging_buffers_handle, timestamp);
             VkBuffer buffer = (VkBuffer)ctx->handle_manager->get_handle(indicies.queue_index, buffers_handle, timestamp);
 
+            VkMemoryBarrier compute_barrier = {
+                VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                0,
+                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_UNIFORM_READ_BIT,
+                VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT,
+            };
+            
+            vkCmdPipelineBarrier(
+                cmd_buffer,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                0,
+                1, &compute_barrier, 0, NULL, 0, NULL
+            );
+
             VkBufferCopy bufferCopy;
             bufferCopy.size = size;
             bufferCopy.dstOffset = 0;
@@ -254,7 +269,7 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
             VkMemoryBarrier barrier = {
                 VK_STRUCTURE_TYPE_MEMORY_BARRIER,
                 0,
-                VK_ACCESS_TRANSFER_WRITE_BIT,
+                VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT,
                 VK_ACCESS_HOST_READ_BIT,
             };
             vkCmdPipelineBarrier(
