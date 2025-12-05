@@ -187,6 +187,21 @@ void write_to_buffer(Context* ctx, struct Buffer* buffer, void* data, unsigned l
 
             vkCmdCopyBuffer(cmd_buffer, stagingBuffer, buffer, 1, &bufferCopy);
 
+            VkMemoryBarrier compute_barrier = {
+                VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                0,
+                VK_ACCESS_TRANSFER_WRITE_BIT,
+                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_UNIFORM_READ_BIT,
+            };
+            
+            vkCmdPipelineBarrier(
+                cmd_buffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                0,
+                1, &compute_barrier, 0, NULL, 0, NULL
+            );
+
             Signal* signal = (Signal*)ctx->handle_manager->get_handle(indicies.queue_index, signals_pointers_handle, 0);
             signal->notify();
         }

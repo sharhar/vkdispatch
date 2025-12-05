@@ -1,10 +1,10 @@
 from typing import Any
 from typing import List
 from typing import Dict
-from typing import Tuple
+from typing import Tuple, Optional
 
 import uuid
-
+import threading
 
 import vkdispatch as vd
 import vkdispatch.codegen as vc
@@ -230,6 +230,8 @@ class CommandGraph(CommandList):
             for descriptor_set, offset, size in self.uniform_descriptors:
                 descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, True, write_access=False)
 
+            print(self.uniform_builder)
+
             self.uniform_constants_buffer.write(self.uniform_builder.tobytes())
 
         if not self.buffers_valid:
@@ -251,27 +253,32 @@ class CommandGraph(CommandList):
     def submit_any(self, instance_count: int = None) -> None:
         self.submit(instance_count=instance_count, queue_index=-1)
 
-__default_graph = None
-__custom_graph = None
+_global_graph = threading.local()
+
+#__default_graph = None
+#__custom_graph = None
+
+def _get_global_graph() -> Optional[CommandGraph]:
+    return getattr(_global_graph, 'custom_graph', None)
 
 def default_graph() -> CommandGraph:
-    global __default_graph
+    if not hasattr(_global_graph, 'default_graph'):
+        _global_graph.default_graph = CommandGraph(reset_on_submit=True, submit_on_record=True)
 
-    if __default_graph is None:
-        __default_graph = CommandGraph(reset_on_submit=True, submit_on_record=True)
-
-    return __default_graph
+    return _global_graph.default_graph
 
 def global_graph() -> CommandGraph:
-    global __custom_graph
+    custom_graph = _get_global_graph()
 
-    if __custom_graph is not None:
-        return __custom_graph
+    if custom_graph is not None:
+        return custom_graph
 
     return default_graph()
 
 def set_global_graph(graph: CommandGraph = None) -> CommandGraph:
-    global __custom_graph
-    old_value = __custom_graph
-    __custom_graph = graph 
-    return old_value
+    if graph is None:
+        _global_graph.custom_graph = None
+        return
+
+    assert _get_global_graph() is None, "A global CommandGraph is already set for the current thread!"
+    _global_graph.custom_graph = graph

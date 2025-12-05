@@ -151,13 +151,16 @@ class BufferBuilder:
             else:
                 (self.backing_buffer[0, buffer_element.memory_slice]).view(buffer_element.dtype)[:] = arr
 
-#    def __repr__(self) -> str:
-#        result = "Push Constant Buffer:\n"
-#
-#        for elem in self.elements:
-#            result += f"\t{elem.name} ({elem.dtype.name}): {self.numpy_arrays[elem.index]}\n"
-#
-#        return result[:-1]
+    def __repr__(self) -> str:
+       result = "Push Constant Buffer:\n"
+
+       for key, elem in self.element_map.items():
+           buffer_element = self.element_map[key]
+           value = (self.backing_buffer[:, buffer_element.memory_slice]).view(buffer_element.dtype)
+
+           result += f"\t{key[0]}, {key[1]} ({elem.dtype}): {value}\n"
+
+       return result[:-1]
 
     def prepare(self, instance_count: int) -> None:
         if self.instance_count != instance_count:
