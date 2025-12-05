@@ -2,8 +2,7 @@ import vkdispatch as vd
 import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import *
 
-
-vd.initialize(debug_mode=True)
+vd.initialize(debug_mode=True) #, log_level=vd.LogLevel.VERBOSE)
 
 import numpy as np
 
@@ -22,8 +21,8 @@ def test_basic():
     buff.write(signal)
 
     test_shader(buff, 1.0, graph=graph)
-    test_shader(buff, 1.0, graph=graph)
-    test_shader(buff, 1.0, graph=graph)
+    test_shader(buff, 2.0, graph=graph)
+    test_shader(buff, 3.0, graph=graph)
 
     #test_shader(buff, 2.0, graph=graph)
     #test_shader(buff, 3.0, graph=graph)
@@ -33,4 +32,6 @@ def test_basic():
     print(buff.read(0))
     print(signal + 3)
 
-    assert np.allclose(buff.read(0), signal + 3, atol=0.00025)
+    assert np.allclose(buff.read(0), signal + 6, atol=0.00025)
+
+test_basic()
