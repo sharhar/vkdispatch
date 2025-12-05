@@ -1,4 +1,3 @@
-
 from typing import Tuple
 from typing import Union, Optional
 from typing import List
@@ -7,9 +6,10 @@ import numpy as np
 
 import vkdispatch as vd
 
-from .fft_plan import VkFFTPlan
+from .vkfft_plan import VkFFTPlan
 
 import dataclasses
+from functools import lru_cache
 
 from typing import Dict
 from typing import Union
@@ -39,15 +39,42 @@ def sanitize_input_tuple(input: Tuple) -> Tuple:
 
     return tuple(input)
 
-__fft_plans: Dict[FFTConfig, VkFFTPlan] = {}
+@lru_cache(maxsize=None)
+def get_fft_plan(
+        shape: Tuple[int, ...],
+        do_r2c: bool = False,
+        axes: Tuple[int] = None,
+        normalize: bool = False,
+        padding: Tuple[Tuple[int, int]] = None,
+        pad_frequency_domain: bool = False,
+        kernel_count: int = 0,
+        input_shape: Tuple[int, ...] = None,
+        input_type: vd.dtype = None,
+        kernel_convolution: bool = False,
+        conjugate_convolution: bool = False,
+        convolution_features: int = 1,
+        num_batches: int = 1,
+        keep_shader_code: bool = False) -> VkFFTPlan:
+    
+    return VkFFTPlan(
+        shape=shape, 
+        do_r2c=do_r2c, 
+        axes=axes, 
+        normalize=normalize, 
+        padding=padding, 
+        pad_frequency_domain=pad_frequency_domain, 
+        kernel_count=kernel_count,
+        input_shape=input_shape,
+        input_type=input_type,
+        kernel_convolution=kernel_convolution,
+        conjugate_convolution=conjugate_convolution,
+        convolution_features=convolution_features,
+        num_batches=num_batches,
+        keep_shader_code=keep_shader_code
+    )
 
 def clear_plan_cache():
-    global __fft_plans
-
-    for plan in __fft_plans.values():
-        plan.destroy()
-
-    __fft_plans = {}
+    get_fft_plan.cache_clear()
 
 def execute_fft_plan(
         buffer: vd.Buffer,
@@ -59,8 +86,7 @@ def execute_fft_plan(
     if graph is None:
         graph = vd.global_graph()
     
-    if config not in __fft_plans:
-        __fft_plans[config] = VkFFTPlan(
+    plan = get_fft_plan(
             shape=config.shape, 
             do_r2c=config.do_r2c, 
             axes=config.axes, 
@@ -76,8 +102,6 @@ def execute_fft_plan(
             num_batches=config.num_batches,
             keep_shader_code=config.keep_shader_code
         )
-    
-    plan = __fft_plans[config]
     plan.record(graph, buffer, inverse, kernel, input)
 
     if isinstance(graph, vd.CommandGraph):

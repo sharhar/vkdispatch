@@ -91,7 +91,7 @@ def make_convolution_shader(
 
     if kernel_map is None:
         def kernel_map_func(kernel_buffer: vc.Buffer[c64]):
-            read_op = vd.fft.mapped_read_op()
+            read_op = vd.fft.read_op()
             
             kernel_val = vc.new_complex_register()
             read_op.read_from_buffer(kernel_buffer, register=kernel_val)

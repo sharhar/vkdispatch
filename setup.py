@@ -31,18 +31,16 @@ platform_name_dict = {
 }
 
 platform_library_dirs = []
-platform_define_macros = [] #[(f"__VKDISPATCH_PLATFORM_{platform_name_dict[system]}__", 1), ("LOG_VERBOSE_ENABLED", 1)]
+platform_define_macros = []
 platform_link_libraries = []
 platform_extra_link_args = []
 platform_extra_compile_args = (
     ["/W3", "/GL", "/DNDEBUG", "/MD", "/EHsc", "/std:c++17"]
     if system == "Windows"
     else [
-        "-O0",
+        "-O2",
         "-g",
         "-std=c++17",
-        #"-fsanitize=address",
-        #"-fsanitize-address-use-after-scope",
     ]
 )
 
@@ -56,8 +54,6 @@ if os.name == "posix":
     platform_extra_link_args.append("-g")
     platform_extra_link_args.append("-O0")
     platform_extra_link_args.append("-fno-omit-frame-pointer")
-    #platform_extra_link_args.append("-fsanitize=address")
-    #platform_extra_link_args.append("-fsanitize-address-use-after-scope")
     platform_link_libraries.extend(["dl", "pthread"])
 
 

@@ -3,27 +3,47 @@ import vkdispatch.codegen as vc
 
 from typing import Optional, Tuple
 
+import threading
+
 from .io_proxy import IOProxy
 from .registers import FFTRegisters
 from .global_memory_iterators import global_writes_iterator, global_reads_iterator
 from .global_memory_iterators import GlobalWriteOp, GlobalReadOp
 
-__static_global_write_op = None
-__static_global_read_op = None
+_write_op = threading.local()
+_read_op = threading.local()
 
-def set_global_write_op(op: GlobalWriteOp):
-    global __static_global_write_op
-    __static_global_write_op = op
+def _get_write_op() -> Optional[GlobalWriteOp]:
+    return getattr(_write_op, 'op', None)
 
-def mapped_write_op() -> GlobalWriteOp:
-    return __static_global_write_op
+def _get_read_op() -> Optional[GlobalReadOp]:
+    return getattr(_read_op, 'op', None)
 
-def set_global_read_op(op: GlobalReadOp):
-    global __static_global_read_op
-    __static_global_read_op = op
+def write_op() -> GlobalWriteOp:
+    op = _get_write_op()
+    assert op is not None, "No global write operation is set for the current thread!"
+    return op
 
-def mapped_read_op() -> GlobalReadOp:
-    return __static_global_read_op
+def read_op() -> GlobalReadOp:
+    op = _get_read_op()
+    assert op is not None, "No global read operation is set for the current thread!"
+    return op
+
+def set_write_op(op: GlobalWriteOp):
+    if op is None:
+        _write_op.op = None
+        return
+
+    assert _get_write_op() is None, "A global write operation is already set for the current thread!"
+    _write_op.op = op
+
+def set_read_op(op: GlobalReadOp):
+    if op is None:
+        _read_op.op = None
+        return
+
+    assert _get_read_op() is None, "A global read operation is already set for the current thread!"
+    _read_op.op = op
 
 class IOManager:
     default_registers: FFTRegisters
@@ -83,9 +103,9 @@ class IOManager:
             ):
             
             if proxy.has_callback():
-                set_global_read_op(read_op)
+                set_read_op(read_op)
                 proxy.do_callback()
-                set_global_read_op(None)
+                set_read_op(None)
             else:
                 read_op.read_from_buffer(proxy.buffer_variables[0])
 
@@ -105,9 +125,9 @@ class IOManager:
             ):
             
             if proxy.has_callback():
-                set_global_write_op(write_op)
+                set_write_op(write_op)
                 proxy.do_callback()
-                set_global_write_op(None)
+                set_write_op(None)
             else:
                 write_op.write_to_buffer(proxy.buffer_variables[0])
     
