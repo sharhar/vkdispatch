@@ -120,6 +120,7 @@ def convolve(
         normalize: bool = True,
         name: str = None,
         transposed_kernel: bool = False,
+        kernel_inner_only: bool = False,
         input_map: vd.MappingFunction = None,
         output_map: vd.MappingFunction = None,
         input_signal_range: Union[Tuple[Optional[int], Optional[int]], None] = None):
@@ -132,6 +133,7 @@ def convolve(
         kernel_num,
         axis,
         transposed_kernel=transposed_kernel,
+        kernel_inner_only=kernel_inner_only,
         normalize=normalize,
         input_map=input_map,
         output_map=output_map,
@@ -151,6 +153,7 @@ def convolve2D(
         print_shader: bool = False,
         normalize: bool = True,
         transposed_kernel: bool = False,
+        kernel_inner_only: bool = False,
         input_map: vd.MappingFunction = None,
         output_map: vd.MappingFunction = None):
 
@@ -173,6 +176,7 @@ def convolve2D(
         buffer_shape=buffer_shape,
         graph=graph,
         transposed_kernel=transposed_kernel,
+        kernel_inner_only=kernel_inner_only,
         print_shader=print_shader,
         axis=len(buffer.shape) - 2,
         normalize=normalize
@@ -185,6 +189,7 @@ def convolve2DR(
         kernel_map: vd.MappingFunction = None,
         buffer_shape: Tuple = None,
         transposed_kernel: bool = False,
+        kernel_inner_only: bool = False,
         graph: vd.CommandGraph = None,
         print_shader: bool = False,
         normalize: bool = True):
@@ -199,6 +204,7 @@ def convolve2DR(
         buffer_shape=buffer_shape,
         graph=graph,
         transposed_kernel=transposed_kernel,
+        kernel_inner_only=kernel_inner_only,
         print_shader=print_shader,
         axis=len(buffer.shape) - 2,
         normalize=normalize
@@ -207,9 +213,11 @@ def convolve2DR(
 
 def transpose(
         in_buffer: vd.Buffer,
+        conv_shape: Tuple = None,
         axis: int = None,
         out_buffer: vd.Buffer = None,
         graph: vd.CommandGraph = None,
+        kernel_inner_only: bool = False,
         print_shader: bool = False) -> vd.Buffer:
     
     transposed_size = get_transposed_size(
@@ -221,10 +229,14 @@ def transpose(
         out_buffer = vd.Buffer((transposed_size,), var_type=in_buffer.var_type)
 
     assert out_buffer.size >= transposed_size, f"Output buffer size {out_buffer.size} does not match expected transposed size {transposed_size}"
+
+    if conv_shape is None:
+        conv_shape = in_buffer.shape
     
     transpose_shader = make_transpose_shader(
-        tuple(in_buffer.shape),
-        axis=axis
+        tuple(conv_shape),
+        axis=axis,
+        kernel_inner_only=kernel_inner_only
     )
 
     if print_shader:

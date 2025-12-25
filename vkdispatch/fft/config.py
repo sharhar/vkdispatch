@@ -126,8 +126,8 @@ class FFTConfig:
         if max_register_count is None:
             max_register_count = default_register_limit()
 
-        if N == 16 and vd.get_devices()[0].is_nvidia():
-            max_register_count = 15  # Special case for 16-point FFTs because this is faster
+        if N==16 or N==8 or N==4 or N==2 and vd.get_devices()[0].is_nvidia():
+            max_register_count = max(2, N//2)
 
         max_register_count = min(max_register_count, N)
 
