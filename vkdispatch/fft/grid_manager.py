@@ -6,6 +6,8 @@ from typing import Optional, Tuple, Union, Literal
 from .config import FFTConfig
 from .prime_utils import prime_factors
 
+import numpy as np
+
 def allocation_valid(workgroup_size: int, shared_memory_size: int):
     valid_workgroup = workgroup_size <= vd.get_context().max_workgroup_invocations
     valid_shared_memory = shared_memory_size <= vd.get_context().max_shared_memory
@@ -105,19 +107,21 @@ def decompose_workgroup_index(
 
         return None, workgroup_index * local_size[1] + vc.local_invocation_id().y 
 
-    global_inner = vc.new_uint_register(
+    global_inner_offset = vc.new_uint_register(
         (workgroup_index % inner_batch_count) * local_size[0] + vc.local_invocation_id().x,
         var_name="global_inner_index"
     )
 
-    global_outer = vc.new_uint_register(
+    global_outer_offset = vc.new_uint_register(
         (workgroup_index // inner_batch_count) * local_size[2] + vc.local_invocation_id().z,
         var_name="global_outer_index"
     )
 
-    return global_inner, global_outer
+    return global_inner_offset, global_outer_offset
 
 class FFTGridManager:
+    config: FFTConfig
+
     shared_memory_enabled: bool
     shared_memory_allocation: int
 
@@ -129,14 +133,24 @@ class FFTGridManager:
 
     tid: vc.ShaderVariable
 
-    global_inner: Union[vc.ShaderVariable, Literal[0]]
-    global_outer: vc.ShaderVariable
+    global_inner_offset: Union[vc.ShaderVariable, Literal[0]]
+    global_outer_offset: vc.ShaderVariable
 
     local_size: Tuple[int, int, int]
     workgroup_count: Tuple[int, int, int]
     exec_size: Tuple[int, int, int]
 
+    workgroup_index: vc.ShaderVariable
+
+    transposed_offset: Optional[vc.ShaderVariable]
+    transposed_stride: int
+
+    transposed_inner_offset: Optional[vc.ShaderVariable]
+    transposed_inner_stride: int
+
     def __init__(self, config: FFTConfig, force_sdata: bool = False, declare_variables: bool = True):
+        self.config = config
+
         make_sdata_buffer = config.batch_threads > 1 or force_sdata
 
         self.inline_batches_inner = allocate_inline_batches(
@@ -169,7 +183,7 @@ class FFTGridManager:
             inner_workgroups = config.batch_inner_count // self.inline_batches_inner
             outer_workgroups = config.batch_outer_count // self.inline_batches_outer
             
-            workgroup_index, self.workgroup_count = allocate_workgroups(
+            self.workgroup_index, self.workgroup_count = allocate_workgroups(
                 inner_workgroups * outer_workgroups,
                 declare_variables=declare_variables
             )
@@ -178,8 +192,8 @@ class FFTGridManager:
                 self.local_inner = vc.local_invocation_id().x
                 self.local_outer = vc.local_invocation_id().z
 
-                self.global_inner, self.global_outer = decompose_workgroup_index(
-                    workgroup_index,
+                self.global_inner_offset, self.global_outer_offset = decompose_workgroup_index(
+                    self.workgroup_index,
                     inner_workgroups,
                     config.batch_threads,
                     self.local_size
@@ -188,14 +202,14 @@ class FFTGridManager:
                 self.tid = vc.local_invocation_id().y.to_register("tid")
         else:
             self.local_inner = None
-            self.global_inner = 0
+            self.global_inner_offset = 0
 
             if config.batch_threads > 1:
                 self.local_size = (config.batch_threads, self.inline_batches_outer, 1)
             else:
                 self.local_size = (self.inline_batches_outer, 1, 1)
 
-            workgroup_index, self.workgroup_count = allocate_workgroups(
+            self.workgroup_index, self.workgroup_count = allocate_workgroups(
                 config.batch_outer_count // self.inline_batches_outer,
                 declare_variables=declare_variables
             )
@@ -208,8 +222,8 @@ class FFTGridManager:
                     self.tid = 0
                     self.local_outer = vc.local_invocation_id().x
 
-                _, self.global_outer = decompose_workgroup_index(
-                    workgroup_index,
+                _, self.global_outer_offset = decompose_workgroup_index(
+                    self.workgroup_index,
                     None,
                     config.batch_threads,
                     self.local_size
@@ -220,3 +234,27 @@ class FFTGridManager:
             self.local_size[1] * self.workgroup_count[1],
             self.local_size[2] * self.workgroup_count[2]
         )
+
+        if not declare_variables:
+            return
+
+        self.transposed_stride = np.prod(self.local_size)
+        self.transposed_offset = vc.local_invocation_index() + self.transposed_stride * self.config.register_count * self.workgroup_index
+        
+        self.transposed_inner_stride = None
+        self.transposed_inner_offset = None
+
+        if config.batch_inner_count > 1:
+            self.transposed_inner_stride = self.local_size[0] * self.local_size[1]
+            self.transposed_inner_offset = vc.local_invocation_id().x + self.local_size[0] * vc.local_invocation_id().y + \
+                                            self.transposed_inner_stride * self.config.register_count * (self.workgroup_index % inner_workgroups)
+        else:
+            self.transposed_inner_stride = self.local_size[0]
+            self.transposed_inner_offset = vc.local_invocation_id().x
+
+    def get_transposed_index(self, register_id: int, inner_only: bool = False) -> vc.ShaderVariable:
+        if not inner_only:
+            return self.transposed_offset + register_id * self.transposed_stride
+
+        return self.transposed_inner_offset + register_id * self.transposed_inner_stride
+

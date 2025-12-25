@@ -89,6 +89,7 @@ class IOManager:
                         r2c: bool = False,
                         inverse: bool = None,
                         format_transposed: bool = False,
+                        inner_only: bool = False,
                         signal_range: Optional[Tuple[Optional[int], Optional[int]]] = None):
 
         if registers is None:
@@ -99,6 +100,7 @@ class IOManager:
                 r2c=r2c,
                 inverse=inverse,
                 format_transposed=format_transposed,
+                inner_only=inner_only,
                 signal_range=signal_range
             ):
             
@@ -155,9 +157,10 @@ class IOManager:
             inverse=inverse
         )
     
-    def read_kernel(self, registers: Optional[FFTRegisters] = None, format_transposed: bool = False):
+    def read_kernel(self, registers: Optional[FFTRegisters] = None, format_transposed: bool = False, inner_only: bool = False):
         self.read_from_proxy(
             self.kernel_proxy,
             registers,
-            format_transposed=format_transposed
+            format_transposed=format_transposed,
+            inner_only=inner_only
         )

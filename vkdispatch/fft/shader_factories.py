@@ -55,16 +55,23 @@ def get_transposed_size(
 @lru_cache(maxsize=None)
 def make_transpose_shader(
         buffer_shape: Tuple, 
-        axis: int = None) -> vd.ShaderFunction:
+        axis: int = None,
+        kernel_inner_only: bool = False) -> vd.ShaderFunction:
 
     with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
         args = ctx.declare_shader_args([vc.Buffer[c64], vc.Buffer[c64]])
 
+        if kernel_inner_only:
+            vc.if_statement(ctx.grid.global_outer_offset == 0)
+
         for read_op in vd.fft.global_reads_iterator(ctx.registers, format_transposed=False):
             read_op.read_from_buffer(args[1])
 
-        for write_op in vd.fft.global_trasposed_write_iterator(ctx.registers):
+        for write_op in vd.fft.global_trasposed_write_iterator(ctx.registers, inner_only=kernel_inner_only):
             write_op.write_to_buffer(args[0])
+
+        if kernel_inner_only:
+            vc.end()
 
     return ctx.get_callable()
 
@@ -85,6 +92,7 @@ def make_convolution_shader(
         axis: int = None, 
         normalize: bool = True,
         transposed_kernel: bool = False,
+        kernel_inner_only: bool = False,
         input_map: vd.MappingFunction = None,
         output_map: vd.MappingFunction = None,
         input_signal_range: Optional[Tuple[Optional[int], Optional[int]]] = None) -> vd.ShaderFunction:
@@ -127,7 +135,7 @@ def make_convolution_shader(
                 ctx.registers.read_from_registers(backup_registers)
 
             set_global_kernel_index(kern_index)
-            io_manager.read_kernel(format_transposed=transposed_kernel)
+            io_manager.read_kernel(format_transposed=transposed_kernel, inner_only=kernel_inner_only)
                         
             ctx.execute(inverse=True)
 
