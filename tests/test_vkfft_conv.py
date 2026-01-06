@@ -4,6 +4,7 @@ import random
 from typing import List
 import numpy as np
 
+vd.initialize(log_level=vd.LogLevel.INFO)
 
 def numpy_convolution(signal: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     return np.fft.ifft2(

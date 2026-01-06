@@ -132,10 +132,10 @@ void init_extern(bool debug, LogLevel log_level) {
     }
 
 
-#ifdef __APPLE__
-    extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-    flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-#endif
+//#ifdef __APPLE__
+    //extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+    //flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+//#endif
 
     uint32_t layer_count = 0;
     VK_CALL(vkEnumerateInstanceLayerProperties(&layer_count, nullptr));
@@ -273,6 +273,11 @@ void init_extern(bool debug, LogLevel log_level) {
         vkGetPhysicalDeviceFeatures2(_instance.physicalDevices[i], &_instance.features[i]);
 
         VkPhysicalDeviceFeatures features = _instance.features[i].features;
+        _instance.features[i].features = {};
+        _instance.features[i].features.shaderInt16 = features.shaderInt16;
+        _instance.features[i].features.shaderInt64 = features.shaderInt64;
+        _instance.features[i].features.shaderFloat64 = features.shaderFloat64;
+
         VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomicFloatFeatures = _instance.atomic_float_features[i];
 
         _instance.id_properties[i] = {};
