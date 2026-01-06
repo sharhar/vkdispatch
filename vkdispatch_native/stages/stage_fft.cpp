@@ -178,7 +178,7 @@ struct FFTPlan* stage_fft_plan_create_extern(
 
             *config.bufferSize = num_batches * convolution_multiplier * true_rows * cols * depth * sizeof(float) * 2; 
             *config.inputBufferSize = input_buffer_size;
-            *config.kernelSize = 2 * sizeof(float) * kernel_num * convolution_features * true_rows * config.size[1] * config.size[2];
+            *config.kernelSize = 2 * sizeof(float) * num_batches * kernel_num * convolution_features * true_rows * config.size[1] * config.size[2];
 
             config.numberBatches = num_batches;
             config.omitDimension[0] = omit_rows;
