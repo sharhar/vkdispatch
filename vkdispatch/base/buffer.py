@@ -39,6 +39,8 @@ class Buffer(Handle, typing.Generic[_ArgType]):
     def __init__(self, shape: Tuple[int, ...], var_type: dtype) -> None:
         super().__init__()
 
+        print("Creating buffer with shape:", shape, "and type:", var_type)
+
         if len(shape) > 3:
             raise ValueError("Buffer shape must be 1, 2, or 3 dimensions!")
 

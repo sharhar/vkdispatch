@@ -79,6 +79,7 @@ Queue::Queue(
     this->run_queue.store(true);
 
     if(this->recording_thread_count > 1) {
+        LOG_INFO("Starting ingest, %d record, and submit threads for queue %d", recording_thread_count, this->queue_index);
         submit_thread = std::thread([this]() { this->submit_worker(); });
         
         record_threads = new std::thread[recording_thread_count];
@@ -88,6 +89,7 @@ Queue::Queue(
         
         ingest_thread = std::thread([this]() { this->ingest_worker(); });
     } else {
+        LOG_INFO("Starting fused worker thread for queue %d", this->queue_index);
         submit_thread = std::thread([this]() { this->fused_worker(); });
     }
 }
