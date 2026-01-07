@@ -4,7 +4,8 @@ import random
 from typing import List
 import numpy as np
 
-vd.initialize(log_level=vd.LogLevel.INFO)
+#vd.initialize(log_level=vd.LogLevel.INFO, debug_mode=True)
+vd.initialize()
 
 def numpy_convolution(signal: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     return np.fft.ifft2(
@@ -31,7 +32,9 @@ def check_fft_dims(fft_dims: List[int], max_fft_size: int):
 def test_convolution_2d_powers_of_2():
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
-    for _ in range(3):
+    for i in range(3):
+        vd.log_info(f"Starting new 2D convolution test with powers of 2 sizes iter {i+1}/3")
+
         current_shape = [512, 16, 16]
 
         while check_fft_dims(current_shape, max_fft_size):
@@ -52,4 +55,6 @@ def test_convolution_2d_powers_of_2():
             current_shape[1] *= 2
             current_shape[2] *= 2
     
-    vd.fft.cache_clear()
+        vd.fft.cache_clear()
+    
+    vd.log_info("Finished 2D convolution tests with powers of 2 sizes")

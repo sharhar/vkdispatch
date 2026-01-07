@@ -26,7 +26,7 @@ public:
      * This function sets the state of the signal to true, indicating that the condition has occurred.
      * It wakes up any waiting threads.
      */
-    void notify();
+    void notify(int queue_index, uint64_t timestamp);
 
     /**
      * @brief Resets the signal to the initial state.
@@ -41,10 +41,21 @@ public:
      *
      * This function blocks the calling thread until the signal is notified.
      * If the signal is already in the notified state, the function returns immediately.
+     * 
+     * This function will return after one second even if the signal is not notified, to prevent deadlocks.
+     * @return true if the signal was notified, false if the wait timed out.
      */
-    void wait();
+    bool try_wait(bool wait_for_timestamp, int queue_index);
+
+private:
+    bool try_host_wait();
+    bool try_device_wait(int queue_index);
+
+public:
 
     struct Context* ctx;
+    uint64_t timestamp;
+    int timestamp_queue_index;
     std::mutex mutex;
     std::condition_variable cv;
     std::atomic<bool> state;

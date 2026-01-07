@@ -75,7 +75,9 @@ void log_extern(LogLevel log_level, const char* text, const char* file_str, int 
 void set_log_level_extern(LogLevel log_level);
 
 struct Context* context_create_extern(int* device_indicies, int* queue_counts, int* queue_families, int device_count);
-void context_queue_wait_idle_extern(struct Context* context, int queue_index);
+bool context_signal_wait_extern(void* signal_ptr);
+void* context_insert_queue_signal_extern(struct Context* context, int queue_index);
+//bool context_queue_wait_idle_extern(struct Context* context, int queue_index);
 void context_destroy_extern(struct Context* context);
 
 void context_stop_threads_extern(struct Context* context);

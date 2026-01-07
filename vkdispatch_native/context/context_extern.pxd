@@ -80,6 +80,7 @@ cdef extern from "context/context_extern.hh":
     struct Context
 
     Context* context_create_extern(int* device_indicies, int* queue_counts, int* queue_families, int device_count)
+    bool context_signal_wait_extern(void* signal_ptr)
     void context_queue_wait_idle_extern(Context* context, int queue_index);
     void context_destroy_extern(Context* device_context);
 
@@ -184,6 +185,9 @@ cpdef inline context_create(list[int] device_indicies, list[list[int]] queue_fam
     free(queue_families_c)
 
     return result
+
+cpdef inline bool context_signal_wait(unsigned long long signal_ptr):
+    return context_signal_wait_extern(<void*>signal_ptr)
 
 cpdef inline void context_queue_wait_idle(unsigned long long context, int queue_index):
     context_queue_wait_idle_extern(<Context*>context, queue_index)
