@@ -140,34 +140,41 @@ void Queue::destroy() {
     recording_results.clear();
 }
 
-void Queue::wait_for_timestamp(uint64_t timestamp) {
+bool Queue::try_wait_for_timestamp(uint64_t timestamp) {
     uint64_t last_completed = 0;
     VK_CALL(vkGetSemaphoreCounterValue(device, timeline_semaphore, &last_completed));
     if (last_completed >= timestamp) {
         return;
     }
 
-    while(last_completed < timestamp) {
-        LOG_INFO("Last completed timestamp: %llu, waiting for timestamp: %llu on queue %d", last_completed, timestamp, this->queue_index);
+    LOG_INFO("Last completed timestamp: %llu, waiting for timestamp: %llu on queue %d", last_completed, timestamp, this->queue_index);
 
-        VkSemaphoreWaitInfo wi = {};
-        wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-        wi.semaphoreCount = 1;
-        wi.pSemaphores = &timeline_semaphore;
-        wi.pValues     = &timestamp;
-        VkResult result = vkWaitSemaphores(device, &wi, 1000000000);
-        if (result != VK_TIMEOUT) {
-            if(result != VK_SUCCESS) {
-                set_error("Failed to wait for semaphore: %d", result);
-            }
-            return;
-        }
+    VkSemaphoreWaitInfo wi = {};
+    wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+    wi.semaphoreCount = 1;
+    wi.pSemaphores = &timeline_semaphore;
+    wi.pValues     = &timestamp;
+    VkResult result = vkWaitSemaphores(device, &wi, 1000000000);
+
+    if (result == VK_TIMEOUT) {
+        return false;
+    }
+
+    if(result != VK_SUCCESS) {
+        set_error("Failed to wait for semaphore: %d", result);
+    }
+
+    return true;
+}
+
+void Queue::wait_for_timestamp(uint64_t timestamp) {
+    while(!try_wait_for_timestamp(timestamp)) {
+        LOG_INFO("Timeout while waiting for timestamp %llu on queue %d, (running=%d) checking again...", timestamp, this->queue_index, this->run_queue.load());
 
         if(!this->run_queue.load()) {
             return;
         }
 
-        VK_CALL(vkGetSemaphoreCounterValue(device, timeline_semaphore, &last_completed));
     }
 }
 

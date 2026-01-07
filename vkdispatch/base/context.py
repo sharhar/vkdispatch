@@ -10,7 +10,7 @@ import weakref
 import os, signal
 
 from .errors import check_for_errors, set_running
-from .init import DeviceInfo, get_devices, initialize, set_log_level, LogLevel
+from .init import DeviceInfo, get_devices, initialize, set_log_level, LogLevel, log_info
 
 import vkdispatch_native
 
@@ -393,6 +393,8 @@ def destroy_context() -> None:
     """
     Destroys the current context and cleans up resources.
     """
+    log_info("Destroying context...")
+
     global __context
     set_running(False)
 
@@ -400,10 +402,12 @@ def destroy_context() -> None:
         handles_list = list(__context.handles_dict.values())
 
         for handle in handles_list:
+            log_info(f"Destroying handle {handle._handle}...")
             handle.destroy()
 
         assert len(__context.handles_dict) == 0, "Not all handles were destroyed!"
 
+        log_info("Calling native context destroy...")
         vkdispatch_native.context_destroy(__context._handle)
         __context = None
 

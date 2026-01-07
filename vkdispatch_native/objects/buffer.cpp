@@ -203,7 +203,7 @@ void write_to_buffer(Context* ctx, struct Buffer* buffer, void* data, unsigned l
             );
 
             Signal* signal = (Signal*)ctx->handle_manager->get_handle(indicies.queue_index, signals_pointers_handle, 0);
-            signal->notify();
+            signal->notify(timestamp);
         }
     );
 }
@@ -281,7 +281,7 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
             );
 
             Signal* signal = (Signal*)ctx->handle_manager->get_handle(indicies.queue_index, signals_pointers_handle, 0);
-            signal->notify();
+            signal->notify(timestamp);
         }
     );
 

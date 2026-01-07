@@ -1,56 +1,63 @@
-def get_cuda_device_map():
-    """
-    Returns a dict mapping CUDA device index -> UUID (bytes).
-    Format: { 0: b'\x00...', 1: b'\x01...' }
-    """
-    try:
-        from cuda.bindings import driver
-    except ImportError as e:
-        # If the cuda driver bindings are not available, just return None
-        return None
+import vkdispatch as vd
+import random
 
-    # 1. Initialize the CUDA Driver API
-    err, = driver.cuInit(0)
-    if err != driver.CUresult.CUDA_SUCCESS:
-        raise RuntimeError("Failed to initialize CUDA Driver API")
+from typing import List
+import numpy as np
 
-    # 2. Get device count
-    err, count = driver.cuDeviceGetCount()
-    if err != driver.CUresult.CUDA_SUCCESS:
-        raise RuntimeError("Failed to get CUDA device count")
+#vd.initialize(log_level=vd.LogLevel.INFO, debug_mode=True)
+vd.initialize()
 
-    uuid_map = {}
+def numpy_convolution(signal: np.ndarray, kernel: np.ndarray) -> np.ndarray:
+    return np.fft.ifft2(
+        np.fft.fft2(signal).astype(np.complex64)
+        *
+        np.fft.fft2(kernel).astype(np.complex64)
+    )
 
-    # 3. Iterate through devices and fetch UUIDs
-    for i in range(count):
-        # Get handle for device i
-        err, device = driver.cuDeviceGet(i)
-        if err != driver.CUresult.CUDA_SUCCESS:
-            continue
+def pick_radix_prime():
+    return random.choice([2, 3, 5, 7, 11, 13])
 
-        # Get UUID (returns tuple: (error, bytes))
-        err, uuid_bytes = driver.cuDeviceGetUuid(device)
-        if err == driver.CUresult.CUDA_SUCCESS:
-            # uuid_bytes is already a 16-byte object, matches Vulkan format
-            uuid_map[i] = uuid_bytes.bytes
+def pick_dim_count(min_dim):
+    return random.choice(list(range(min_dim, 4)))
 
-    return uuid_map
+def pick_dimention(dims: int):
+    if dims == 1:
+        return 0
 
-# Example usage to print them out
-if __name__ == "__main__":
-    try:
-        device_map = get_cuda_device_map()
-        for idx, uuid in device_map.items():
-            # Convert bytes to hex string for readability (e.g., "54a...e12")
-            print(f"CUDA Device {idx}: UUID={uuid.hex()}")
+    return random.choice(list(range(dims)))
 
-            uuid_str = '-'.join([
-                uuid[0:4].hex(),
-                uuid[4:6].hex(),
-                uuid[6:8].hex(),
-                uuid[8:10].hex(),
-                uuid[10:16].hex(),
-            ])
-            print(f"\tUUID: {uuid_str}")
-    except Exception as e:
-        print(f"Error: {e}")
+def check_fft_dims(fft_dims: List[int], max_fft_size: int):
+    return all([dim <= max_fft_size for dim in fft_dims]) and np.prod(fft_dims) * vd.complex64.item_size < 2 ** 29
+
+def test_convolution_2d_powers_of_2():
+    max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+
+    for i in range(3):
+        vd.log_info(f"Starting new 2D convolution test with powers of 2 sizes iter {i+1}/3")
+
+        current_shape = [512, 16, 16]
+
+        while check_fft_dims(current_shape, max_fft_size):
+            data = np.random.rand(*current_shape).astype(np.complex64)
+            data2 = np.random.rand(*current_shape).astype(np.complex64)
+
+            test_data = vd.asbuffer(data)
+            kernel_data = vd.asbuffer(data2)
+
+            vd.vkfft.transpose_kernel2D(kernel_data)
+            vd.vkfft.convolve2D(test_data, kernel_data, normalize=True)
+
+            reference_data = numpy_convolution(data, data2)
+
+            assert np.allclose(reference_data, test_data.read(0), atol=1e-3)
+
+            current_shape[0] //= 2
+            current_shape[1] *= 2
+            current_shape[2] *= 2
+    
+        vd.fft.cache_clear()
+    
+    vd.log_info("Finished 2D convolution tests with powers of 2 sizes")
+
+
+test_convolution_2d_powers_of_2()

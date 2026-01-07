@@ -39,8 +39,6 @@ class Buffer(Handle, typing.Generic[_ArgType]):
     def __init__(self, shape: Tuple[int, ...], var_type: dtype) -> None:
         super().__init__()
 
-        print("Creating buffer with shape:", shape, "and type:", var_type)
-
         if len(shape) > 3:
             raise ValueError("Buffer shape must be 1, 2, or 3 dimensions!")
 
@@ -105,9 +103,12 @@ class Buffer(Handle, typing.Generic[_ArgType]):
 
             true_data_object = data
 
+        print("Writing buffer data...")
+
         vkdispatch_native.buffer_write(
             self._handle, true_data_object, 0, len(true_data_object), index
         )
+        print("Finished writing buffer data.")
         check_for_errors()
 
     def read(self, index: Union[int, None] = None) -> np.ndarray:
@@ -130,10 +131,11 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         if index is not None:
             if index < 0:
                 raise ValueError(f"Invalid buffer index {index}!")
-            
+            print("Reading buffer data...")
             result_bytes = vkdispatch_native.buffer_read(
                 self._handle, 0, self.mem_size, index
             )
+            print("Finished reading buffer data.")
 
             result = np.frombuffer(result_bytes, dtype=to_numpy_dtype(true_scalar)).reshape(self.shape + self.var_type.true_numpy_shape)
 
