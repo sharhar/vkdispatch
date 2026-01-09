@@ -21,6 +21,7 @@ struct WorkHeader {
     unsigned int instance_count;
     unsigned int instance_size;
     RecordType record_type;
+    const char* name;
 };
 
 enum WorkState {
@@ -45,8 +46,8 @@ public:
     void stop();
     int get_program_index(struct CommandList* command_list);
     int get_work_index();
-    void prepare_work(int work_index, int program_index, struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int queue_index, int record_type);
-    bool push(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int queue_index, int record_type);
+    void prepare_work(int work_index, int program_index, struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int queue_index, int record_type, const char* name);
+    bool push(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int queue_index, int record_type, const char* name);
     bool pop(struct WorkHeader** header, int queue_index);
     void finish(struct WorkHeader* header);
 

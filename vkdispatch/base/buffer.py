@@ -60,6 +60,8 @@ class Buffer(Handle, typing.Generic[_ArgType]):
 
         self.shader_shape = tuple(shader_shape_internal)
 
+        self.signals = []
+
         handle = vkdispatch_native.buffer_create(
             self.context._handle, self.mem_size, 0
         )
