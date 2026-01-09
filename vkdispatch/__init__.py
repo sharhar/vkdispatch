@@ -10,7 +10,7 @@ from .base.dtype import float32, int32, uint32, complex64
 from .base.dtype import vec2, vec3, vec4, ivec2, ivec3, ivec4, uvec2, uvec3, uvec4
 from .base.dtype import mat2, mat3, mat4
 
-from .base.context import get_context, queue_wait_idle
+from .base.context import get_context, queue_wait_idle, Signal
 from .base.context import get_context_handle
 from .base.context import make_context, select_queue_families
 from .base.context import is_context_initialized

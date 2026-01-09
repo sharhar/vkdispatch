@@ -175,7 +175,7 @@ struct Image* image_create_extern(struct Context* context, VkExtent3D a_extent, 
             ctx->handle_manager->set_handle(indicies.queue_index, staging_allocations_handle, (uint64_t)h_staging_allocation);
 
             Signal* signal = (Signal*)ctx->handle_manager->get_handle(indicies.queue_index, signals_pointers_handle, 0);
-            signal->notify();
+            signal->notify(indicies.queue_index, timestamp);
         }
     );
     
@@ -190,7 +190,7 @@ void image_destroy_extern(struct Image* image) {
         Signal* signal = (Signal*)ctx->handle_manager->get_handle(queue_index, image->signals_pointers_handle, 0);
 
         // wait for the recording thread to finish
-        signal->wait();
+        //signal->wait();
 
         ctx->handle_manager->destroy_handle(queue_index, image->signals_pointers_handle);
 
@@ -325,7 +325,7 @@ void write_to_image(struct Context* ctx, struct Image* image, void* data, VkOffs
     LOG_INFO("waiting for recording thread to finish for image %p signal %p queue %d", image, signal, queue_index);
     
     // wait for the recording thread to finish
-    signal->wait();
+    //signal->wait();
     signal->reset();
 
     LOG_INFO(
@@ -440,7 +440,7 @@ void write_to_image(struct Context* ctx, struct Image* image, void* data, VkOffs
             }
 
             Signal* signal = (Signal*)ctx->handle_manager->get_handle(indicies.queue_index, signals_pointers_handle, 0);
-            signal->notify();
+            signal->notify(indicies.queue_index, timestamp);
         }
     );
 }
@@ -469,7 +469,7 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
     Signal* signal = (Signal*)ctx->handle_manager->get_handle(queue_index, signals_pointers_handle, 0);
 
     // wait for the recording thread to finish
-    signal->wait();
+    //signal->wait();
     signal->reset();
 
     uint64_t images_handle = image->images_handle;
@@ -508,11 +508,11 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
             insert_barrier(cmd_buffer, barrier, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
             Signal* signal = (Signal*)ctx->handle_manager->get_handle(indicies.queue_index, signals_pointers_handle, 0);
-            signal->notify();
+            signal->notify(indicies.queue_index, timestamp);
         }
     );
 
-    signal->wait();
+    //signal->wait();
 
     // wait for the staging buffer to be ready
     uint64_t staging_buffer_timestamp = ctx->handle_manager->get_handle_timestamp(queue_index, image->staging_buffers_handle);

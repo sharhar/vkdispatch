@@ -26,8 +26,14 @@ cdef extern from "objects/objects_extern.hh":
     Buffer* buffer_create_extern(Context* context, unsigned long long size, int per_device)
     void buffer_destroy_extern(Buffer* buffer)
 
-    void buffer_write_extern(Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int index)
-    void buffer_read_extern(Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int index)
+    void* buffer_get_queue_signal_extern(Buffer* buffer, int queue_index)
+    bool buffer_wait_staging_idle_extern(Buffer* buffer, int queue_index)
+
+    void buffer_write_staging_extern(Buffer* buffer, int queue_index, void* data, unsigned long long size)
+    void buffer_read_staging_extern(Buffer* buffer, int queue_index, void* data, unsigned long long size)
+
+    void buffer_write_extern(Buffer* buffer, unsigned long long offset, unsigned long long size, int index)
+    void buffer_read_extern(Buffer* buffer, unsigned long long offset, unsigned long long size, int index)
 
     CommandList* command_list_create_extern(Context* context)
     void command_list_destroy_extern(CommandList* command_list)
@@ -71,17 +77,29 @@ cpdef inline buffer_create(unsigned long long context, unsigned long long size, 
 cpdef inline buffer_destroy(unsigned long long buffer):
     buffer_destroy_extern(<Buffer*>buffer)
 
-cpdef inline buffer_write(unsigned long long buffer, bytes data, unsigned long long offset, unsigned long long size, int index):
-    cdef const char* data_view = data
-    buffer_write_extern(<Buffer*>buffer, <void*>data_view, offset, size, index)
+cpdef inline buffer_get_queue_signal(unsigned long long buffer, int queue_index):
+    return <unsigned long long>buffer_get_queue_signal_extern(<Buffer*>buffer, queue_index)
 
-cpdef inline buffer_read(unsigned long long buffer, unsigned long long offset, unsigned long long size, int index):
+cpdef inline buffer_wait_staging_idle(unsigned long long buffer, int queue_index):
+    return buffer_wait_staging_idle_extern(<Buffer*>buffer, queue_index)
+
+cpdef inline buffer_write_staging(unsigned long long buffer, int queue_index, bytes data, unsigned long long size):
+    cdef const char* data_view = data
+    buffer_write_staging_extern(<Buffer*>buffer, queue_index, <void*>data_view, size)
+
+cpdef inline buffer_read_staging(unsigned long long buffer, int queue_index, unsigned long long size):
     cdef bytes data = bytes(size)
     cdef char* data_view = data
 
-    buffer_read_extern(<Buffer*>buffer, <void*>data_view, offset, size, index)
+    buffer_read_staging_extern(<Buffer*>buffer, queue_index, <void*>data_view, size)
 
     return data
+
+cpdef inline buffer_write(unsigned long long buffer, unsigned long long offset, unsigned long long size, int index):
+    buffer_write_extern(<Buffer*>buffer, offset, size, index)
+
+cpdef inline buffer_read(unsigned long long buffer, unsigned long long offset, unsigned long long size, int index):
+    buffer_read_extern(<Buffer*>buffer,offset, size, index)
 
 cpdef inline command_list_create(unsigned long long context):
     return <unsigned long long>command_list_create_extern(<Context*>context)

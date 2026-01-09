@@ -1,11 +1,11 @@
 from typing import Tuple
-from typing import Dict
+from typing import List
 from typing import Union
 
 import numpy as np
 
 from .dtype import dtype
-from .context import Handle
+from .context import Handle, Signal
 from .errors import check_for_errors
 
 from .dtype import to_numpy_dtype, from_numpy_dtype, complex64
@@ -35,6 +35,7 @@ class Buffer(Handle, typing.Generic[_ArgType]):
     shape: Tuple[int]
     size: int
     mem_size: int
+    signals: List[Signal]
 
     def __init__(self, shape: Tuple[int, ...], var_type: dtype) -> None:
         super().__init__()
@@ -64,20 +65,60 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         )
         check_for_errors()
 
+        self.signals = [
+            Signal(
+                vkdispatch_native.buffer_get_queue_signal(
+                    handle, queue_index
+                )
+            )
+            for queue_index in range(self.context.queue_count)
+        ]
+
         self.register_handle(handle)
 
     def _destroy(self) -> None:
         """Destroy the buffer and all child handles."""
+
+        for ii, signal in enumerate(self.signals):
+            signal.wait(False, ii)
+
         vkdispatch_native.buffer_destroy(self._handle)
 
     def __del__(self) -> None:
         self.destroy()
 
-    def write(self, data: Union[bytes, np.ndarray], index: int = -1) -> None:
+    def _wait_staging_idle(self, index: int):
+        is_idle = vkdispatch_native.buffer_wait_staging_idle(self._handle, index)
+        check_for_errors()
+        return is_idle
+
+    def _do_writes(self, data: bytes, index: int = None):
+        indicies = [index] if index is not None else range(self.context.queue_count)
+        completed_stages = [0] * len(indicies)
+
+        while not all(stage == 1 for stage in completed_stages):
+            for i in range(len(indicies)):
+                if completed_stages[i] == 1:
+                    continue
+
+                queue_index = indicies[i]
+
+                if not self.signals[queue_index].try_wait(True, queue_index):
+                    continue
+
+                completed_stages[i] = 1
+
+                vkdispatch_native.buffer_write_staging(self._handle, queue_index, data, len(data))
+                check_for_errors()
+
+                vkdispatch_native.buffer_write(self._handle, 0, len(data), queue_index)
+                check_for_errors()
+
+    def write(self, data: Union[bytes, np.ndarray], index: int = None) -> None:
         """
         Uploads data from the host to the GPU buffer.
 
-        If ``index`` is -1, the data is broadcast to the memory of all active devices 
+        If ``index`` is None, the data is broadcast to the memory of all active devices 
         in the context. Otherwise, it writes only to the device specified by the index.
 
         :param data: The source data. Can be a raw ``bytes`` object or a ``numpy.ndarray``.
@@ -87,8 +128,9 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         :type index: int
         :raises ValueError: If the data size exceeds the buffer size or if the index is invalid.
         """
-        if index < -1:
-            raise ValueError(f"Invalid buffer index {index}!")
+        if index is not None:
+            assert isinstance(index, int), "Index must be an integer or None!"
+            assert index >= 0 and index < self.context.queue_count, "Index must be valid!"
 
         true_data_object = None
 
@@ -103,13 +145,49 @@ class Buffer(Handle, typing.Generic[_ArgType]):
 
             true_data_object = data
 
-        print("Writing buffer data...")
+        self._do_writes(true_data_object, index)
 
-        vkdispatch_native.buffer_write(
-            self._handle, true_data_object, 0, len(true_data_object), index
-        )
-        print("Finished writing buffer data.")
-        check_for_errors()
+    def _do_reads(self, var_type: dtype, shape: List[int], index: int = None) -> bytes:
+        assert index is None or (isinstance(index, int) and index >= 0), "Index must be None or a non-negative integer!"
+
+        indicies = [index] if index is not None else range(self.context.queue_count)
+        completed_stages = [0] * len(indicies)
+        bytes_list: List[bytes] = [None] * len(indicies)
+
+        mem_size = int(np.prod(shape)) * var_type.item_size
+
+        while not all(stage == 2 for stage in completed_stages):
+            for i in range(len(indicies)):
+                if completed_stages[i] == 2:
+                    continue
+
+                queue_index = indicies[i]
+
+                if completed_stages[i] == 0:
+                    if self.signals[queue_index].try_wait(False, queue_index):
+                        completed_stages[i] = 1
+                        vkdispatch_native.buffer_read(self._handle, 0, mem_size, queue_index)
+                        check_for_errors()
+                    else:
+                        continue
+
+                if completed_stages[i] == 1:
+                    if self.signals[queue_index].try_wait(True, queue_index):
+                        completed_stages[i] = 2
+                    else:
+                        continue
+
+                bytes_list[i] = vkdispatch_native.buffer_read_staging(self._handle, queue_index, mem_size)
+                check_for_errors()
+        
+        numpy_arrays = []
+
+        for b in bytes_list:
+            numpy_arrays.append(
+                np.frombuffer(b, dtype=to_numpy_dtype(var_type)).reshape(shape)
+            )
+
+        return numpy_arrays if index is None else numpy_arrays[0]
 
     def read(self, index: Union[int, None] = None) -> np.ndarray:
         """
@@ -128,25 +206,32 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         if true_scalar is None:
             true_scalar = self.var_type
 
+        data_shape = list(self.shape) + list(self.var_type.true_numpy_shape)
+
         if index is not None:
-            if index < 0:
-                raise ValueError(f"Invalid buffer index {index}!")
-            print("Reading buffer data...")
-            result_bytes = vkdispatch_native.buffer_read(
-                self._handle, 0, self.mem_size, index
-            )
-            print("Finished reading buffer data.")
+            return self._do_reads(true_scalar, data_shape, index)
+        
+        results = self._do_reads(true_scalar, data_shape, None)
 
-            result = np.frombuffer(result_bytes, dtype=to_numpy_dtype(true_scalar)).reshape(self.shape + self.var_type.true_numpy_shape)
+        return np.array(results)
 
-            check_for_errors()
-        else:
-            result = np.zeros((self.context.queue_count,) + self.shape + self.var_type.true_numpy_shape, dtype=to_numpy_dtype(true_scalar))
+        # if index is not None:
+        #     if index < 0:
+        #         raise ValueError(f"Invalid buffer index {index}!")
+        #     result_bytes = vkdispatch_native.buffer_read(
+        #         self._handle, 0, self.mem_size, index
+        #     )
 
-            for i in range(self.context.queue_count):
-                result[i] = self.read(i)
+        #     result = np.frombuffer(result_bytes, dtype=to_numpy_dtype(true_scalar)).reshape(data_shape)
 
-        return result
+        #     check_for_errors()
+        # else:
+        #     result = np.zeros((self.context.queue_count,) + self.shape + self.var_type.true_numpy_shape, dtype=to_numpy_dtype(true_scalar))
+
+        #     for i in range(self.context.queue_count):
+        #         result[i] = self.read(i)
+
+        # return result
 
 
 def asbuffer(array: np.ndarray) -> Buffer:

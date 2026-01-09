@@ -39,8 +39,14 @@ struct ImageReadInfo {
 struct Buffer* buffer_create_extern(struct Context* context, unsigned long long size, int per_device);
 void buffer_destroy_extern(struct Buffer* buffer);
 
-void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int index);
-void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int index);
+void* buffer_get_queue_signal_extern(struct Buffer* buffer, int queue_index);
+bool buffer_wait_staging_idle_extern(struct Buffer* buffer, int queue_index);
+
+void buffer_write_staging_extern(struct Buffer* buffer, int queue_index, void* data, unsigned long long size);
+void buffer_read_staging_extern(struct Buffer* buffer, int queue_index, void* data, unsigned long long size);
+
+void buffer_write_extern(struct Buffer* buffer, unsigned long long offset, unsigned long long size, int index);
+void buffer_read_extern(struct Buffer* buffer, unsigned long long offset, unsigned long long size, int index);
 
 struct CommandList* command_list_create_extern(struct Context* context);
 void command_list_destroy_extern(struct CommandList* command_list);

@@ -142,9 +142,9 @@ void Queue::destroy() {
 
 bool Queue::try_wait_for_timestamp(uint64_t timestamp) {
     uint64_t last_completed = 0;
-    VK_CALL(vkGetSemaphoreCounterValue(device, timeline_semaphore, &last_completed));
+    VK_CALL_RETURN(vkGetSemaphoreCounterValue(device, timeline_semaphore, &last_completed), true);
     if (last_completed >= timestamp) {
-        return;
+        return true;
     }
 
     LOG_INFO("Last completed timestamp: %llu, waiting for timestamp: %llu on queue %d", last_completed, timestamp, this->queue_index);
@@ -174,7 +174,6 @@ void Queue::wait_for_timestamp(uint64_t timestamp) {
         if(!this->run_queue.load()) {
             return;
         }
-
     }
 }
 

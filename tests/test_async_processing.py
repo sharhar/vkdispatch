@@ -1,8 +1,7 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
-
-vd.initialize(debug_mode=True)
+vd.initialize(debug_mode=True, log_level=vd.LogLevel.VERBOSE)
 
 import dataclasses
 import enum

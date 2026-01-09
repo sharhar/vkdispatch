@@ -204,7 +204,7 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
 
     LOG_INFO("Created context at %p with %d devices", ctx, device_count);
 
-    context_queue_wait_idle_extern(ctx, -1);
+    //context_queue_wait_idle_extern(ctx, -1);
 
     ctx->handle_manager = new HandleManager(ctx);
 
@@ -213,65 +213,74 @@ struct Context* context_create_extern(int* device_indicies, int* queue_counts, i
     return ctx;
 }
 
-bool context_signal_wait_extern(void* signal_ptr) {
+bool signal_wait_extern(void* signal_ptr, bool wait_for_timestamp, int queue_index) {
     Signal* signal = reinterpret_cast<Signal*>(signal_ptr);
-    return signal->try_wait();
+    LOG_VERBOSE("Waiting on signal %p (wait_for_timestamp=%d, queue_index=%d)...", signal, wait_for_timestamp, queue_index);
+    return signal->try_wait(wait_for_timestamp, queue_index);
 }
 
-void* context_insert_queue_signal_extern(struct Context* context, int queue_index) {
-    LOG_INFO("Inserting signal into queue %d", queue_index);
+void* signal_insert_extern(struct Context* context, int queue_index) {
+    LOG_VERBOSE("Inserting signal into queue %d", queue_index);
 
     Signal* signal = new Signal(context);
 
     context_submit_command(context, "queue-wait-idle", queue_index, RECORD_TYPE_SYNC,
         [context, signal](VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp){
-            LOG_VERBOSE("Waiting for queue %d to finish execution...", indicies.queue_index);
-            signal->notify(timestamp);
+            LOG_VERBOSE("Inserting signal to queue %d...", indicies.queue_index);
+            signal->notify(indicies.queue_index, timestamp);
         }
     );
+
+    LOG_VERBOSE("Inserted signal %p into queue %d", signal, queue_index);
 
     return reinterpret_cast<void*>(signal);
 }
 
-void wait_for_queue(struct Context* ctx, int queue_index) {
-    LOG_INFO("Waiting for queue %d to finish execution...", queue_index);
-
-    uint64_t* p_timestamp = new uint64_t();
-    Signal* signal = new Signal(ctx);
-
-    *p_timestamp = 0;
-
-    context_submit_command(ctx, "queue-wait-idle", queue_index, RECORD_TYPE_SYNC,
-        [ctx, signal, p_timestamp](VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp){
-            LOG_VERBOSE("Waiting for queue %d to finish execution...", indicies.queue_index);
-            *p_timestamp = timestamp;
-            signal->notify(timestamp);
-        }
-    );
-
-    signal->wait();
-
-    if(*p_timestamp == 0) {
-        if (ctx->running.load(std::memory_order_acquire))
-            LOG_WARNING("Queue %d did not finish execution", queue_index);
-    } else {
-        LOG_INFO("Queue %d finished execution at timestamp %llu", queue_index, *p_timestamp);
-    }
-
-    ctx->queues[queue_index]->wait_for_timestamp(*p_timestamp);
-
+void signal_destroy_extern(void* signal_ptr) {
+    Signal* signal = reinterpret_cast<Signal*>(signal_ptr);
     delete signal;
 }
 
-bool context_queue_wait_idle_extern(struct Context* context, int queue_index) {
-    if(queue_index == -1) {
-        for(int i = 0; i < context->queues.size(); i++) {
-            wait_for_queue(context, i);
-        }
-    } else {
-        wait_for_queue(context, queue_index);
-    }
-}
+
+// void wait_for_queue(struct Context* ctx, int queue_index) {
+//     LOG_INFO("Waiting for queue %d to finish execution...", queue_index);
+
+//     uint64_t* p_timestamp = new uint64_t();
+//     Signal* signal = new Signal(ctx);
+
+//     *p_timestamp = 0;
+
+//     context_submit_command(ctx, "queue-wait-idle", queue_index, RECORD_TYPE_SYNC,
+//         [ctx, signal, p_timestamp](VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp){
+//             LOG_VERBOSE("Waiting for queue %d to finish execution...", indicies.queue_index);
+//             *p_timestamp = timestamp;
+//             signal->notify(timestamp);
+//         }
+//     );
+
+//     signal->wait();
+
+//     if(*p_timestamp == 0) {
+//         if (ctx->running.load(std::memory_order_acquire))
+//             LOG_WARNING("Queue %d did not finish execution", queue_index);
+//     } else {
+//         LOG_INFO("Queue %d finished execution at timestamp %llu", queue_index, *p_timestamp);
+//     }
+
+//     ctx->queues[queue_index]->wait_for_timestamp(*p_timestamp);
+
+//     delete signal;
+// }
+
+// bool context_queue_wait_idle_extern(struct Context* context, int queue_index) {
+//     if(queue_index == -1) {
+//         for(int i = 0; i < context->queues.size(); i++) {
+//             wait_for_queue(context, i);
+//         }
+//     } else {
+//         wait_for_queue(context, queue_index);
+//     }
+// }
 
 void context_submit_command(
     Context* context, 
@@ -291,7 +300,7 @@ void context_submit_command(
 void context_destroy_extern(struct Context* context) {
     LOG_INFO("Destroying context %p with %d devices...", context, context->deviceCount);
     LOG_INFO("Waiting for all queues to finish...");
-    context_queue_wait_idle_extern(context, -1);
+    //context_queue_wait_idle_extern(context, -1);
 
     context->work_queue->stop();
 
