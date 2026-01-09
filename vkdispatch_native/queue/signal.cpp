@@ -61,24 +61,39 @@ bool Signal::try_device_wait(int queue_index) {
         return false;
     }
 
-    ctx->queues[queue_index]->wait_for_timestamp(timestamp);
+    return ctx->queues[queue_index]->try_wait_for_timestamp(timestamp);
 }
 
 /*
 * This function blocks the calling thread until the signal is notified.
 */
 bool Signal::try_wait(bool wait_for_timestamp, int queue_index) {
+    LOG_VERBOSE("Trying to wait on signal %p (wait_for_timestamp=%d, queue_index=%d)...", this, wait_for_timestamp, queue_index);
+
     if (state.load(std::memory_order_acquire)) {
-        return true; // If the signal is already notified, return immediately
+        LOG_VERBOSE("Signal %p already notified", this);
+
+        if (!wait_for_timestamp) {
+            LOG_VERBOSE("No need to wait for timestamp, returning");
+            return true;
+        }
+
+        LOG_VERBOSE("Waiting for timestamp %llu on queue %d", this->timestamp, queue_index);
+
+        return try_device_wait(queue_index);
     }
 
+    LOG_VERBOSE("Waiting for host notification on signal %p...", this);
     if(!try_host_wait()) {
+        LOG_VERBOSE("Host wait for signal %p timed out", this);
         return false;
     }
 
     if(!wait_for_timestamp) {
+        LOG_VERBOSE("No need to wait for timestamp, returning");
         return true;
     }
 
+    LOG_VERBOSE("Waiting for timestamp %llu on queue %d", this->timestamp, queue_index);
     return try_device_wait(queue_index);
 }

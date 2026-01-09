@@ -20,11 +20,6 @@ struct Buffer {
     uint64_t allocations_handle;
     uint64_t staging_buffers_handle;
     uint64_t staging_allocations_handle;
-
-    //std::vector<VkBuffer> buffers;
-    //std::vector<VmaAllocation> allocations;
-    //std::vector<VkBuffer> stagingBuffers;
-    //std::vector<VmaAllocation> stagingAllocations;
 };
 
 #endif // SRC_BUFFER_H_

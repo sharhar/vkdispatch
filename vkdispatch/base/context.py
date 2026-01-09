@@ -106,7 +106,31 @@ class Handle:
             self.context.handles_dict.pop(self._handle)
         
         self.destroyed = True
-        
+
+class Signal:
+    ptr_addr: int
+
+    def __init__(self, ptr_addr: int = None):
+        self.ptr_addr = ptr_addr
+
+    def wait(self, wait_for_timestamp: bool, queue_index: int):
+        done = False
+        while not done:
+            done = vkdispatch_native.signal_wait(
+                self.ptr_addr, wait_for_timestamp, queue_index
+            )
+            check_for_errors()
+
+    def try_wait(self, wait_for_timestamp: bool, queue_index: int):
+        done = vkdispatch_native.signal_wait(
+            self.ptr_addr, wait_for_timestamp, queue_index
+        )
+        check_for_errors()
+
+        return done
+
+    def free(self):
+        vkdispatch_native.signal_destroy(self.ptr_addr)
 
 class Context:
     """
@@ -362,6 +386,8 @@ def make_context(
 
         __context = Context(device_ids, queue_families)
 
+        queue_wait_idle(queue_index=None, context=__context)
+
     return __context
 
 def is_context_initialized() -> bool:
@@ -374,7 +400,7 @@ def get_context() -> Context:
 def get_context_handle() -> int:
     return get_context()._handle
 
-def queue_wait_idle(queue_index: int = None) -> None:
+def queue_wait_idle(queue_index: int = None, context: Context = None) -> None:
     """
     Wait for the specified queue to finish processing. For all queues, leave queue_index as None.
     
@@ -382,12 +408,26 @@ def queue_wait_idle(queue_index: int = None) -> None:
         queue_index (int): The index of the queue.
     """
 
-    assert queue_index is None or isinstance(queue_index, int), "queue_index must be an integer or None."
-    assert queue_index is None or queue_index >= -1, "queue_index must be a non-negative integer or -1 (for all queues)."
-    assert queue_index is None or queue_index < get_context().queue_count, f"Queue index {queue_index} is out of bounds for context with {get_context().queue_count} queues."
+    if context is None:
+        context = get_context()
 
-    vkdispatch_native.context_queue_wait_idle(get_context_handle(), queue_index if queue_index is not None else -1)
+    assert queue_index is None or isinstance(queue_index, int), "queue_index must be an integer or None."
+    assert queue_index is None or queue_index >= 0, "queue_index must be a non-negative integer or None (for all queues)."
+    assert queue_index is None or queue_index < context.queue_count, f"Queue index {queue_index} is out of bounds for context with {context.queue_count} queues."
+
+    if queue_index is None:
+        for i in range(context.queue_count):
+            queue_wait_idle(i, context)
+        return
+
+    signal_ptr = vkdispatch_native.signal_insert(context._handle, queue_index)
     check_for_errors()
+    
+    signal = Signal(signal_ptr)
+    signal.wait(True, queue_index)
+    check_for_errors()
+
+    signal.free()
 
 def destroy_context() -> None:
     """
