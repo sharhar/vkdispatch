@@ -256,7 +256,7 @@ class RFFTBuffer(Buffer):
     def read_fourier(self, index: Union[int, None] = None) -> np.ndarray:
         return self.read(index)
     
-    def write_real(self, data: np.ndarray, index: int = -1):
+    def write_real(self, data: np.ndarray, index: int = None):
         assert data.shape == self.real_shape, "Data shape must match real shape!"
         assert not np.issubdtype(data.dtype, np.complexfloating) , "Data dtype must be scalar!"
 
@@ -265,7 +265,7 @@ class RFFTBuffer(Buffer):
 
         self.write(np.ascontiguousarray(true_data).view(np.complex64), index)
 
-    def write_fourier(self, data: np.ndarray, index: int = -1):
+    def write_fourier(self, data: np.ndarray, index: int = None):
         assert data.shape == self.fourier_shape, f"Data shape {data.shape} must match fourier shape {self.fourier_shape}!"
         assert np.issubdtype(data.dtype, np.complexfloating) , "Data dtype must be complex!"
 
