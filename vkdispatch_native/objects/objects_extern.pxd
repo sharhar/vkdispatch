@@ -39,7 +39,7 @@ cdef extern from "objects/objects_extern.hh":
     void command_list_destroy_extern(CommandList* command_list)
     unsigned long long command_list_get_instance_size_extern(CommandList* command_list) 
     void command_list_reset_extern(CommandList* command_list)
-    bool command_list_submit_extern(CommandList* command_list, void* instance_buffer, unsigned int instanceCount, int index, int recordType)
+    bool command_list_submit_extern(CommandList* command_list, void* instance_buffer, unsigned int instanceCount, int index, int recordType, const char* name)
 
     DescriptorSet* descriptor_set_create_extern(ComputePlan* plan)
     void descriptor_set_destroy_extern(DescriptorSet* descriptor_set)
@@ -118,7 +118,7 @@ cpdef inline command_list_submit(unsigned long long command_list, bytes data, un
     if data is not None:
         data_view = data
 
-    return command_list_submit_extern(<CommandList*>command_list, <void*>data_view, instance_count, index, 0)
+    return command_list_submit_extern(<CommandList*>command_list, <void*>data_view, instance_count, index, 0, "User Command List")
 
 cpdef inline descriptor_set_create(unsigned long long plan):
     cdef ComputePlan* p = <ComputePlan*>plan

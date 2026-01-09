@@ -292,7 +292,7 @@ void context_submit_command(
     LOG_INFO("Submitting command '%s' to queue %d", name, queue_index);
     command_list_record_command(context->command_list, name, 0, VK_PIPELINE_STAGE_TRANSFER_BIT, func);
 
-    command_list_submit_extern(context->command_list, NULL, 1, queue_index, record_type);
+    command_list_submit_extern(context->command_list, NULL, 1, queue_index, record_type, name);
     command_list_reset_extern(context->command_list);
     RETURN_ON_ERROR(;)
 }
@@ -300,7 +300,6 @@ void context_submit_command(
 void context_destroy_extern(struct Context* context) {
     LOG_INFO("Destroying context %p with %d devices...", context, context->deviceCount);
     LOG_INFO("Waiting for all queues to finish...");
-    //context_queue_wait_idle_extern(context, -1);
 
     context->work_queue->stop();
 

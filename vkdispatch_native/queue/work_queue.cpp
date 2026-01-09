@@ -21,6 +21,7 @@ WorkQueue::WorkQueue(int max_work_items, int max_programs) {
         memset(work_infos[i].header, 0, sizeof(struct WorkHeader) + 16 * 1024);
         work_infos[i].header->array_size = 16 * 1024;
         work_infos[i].header->info_index = i;
+        work_infos[i].header->name = nullptr;
     }
 
     for(int i = 0; i < max_programs; i++) {
@@ -70,7 +71,7 @@ int WorkQueue::get_work_index() {
     return -1;
 }
 
-void WorkQueue::prepare_work(int work_index, int program_index, struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int queue_index, int record_type) {
+void WorkQueue::prepare_work(int work_index, int program_index, struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int queue_index, int record_type, const char* name) {
     // Setup work info
     work_infos[work_index].program_index = program_index;
     work_infos[work_index].queue_index = queue_index;
@@ -114,7 +115,8 @@ void WorkQueue::prepare_work(int work_index, int program_index, struct CommandLi
     work_header->instance_size = command_list_get_instance_size_extern(command_list);
     work_header->commands = this->program_infos[program_index].commands;
     work_header->program_info_index = program_index;
-    work_header->record_type = (RecordType)record_type; 
+    work_header->record_type = (RecordType)record_type;
+    work_header->name = name;
     
     // Copy instance data if needed
     if(work_size > 0)
@@ -124,7 +126,7 @@ void WorkQueue::prepare_work(int work_index, int program_index, struct CommandLi
     this->program_infos[program_index].ref_count += 1;
 }
 
-bool WorkQueue::push(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int queue_index, int record_type) {
+bool WorkQueue::push(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int queue_index, int record_type, const char* name) {
     std::unique_lock<std::mutex> lock(this->mutex);
 
     int found_indicies[2] = {-1, -1};
@@ -165,7 +167,7 @@ bool WorkQueue::push(struct CommandList* command_list, void* instance_buffer, un
 
     RETURN_ON_ERROR(true)
 
-    prepare_work(found_indicies[1], found_indicies[0], command_list, instance_buffer, instance_count, queue_index, record_type);
+    prepare_work(found_indicies[1], found_indicies[0], command_list, instance_buffer, instance_count, queue_index, record_type, name);
 
     this->cv_push.notify_all();
 
