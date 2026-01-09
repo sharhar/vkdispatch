@@ -190,7 +190,9 @@ void image_destroy_extern(struct Image* image) {
         Signal* signal = (Signal*)ctx->handle_manager->get_handle(queue_index, image->signals_pointers_handle, 0);
 
         // wait for the recording thread to finish
-        //signal->wait();
+        while(!signal->try_wait(false, queue_index)) {
+            LOG_INFO("Waiting for image %p signal %p queue %d to be notified before destroying", image, signal, queue_index);
+        }
 
         ctx->handle_manager->destroy_handle(queue_index, image->signals_pointers_handle);
 
@@ -325,7 +327,9 @@ void write_to_image(struct Context* ctx, struct Image* image, void* data, VkOffs
     LOG_INFO("waiting for recording thread to finish for image %p signal %p queue %d", image, signal, queue_index);
     
     // wait for the recording thread to finish
-    //signal->wait();
+    while(!signal->try_wait(false, queue_index)) {
+        LOG_INFO("Waiting for image %p signal %p queue %d to be notified before destroying", image, signal, queue_index);
+    }
     signal->reset();
 
     LOG_INFO(
@@ -469,7 +473,9 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
     Signal* signal = (Signal*)ctx->handle_manager->get_handle(queue_index, signals_pointers_handle, 0);
 
     // wait for the recording thread to finish
-    //signal->wait();
+    while(!signal->try_wait(false, queue_index)) {
+        LOG_INFO("Waiting for image %p signal %p queue %d to be notified before destroying", image, signal, queue_index);
+    }
     signal->reset();
 
     uint64_t images_handle = image->images_handle;
@@ -512,7 +518,9 @@ void image_read_extern(struct Image* image, void* data, VkOffset3D offset, VkExt
         }
     );
 
-    //signal->wait();
+    while(!signal->try_wait(false, queue_index)) {
+        LOG_INFO("Waiting for image %p signal %p queue %d to be notified before destroying", image, signal, queue_index);
+    }
 
     // wait for the staging buffer to be ready
     uint64_t staging_buffer_timestamp = ctx->handle_manager->get_handle_timestamp(queue_index, image->staging_buffers_handle);

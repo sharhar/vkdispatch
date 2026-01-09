@@ -6,7 +6,6 @@ from vkdispatch.codegen.abreviations import *
 import numpy as np
 
 vd.initialize(log_level=vd.LogLevel.WARNING, debug_mode=True)
-"""
 
 def test_1d_image_creation():
     # Create a 1D image
@@ -79,7 +78,7 @@ def test_2d_image_linear_sampling():
     signal_full = np.sin(np.array([[i/80 + j/170 for i in range(0, 450, 1)] for j in range(0, 450, 1)])).astype(np.float32)
 
     assert np.allclose(result_arr.read()[0], signal_full, atol=0.0025)
-"""
+
 
 # def test_3d_image_linear_sampling():
 #     # Create a 3D image
