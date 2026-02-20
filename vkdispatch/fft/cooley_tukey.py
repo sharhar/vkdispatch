@@ -56,14 +56,10 @@ def apply_twiddle_factors(
     if isinstance(twiddle_index, int) and twiddle_index == 0:
         return
 
-    vc.comment(f"Applying Cooley-Tukey twiddle factors for twiddle index {twiddle_index} and twiddle N {twiddle_N}")
+    twiddle_index_str = str(twiddle_index) if isinstance(twiddle_index, int) else twiddle_index.resolve()
+    vc.comment(f"Applying Cooley-Tukey twiddle factors for twiddle index {twiddle_index_str} and twiddle N {twiddle_N}")
 
     angle_factor = get_angle_factor(inverse)
-
-    if not isinstance(twiddle_index, int):
-        resources.omega_register.real = (angle_factor / twiddle_N) * twiddle_index 
-        resources.omega_register[:] = vc.complex_from_euler_angle(resources.omega_register.real)
-        resources.radix_registers[1][:] = resources.omega_register
 
     for i in range(len(register_list)):
         if i == 0:
@@ -97,14 +93,11 @@ def apply_twiddle_factors(
             resources.omega_register[:] = vc.mult_complex(register_list[i], omega)
             register_list[i][:] = resources.omega_register
             continue
-        
 
-        resources.radix_registers[0][:] = vc.mult_complex(register_list[i], resources.radix_registers[1])
+        resources.omega_register.real = (angle_factor * i / twiddle_N) * twiddle_index
+        resources.omega_register[:] = vc.complex_from_euler_angle(resources.omega_register.real)
+        resources.radix_registers[0][:] = vc.mult_complex(register_list[i], resources.omega_register)
         register_list[i][:] = resources.radix_registers[0]
-
-        if i < len(register_list) - 1:
-            resources.radix_registers[0][:] = vc.mult_complex(resources.omega_register, resources.radix_registers[1])
-            resources.radix_registers[1][:] = resources.radix_registers[0]
 
 def radix_composite(resources: FFTResources, inverse: bool, register_list: List[vc.ShaderVariable], primes: List[int]):
     if len(register_list) == 1:

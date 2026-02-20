@@ -2,57 +2,48 @@ import vkdispatch as vd
 import vkdispatch.codegen as vc
 import numpy as np
 
-def calc(reg_out, reg_in, phase, N):
-  # if phase is 0, add the input
-  if phase == 0:
-    reg_out += reg_in
-    return
+from typing import Tuple
 
-  # if phase is 180°, subtract the input
-  if phase == N // 2 and N % 2 == 0:
-    reg_out -= reg_in
-    return
+def make_shape(fft_size: int, data_size: int) -> Tuple[int, ...]:
+    total_square_size = fft_size * fft_size
+    assert data_size % total_square_size == 0, "Data size must be a multiple of fft_size squared"
+    return (data_size // total_square_size, fft_size, fft_size)
 
-  # Else, use complex multiplication
-  w = np.exp(-2j*np.pi*phase/N)
-  reg_out += vc.mult_complex(reg_in, w)
+def make_random_data(fft_size: int, run_index: int, data_size: int, seed: int = 1337) -> np.ndarray:
+    shape = make_shape(fft_size, data_size)
+    rng = np.random.default_rng(seed + fft_size * 1000 + run_index)
 
-def dft(values):
-  N = len(values)
-  vc.comment(f"DFT on {N} values")
-  outputs = []
-  for i in range(0, N):
-    vc.comment(f"Calc Output {i}")
-    out = vc.to_complex(0)
-    out = out.to_register(f"out{i}")
-    for j in range(0, N):
-      calc(out, values[j], i * j, N)
-    outputs.append(out)
-  return outputs
+    real = rng.standard_normal(shape).astype(np.float32)
+    imag = rng.standard_normal(shape).astype(np.float32)
+    return (real + 1j * imag).astype(np.complex64)
 
-def make_dft_shader(N: int):
-  @vd.shader()
-  def dft_shader(
-      buff: vc.Buff[vc.c64]):
-    vc.comment("Read Input")
-    values = [
-      buff[i].to_register(f"in{i}")
-      for i in range(N)
-    ]
-    
-    output = dft(values)
+def compute_metrics(reference: np.ndarray, result: np.ndarray):
+    reference64 = reference.astype(np.complex128, copy=False)
+    result64 = result.astype(np.complex128, copy=False)
 
-    vc.comment("Write output")
-    for i in range(N):
-      buff[i] = output[i]
-          
-  return dft_shader
+    delta = result64 - reference64
+    abs_delta = np.abs(delta)
+    abs_reference = np.abs(reference64)
 
-dft_shader_2 = make_dft_shader(2)
-dft_shader_3 = make_dft_shader(3)
+    eps = 1e-12
+    relative_l2 = np.linalg.norm(delta.ravel()) / max(np.linalg.norm(reference64.ravel()), eps)
+    max_relative = np.max(abs_delta / np.maximum(abs_reference, eps))
+    max_absolute = np.max(abs_delta)
 
-print("DFT Shader 2:")
-print(dft_shader_2)
+    return float(relative_l2), float(max_relative), float(max_absolute)
 
-print("DFT Shader 3:")
-print(dft_shader_3)
+fft_size = 4096
+data_size = 16 * 1024 * 1024
+
+input_data = make_random_data(fft_size, 0, data_size)
+reference = np.fft.fft(input_data)
+
+shape = make_shape(fft_size, data_size)
+
+buffer = vd.Buffer(shape, var_type=vd.complex64)
+
+buffer.write(input_data)
+vd.fft.fft(buffer, print_shader=True)
+result_data = buffer.read(0)
+
+print(compute_metrics(reference, result_data))
