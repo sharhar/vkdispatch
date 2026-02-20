@@ -10,7 +10,7 @@ from .grid_manager import FFTGridManager
 from .sdata_manager import FFTSDataManager
 from .resources import FFTResources
 from .registers import FFTRegisters
-from .cooley_tukey import radix_composite, apply_twiddle_factors
+from .cooley_tukey import radix_composite
 
 class FFTContext:
     shader_context: vd.ShaderContext
@@ -123,19 +123,13 @@ class FFTContext:
             for ii, invocation in enumerate(self.resources.invocations[i]):
                 self.resources.invocation_gaurd(i, ii)
 
-                apply_twiddle_factors(
-                    resources=self.resources,
-                    inverse=inverse,
-                    register_list=self.registers.register_slice(invocation.register_selection), 
-                    twiddle_index=invocation.inner_block_offset, 
-                    twiddle_N=invocation.block_width
-                )
-
                 self.registers.slice_set(invocation.register_selection, radix_composite(
                     resources=self.resources,
                     inverse=inverse,
                     register_list=self.registers.register_slice(invocation.register_selection),
-                    primes=stage.primes
+                    primes=stage.primes,
+                    twiddle_index=invocation.inner_block_offset,
+                    twiddle_N=invocation.block_width
                 ))
 
             self.resources.invocation_end(i)
@@ -160,4 +154,4 @@ def fft_context(buffer_shape: Tuple,
             fft_context.compile_shader()
 
     finally:
-        pass        
+        pass
