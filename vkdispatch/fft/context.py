@@ -11,6 +11,7 @@ from .sdata_manager import FFTSDataManager
 from .resources import FFTResources
 from .registers import FFTRegisters
 from .cooley_tukey import radix_composite
+from .global_memory_iterators import global_reads_iterator, global_writes_iterator
 
 class FFTContext:
     shader_context: vd.ShaderContext
@@ -73,6 +74,30 @@ class FFTContext:
             output_map=output_map,
             input_map=input_map,
             kernel_map=kernel_map
+        )
+
+    def reads_iter(self,
+                   r2c: bool = False,
+                   inverse: Optional[bool] = None,
+                   format_transposed: bool = False,
+                   inner_only: bool = False,
+                   signal_range: Optional[Tuple[Optional[int], Optional[int]]] = None):
+        return global_reads_iterator(
+            self.registers,
+            r2c=r2c,
+            inverse=inverse,
+            format_transposed=format_transposed,
+            inner_only=inner_only,
+            signal_range=signal_range
+        )
+
+    def writes_iter(self,
+                    r2c: bool = False,
+                    inverse: Optional[bool] = None):
+        return global_writes_iterator(
+            self.registers,
+            r2c=r2c,
+            inverse=inverse
         )
 
     def register_shuffle(self,
