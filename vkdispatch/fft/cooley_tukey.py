@@ -49,15 +49,6 @@ def _apply_twiddle_to_register(
     resources.radix_registers[0][:] = vc.mult_complex(register, twiddle)
     register[:] = resources.radix_registers[0]
 
-def _apply_combined_twiddle_to_register(
-        resources: FFTResources,
-        register: vc.ShaderVariable,
-        base_twiddle: Union[None, complex, vc.ShaderVariable],
-        fixed_twiddle: complex):
-    if base_twiddle is not None:
-        _apply_twiddle_to_register(resources, register, base_twiddle)
-    _apply_twiddle_to_register(resources, register, fixed_twiddle)
-
 def radix_P(resources: FFTResources, inverse: bool, register_list: List[vc.ShaderVariable]):
     assert len(register_list) <= len(resources.radix_registers), "Too many registers for radix_P"
 
@@ -65,13 +56,13 @@ def radix_P(resources: FFTResources, inverse: bool, register_list: List[vc.Shade
         return
     
     if len(register_list) == 2:
-        vc.comment(f"Performing a DFT for Radix-2 FFT")
+        vc.comment("Radix-2 butterfly base case", preceding_new_line=False)
         resources.radix_registers[0][:] = register_list[1]
         register_list[1][:] = register_list[0] - resources.radix_registers[0]
         register_list[0][:] = register_list[0] + resources.radix_registers[0]
         return
 
-    vc.comment(f"Performing a DFT for Radix-{len(register_list)} FFT")
+    vc.comment(f"Radix-{len(register_list)} DFT", preceding_new_line=False)
 
     angle_factor = get_angle_factor(inverse)
 
@@ -107,7 +98,10 @@ def apply_twiddle_factors(
         return
 
     twiddle_index_str = str(twiddle_index) if isinstance(twiddle_index, int) else twiddle_index.resolve()
-    vc.comment(f"Applying Cooley-Tukey twiddle factors for twiddle index {twiddle_index_str} and twiddle N {twiddle_N}")
+    vc.comment(f"""Applying Cooley-Tukey inter-stage twiddle factors before the next butterfly pass.
+Twiddle domain size: N = {twiddle_N}. Twiddle index source: {twiddle_index_str}.
+For each non-DC lane i>0, multiply by W_N^(i * twiddle_index).
+This phase-aligns each sub-FFT with its parent decomposition stage.""")
 
     angle_factor = get_angle_factor(inverse)
 
@@ -129,54 +123,6 @@ def apply_twiddle_factors(
         resources.radix_registers[0][:] = vc.mult_complex(register_list[i], resources.omega_register)
         register_list[i][:] = resources.radix_registers[0]
 
-def _radix_composite_fused_power_of_two(
-        resources: FFTResources,
-        inverse: bool,
-        register_list: List[vc.ShaderVariable],
-        level_count: int,
-        twiddle_index: Union[int, vc.ShaderVariable],
-        twiddle_N: int):
-    N = len(register_list)
-    angle_factor = get_angle_factor(inverse)
-    output_stride = 1
-
-    for _ in range(level_count):
-        prime = 2
-        sub_squences = [register_list[i::N//prime] for i in range(N//prime)]
-        block_width = output_stride * prime
-        outer_twiddle_stride = N // block_width
-
-        base_twiddle = None
-        if isinstance(twiddle_index, int):
-            if twiddle_index != 0:
-                base_twiddle = npc.exp_complex(1j * angle_factor * outer_twiddle_stride * twiddle_index / twiddle_N)
-        else:
-            resources.omega_register.real = (angle_factor * outer_twiddle_stride / twiddle_N) * twiddle_index
-            resources.omega_register[:] = vc.complex_from_euler_angle(resources.omega_register.real)
-            base_twiddle = resources.omega_register
-
-        for i in range(0, N // prime):
-            inner_block_offset = i % output_stride
-            block_index = (i * prime) // block_width
-            fixed_twiddle = npc.exp_complex(1j * angle_factor * inner_block_offset / block_width)
-
-            _apply_combined_twiddle_to_register(
-                resources=resources,
-                register=sub_squences[i][1],
-                base_twiddle=base_twiddle,
-                fixed_twiddle=fixed_twiddle
-            )
-            radix_P(resources, inverse, sub_squences[i])
-
-            sub_sequence_offset = block_index * block_width + inner_block_offset
-
-            for j in range(prime):
-                register_list[sub_sequence_offset + j * output_stride] = sub_squences[i][j]
-
-        output_stride *= prime
-
-    return register_list
-
 def radix_composite(
         resources: FFTResources,
         inverse: bool,
@@ -191,18 +137,10 @@ def radix_composite(
 
     assert N == npc.prod(primes), "Product of primes must be equal to the number of registers"
 
-    vc.comment(f"Performing a Radix-{primes} FFT on {N} registers")
-
-    if len(primes) > 0 and all(prime == 2 for prime in primes):
-        vc.comment("Fusing inter-stage and intra-stage twiddles into radix-2 decomposition levels")
-        return _radix_composite_fused_power_of_two(
-            resources=resources,
-            inverse=inverse,
-            register_list=register_list,
-            level_count=len(primes),
-            twiddle_index=twiddle_index,
-            twiddle_N=twiddle_N
-        )
+    vc.comment(f"""Starting mixed-radix FFT decomposition for this invocation on {N} register samples.
+Radix factorization sequence: {primes}.
+At each level: partition lanes into stage-local sub-sequences, apply twiddles,
+run radix-P butterflies, then reassemble in stride-consistent order for downstream stages.""")
 
     apply_twiddle_factors(
         resources=resources,

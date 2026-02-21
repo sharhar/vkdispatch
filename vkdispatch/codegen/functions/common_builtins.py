@@ -5,9 +5,30 @@ from typing import Any, Union, Tuple
 from . import utils
 from ..._compat import numpy_compat as npc
 
-def comment(comment: str) -> None:
-    utils.append_contents("\n")
-    utils.append_contents(f"/* {comment} */\n")
+def comment(comment: str, preceding_new_line: bool = True) -> None:
+    comment_text = str(comment).replace("\r\n", "\n").replace("\r", "\n")
+    comment_lines = comment_text.split("\n")
+
+    if preceding_new_line:
+        utils.append_contents("\n")
+
+    if len(comment_lines) == 1:
+        safe_comment = comment_lines[0].replace("*/", "* /")
+        utils.append_contents(f"/* {safe_comment} */\n")
+        return
+
+    utils.append_contents("/*\n")
+
+    for line in comment_lines:
+        safe_line = line.replace("*/", "* /")
+
+        if safe_line:
+            utils.append_contents(f" * {safe_line}\n")
+            continue
+
+        utils.append_contents(" *\n")
+
+    utils.append_contents(" */\n")
 
 def abs(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):

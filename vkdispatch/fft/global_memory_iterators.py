@@ -82,8 +82,19 @@ def global_writes_iterator(
         registers: FFTRegisters,
         r2c: bool = False,
         inverse: bool = None):
+    
+    extra_comment_lines = ""
 
-    vc.comment(f"Writing registers to global memory")
+    if r2c:
+        assert inverse is not None, "Must specify inverse for r2c io"
+
+        if inverse:
+            extra_comment_lines = "\nDoing R2C inverse write, applying Hermitian reconstruction and packed-real rules as needed."
+        else:
+            extra_comment_lines = "\nDoing R2C forward write, applying Hermitian-half truncation and packed-real rules as needed."
+
+    vc.comment(f"""Writing register-resident FFT outputs to global memory.
+Addressing uses computed batch offsets plus FFT-lane stride.{extra_comment_lines}""")
 
     resources = registers.resources
     config = registers.config
@@ -162,7 +173,6 @@ class GlobalReadOp(MemoryOp):
                          buffer: vc.Buff[vc.c64],
                          register: Optional[vc.ShaderVariable] = None,
                          io_index: Optional[vc.ShaderVariable] = None):
-                        # buffer: vc.Buff[vc.c64], register: Optional[vc.ShaderVariable] = None):
         self.check_in_signal_range()
 
         if io_index is None:
@@ -217,7 +227,22 @@ def global_reads_iterator(
 
     signal_range = resolve_signal_range(signal_range, registers.config.N)
 
-    vc.comment(f"Reading registers from global memory")
+    transpose_comment_str = ""
+    if format_transposed:
+        transpose_comment_str = "\nReading in transposed format, using grid-mapped indices."
+    
+    signal_range_comment_str = ""
+    if signal_range != (0, registers.config.N):
+        signal_range_comment_str = f"\nApplying signal-range masking for FFT lanes outside [{signal_range[0]}, {signal_range[1]})."
+
+    r2c_comment_str = ""
+    if r2c:
+        if inverse:
+            r2c_comment_str = "\nDoing R2C inverse read, applying Hermitian reconstruction and packed-real rules as needed."
+        else:
+            r2c_comment_str = "\nDoing R2C forward read, applying packed-real format rules as needed."
+
+    vc.comment(f"""Reading input samples from global memory into FFT registers.{transpose_comment_str}{signal_range_comment_str}{r2c_comment_str}""")
 
     if r2c:
         assert not format_transposed, "R2C transposed format not supported"
@@ -280,7 +305,10 @@ class GlobalTransposedWriteOp(MemoryOp):
         buffer[io_index] = register
 
 def global_trasposed_write_iterator(registers: FFTRegisters, inner_only: bool = False):
-    vc.comment(f"Writing registers to global memory in transposed format")
+    vc.comment("""Writing registers to global memory in transposed order.
+Indices come from the grid transposition map.
+This produces axis-swapped, coalesced tiles for downstream kernels without
+an additional reorder pass.""")
 
     resources = registers.resources
     

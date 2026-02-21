@@ -113,6 +113,7 @@ class FFTContext:
         ):
             return True
 
+        vc.comment("Register shuffle not possible, falling back to shared memory shuffle.", preceding_new_line=False)
         self.sdata.write_to_sdata(
             registers=registers,
             stage_index=output_stage
@@ -139,7 +140,9 @@ class FFTContext:
         for i in range(stage_count):
             stage = self.config.stages[i]
 
-            vc.comment(f"Processing prime group {stage.primes} by doing {stage.instance_count} radix-{stage.fft_length} FFTs on {self.config.N // stage.registers_used} groups")
+            vc.comment(f"""FFT stage {i + 1}/{stage_count}.
+Prime group {stage.primes}: execute {stage.instance_count} radix-{stage.fft_length} sub-FFTs per invocation.
+Register-group coverage this stage: {self.config.N // stage.registers_used}.""")
 
             if i != 0:
                 self.register_shuffle(output_stage=i-1, input_stage=i)
