@@ -90,6 +90,8 @@ class FFTRegisters:
 
         if out_format.keys() != in_format.keys():
             return False
+        
+        vc.comment("Performing register shuffle w/o shared memory.", preceding_new_line=False)
 
         # Some stages can use fewer registers than config.register_count.
         # Shuffle only registers that appear in the input format.
