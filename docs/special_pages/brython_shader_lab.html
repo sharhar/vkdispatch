@@ -388,6 +388,15 @@
         <input type="text" id="opt-subgroup-size" value="32">
       </div>
       <div class="opt-group">
+        <div class="toggle-row">
+          <span>Shader Print Line Numbers</span>
+          <label class="switch">
+            <input type="checkbox" id="opt-shader-line-numbers">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="opt-group">
         <label>Max Workgroup Size (x, y, z)</label>
         <div style="display:flex; gap:8px;">
           <input type="text" id="opt-wg-size-x" value="1024" style="width:33%">
@@ -445,6 +454,7 @@ import vkdispatch_native
 import vkdispatch.base.context as vd_context
 import vkdispatch.base.init as vd_init
 import vkdispatch.execution_pipeline.command_graph as vd_command_graph
+import vkdispatch.codegen as vc
 
 
 class OutputBuffer:
@@ -550,6 +560,9 @@ def run_code(event):
             max_compute_shared_memory_size=options["max_compute_shared_memory_size"],
         )
         _reset_vkdispatch_runtime()
+        vc.set_shader_print_line_numbers(
+            bool(document["opt-shader-line-numbers"].checked)
+        )
         exec(code, namespace)
     except Exception:
         traceback.print_exc()
@@ -577,6 +590,9 @@ run_code(None)
       { key: "wcz", id: "opt-wg-count-z" },
       { key: "sm",  id: "opt-shared-memory" },
     ];
+    var toggleFields = [
+      { key: "pln", id: "opt-shader-line-numbers" },
+    ];
 
     /* ── load state from URL ── */
     var hash = window.location.hash.slice(1);
@@ -594,6 +610,13 @@ run_code(None)
     deviceFields.forEach(function (f) {
       if (params.has(f.key)) {
         document.getElementById(f.id).value = params.get(f.key);
+      }
+    });
+    toggleFields.forEach(function (f) {
+      if (params.has(f.key)) {
+        var raw = params.get(f.key).toLowerCase();
+        document.getElementById(f.id).checked =
+          raw === "1" || raw === "true" || raw === "yes" || raw === "on";
       }
     });
 
@@ -634,6 +657,14 @@ run_code(None)
                 encodeURIComponent(val)
             );
           }
+        });
+        toggleFields.forEach(function (f) {
+          var checked = document.getElementById(f.id).checked ? "1" : "0";
+          hashParts.push(
+            encodeURIComponent(f.key) +
+              "=" +
+              encodeURIComponent(checked)
+          );
         });
 
         var url =
