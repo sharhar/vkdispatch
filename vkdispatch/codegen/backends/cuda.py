@@ -1,4 +1,6 @@
-from typing import List, Optional
+import re
+
+from typing import Dict, List, Optional, Set
 
 import vkdispatch.base.dtype as dtypes
 
@@ -8,7 +10,329 @@ from .base import CodeGenBackend
 class CUDABackend(CodeGenBackend):
     name = "cuda"
 
+    _HELPER_SNIPPETS: Dict[str, str] = {
+        "mat2_type": (
+            "struct vkdispatch_mat2 {\n"
+            "    float2 c0;\n"
+            "    float2 c1;\n"
+            "};"
+        ),
+        "mat3_type": (
+            "struct vkdispatch_mat3 {\n"
+            "    float3 c0;\n"
+            "    float3 c1;\n"
+            "    float3 c2;\n"
+            "};"
+        ),
+        "mat4_type": (
+            "struct vkdispatch_mat4 {\n"
+            "    float4 c0;\n"
+            "    float4 c1;\n"
+            "    float4 c2;\n"
+            "    float4 c3;\n"
+            "};"
+        ),
+        "make_mat2": "__device__ __forceinline__ vkdispatch_mat2 vkdispatch_make_mat2(float2 c0, float2 c1) { return {c0, c1}; }",
+        "make_mat3": "__device__ __forceinline__ vkdispatch_mat3 vkdispatch_make_mat3(float3 c0, float3 c1, float3 c2) { return {c0, c1, c2}; }",
+        "make_mat4": "__device__ __forceinline__ vkdispatch_mat4 vkdispatch_make_mat4(float4 c0, float4 c1, float4 c2, float4 c3) { return {c0, c1, c2, c3}; }",
+        "make_int2": (
+            "__device__ __forceinline__ int2 vkdispatch_make_int2(int x, int y) { return make_int2(x, y); }\n"
+            "__device__ __forceinline__ int2 vkdispatch_make_int2(int x) { return make_int2(x, x); }\n"
+            "template <typename TVec> __device__ __forceinline__ int2 vkdispatch_make_int2(TVec v) { return make_int2((int)v.x, (int)v.y); }"
+        ),
+        "make_int3": (
+            "__device__ __forceinline__ int3 vkdispatch_make_int3(int x, int y, int z) { return make_int3(x, y, z); }\n"
+            "__device__ __forceinline__ int3 vkdispatch_make_int3(int x) { return make_int3(x, x, x); }\n"
+            "template <typename TVec> __device__ __forceinline__ int3 vkdispatch_make_int3(TVec v) { return make_int3((int)v.x, (int)v.y, (int)v.z); }"
+        ),
+        "make_int4": (
+            "__device__ __forceinline__ int4 vkdispatch_make_int4(int x, int y, int z, int w) { return make_int4(x, y, z, w); }\n"
+            "__device__ __forceinline__ int4 vkdispatch_make_int4(int x) { return make_int4(x, x, x, x); }\n"
+            "template <typename TVec> __device__ __forceinline__ int4 vkdispatch_make_int4(TVec v) { return make_int4((int)v.x, (int)v.y, (int)v.z, (int)v.w); }"
+        ),
+        "make_uint2": (
+            "__device__ __forceinline__ uint2 vkdispatch_make_uint2(unsigned int x, unsigned int y) { return make_uint2(x, y); }\n"
+            "__device__ __forceinline__ uint2 vkdispatch_make_uint2(unsigned int x) { return make_uint2(x, x); }\n"
+            "template <typename TVec> __device__ __forceinline__ uint2 vkdispatch_make_uint2(TVec v) { return make_uint2((unsigned int)v.x, (unsigned int)v.y); }"
+        ),
+        "make_uint3": (
+            "__device__ __forceinline__ uint3 vkdispatch_make_uint3(unsigned int x, unsigned int y, unsigned int z) { return make_uint3(x, y, z); }\n"
+            "__device__ __forceinline__ uint3 vkdispatch_make_uint3(unsigned int x) { return make_uint3(x, x, x); }\n"
+            "template <typename TVec> __device__ __forceinline__ uint3 vkdispatch_make_uint3(TVec v) { return make_uint3((unsigned int)v.x, (unsigned int)v.y, (unsigned int)v.z); }"
+        ),
+        "make_uint4": (
+            "__device__ __forceinline__ uint4 vkdispatch_make_uint4(unsigned int x, unsigned int y, unsigned int z, unsigned int w) { return make_uint4(x, y, z, w); }\n"
+            "__device__ __forceinline__ uint4 vkdispatch_make_uint4(unsigned int x) { return make_uint4(x, x, x, x); }\n"
+            "template <typename TVec> __device__ __forceinline__ uint4 vkdispatch_make_uint4(TVec v) { return make_uint4((unsigned int)v.x, (unsigned int)v.y, (unsigned int)v.z, (unsigned int)v.w); }"
+        ),
+        "make_float2": (
+            "__device__ __forceinline__ float2 vkdispatch_make_float2(float x, float y) { return make_float2(x, y); }\n"
+            "__device__ __forceinline__ float2 vkdispatch_make_float2(float x) { return make_float2(x, x); }\n"
+            "template <typename TVec> __device__ __forceinline__ float2 vkdispatch_make_float2(TVec v) { return make_float2((float)v.x, (float)v.y); }"
+        ),
+        "make_float3": (
+            "__device__ __forceinline__ float3 vkdispatch_make_float3(float x, float y, float z) { return make_float3(x, y, z); }\n"
+            "__device__ __forceinline__ float3 vkdispatch_make_float3(float x) { return make_float3(x, x, x); }\n"
+            "template <typename TVec> __device__ __forceinline__ float3 vkdispatch_make_float3(TVec v) { return make_float3((float)v.x, (float)v.y, (float)v.z); }"
+        ),
+        "make_float4": (
+            "__device__ __forceinline__ float4 vkdispatch_make_float4(float x, float y, float z, float w) { return make_float4(x, y, z, w); }\n"
+            "__device__ __forceinline__ float4 vkdispatch_make_float4(float x) { return make_float4(x, x, x, x); }\n"
+            "template <typename TVec> __device__ __forceinline__ float4 vkdispatch_make_float4(TVec v) { return make_float4((float)v.x, (float)v.y, (float)v.z, (float)v.w); }"
+        ),
+        "global_invocation_id": (
+            "__device__ __forceinline__ uint3 vkdispatch_global_invocation_id() {\n"
+            "    return make_uint3(\n"
+            "        (unsigned int)(blockIdx.x * blockDim.x + threadIdx.x),\n"
+            "        (unsigned int)(blockIdx.y * blockDim.y + threadIdx.y),\n"
+            "        (unsigned int)(blockIdx.z * blockDim.z + threadIdx.z)\n"
+            "    );\n"
+            "}"
+        ),
+        "local_invocation_id": (
+            "__device__ __forceinline__ uint3 vkdispatch_local_invocation_id() {\n"
+            "    return make_uint3((unsigned int)threadIdx.x, (unsigned int)threadIdx.y, (unsigned int)threadIdx.z);\n"
+            "}"
+        ),
+        "workgroup_id": (
+            "__device__ __forceinline__ uint3 vkdispatch_workgroup_id() {\n"
+            "    return make_uint3((unsigned int)blockIdx.x, (unsigned int)blockIdx.y, (unsigned int)blockIdx.z);\n"
+            "}"
+        ),
+        "local_invocation_index": (
+            "__device__ __forceinline__ unsigned int vkdispatch_local_invocation_index() {\n"
+            "    return (unsigned int)(threadIdx.x + blockDim.x * (threadIdx.y + blockDim.y * threadIdx.z));\n"
+            "}"
+        ),
+        "subgroup_size": "__device__ __forceinline__ unsigned int vkdispatch_subgroup_size() { return (unsigned int)warpSize; }",
+        "num_subgroups": (
+            "__device__ __forceinline__ unsigned int vkdispatch_num_subgroups() {\n"
+            "    unsigned int local_count = (unsigned int)(blockDim.x * blockDim.y * blockDim.z);\n"
+            "    return (local_count + vkdispatch_subgroup_size() - 1u) / vkdispatch_subgroup_size();\n"
+            "}"
+        ),
+        "subgroup_id": (
+            "__device__ __forceinline__ unsigned int vkdispatch_subgroup_id() {\n"
+            "    return vkdispatch_local_invocation_index() / vkdispatch_subgroup_size();\n"
+            "}"
+        ),
+        "subgroup_invocation_id": (
+            "__device__ __forceinline__ unsigned int vkdispatch_subgroup_invocation_id() {\n"
+            "    return vkdispatch_local_invocation_index() % vkdispatch_subgroup_size();\n"
+            "}"
+        ),
+        "subgroup_add": (
+            "template <typename T>\n"
+            "__device__ __forceinline__ T vkdispatch_subgroup_add(T value) {\n"
+            "    unsigned int mask = 0xffffffffu;\n"
+            "    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {\n"
+            "        value += __shfl_xor_sync(mask, value, (int)offset);\n"
+            "    }\n"
+            "    return value;\n"
+            "}"
+        ),
+        "subgroup_mul": (
+            "template <typename T>\n"
+            "__device__ __forceinline__ T vkdispatch_subgroup_mul(T value) {\n"
+            "    unsigned int mask = 0xffffffffu;\n"
+            "    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {\n"
+            "        value *= __shfl_xor_sync(mask, value, (int)offset);\n"
+            "    }\n"
+            "    return value;\n"
+            "}"
+        ),
+        "subgroup_min": (
+            "template <typename T>\n"
+            "__device__ __forceinline__ T vkdispatch_subgroup_min(T value) {\n"
+            "    unsigned int mask = 0xffffffffu;\n"
+            "    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {\n"
+            "        T other = __shfl_xor_sync(mask, value, (int)offset);\n"
+            "        value = other < value ? other : value;\n"
+            "    }\n"
+            "    return value;\n"
+            "}"
+        ),
+        "subgroup_max": (
+            "template <typename T>\n"
+            "__device__ __forceinline__ T vkdispatch_subgroup_max(T value) {\n"
+            "    unsigned int mask = 0xffffffffu;\n"
+            "    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {\n"
+            "        T other = __shfl_xor_sync(mask, value, (int)offset);\n"
+            "        value = other > value ? other : value;\n"
+            "    }\n"
+            "    return value;\n"
+            "}"
+        ),
+        "subgroup_and": (
+            "template <typename T>\n"
+            "__device__ __forceinline__ T vkdispatch_subgroup_and(T value) {\n"
+            "    unsigned int mask = 0xffffffffu;\n"
+            "    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {\n"
+            "        value &= __shfl_xor_sync(mask, value, (int)offset);\n"
+            "    }\n"
+            "    return value;\n"
+            "}"
+        ),
+        "subgroup_or": (
+            "template <typename T>\n"
+            "__device__ __forceinline__ T vkdispatch_subgroup_or(T value) {\n"
+            "    unsigned int mask = 0xffffffffu;\n"
+            "    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {\n"
+            "        value |= __shfl_xor_sync(mask, value, (int)offset);\n"
+            "    }\n"
+            "    return value;\n"
+            "}"
+        ),
+        "subgroup_xor": (
+            "template <typename T>\n"
+            "__device__ __forceinline__ T vkdispatch_subgroup_xor(T value) {\n"
+            "    unsigned int mask = 0xffffffffu;\n"
+            "    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {\n"
+            "        value ^= __shfl_xor_sync(mask, value, (int)offset);\n"
+            "    }\n"
+            "    return value;\n"
+            "}"
+        ),
+        "mod": "__device__ __forceinline__ float mod(float x, float y) { return fmodf(x, y); }",
+        "fract": "__device__ __forceinline__ float fract(float x) { return x - floorf(x); }",
+        "roundEven": "__device__ __forceinline__ float roundEven(float x) { return nearbyintf(x); }",
+        "mix": "__device__ __forceinline__ float mix(float x, float y, float a) { return x + (y - x) * a; }",
+        "step": "__device__ __forceinline__ float step(float edge, float x) { return x < edge ? 0.0f : 1.0f; }",
+        "smoothstep": (
+            "__device__ __forceinline__ float smoothstep(float edge0, float edge1, float x) {\n"
+            "    float t = fminf(fmaxf((x - edge0) / (edge1 - edge0), 0.0f), 1.0f);\n"
+            "    return t * t * (3.0f - 2.0f * t);\n"
+            "}"
+        ),
+        "radians": "__device__ __forceinline__ float radians(float x) { return x * (3.14159265358979323846f / 180.0f); }",
+        "degrees": "__device__ __forceinline__ float degrees(float x) { return x * (180.0f / 3.14159265358979323846f); }",
+        "inversesqrt": "__device__ __forceinline__ float inversesqrt(float x) { return rsqrtf(x); }",
+        "floatBitsToInt": "__device__ __forceinline__ int floatBitsToInt(float x) { return __float_as_int(x); }",
+        "floatBitsToUint": "__device__ __forceinline__ unsigned int floatBitsToUint(float x) { return __float_as_uint(x); }",
+        "intBitsToFloat": "__device__ __forceinline__ float intBitsToFloat(int x) { return __int_as_float(x); }",
+        "uintBitsToFloat": "__device__ __forceinline__ float uintBitsToFloat(unsigned int x) { return __uint_as_float(x); }",
+        "sample_texture": (
+            "__device__ __forceinline__ float4 vkdispatch_sample_texture(cudaTextureObject_t tex, float coord) { return tex1D<float4>(tex, coord); }\n"
+            "__device__ __forceinline__ float4 vkdispatch_sample_texture(cudaTextureObject_t tex, float2 coord) { return tex2D<float4>(tex, coord.x, coord.y); }\n"
+            "__device__ __forceinline__ float4 vkdispatch_sample_texture(cudaTextureObject_t tex, float3 coord) { return tex3D<float4>(tex, coord.x, coord.y, coord.z); }\n"
+            "__device__ __forceinline__ float4 vkdispatch_sample_texture(cudaTextureObject_t tex, float coord, float lod) { return tex1DLod<float4>(tex, coord, lod); }\n"
+            "__device__ __forceinline__ float4 vkdispatch_sample_texture(cudaTextureObject_t tex, float2 coord, float lod) { return tex2DLod<float4>(tex, coord.x, coord.y, lod); }\n"
+            "__device__ __forceinline__ float4 vkdispatch_sample_texture(cudaTextureObject_t tex, float3 coord, float lod) { return tex3DLod<float4>(tex, coord.x, coord.y, coord.z, lod); }"
+        ),
+    }
+
+    _HELPER_ORDER: List[str] = [
+        "mat2_type",
+        "mat3_type",
+        "mat4_type",
+        "make_mat2",
+        "make_mat3",
+        "make_mat4",
+        "make_int2",
+        "make_int3",
+        "make_int4",
+        "make_uint2",
+        "make_uint3",
+        "make_uint4",
+        "make_float2",
+        "make_float3",
+        "make_float4",
+        "global_invocation_id",
+        "local_invocation_id",
+        "workgroup_id",
+        "local_invocation_index",
+        "subgroup_size",
+        "num_subgroups",
+        "subgroup_id",
+        "subgroup_invocation_id",
+        "subgroup_add",
+        "subgroup_mul",
+        "subgroup_min",
+        "subgroup_max",
+        "subgroup_and",
+        "subgroup_or",
+        "subgroup_xor",
+        "mod",
+        "fract",
+        "roundEven",
+        "mix",
+        "step",
+        "smoothstep",
+        "radians",
+        "degrees",
+        "inversesqrt",
+        "floatBitsToInt",
+        "floatBitsToUint",
+        "intBitsToFloat",
+        "uintBitsToFloat",
+        "sample_texture",
+    ]
+
+    _HELPER_DEPENDENCIES: Dict[str, List[str]] = {
+        "make_mat2": ["mat2_type"],
+        "make_mat3": ["mat3_type"],
+        "make_mat4": ["mat4_type"],
+        "num_subgroups": ["subgroup_size"],
+        "subgroup_id": ["local_invocation_index", "subgroup_size"],
+        "subgroup_invocation_id": ["local_invocation_index", "subgroup_size"],
+        "subgroup_add": ["subgroup_size"],
+        "subgroup_mul": ["subgroup_size"],
+        "subgroup_min": ["subgroup_size"],
+        "subgroup_max": ["subgroup_size"],
+        "subgroup_and": ["subgroup_size"],
+        "subgroup_or": ["subgroup_size"],
+        "subgroup_xor": ["subgroup_size"],
+    }
+
+    _HELPER_PATTERNS: Dict[str, re.Pattern] = {
+        "mat2_type": re.compile(r"\bvkdispatch_mat2\b"),
+        "mat3_type": re.compile(r"\bvkdispatch_mat3\b"),
+        "mat4_type": re.compile(r"\bvkdispatch_mat4\b"),
+        "make_mat2": re.compile(r"\bvkdispatch_make_mat2\s*\("),
+        "make_mat3": re.compile(r"\bvkdispatch_make_mat3\s*\("),
+        "make_mat4": re.compile(r"\bvkdispatch_make_mat4\s*\("),
+        "make_int2": re.compile(r"\bvkdispatch_make_int2\s*\("),
+        "make_int3": re.compile(r"\bvkdispatch_make_int3\s*\("),
+        "make_int4": re.compile(r"\bvkdispatch_make_int4\s*\("),
+        "make_uint2": re.compile(r"\bvkdispatch_make_uint2\s*\("),
+        "make_uint3": re.compile(r"\bvkdispatch_make_uint3\s*\("),
+        "make_uint4": re.compile(r"\bvkdispatch_make_uint4\s*\("),
+        "make_float2": re.compile(r"\bvkdispatch_make_float2\s*\("),
+        "make_float3": re.compile(r"\bvkdispatch_make_float3\s*\("),
+        "make_float4": re.compile(r"\bvkdispatch_make_float4\s*\("),
+        "global_invocation_id": re.compile(r"\bvkdispatch_global_invocation_id\s*\("),
+        "local_invocation_id": re.compile(r"\bvkdispatch_local_invocation_id\s*\("),
+        "workgroup_id": re.compile(r"\bvkdispatch_workgroup_id\s*\("),
+        "local_invocation_index": re.compile(r"\bvkdispatch_local_invocation_index\s*\("),
+        "subgroup_size": re.compile(r"\bvkdispatch_subgroup_size\s*\("),
+        "num_subgroups": re.compile(r"\bvkdispatch_num_subgroups\s*\("),
+        "subgroup_id": re.compile(r"\bvkdispatch_subgroup_id\s*\("),
+        "subgroup_invocation_id": re.compile(r"\bvkdispatch_subgroup_invocation_id\s*\("),
+        "subgroup_add": re.compile(r"\bvkdispatch_subgroup_add\s*\("),
+        "subgroup_mul": re.compile(r"\bvkdispatch_subgroup_mul\s*\("),
+        "subgroup_min": re.compile(r"\bvkdispatch_subgroup_min\s*\("),
+        "subgroup_max": re.compile(r"\bvkdispatch_subgroup_max\s*\("),
+        "subgroup_and": re.compile(r"\bvkdispatch_subgroup_and\s*\("),
+        "subgroup_or": re.compile(r"\bvkdispatch_subgroup_or\s*\("),
+        "subgroup_xor": re.compile(r"\bvkdispatch_subgroup_xor\s*\("),
+        "mod": re.compile(r"\bmod\s*\("),
+        "fract": re.compile(r"\bfract\s*\("),
+        "roundEven": re.compile(r"\broundEven\s*\("),
+        "mix": re.compile(r"\bmix\s*\("),
+        "step": re.compile(r"\bstep\s*\("),
+        "smoothstep": re.compile(r"\bsmoothstep\s*\("),
+        "radians": re.compile(r"\bradians\s*\("),
+        "degrees": re.compile(r"\bdegrees\s*\("),
+        "inversesqrt": re.compile(r"\binversesqrt\s*\("),
+        "floatBitsToInt": re.compile(r"\bfloatBitsToInt\s*\("),
+        "floatBitsToUint": re.compile(r"\bfloatBitsToUint\s*\("),
+        "intBitsToFloat": re.compile(r"\bintBitsToFloat\s*\("),
+        "uintBitsToFloat": re.compile(r"\buintBitsToFloat\s*\("),
+        "sample_texture": re.compile(r"\bvkdispatch_sample_texture\s*\("),
+    }
+
     def __init__(self) -> None:
+        self._fixed_preamble = ""
         self.reset_state()
 
     def reset_state(self) -> None:
@@ -86,7 +410,7 @@ class CUDABackend(CodeGenBackend):
         subgroup_support = "1" if enable_subgroup_ops else "0"
         printf_support = "1" if enable_printf else "0"
 
-        header = (
+        self._fixed_preamble = (
             "#include <cuda_runtime.h>\n"
             "#include <math.h>\n"
             "#include <stdint.h>\n\n"
@@ -94,188 +418,42 @@ class CUDABackend(CodeGenBackend):
             f"#define VKDISPATCH_ENABLE_PRINTF {printf_support}\n\n"
         )
 
-        header += """struct vkdispatch_mat2 {
-    float2 c0;
-    float2 c1;
-};
+        return self._fixed_preamble
 
-struct vkdispatch_mat3 {
-    float3 c0;
-    float3 c1;
-    float3 c2;
-};
+    def _resolve_helper_dependencies(self, helpers: Set[str]) -> Set[str]:
+        pending = list(helpers)
+        resolved = set(helpers)
 
-struct vkdispatch_mat4 {
-    float4 c0;
-    float4 c1;
-    float4 c2;
-    float4 c3;
-};
+        while len(pending) > 0:
+            helper_name = pending.pop()
 
-__device__ __forceinline__ vkdispatch_mat2 vkdispatch_make_mat2(float2 c0, float2 c1) { return {c0, c1}; }
-__device__ __forceinline__ vkdispatch_mat3 vkdispatch_make_mat3(float3 c0, float3 c1, float3 c2) { return {c0, c1, c2}; }
-__device__ __forceinline__ vkdispatch_mat4 vkdispatch_make_mat4(float4 c0, float4 c1, float4 c2, float4 c3) { return {c0, c1, c2, c3}; }
+            for dependency in self._HELPER_DEPENDENCIES.get(helper_name, []):
+                if dependency not in resolved:
+                    resolved.add(dependency)
+                    pending.append(dependency)
 
-__device__ __forceinline__ int2 vkdispatch_make_int2(int x, int y) { return make_int2(x, y); }
-__device__ __forceinline__ int2 vkdispatch_make_int2(int x) { return make_int2(x, x); }
-template <typename TVec> __device__ __forceinline__ int2 vkdispatch_make_int2(TVec v) { return make_int2((int)v.x, (int)v.y); }
+        return resolved
 
-__device__ __forceinline__ int3 vkdispatch_make_int3(int x, int y, int z) { return make_int3(x, y, z); }
-__device__ __forceinline__ int3 vkdispatch_make_int3(int x) { return make_int3(x, x, x); }
-template <typename TVec> __device__ __forceinline__ int3 vkdispatch_make_int3(TVec v) { return make_int3((int)v.x, (int)v.y, (int)v.z); }
+    def _helper_header(self, header: str, body: str) -> str:
+        usage_source = f"{header}\n{body}"
+        detected_helpers: Set[str] = set()
 
-__device__ __forceinline__ int4 vkdispatch_make_int4(int x, int y, int z, int w) { return make_int4(x, y, z, w); }
-__device__ __forceinline__ int4 vkdispatch_make_int4(int x) { return make_int4(x, x, x, x); }
-template <typename TVec> __device__ __forceinline__ int4 vkdispatch_make_int4(TVec v) { return make_int4((int)v.x, (int)v.y, (int)v.z, (int)v.w); }
+        for helper_name, helper_pattern in self._HELPER_PATTERNS.items():
+            if helper_pattern.search(usage_source) is not None:
+                detected_helpers.add(helper_name)
 
-__device__ __forceinline__ uint2 vkdispatch_make_uint2(unsigned int x, unsigned int y) { return make_uint2(x, y); }
-__device__ __forceinline__ uint2 vkdispatch_make_uint2(unsigned int x) { return make_uint2(x, x); }
-template <typename TVec> __device__ __forceinline__ uint2 vkdispatch_make_uint2(TVec v) { return make_uint2((unsigned int)v.x, (unsigned int)v.y); }
+        resolved_helpers = self._resolve_helper_dependencies(detected_helpers)
 
-__device__ __forceinline__ uint3 vkdispatch_make_uint3(unsigned int x, unsigned int y, unsigned int z) { return make_uint3(x, y, z); }
-__device__ __forceinline__ uint3 vkdispatch_make_uint3(unsigned int x) { return make_uint3(x, x, x); }
-template <typename TVec> __device__ __forceinline__ uint3 vkdispatch_make_uint3(TVec v) { return make_uint3((unsigned int)v.x, (unsigned int)v.y, (unsigned int)v.z); }
+        if len(resolved_helpers) == 0:
+            return ""
 
-__device__ __forceinline__ uint4 vkdispatch_make_uint4(unsigned int x, unsigned int y, unsigned int z, unsigned int w) { return make_uint4(x, y, z, w); }
-__device__ __forceinline__ uint4 vkdispatch_make_uint4(unsigned int x) { return make_uint4(x, x, x, x); }
-template <typename TVec> __device__ __forceinline__ uint4 vkdispatch_make_uint4(TVec v) { return make_uint4((unsigned int)v.x, (unsigned int)v.y, (unsigned int)v.z, (unsigned int)v.w); }
+        helper_sections: List[str] = []
 
-__device__ __forceinline__ float2 vkdispatch_make_float2(float x, float y) { return make_float2(x, y); }
-__device__ __forceinline__ float2 vkdispatch_make_float2(float x) { return make_float2(x, x); }
-template <typename TVec> __device__ __forceinline__ float2 vkdispatch_make_float2(TVec v) { return make_float2((float)v.x, (float)v.y); }
+        for helper_name in self._HELPER_ORDER:
+            if helper_name in resolved_helpers:
+                helper_sections.append(self._HELPER_SNIPPETS[helper_name])
 
-__device__ __forceinline__ float3 vkdispatch_make_float3(float x, float y, float z) { return make_float3(x, y, z); }
-__device__ __forceinline__ float3 vkdispatch_make_float3(float x) { return make_float3(x, x, x); }
-template <typename TVec> __device__ __forceinline__ float3 vkdispatch_make_float3(TVec v) { return make_float3((float)v.x, (float)v.y, (float)v.z); }
-
-__device__ __forceinline__ float4 vkdispatch_make_float4(float x, float y, float z, float w) { return make_float4(x, y, z, w); }
-__device__ __forceinline__ float4 vkdispatch_make_float4(float x) { return make_float4(x, x, x, x); }
-template <typename TVec> __device__ __forceinline__ float4 vkdispatch_make_float4(TVec v) { return make_float4((float)v.x, (float)v.y, (float)v.z, (float)v.w); }
-
-__device__ __forceinline__ uint3 vkdispatch_global_invocation_id() {
-    return make_uint3(
-        (unsigned int)(blockIdx.x * blockDim.x + threadIdx.x),
-        (unsigned int)(blockIdx.y * blockDim.y + threadIdx.y),
-        (unsigned int)(blockIdx.z * blockDim.z + threadIdx.z)
-    );
-}
-
-__device__ __forceinline__ uint3 vkdispatch_local_invocation_id() {
-    return make_uint3((unsigned int)threadIdx.x, (unsigned int)threadIdx.y, (unsigned int)threadIdx.z);
-}
-
-__device__ __forceinline__ uint3 vkdispatch_workgroup_id() {
-    return make_uint3((unsigned int)blockIdx.x, (unsigned int)blockIdx.y, (unsigned int)blockIdx.z);
-}
-
-__device__ __forceinline__ unsigned int vkdispatch_local_invocation_index() {
-    return (unsigned int)(threadIdx.x + blockDim.x * (threadIdx.y + blockDim.y * threadIdx.z));
-}
-
-__device__ __forceinline__ unsigned int vkdispatch_subgroup_size() { return (unsigned int)warpSize; }
-__device__ __forceinline__ unsigned int vkdispatch_num_subgroups() {
-    unsigned int local_count = (unsigned int)(blockDim.x * blockDim.y * blockDim.z);
-    return (local_count + vkdispatch_subgroup_size() - 1u) / vkdispatch_subgroup_size();
-}
-__device__ __forceinline__ unsigned int vkdispatch_subgroup_id() {
-    return vkdispatch_local_invocation_index() / vkdispatch_subgroup_size();
-}
-__device__ __forceinline__ unsigned int vkdispatch_subgroup_invocation_id() {
-    return vkdispatch_local_invocation_index() % vkdispatch_subgroup_size();
-}
-
-template <typename T>
-__device__ __forceinline__ T vkdispatch_subgroup_add(T value) {
-    unsigned int mask = 0xffffffffu;
-    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {
-        value += __shfl_xor_sync(mask, value, (int)offset);
-    }
-    return value;
-}
-
-template <typename T>
-__device__ __forceinline__ T vkdispatch_subgroup_mul(T value) {
-    unsigned int mask = 0xffffffffu;
-    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {
-        value *= __shfl_xor_sync(mask, value, (int)offset);
-    }
-    return value;
-}
-
-template <typename T>
-__device__ __forceinline__ T vkdispatch_subgroup_min(T value) {
-    unsigned int mask = 0xffffffffu;
-    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {
-        T other = __shfl_xor_sync(mask, value, (int)offset);
-        value = other < value ? other : value;
-    }
-    return value;
-}
-
-template <typename T>
-__device__ __forceinline__ T vkdispatch_subgroup_max(T value) {
-    unsigned int mask = 0xffffffffu;
-    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {
-        T other = __shfl_xor_sync(mask, value, (int)offset);
-        value = other > value ? other : value;
-    }
-    return value;
-}
-
-template <typename T>
-__device__ __forceinline__ T vkdispatch_subgroup_and(T value) {
-    unsigned int mask = 0xffffffffu;
-    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {
-        value &= __shfl_xor_sync(mask, value, (int)offset);
-    }
-    return value;
-}
-
-template <typename T>
-__device__ __forceinline__ T vkdispatch_subgroup_or(T value) {
-    unsigned int mask = 0xffffffffu;
-    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {
-        value |= __shfl_xor_sync(mask, value, (int)offset);
-    }
-    return value;
-}
-
-template <typename T>
-__device__ __forceinline__ T vkdispatch_subgroup_xor(T value) {
-    unsigned int mask = 0xffffffffu;
-    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {
-        value ^= __shfl_xor_sync(mask, value, (int)offset);
-    }
-    return value;
-}
-
-__device__ __forceinline__ float mod(float x, float y) { return fmodf(x, y); }
-__device__ __forceinline__ float fract(float x) { return x - floorf(x); }
-__device__ __forceinline__ float roundEven(float x) { return nearbyintf(x); }
-__device__ __forceinline__ float mix(float x, float y, float a) { return x + (y - x) * a; }
-__device__ __forceinline__ float step(float edge, float x) { return x < edge ? 0.0f : 1.0f; }
-__device__ __forceinline__ float smoothstep(float edge0, float edge1, float x) {
-    float t = fminf(fmaxf((x - edge0) / (edge1 - edge0), 0.0f), 1.0f);
-    return t * t * (3.0f - 2.0f * t);
-}
-__device__ __forceinline__ float radians(float x) { return x * (3.14159265358979323846f / 180.0f); }
-__device__ __forceinline__ float degrees(float x) { return x * (180.0f / 3.14159265358979323846f); }
-__device__ __forceinline__ float inversesqrt(float x) { return rsqrtf(x); }
-
-__device__ __forceinline__ int floatBitsToInt(float x) { return __float_as_int(x); }
-__device__ __forceinline__ unsigned int floatBitsToUint(float x) { return __float_as_uint(x); }
-__device__ __forceinline__ float intBitsToFloat(int x) { return __int_as_float(x); }
-__device__ __forceinline__ float uintBitsToFloat(unsigned int x) { return __uint_as_float(x); }
-
-__device__ __forceinline__ float4 vkdispatch_sample_texture(cudaTextureObject_t tex, float coord) { return tex1D<float4>(tex, coord); }
-__device__ __forceinline__ float4 vkdispatch_sample_texture(cudaTextureObject_t tex, float2 coord) { return tex2D<float4>(tex, coord.x, coord.y); }
-__device__ __forceinline__ float4 vkdispatch_sample_texture(cudaTextureObject_t tex, float3 coord) { return tex3D<float4>(tex, coord.x, coord.y, coord.z); }
-__device__ __forceinline__ float4 vkdispatch_sample_texture(cudaTextureObject_t tex, float coord, float lod) { return tex1DLod<float4>(tex, coord, lod); }
-__device__ __forceinline__ float4 vkdispatch_sample_texture(cudaTextureObject_t tex, float2 coord, float lod) { return tex2DLod<float4>(tex, coord.x, coord.y, lod); }
-__device__ __forceinline__ float4 vkdispatch_sample_texture(cudaTextureObject_t tex, float3 coord, float lod) { return tex3DLod<float4>(tex, coord.x, coord.y, coord.z, lod); }
-"""
-
-        return header
+        return "\n\n".join(helper_sections) + "\n\n"
 
     def make_source(self, header: str, body: str, x: int, y: int, z: int) -> str:
         expected_size_header = (
@@ -284,7 +462,19 @@ __device__ __forceinline__ float4 vkdispatch_sample_texture(cudaTextureObject_t 
             f"#define VKDISPATCH_EXPECTED_LOCAL_SIZE_Y {y}\n"
             f"#define VKDISPATCH_EXPECTED_LOCAL_SIZE_Z {z}\n"
         )
-        return f"{expected_size_header}\n{header}\n{body}"
+
+        helper_header = self._helper_header(header, body)
+
+        if len(helper_header) == 0:
+            return f"{expected_size_header}\n{header}\n{body}"
+
+        if len(self._fixed_preamble) > 0 and header.startswith(self._fixed_preamble):
+            header_suffix = header[len(self._fixed_preamble):]
+            finalized_header = f"{self._fixed_preamble}{helper_header}{header_suffix}"
+        else:
+            finalized_header = f"{header}\n{helper_header}"
+
+        return f"{expected_size_header}\n{finalized_header}\n{body}"
 
     def constant_namespace(self) -> str:
         return "UBO"
