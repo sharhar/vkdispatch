@@ -39,15 +39,16 @@
       background: #0f0f23;
       display: flex;
       align-items: center;
-      justify-content: space-between;
       padding: 0 16px;
       border-bottom: 1px solid #2a2a4a;
+      gap: 10px;
     }
 
     .toolbar h1 {
       font-size: 1rem;
       color: #c7d2fe;
       font-weight: 600;
+      margin-right: auto;
     }
 
     .toolbar button {
@@ -66,6 +67,24 @@
       background: var(--accent-hover);
     }
 
+    .toolbar .icon-btn {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      border-radius: 50%;
+      background: #2a2a4a;
+      color: #c7d2fe;
+      flex-shrink: 0;
+    }
+
+    .toolbar .icon-btn:hover {
+      background: #3a3a6a;
+    }
+
     /* ── main split ── */
     .split {
       display: flex;
@@ -73,9 +92,11 @@
     }
 
     .pane {
-      width: 50%;
       display: flex;
       flex-direction: column;
+      min-width: 80px;
+      overflow: hidden;
+      width: calc(50% - 3px);
     }
 
     .pane-header {
@@ -87,11 +108,39 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.06em;
+      flex-shrink: 0;
+    }
+
+    /* ── divider ── */
+    .divider {
+      width: 6px;
+      cursor: col-resize;
+      background: #2a2a4a;
+      flex-shrink: 0;
+      position: relative;
+      transition: background 0.15s;
+    }
+
+    .divider:hover,
+    .divider.active {
+      background: var(--accent);
+    }
+
+    .divider::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 2px;
+      height: 40px;
+      border-radius: 1px;
+      background: rgba(255, 255, 255, 0.25);
     }
 
     /* ── code pane (left) ── */
     .pane.code {
-      border-right: 1px solid #2a2a4a;
+      /* no border-right, divider replaces it */
     }
 
     .pane.code .pane-header {
@@ -131,17 +180,224 @@
       background: #0f172a;
       color: #c7f4d9;
     }
+
+    /* ── overlay panels (help + options) ── */
+    .overlay-panel {
+      display: none;
+      position: fixed;
+      top: 56px;
+      left: 16px;
+      width: 360px;
+      max-height: calc(100vh - 72px);
+      background: #16163a;
+      border: 1px solid #2a2a4a;
+      border-radius: 10px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+      z-index: 100;
+      overflow-y: auto;
+      color: #c7d2fe;
+      font-size: 0.88rem;
+      line-height: 1.55;
+    }
+
+    .overlay-panel.visible {
+      display: block;
+    }
+
+    .overlay-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid #2a2a4a;
+      font-weight: 700;
+      font-size: 0.95rem;
+      position: sticky;
+      top: 0;
+      background: #16163a;
+    }
+
+    .overlay-header button {
+      background: none;
+      border: none;
+      color: #7c8bbf;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+
+    .overlay-header button:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .overlay-body {
+      padding: 16px;
+    }
+
+    /* ── options-specific ── */
+    .opt-group {
+      margin-bottom: 18px;
+    }
+
+    .opt-group label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #7c8bbf;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .opt-group input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .opt-group select,
+    .opt-group input[type="text"] {
+      width: 100%;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid #2a2a4a;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    .opt-group select:focus,
+    .opt-group input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+    }
+
+    .toggle-row span {
+      font-size: 0.85rem;
+    }
+
+    /* simple toggle switch */
+    .switch {
+      position: relative;
+      width: 40px;
+      height: 22px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .switch .slider {
+      position: absolute;
+      inset: 0;
+      background: #2a2a4a;
+      border-radius: 22px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .switch .slider::before {
+      content: "";
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      left: 3px;
+      top: 3px;
+      background: #c7d2fe;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+
+    .switch input:checked + .slider {
+      background: var(--accent);
+    }
+
+    .switch input:checked + .slider::before {
+      transform: translateX(18px);
+    }
+
+    /* prevent text selection while dragging */
+    body.resizing {
+      user-select: none;
+      cursor: col-resize;
+    }
   </style>
 </head>
 <body onload="brython({pythonpath: ['libs']})">
   <div class="toolbar">
+    <button class="icon-btn" id="help-btn" title="Help">?</button>
+    <button class="icon-btn" id="opts-btn" title="Options">⚙</button>
     <h1>Brython In-Browser Python Runner</h1>
     <button id="run-btn">▶ Run</button>
     <button id="share-btn">🔗 Share</button>
   </div>
 
-  <div class="split">
-    <div class="pane code">
+  <!-- Help panel -->
+  <div class="overlay-panel" id="help-panel">
+    <div class="overlay-header">
+      <span>Help</span>
+      <button id="help-close">✕</button>
+    </div>
+    <div class="overlay-body">
+      <p>
+        Placeholder explanation text goes here. This panel will contain
+        documentation, usage tips, and examples for using the in-browser
+        Python runner and the vkdispatch library.
+      </p>
+    </div>
+  </div>
+
+  <!-- Options panel -->
+  <div class="overlay-panel" id="opts-panel">
+    <div class="overlay-header">
+      <span>VkDispatch Device Parameters</span>
+      <button id="opts-close">✕</button>
+    </div>
+    <div class="overlay-body">
+      <div class="opt-group">
+        <label>Subgroup Size</label>
+        <input type="text" id="opt-subgroup-size" value="32">
+      </div>
+      <div class="opt-group">
+        <label>Max Workgroup Size (x, y, z)</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="opt-wg-size-x" value="1024" style="width:33%">
+          <input type="text" id="opt-wg-size-y" value="1024" style="width:33%">
+          <input type="text" id="opt-wg-size-z" value="64" style="width:33%">
+        </div>
+      </div>
+      <div class="opt-group">
+        <label>Max Workgroup Invocations</label>
+        <input type="text" id="opt-wg-invocations" value="1024">
+      </div>
+      <div class="opt-group">
+        <label>Max Workgroup Count (x, y, z)</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="opt-wg-count-x" value="65535" style="width:33%">
+          <input type="text" id="opt-wg-count-y" value="65535" style="width:33%">
+          <input type="text" id="opt-wg-count-z" value="65535" style="width:33%">
+        </div>
+      </div>
+      <div class="opt-group">
+        <label>Max Shared Memory (bytes)</label>
+        <input type="text" id="opt-shared-memory" value="65536">
+      </div>
+    </div>
+  </div>
+
+  <div class="split" id="split">
+    <div class="pane code" id="pane-left">
       <div class="pane-header">Code</div>
       <textarea id="code" spellcheck="false">import vkdispatch as vd
 import vkdispatch.codegen as vc
@@ -155,7 +411,8 @@ def add_scalar(buff: Buff[f32], bias: Const[f32]):
 
 print(add_scalar)</textarea>
     </div>
-    <div class="pane output">
+    <div class="divider" id="divider"></div>
+    <div class="pane output" id="pane-right">
       <div class="pane-header">Output</div>
       <textarea id="output" readonly></textarea>
     </div>
@@ -205,7 +462,7 @@ document["run-btn"].bind("click", run_code)
 
   <script>
   (function () {
-    // On load: if URL has #code=..., decode and replace textarea
+    /* ── share / load from URL ── */
     var hash = window.location.hash.slice(1);
     var params = new URLSearchParams(hash);
     if (params.has("code")) {
@@ -221,7 +478,6 @@ document["run-btn"].bind("click", run_code)
       if (navigator.clipboard && window.isSecureContext) {
         return navigator.clipboard.writeText(text);
       }
-      // Fallback for file:// or HTTP
       var ta = document.createElement("textarea");
       ta.value = text;
       ta.style.position = "fixed";
@@ -251,7 +507,81 @@ document["run-btn"].bind("click", run_code)
           alert("Link copied to clipboard!");
         });
       });
+
+    /* ── resizable split pane ── */
+    var split = document.getElementById("split");
+    var divider = document.getElementById("divider");
+    var paneL = document.getElementById("pane-left");
+    var paneR = document.getElementById("pane-right");
+
+    var dragging = false;
+
+    divider.addEventListener("mousedown", function (e) {
+      e.preventDefault();
+      dragging = true;
+      divider.classList.add("active");
+      document.body.classList.add("resizing");
+    });
+
+    window.addEventListener("mousemove", function (e) {
+      if (!dragging) return;
+      var rect = split.getBoundingClientRect();
+      var x = e.clientX - rect.left;
+      var divW = divider.offsetWidth;
+      var minPx = 80;
+      var maxPx = rect.width - divW - 80;
+      x = Math.max(minPx, Math.min(x, maxPx));
+      var leftPct = (x / rect.width) * 100;
+      var rightPct = ((rect.width - x - divW) / rect.width) * 100;
+      paneL.style.width = leftPct + "%";
+      paneR.style.width = rightPct + "%";
+    });
+
+    window.addEventListener("mouseup", function () {
+      if (dragging) {
+        dragging = false;
+        divider.classList.remove("active");
+        document.body.classList.remove("resizing");
+      }
+    });
+
+    /* ── help & options panels ── */
+    function toggle(panelId) {
+      var panel = document.getElementById(panelId);
+      var isVisible = panel.classList.contains("visible");
+      // close all panels first
+      document.querySelectorAll(".overlay-panel").forEach(function (p) {
+        p.classList.remove("visible");
+      });
+      if (!isVisible) panel.classList.add("visible");
+    }
+
+    document
+      .getElementById("help-btn")
+      .addEventListener("click", function () {
+        toggle("help-panel");
+      });
+    document
+      .getElementById("help-close")
+      .addEventListener("click", function () {
+        document
+          .getElementById("help-panel")
+          .classList.remove("visible");
+      });
+
+    document
+      .getElementById("opts-btn")
+      .addEventListener("click", function () {
+        toggle("opts-panel");
+      });
+    document
+      .getElementById("opts-close")
+      .addEventListener("click", function () {
+        document
+          .getElementById("opts-panel")
+          .classList.remove("visible");
+      });
   })();
-</script>
+  </script>
 </body>
 </html>
