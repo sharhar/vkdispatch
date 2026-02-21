@@ -1,9 +1,9 @@
 import vkdispatch.base.dtype as dtypes
 from ..variables.variables import ShaderVariable
 from typing import Any, Union
-import numpy as np
 
 from . import utils
+from ..._compat import numpy_compat as npc
 
 def dtype_to_floating(var_type: dtypes.dtype) -> dtypes.dtype:
     if var_type == dtypes.int32 or var_type == dtypes.uint32:
@@ -48,7 +48,7 @@ def degrees(var: Any) -> Union[ShaderVariable, float]:
 
 def sin(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(np.sin(var))
+        return npc.sin(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -61,7 +61,7 @@ def sin(var: Any) -> Union[ShaderVariable, float]:
 
 def cos(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(np.cos(var))
+        return npc.cos(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -74,7 +74,7 @@ def cos(var: Any) -> Union[ShaderVariable, float]:
 
 def tan(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(np.tan(var))
+        return npc.tan(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -87,7 +87,7 @@ def tan(var: Any) -> Union[ShaderVariable, float]:
 
 def asin(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(np.arcsin(var))
+        return npc.arcsin(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -100,7 +100,7 @@ def asin(var: Any) -> Union[ShaderVariable, float]:
 
 def acos(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(np.arccos(var))
+        return npc.arccos(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -113,7 +113,7 @@ def acos(var: Any) -> Union[ShaderVariable, float]:
 
 def atan(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(np.arctan(var))
+        return npc.arctan(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -126,7 +126,7 @@ def atan(var: Any) -> Union[ShaderVariable, float]:
 
 def atan2(y: Any, x: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(y) and utils.is_number(x):
-        return float(np.arctan2(y, x))
+        return npc.arctan2(y, x)
     
     if utils.is_number(x) and isinstance(y, ShaderVariable):
         return utils.new_var(
@@ -154,7 +154,7 @@ def atan2(y: Any, x: Any) -> Union[ShaderVariable, float]:
 
 def sinh(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(np.sinh(var))
+        return npc.sinh(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -167,7 +167,7 @@ def sinh(var: Any) -> Union[ShaderVariable, float]:
 
 def cosh(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(np.cosh(var))
+        return npc.cosh(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -180,7 +180,7 @@ def cosh(var: Any) -> Union[ShaderVariable, float]:
 
 def tanh(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(np.tanh(var))
+        return npc.tanh(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -193,7 +193,7 @@ def tanh(var: Any) -> Union[ShaderVariable, float]:
 
 def asinh(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(np.arcsinh(var))
+        return npc.arcsinh(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -206,7 +206,7 @@ def asinh(var: Any) -> Union[ShaderVariable, float]:
 
 def acosh(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(np.arccosh(var))
+        return npc.arccosh(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -219,7 +219,7 @@ def acosh(var: Any) -> Union[ShaderVariable, float]:
 
 def atanh(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(np.arctanh(var))
+        return npc.arctanh(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 

@@ -15,7 +15,7 @@ import uuid
 
 import dataclasses
 
-import numpy as np
+from .._compat import numpy_compat as npc
 
 class LaunchParametersHolder:
     def __init__(self, names_and_defaults, args, kwargs) -> None:
@@ -71,7 +71,7 @@ class ExectionBounds:
         if callable(in_val):
             in_val = in_val(LaunchParametersHolder(self.names_and_defaults, args, kwargs))
 
-        if isinstance(in_val, int) or np.issubdtype(type(in_val), np.integer):
+        if npc.is_integer_scalar(in_val):
             return (in_val, 1, 1) # type: ignore
 
         if not isinstance(in_val, tuple):
@@ -83,7 +83,7 @@ class ExectionBounds:
         return_val = [1, 1, 1]
 
         for ii, val in enumerate(in_val):
-            if not isinstance(val, int) and not np.issubdtype(type(val), np.integer):
+            if not npc.is_integer_scalar(val):
                 raise ValueError("All dimensions must be integers!")
             
             return_val[ii] = val
@@ -346,4 +346,3 @@ class ShaderFunction:
             pc_values,
             shader_uuid=shader_uuid
         )
-

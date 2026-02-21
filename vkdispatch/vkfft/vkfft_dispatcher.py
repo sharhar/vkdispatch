@@ -2,8 +2,6 @@ from typing import Tuple
 from typing import Union, Optional
 from typing import List
 
-import numpy as np
-
 import vkdispatch as vd
 
 from .vkfft_plan import VkFFTPlan

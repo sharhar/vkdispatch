@@ -8,7 +8,7 @@ from .errors import check_for_errors
 
 from .dtype import complex64
 
-import numpy as np
+from .._compat import numpy_compat as npc
 from .dtype import to_numpy_dtype, from_numpy_dtype
 
 import vkdispatch_native
@@ -123,16 +123,15 @@ class Buffer(Handle, typing.Generic[_ArgType]):
                 vkdispatch_native.buffer_write(self._handle, 0, len(data), queue_index)
                 check_for_errors()
 
-    def write(self, data: Union[bytes, np.ndarray], index: int = None) -> None:
+    def write(self, data: Union[bytes, bytearray, memoryview, typing.Any], index: int = None) -> None:
         """
         Uploads data from the host to the GPU buffer.
 
         If ``index`` is None, the data is broadcast to the memory of all active devices 
         in the context. Otherwise, it writes only to the device specified by the index.
 
-        :param data: The source data. Can be a raw ``bytes`` object or a ``numpy.ndarray``.
-                     If a numpy array is provided, its size and dtype must match the buffer's capacity.
-        :type data: Union[bytes, np.ndarray]
+        :param data: The source data. Can be a bytes-like object or an array-like object.
+        :type data: Union[bytes, bytearray, memoryview, Any]
         :param index: The device index to write to. Defaults to -1 (all devices).
         :type index: int
         :raises ValueError: If the data size exceeds the buffer size or if the index is invalid.
@@ -143,16 +142,16 @@ class Buffer(Handle, typing.Generic[_ArgType]):
 
         true_data_object = None
 
-        if isinstance(data, np.ndarray):
-            if data.size * np.dtype(data.dtype).itemsize != self.mem_size:
+        if npc.is_array_like(data):
+            if npc.array_nbytes(data) != self.mem_size:
                 raise ValueError("Numpy buffer sizes must match!")
 
-            true_data_object = np.ascontiguousarray(data).tobytes()
+            true_data_object = npc.as_contiguous_bytes(data)
         else:
-            if len(data) > self.mem_size:
-                raise ValueError("Data Size must be less than buffer size")
+            true_data_object = npc.ensure_bytes(data)
 
-            true_data_object = data
+            if len(true_data_object) > self.mem_size:
+                raise ValueError("Data Size must be less than buffer size")
 
         self._do_writes(true_data_object, index)
 
@@ -163,7 +162,7 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         completed_stages = [0] * len(indicies)
         bytes_list: List[bytes] = [None] * len(indicies)
 
-        mem_size = int(np.prod(shape)) * var_type.item_size
+        mem_size = int(npc.prod(shape)) * var_type.item_size
 
         while not all(stage == 2 for stage in completed_stages):
             for i in range(len(indicies)):
@@ -189,24 +188,23 @@ class Buffer(Handle, typing.Generic[_ArgType]):
                 bytes_list[i] = vkdispatch_native.buffer_read_staging(self._handle, queue_index, mem_size)
                 check_for_errors()
         
-        numpy_arrays = []
+        host_arrays = []
 
         for b in bytes_list:
-            numpy_arrays.append(
-                np.frombuffer(b, dtype=to_numpy_dtype(var_type)).reshape(shape)
+            host_arrays.append(
+                npc.from_buffer(b, dtype=to_numpy_dtype(var_type), shape=tuple(shape))
             )
 
-        return numpy_arrays if index is None else numpy_arrays[0]
+        return host_arrays if index is None else host_arrays[0]
 
-    def read(self, index: Union[int, None] = None) -> np.ndarray:
+    def read(self, index: Union[int, None] = None):
         """
         Downloads data from the GPU buffer to the host.
 
         :param index: The device index to read from. If ``None``, reads from all devices 
                       and returns a stacked array with an extra dimension for the device index.
         :type index: Union[int, None]
-        :return: A numpy array containing the buffer data.
-        :rtype: np.ndarray
+        :return: A host array representation containing the buffer data.
         :raises ValueError: If the specified index is invalid.
         """
 
@@ -222,12 +220,18 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         
         results = self._do_reads(true_scalar, data_shape, None)
 
-        return np.array(results)
+        if npc.HAS_NUMPY:
+            return npc.numpy_module().array(results)
 
-def asbuffer(array: np.ndarray) -> Buffer:
-    """Cast a numpy array to a buffer object."""
+        return results
 
-    buffer = Buffer(array.shape, from_numpy_dtype(array.dtype))
+def asbuffer(array: typing.Any) -> Buffer:
+    """Cast an array-like object to a buffer object."""
+
+    if not npc.is_array_like(array):
+        raise TypeError("Expected an array-like object")
+
+    buffer = Buffer(npc.array_shape(array), from_numpy_dtype(npc.array_dtype(array)))
     buffer.write(array)
 
     return buffer
@@ -240,13 +244,17 @@ class RFFTBuffer(Buffer):
         self.real_shape = shape
         self.fourier_shape = self.shape
     
-    def read_real(self, index: Union[int, None] = None) -> np.ndarray:
+    def read_real(self, index: Union[int, None] = None):
+        npc.require_numpy("RFFTBuffer.read_real")
+        np = npc.numpy_module()
         return self.read(index).view(np.float32)[..., :self.real_shape[-1]]
 
-    def read_fourier(self, index: Union[int, None] = None) -> np.ndarray:
+    def read_fourier(self, index: Union[int, None] = None):
         return self.read(index)
     
-    def write_real(self, data: np.ndarray, index: int = None):
+    def write_real(self, data, index: int = None):
+        npc.require_numpy("RFFTBuffer.write_real")
+        np = npc.numpy_module()
         assert data.shape == self.real_shape, "Data shape must match real shape!"
         assert not np.issubdtype(data.dtype, np.complexfloating) , "Data dtype must be scalar!"
 
@@ -255,13 +263,17 @@ class RFFTBuffer(Buffer):
 
         self.write(np.ascontiguousarray(true_data).view(np.complex64), index)
 
-    def write_fourier(self, data: np.ndarray, index: int = None):
+    def write_fourier(self, data, index: int = None):
+        npc.require_numpy("RFFTBuffer.write_fourier")
+        np = npc.numpy_module()
         assert data.shape == self.fourier_shape, f"Data shape {data.shape} must match fourier shape {self.fourier_shape}!"
         assert np.issubdtype(data.dtype, np.complexfloating) , "Data dtype must be complex!"
 
         self.write(np.ascontiguousarray(data.astype(np.complex64)).view(np.float32), index)
 
-def asrfftbuffer(data: np.ndarray) -> RFFTBuffer:
+def asrfftbuffer(data) -> RFFTBuffer:
+    npc.require_numpy("asrfftbuffer")
+    np = npc.numpy_module()
     assert not np.issubdtype(data.dtype, np.complexfloating), "Data dtype must be scalar!"
 
     buffer = RFFTBuffer(data.shape)

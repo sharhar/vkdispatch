@@ -2,18 +2,10 @@ import vkdispatch.base.dtype as dtypes
 from  vkdispatch.codegen.variables.base_variable import BaseVariable
 from typing import Any
 
-#from vkdispatch.base.brython_utils import is_brython
-
-#if not is_brython():
-import numpy as np
+from ...._compat import numpy_compat as npc
 
 def my_log2_int(x: int) -> int:
-    return int(np.round(np.log2(x)))
-# else:
-#     import math
-
-#     def my_log2_int(x: int) -> int:
-#         return int(round(math.log2(x)))
+    return int(npc.round(npc.log2(x)))
 
 
 from . import base_utils

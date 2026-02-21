@@ -9,8 +9,6 @@ from .errors import check_for_errors
 from .compute_plan import ComputePlan
 from .descriptor_set import DescriptorSet
 
-import numpy as np
-
 class CommandList(Handle):
     """
     Represents a sequence of GPU commands to be executed on a device.

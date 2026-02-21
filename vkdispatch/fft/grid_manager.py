@@ -6,7 +6,7 @@ from typing import Optional, Tuple, Union, Literal
 from .config import FFTConfig
 from .prime_utils import prime_factors
 
-import numpy as np
+from .._compat import numpy_compat as npc
 
 def allocation_valid(workgroup_size: int, shared_memory_size: int):
     valid_workgroup = workgroup_size <= vd.get_context().max_workgroup_invocations
@@ -238,7 +238,7 @@ class FFTGridManager:
         if not declare_variables:
             return
 
-        self.transposed_stride = np.prod(self.local_size)
+        self.transposed_stride = npc.prod(self.local_size)
         self.transposed_offset = vc.local_invocation_index() + self.transposed_stride * self.config.register_count * self.workgroup_index
         
         self.transposed_inner_stride = None
@@ -257,4 +257,3 @@ class FFTGridManager:
             return self.transposed_offset + register_id * self.transposed_stride
 
         return self.transposed_inner_offset + register_id * self.transposed_inner_stride
-

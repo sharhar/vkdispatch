@@ -1,12 +1,11 @@
 import vkdispatch.base.dtype as dtypes
 from vkdispatch.codegen.variables.base_variable import BaseVariable
 
-import numpy as np
-
 from typing import Any, Optional
 
 import numbers
 
+from ...._compat import numpy_compat as npc
 from vkdispatch.codegen.shader_writer import new_scaled_var, append_contents, new_name
 
 from vkdispatch.codegen.shader_writer import new_var as new_var_impl
@@ -26,10 +25,7 @@ def is_int_number(x) -> bool:
     return isinstance(x, numbers.Integral) and not isinstance(x, bool)
 
 def _is_numpy_float(x) -> bool:
-    #if is_brython():
-    #    return False
-
-    return isinstance(x, np.floating)
+    return npc.is_numpy_floating_instance(x)
 
 def is_float_number(x) -> bool:
     return isinstance(x, numbers.Real) and not isinstance(x, numbers.Integral) and not isinstance(x, bool) \
@@ -59,13 +55,10 @@ def number_to_dtype(number: numbers.Number):
         raise TypeError(f"Unsupported number type: {type(number)}")
 
 def _check_is_int_numpy(x) -> bool:
-    #if is_brython():
-    #    return False
-
-    return np.issubdtype(type(x), np.integer)
+    return npc.is_numpy_integer_scalar(x)
 
 def check_is_int(variable):
-    return isinstance(variable, int) or _check_is_int_numpy(variable)
+    return npc.is_integer_scalar(variable)
 
 def dtype_to_floating(var_type: dtypes.dtype) -> dtypes.dtype:
     if var_type == dtypes.int32 or var_type == dtypes.uint32:
