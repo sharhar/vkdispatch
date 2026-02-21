@@ -3,10 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Brython Runner</title>
+  <title>VkDispatch Shader Playground</title>
   <script src="https://cdn.jsdelivr.net/npm/brython@3.12.2/brython.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/brython@3.12.2/brython_stdlib.js"></script>
   <script src="libs/vkdispatch.brython.js"></script>
+
+  <!-- CodeMirror 5 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/theme/material-darker.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/mode/python/python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/mode/clike/clike.min.js"></script>
+
   <style>
     :root {
       --bg: #f4f7fb;
@@ -139,27 +147,9 @@
     }
 
     /* ── code pane (left) ── */
-    .pane.code {
-      /* no border-right, divider replaces it */
-    }
-
     .pane.code .pane-header {
       background: #16163a;
       color: #7c8bbf;
-    }
-
-    #code {
-      flex: 1;
-      width: 100%;
-      resize: none;
-      border: none;
-      outline: none;
-      padding: 14px;
-      font: 14px/1.6 "SFMono-Regular", Consolas, "Liberation Mono",
-        Menlo, monospace;
-      background: #1e1e3a;
-      color: #e2e8f0;
-      tab-size: 4;
     }
 
     /* ── output pane (right) ── */
@@ -168,17 +158,32 @@
       color: #5fa35f;
     }
 
-    #output {
+    /* ── CodeMirror fills its pane ── */
+    .pane .CodeMirror {
       flex: 1;
-      width: 100%;
-      resize: none;
-      border: none;
-      outline: none;
-      padding: 14px;
+      height: auto;
       font: 14px/1.6 "SFMono-Regular", Consolas, "Liberation Mono",
         Menlo, monospace;
+      border: none;
+    }
+
+    .pane.code .CodeMirror {
+      background: #1e1e3a;
+    }
+
+    .pane.output .CodeMirror {
       background: #0f172a;
-      color: #c7f4d9;
+    }
+
+    /* Tweak gutter to match pane backgrounds */
+    .pane.code .CodeMirror-gutters {
+      background: #1a1a36;
+      border-right: 1px solid #2a2a4a;
+    }
+
+    .pane.output .CodeMirror-gutters {
+      background: #0d1526;
+      border-right: 1px solid #1a2a3a;
     }
 
     /* ── overlay panels (help + options) ── */
@@ -339,7 +344,7 @@
     <button class="icon-btn" id="help-btn" title="Help">?</button>
     <button class="icon-btn" id="opts-btn" title="Options">⚙</button>
     <button id="run-btn">▶ Run</button>
-    <h1>Brython In-Browser Python Runner</h1>
+    <h1>VkDispatch Shader Playground</h1>
     <button id="share-btn">🔗 Share</button>
   </div>
 
@@ -351,22 +356,25 @@
     </div>
     <div class="overlay-body">
       <p>
-        This lab is designed for rapid shader-authoring workflows: write Python in the left pane,
+        This web-based shader compiler is designed for rapid shader-authoring workflows: write Python in the left pane,
         run it in the browser, and inspect generated output on the right. It is especially useful
         for researchers who want to iterate on kernel structure and inspect code generation without
         switching to a full native setup.
       </p>
+      <br>
       <p>
         The key feature is shader visibility: when you print a decorated shader function (for
         example, <code>print(add_scalar)</code>), the panel shows the generated GLSL. This makes
         it easy to validate indexing logic, control flow, and type usage directly from the
         high-level Python definition.
       </p>
+      <br>
       <p>
         The Options panel controls a dummy device model, not your physical GPU. You can adjust
         limits such as subgroup size, workgroup limits, and shared memory to test how your shader
         configuration behaves under different device constraints.
       </p>
+      <br>
       <p>
         Most standard <code>vkdispatch</code> APIs are available in this environment (buffers,
         images, descriptor bindings, and dispatch calls), but this page is intended for codegen and
@@ -387,7 +395,7 @@
         <label>Subgroup Size</label>
         <input type="text" id="opt-subgroup-size" value="32">
       </div>
-      <div class="opt-group">
+      <!-- <div class="opt-group">
         <div class="toggle-row">
           <span>Shader Print Line Numbers</span>
           <label class="switch">
@@ -395,7 +403,7 @@
             <span class="slider"></span>
           </label>
         </div>
-      </div>
+      </div>  -->
       <div class="opt-group">
         <label>Max Workgroup Size (x, y, z)</label>
         <div style="display:flex; gap:8px;">
@@ -445,8 +453,331 @@ print(add_scalar)</textarea>
     </div>
   </div>
 
+  <!-- CodeMirror init + GLSL mode definition (before Brython boots) -->
+  <script>
+  (function () {
+    /* ── Define GLSL MIME type using clike ── */
+    function words(str) {
+      var obj = {}, arr = str.split(" ");
+      for (var i = 0; i < arr.length; i++) if (arr[i]) obj[arr[i]] = true;
+      return obj;
+    }
+
+    CodeMirror.defineMIME("text/x-glsl", {
+      name: "clike",
+      keywords: words(
+        "break continue discard do else for if return while switch case default " +
+        "attribute const in inout out uniform varying " +
+        "layout flat smooth noperspective centroid patch sample " +
+        "buffer shared coherent volatile restrict readonly writeonly " +
+        "subroutine precision highp mediump lowp " +
+        "struct true false " +
+        "invariant interpolation " +
+        "barrier memoryBarrier memoryBarrierAtomicCounter memoryBarrierBuffer " +
+        "memoryBarrierImage memoryBarrierShared groupMemoryBarrier"
+      ),
+      types: words(
+        "void bool int uint float double " +
+        "vec2 vec3 vec4 ivec2 ivec3 ivec4 uvec2 uvec3 uvec4 " +
+        "bvec2 bvec3 bvec4 dvec2 dvec3 dvec4 " +
+        "mat2 mat3 mat4 " +
+        "mat2x2 mat2x3 mat2x4 mat3x2 mat3x3 mat3x4 mat4x2 mat4x3 mat4x4 " +
+        "dmat2 dmat3 dmat4 " +
+        "dmat2x2 dmat2x3 dmat2x4 dmat3x2 dmat3x3 dmat3x4 dmat4x2 dmat4x3 dmat4x4 " +
+        "sampler1D sampler2D sampler3D samplerCube " +
+        "sampler1DShadow sampler2DShadow samplerCubeShadow " +
+        "sampler1DArray sampler2DArray sampler1DArrayShadow sampler2DArrayShadow " +
+        "isampler1D isampler2D isampler3D isamplerCube " +
+        "isampler1DArray isampler2DArray " +
+        "usampler1D usampler2D usampler3D usamplerCube " +
+        "usampler1DArray usampler2DArray " +
+        "sampler2DRect sampler2DRectShadow isampler2DRect usampler2DRect " +
+        "samplerBuffer isamplerBuffer usamplerBuffer " +
+        "sampler2DMS isampler2DMS usampler2DMS " +
+        "sampler2DMSArray isampler2DMSArray usampler2DMSArray " +
+        "samplerCubeArray samplerCubeArrayShadow isamplerCubeArray usamplerCubeArray " +
+        "image1D image2D image3D imageCube " +
+        "iimage1D iimage2D iimage3D iimageCube " +
+        "uimage1D uimage2D uimage3D uimageCube " +
+        "image1DArray image2DArray iimage1DArray iimage2DArray " +
+        "uimage1DArray uimage2DArray " +
+        "image2DRect iimage2DRect uimage2DRect " +
+        "imageBuffer iimageBuffer uimageBuffer " +
+        "image2DMS iimage2DMS uimage2DMS " +
+        "image2DMSArray iimage2DMSArray uimage2DMSArray " +
+        "imageCubeArray iimageCubeArray uimageCubeArray " +
+        "atomic_uint"
+      ),
+      builtin: words(
+        "gl_GlobalInvocationID gl_LocalInvocationID gl_LocalInvocationIndex " +
+        "gl_WorkGroupID gl_WorkGroupSize gl_NumWorkGroups " +
+        "gl_VertexID gl_InstanceID gl_Position gl_PointSize " +
+        "gl_FragCoord gl_FrontFacing gl_FragDepth gl_FragColor " +
+        "gl_ClipDistance gl_CullDistance gl_PrimitiveID " +
+        "gl_InvocationID gl_TessLevelOuter gl_TessLevelInner gl_TessCoord " +
+        "gl_SampleID gl_SamplePosition gl_SampleMask gl_SampleMaskIn " +
+        "gl_SubgroupSize gl_SubgroupInvocationID gl_SubgroupID gl_NumSubgroups " +
+        "radians degrees sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh " +
+        "pow exp log exp2 log2 sqrt inversesqrt " +
+        "abs sign floor ceil trunc round roundEven fract mod modf " +
+        "min max clamp mix step smoothstep isnan isinf " +
+        "floatBitsToInt floatBitsToUint intBitsToFloat uintBitsToFloat " +
+        "fma frexp ldexp " +
+        "packSnorm2x16 unpackSnorm2x16 packUnorm2x16 unpackUnorm2x16 " +
+        "packHalf2x16 unpackHalf2x16 packDouble2x32 unpackDouble2x32 " +
+        "length distance dot cross normalize faceforward reflect refract " +
+        "matrixCompMult outerProduct transpose determinant inverse " +
+        "lessThan lessThanEqual greaterThan greaterThanEqual equal notEqual any all not " +
+        "uaddCarry usubBorrow umulExtended imulExtended " +
+        "bitfieldExtract bitfieldInsert bitfieldReverse bitCount findLSB findMSB " +
+        "textureSize textureSamples textureQueryLod textureQueryLevels " +
+        "texture textureProj textureLod textureOffset texelFetch texelFetchOffset " +
+        "textureProjOffset textureLodOffset textureProjLod textureProjLodOffset " +
+        "textureGrad textureGradOffset textureProjGrad textureProjGradOffset " +
+        "textureGather textureGatherOffset textureGatherOffsets " +
+        "imageLoad imageStore imageSize imageAtomicAdd imageAtomicMin imageAtomicMax " +
+        "imageAtomicAnd imageAtomicOr imageAtomicXor imageAtomicExchange imageAtomicCompSwap " +
+        "atomicAdd atomicMin atomicMax atomicAnd atomicOr atomicXor " +
+        "atomicExchange atomicCompSwap atomicCounter atomicCounterIncrement atomicCounterDecrement " +
+        "EmitVertex EndPrimitive EmitStreamVertex EndStreamPrimitive " +
+        "dFdx dFdy dFdxFine dFdyFine dFdxCoarse dFdyCoarse fwidth fwidthFine fwidthCoarse " +
+        "subgroupElect subgroupBarrier subgroupMemoryBarrier " +
+        "subgroupBallot subgroupBroadcast subgroupBroadcastFirst " +
+        "subgroupShuffle subgroupShuffleXor subgroupShuffleUp subgroupShuffleDown " +
+        "subgroupAdd subgroupMul subgroupMin subgroupMax " +
+        "subgroupAnd subgroupOr subgroupXor " +
+        "subgroupInclusiveAdd subgroupInclusiveMul subgroupInclusiveMin subgroupInclusiveMax " +
+        "subgroupExclusiveAdd subgroupExclusiveMul subgroupExclusiveMin subgroupExclusiveMax"
+      ),
+      blockKeywords: words("case do else for if switch while struct"),
+      defKeywords: words("struct"),
+      atoms: words("true false"),
+      hooks: {
+        "#": function (stream) {
+          stream.skipToEnd();
+          return "meta";            /* preprocessor lines: #version, #define, etc. */
+        }
+      },
+      modeProps: { fold: ["brace"] }
+    });
+
+    /* ── Create editors ── */
+    window.cmCode = CodeMirror.fromTextArea(
+      document.getElementById("code"),
+      {
+        mode: "python",
+        theme: "material-darker",
+        lineNumbers: true,
+        indentUnit: 4,
+        tabSize: 4,
+        indentWithTabs: false,
+        extraKeys: {
+          Tab: function (cm) {
+            if (cm.somethingSelected()) {
+              cm.indentSelection("add");
+            } else {
+              cm.replaceSelection("    ", "end");
+            }
+          },
+          "Shift-Tab": function (cm) {
+            cm.indentSelection("subtract");
+          },
+        },
+      }
+    );
+
+    window.cmOutput = CodeMirror.fromTextArea(
+      document.getElementById("output"),
+      {
+        mode: "text/x-glsl",
+        theme: "material-darker",
+        lineNumbers: true,
+        readOnly: true,
+      }
+    );
+
+    /* ── URL hash restore ── */
+    var deviceFields = [
+      { key: "ss",  id: "opt-subgroup-size" },
+      { key: "wsx", id: "opt-wg-size-x" },
+      { key: "wsy", id: "opt-wg-size-y" },
+      { key: "wsz", id: "opt-wg-size-z" },
+      { key: "wi",  id: "opt-wg-invocations" },
+      { key: "wcx", id: "opt-wg-count-x" },
+      { key: "wcy", id: "opt-wg-count-y" },
+      { key: "wcz", id: "opt-wg-count-z" },
+      { key: "sm",  id: "opt-shared-memory" },
+    ];
+    var toggleFields = [
+      { key: "pln", id: "opt-shader-line-numbers" },
+    ];
+
+    var hash = window.location.hash.slice(1);
+    var params = new URLSearchParams(hash);
+
+    if (params.has("code")) {
+      try {
+        var decoded = decodeURIComponent(
+          escape(atob(params.get("code")))
+        );
+        window.cmCode.setValue(decoded);
+      } catch (e) {
+        console.error("Failed to decode code from URL:", e);
+      }
+    }
+
+    deviceFields.forEach(function (f) {
+      if (params.has(f.key)) {
+        document.getElementById(f.id).value = params.get(f.key);
+      }
+    });
+    toggleFields.forEach(function (f) {
+      if (params.has(f.key)) {
+        var raw = params.get(f.key).toLowerCase();
+        document.getElementById(f.id).checked =
+          raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+      }
+    });
+
+    /* ── clipboard helper ── */
+    function copyToClipboard(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+      }
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+      } catch (e) {
+        prompt("Copy this link:", text);
+      }
+      document.body.removeChild(ta);
+      return Promise.resolve();
+    }
+
+    /* ── share button ── */
+    document
+      .getElementById("share-btn")
+      .addEventListener("click", function () {
+        var code = window.cmCode.getValue();
+        var encoded = btoa(unescape(encodeURIComponent(code)));
+
+        var hashParts = ["code=" + encoded];
+        deviceFields.forEach(function (f) {
+          var val = document.getElementById(f.id).value.trim();
+          if (val !== "") {
+            hashParts.push(
+              encodeURIComponent(f.key) +
+                "=" +
+                encodeURIComponent(val)
+            );
+          }
+        });
+        toggleFields.forEach(function (f) {
+          var checked = document.getElementById(f.id).checked
+            ? "1"
+            : "0";
+          hashParts.push(
+            encodeURIComponent(f.key) +
+              "=" +
+              encodeURIComponent(checked)
+          );
+        });
+
+        var url =
+          window.location.origin +
+          window.location.pathname +
+          "#" +
+          hashParts.join("&");
+
+        copyToClipboard(url).then(function () {
+          alert("Link copied to clipboard!");
+        });
+      });
+
+    /* ── resizable split pane ── */
+    var split = document.getElementById("split");
+    var divider = document.getElementById("divider");
+    var paneL = document.getElementById("pane-left");
+    var paneR = document.getElementById("pane-right");
+    var dragging = false;
+
+    divider.addEventListener("mousedown", function (e) {
+      e.preventDefault();
+      dragging = true;
+      divider.classList.add("active");
+      document.body.classList.add("resizing");
+    });
+
+    window.addEventListener("mousemove", function (e) {
+      if (!dragging) return;
+      var rect = split.getBoundingClientRect();
+      var x = e.clientX - rect.left;
+      var divW = divider.offsetWidth;
+      var minPx = 80;
+      var maxPx = rect.width - divW - 80;
+      x = Math.max(minPx, Math.min(x, maxPx));
+      var leftPct = (x / rect.width) * 100;
+      var rightPct = ((rect.width - x - divW) / rect.width) * 100;
+      paneL.style.width = leftPct + "%";
+      paneR.style.width = rightPct + "%";
+      window.cmCode.refresh();
+      window.cmOutput.refresh();
+    });
+
+    window.addEventListener("mouseup", function () {
+      if (dragging) {
+        dragging = false;
+        divider.classList.remove("active");
+        document.body.classList.remove("resizing");
+        window.cmCode.refresh();
+        window.cmOutput.refresh();
+      }
+    });
+
+    /* ── help & options panels ── */
+    function toggle(panelId) {
+      var panel = document.getElementById(panelId);
+      var isVisible = panel.classList.contains("visible");
+      document.querySelectorAll(".overlay-panel").forEach(function (p) {
+        p.classList.remove("visible");
+      });
+      if (!isVisible) panel.classList.add("visible");
+    }
+
+    document
+      .getElementById("help-btn")
+      .addEventListener("click", function () {
+        toggle("help-panel");
+      });
+    document
+      .getElementById("help-close")
+      .addEventListener("click", function () {
+        document
+          .getElementById("help-panel")
+          .classList.remove("visible");
+      });
+    document
+      .getElementById("opts-btn")
+      .addEventListener("click", function () {
+        toggle("opts-panel");
+      });
+    document
+      .getElementById("opts-close")
+      .addEventListener("click", function () {
+        document
+          .getElementById("opts-panel")
+          .classList.remove("visible");
+      });
+  })();
+  </script>
+
   <script type="text/python">
-from browser import document
+from browser import document, window
 import sys
 import traceback
 
@@ -458,16 +789,19 @@ import vkdispatch.codegen as vc
 
 
 class OutputBuffer:
-    def __init__(self, target):
-        self.target = target
+    def __init__(self):
+        self._parts = []
 
     def write(self, value):
         if value is None:
             return
-        self.target.value += str(value)
+        self._parts.append(str(value))
 
     def flush(self):
         pass
+
+    def get_text(self):
+        return "".join(self._parts)
 
 
 def _parse_positive_int(element_id, field_name):
@@ -512,9 +846,6 @@ def _read_device_options():
 
 
 def _reset_vkdispatch_runtime():
-    # Clear existing context handles and native context without going through
-    # vd_context.destroy_context(), which emits logs using inspect.stack().
-    # Brython's frame objects do not provide all CPython inspect attributes.
     context = getattr(vd_context, "__context", None)
     if context is not None:
         if hasattr(vd_context, "set_running"):
@@ -527,11 +858,9 @@ def _reset_vkdispatch_runtime():
         vkdispatch_native.context_destroy(context._handle)
         vd_context.__context = None
 
-    # Force vkdispatch to re-read device info from vkdispatch_native.
     vd_init.__initilized_instance = False
     vd_init.__device_infos = None
 
-    # Recreate command graph state so it does not retain stale handles.
     state = vd_command_graph._global_graph
     for attr_name in ("custom_graph", "default_graph"):
         if hasattr(state, attr_name):
@@ -539,12 +868,11 @@ def _reset_vkdispatch_runtime():
 
 
 def run_code(event):
-    code = document["code"].value
-    output_el = document["output"]
-    output_el.value = ""
+    code = window.cmCode.getValue()
+    window.cmOutput.setValue("")
 
-    stdout_buffer = OutputBuffer(output_el)
-    stderr_buffer = OutputBuffer(output_el)
+    stdout_buffer = OutputBuffer()
+    stderr_buffer = OutputBuffer()
 
     old_stdout, old_stderr = sys.stdout, sys.stderr
     sys.stdout, sys.stderr = stdout_buffer, stderr_buffer
@@ -560,198 +888,21 @@ def run_code(event):
             max_compute_shared_memory_size=options["max_compute_shared_memory_size"],
         )
         _reset_vkdispatch_runtime()
-        vc.set_shader_print_line_numbers(
-            bool(document["opt-shader-line-numbers"].checked)
-        )
+        #vc.set_shader_print_line_numbers(
+        #    bool(document["opt-shader-line-numbers"].checked)
+        #)
         exec(code, namespace)
     except Exception:
         traceback.print_exc()
     finally:
         sys.stdout, sys.stderr = old_stdout, old_stderr
+        window.cmOutput.setValue(stdout_buffer.get_text() + stderr_buffer.get_text())
 
 
 document["run-btn"].bind("click", run_code)
 
 # Auto-run once when the Brython runtime is ready.
 run_code(None)
-  </script>
-
-  <script>
-  (function () {
-    /* ── device-param field mapping ── */
-    var deviceFields = [
-      { key: "ss",  id: "opt-subgroup-size" },
-      { key: "wsx", id: "opt-wg-size-x" },
-      { key: "wsy", id: "opt-wg-size-y" },
-      { key: "wsz", id: "opt-wg-size-z" },
-      { key: "wi",  id: "opt-wg-invocations" },
-      { key: "wcx", id: "opt-wg-count-x" },
-      { key: "wcy", id: "opt-wg-count-y" },
-      { key: "wcz", id: "opt-wg-count-z" },
-      { key: "sm",  id: "opt-shared-memory" },
-    ];
-    var toggleFields = [
-      { key: "pln", id: "opt-shader-line-numbers" },
-    ];
-
-    /* ── load state from URL ── */
-    var hash = window.location.hash.slice(1);
-    var params = new URLSearchParams(hash);
-
-    if (params.has("code")) {
-      try {
-        document.getElementById("code").value =
-          decodeURIComponent(escape(atob(params.get("code"))));
-      } catch (e) {
-        console.error("Failed to decode code from URL:", e);
-      }
-    }
-
-    deviceFields.forEach(function (f) {
-      if (params.has(f.key)) {
-        document.getElementById(f.id).value = params.get(f.key);
-      }
-    });
-    toggleFields.forEach(function (f) {
-      if (params.has(f.key)) {
-        var raw = params.get(f.key).toLowerCase();
-        document.getElementById(f.id).checked =
-          raw === "1" || raw === "true" || raw === "yes" || raw === "on";
-      }
-    });
-
-    /* ── clipboard helper ── */
-    function copyToClipboard(text) {
-      if (navigator.clipboard && window.isSecureContext) {
-        return navigator.clipboard.writeText(text);
-      }
-      var ta = document.createElement("textarea");
-      ta.value = text;
-      ta.style.position = "fixed";
-      ta.style.left = "-9999px";
-      document.body.appendChild(ta);
-      ta.select();
-      try {
-        document.execCommand("copy");
-      } catch (e) {
-        prompt("Copy this link:", text);
-      }
-      document.body.removeChild(ta);
-      return Promise.resolve();
-    }
-
-    /* ── share button ── */
-    document
-      .getElementById("share-btn")
-      .addEventListener("click", function () {
-        var code = document.getElementById("code").value;
-        var encoded = btoa(unescape(encodeURIComponent(code)));
-
-        var hashParts = ["code=" + encoded];
-        deviceFields.forEach(function (f) {
-          var val = document.getElementById(f.id).value.trim();
-          if (val !== "") {
-            hashParts.push(
-              encodeURIComponent(f.key) +
-                "=" +
-                encodeURIComponent(val)
-            );
-          }
-        });
-        toggleFields.forEach(function (f) {
-          var checked = document.getElementById(f.id).checked ? "1" : "0";
-          hashParts.push(
-            encodeURIComponent(f.key) +
-              "=" +
-              encodeURIComponent(checked)
-          );
-        });
-
-        var url =
-          window.location.origin +
-          window.location.pathname +
-          "#" +
-          hashParts.join("&");
-
-        copyToClipboard(url).then(function () {
-          alert("Link copied to clipboard!");
-        });
-      });
-
-    /* ── resizable split pane ── */
-    var split = document.getElementById("split");
-    var divider = document.getElementById("divider");
-    var paneL = document.getElementById("pane-left");
-    var paneR = document.getElementById("pane-right");
-
-    var dragging = false;
-
-    divider.addEventListener("mousedown", function (e) {
-      e.preventDefault();
-      dragging = true;
-      divider.classList.add("active");
-      document.body.classList.add("resizing");
-    });
-
-    window.addEventListener("mousemove", function (e) {
-      if (!dragging) return;
-      var rect = split.getBoundingClientRect();
-      var x = e.clientX - rect.left;
-      var divW = divider.offsetWidth;
-      var minPx = 80;
-      var maxPx = rect.width - divW - 80;
-      x = Math.max(minPx, Math.min(x, maxPx));
-      var leftPct = (x / rect.width) * 100;
-      var rightPct = ((rect.width - x - divW) / rect.width) * 100;
-      paneL.style.width = leftPct + "%";
-      paneR.style.width = rightPct + "%";
-    });
-
-    window.addEventListener("mouseup", function () {
-      if (dragging) {
-        dragging = false;
-        divider.classList.remove("active");
-        document.body.classList.remove("resizing");
-      }
-    });
-
-    /* ── help & options panels ── */
-    function toggle(panelId) {
-      var panel = document.getElementById(panelId);
-      var isVisible = panel.classList.contains("visible");
-      document.querySelectorAll(".overlay-panel").forEach(function (p) {
-        p.classList.remove("visible");
-      });
-      if (!isVisible) panel.classList.add("visible");
-    }
-
-    document
-      .getElementById("help-btn")
-      .addEventListener("click", function () {
-        toggle("help-panel");
-      });
-    document
-      .getElementById("help-close")
-      .addEventListener("click", function () {
-        document
-          .getElementById("help-panel")
-          .classList.remove("visible");
-      });
-
-    document
-      .getElementById("opts-btn")
-      .addEventListener("click", function () {
-        toggle("opts-panel");
-      });
-    document
-      .getElementById("opts-close")
-      .addEventListener("click", function () {
-        document
-          .getElementById("opts-panel")
-          .classList.remove("visible");
-      });
-
-  })();
   </script>
 </body>
 </html>
