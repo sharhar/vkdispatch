@@ -137,6 +137,7 @@
   <div class="toolbar">
     <h1>Brython In-Browser Python Runner</h1>
     <button id="run-btn">▶ Run</button>
+    <button id="share-btn">🔗 Share</button>
   </div>
 
   <div class="split">
@@ -201,5 +202,56 @@ def run_code(event):
 
 document["run-btn"].bind("click", run_code)
   </script>
+
+  <script>
+  (function () {
+    // On load: if URL has #code=..., decode and replace textarea
+    var hash = window.location.hash.slice(1);
+    var params = new URLSearchParams(hash);
+    if (params.has("code")) {
+      try {
+        document.getElementById("code").value =
+          decodeURIComponent(escape(atob(params.get("code"))));
+      } catch (e) {
+        console.error("Failed to decode code from URL:", e);
+      }
+    }
+
+    function copyToClipboard(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+      }
+      // Fallback for file:// or HTTP
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+      } catch (e) {
+        prompt("Copy this link:", text);
+      }
+      document.body.removeChild(ta);
+      return Promise.resolve();
+    }
+
+    document
+      .getElementById("share-btn")
+      .addEventListener("click", function () {
+        var code = document.getElementById("code").value;
+        var encoded = btoa(unescape(encodeURIComponent(code)));
+        var url =
+          window.location.origin +
+          window.location.pathname +
+          "#code=" +
+          encoded;
+        copyToClipboard(url).then(function () {
+          alert("Link copied to clipboard!");
+        });
+      });
+  })();
+</script>
 </body>
 </html>
