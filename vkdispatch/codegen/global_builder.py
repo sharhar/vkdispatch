@@ -5,6 +5,13 @@ from .builder import ShaderBuilder
 from typing import Optional
 
 _builder_context = threading.local()
+_shader_print_line_numbers = threading.local()
+
+def get_shader_print_line_numbers() -> bool:
+    return getattr(_shader_print_line_numbers, 'value', False)
+
+def set_shader_print_line_numbers(value: bool):
+    _shader_print_line_numbers.value = value
 
 def _get_builder() -> Optional['ShaderBuilder']:
     return getattr(_builder_context, 'active_builder', None)
