@@ -1,9 +1,9 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
-import numpy as np
 import dataclasses
 from typing import List, Tuple, Optional
 
+from .._compat import numpy_compat as npc
 from .prime_utils import prime_factors, group_primes, default_register_limit, default_max_prime
 
 @dataclasses.dataclass
@@ -51,7 +51,7 @@ class FFTRegisterStageConfig:
 
         """
         self.primes = tuple(primes)
-        self.fft_length = int(np.round(np.prod(primes)))
+        self.fft_length = int(round(npc.prod(primes)))
         instance_primes = prime_factors(N // self.fft_length)
  
         self.instance_count = 1
@@ -84,11 +84,11 @@ class FFTRegisterStageConfig:
         if self.sdata_width_padded % 2 == 0:
             self.sdata_width_padded += 1
 
-        self.sdata_size = self.sdata_width_padded * int(np.prod(threads_primes))
+        self.sdata_size = self.sdata_width_padded * int(npc.prod(threads_primes))
 
         if self.sdata_size > vd.get_context().max_shared_memory // vd.complex64.item_size:
             self.sdata_width_padded = self.sdata_width
-            self.sdata_size = self.sdata_width_padded * int(np.prod(threads_primes))
+            self.sdata_size = self.sdata_width_padded * int(npc.prod(threads_primes))
 
 @dataclasses.dataclass
 class FFTConfig:
@@ -111,11 +111,11 @@ class FFTConfig:
         if axis is None:
             axis = len(buffer_shape) - 1
 
-        total_buffer_length = np.round(np.prod(buffer_shape)).astype(np.int32)
+        total_buffer_length = int(round(npc.prod(buffer_shape)))
 
         N = buffer_shape[axis]
 
-        self.fft_stride = np.round(np.prod(buffer_shape[axis + 1:])).astype(np.int32)
+        self.fft_stride = int(round(npc.prod(buffer_shape[axis + 1:])))
         self.batch_outer_stride = self.fft_stride * N
         self.batch_outer_count = total_buffer_length // self.batch_outer_stride
 
@@ -169,4 +169,4 @@ class FFTConfig:
         return str(self)
     
     def angle_factor(self, inverse: bool) -> float:
-        return 2 * np.pi * (1 if inverse else -1)
+        return 2 * npc.pi * (1 if inverse else -1)

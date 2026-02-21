@@ -255,7 +255,8 @@ setup(
     name="vkdispatch",
     packages=[
         "vkdispatch", 
-        "vkdispatch.base", 
+        "vkdispatch.base",
+        "vkdispatch._compat", 
         "vkdispatch.codegen",
         "vkdispatch.codegen.functions", 
         "vkdispatch.codegen.functions.base_functions", 

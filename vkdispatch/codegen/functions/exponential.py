@@ -1,12 +1,12 @@
 from ..variables.variables import ShaderVariable
 from typing import Any, Union
-import numpy as np
 
 from . import utils
+from ..._compat import numpy_compat as npc
 
 def pow(x: Any, y: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(y) and utils.is_number(x):
-        return float(np.power(x, y))
+        return npc.power(x, y)
     
     if utils.is_number(x) and isinstance(y, ShaderVariable):
         return utils.new_var(
@@ -34,7 +34,7 @@ def pow(x: Any, y: Any) -> Union[ShaderVariable, float]:
 
 def exp(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(np.exp(var))
+        return npc.exp(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -47,7 +47,7 @@ def exp(var: Any) -> Union[ShaderVariable, float]:
 
 def exp2(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(np.exp2(var))
+        return npc.exp2(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -60,7 +60,7 @@ def exp2(var: Any) -> Union[ShaderVariable, float]:
 
 def log(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(np.log(var))
+        return npc.log(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -73,7 +73,7 @@ def log(var: Any) -> Union[ShaderVariable, float]:
 
 def log2(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(np.log2(var))
+        return npc.log2(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -86,7 +86,7 @@ def log2(var: Any) -> Union[ShaderVariable, float]:
 
 def sqrt(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(np.sqrt(var))
+        return npc.sqrt(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -99,7 +99,7 @@ def sqrt(var: Any) -> Union[ShaderVariable, float]:
 
 def inversesqrt(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(1.0 / np.sqrt(var))
+        return float(1.0 / npc.sqrt(var))
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 

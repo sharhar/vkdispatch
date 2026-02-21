@@ -1,5 +1,3 @@
-import numpy as np
-
 import vkdispatch_native
 
 import vkdispatch as vd
@@ -37,9 +35,9 @@ class VkFFTPlan(Handle):
         self.shape = shape
         self.do_r2c = do_r2c
 
-        self.mem_size = (
-            np.prod(shape) * np.dtype(np.complex64).itemsize
-        )  # currently only support complex64
+        self.mem_size = vd.complex64.item_size
+        for dim in shape:
+            self.mem_size *= dim
 
         if axes is None:
             axes = [0, 1, 2]
@@ -60,12 +58,11 @@ class VkFFTPlan(Handle):
         input_size = 0
 
         if input_shape is not None:
-            input_buffer_type = np.dtype(np.complex64)
+            input_buffer_type = vd.complex64 if input_type is None else input_type
 
-            if input_type is not None:
-                input_buffer_type = np.dtype(vd.to_numpy_dtype(input_type))
-
-            input_size = np.prod(input_shape) * input_buffer_type.itemsize
+            input_size = input_buffer_type.item_size
+            for dim in input_shape:
+                input_size *= dim
 
         handle = vkdispatch_native.stage_fft_plan_create(
             self.context._handle, 
@@ -113,4 +110,3 @@ class VkFFTPlan(Handle):
 
     def record_inverse(self, graph: vd.CommandGraph, buffer: vd.Buffer):
         self.record(graph, buffer, True)
-

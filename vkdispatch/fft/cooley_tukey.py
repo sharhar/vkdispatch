@@ -3,10 +3,10 @@ from .resources import FFTResources
 
 from typing import List, Union
 
-import numpy as np
+from .._compat import numpy_compat as npc
 
 def get_angle_factor(inverse: bool) -> float:
-    return 2 * np.pi * (1 if inverse else -1)
+    return 2 * npc.pi * (1 if inverse else -1)
 
 def _apply_right_angle_twiddle(resources: FFTResources, register: vc.ShaderVariable, angle_int: int) -> bool:
     if angle_int == 0:
@@ -31,10 +31,10 @@ def _apply_right_angle_twiddle(resources: FFTResources, register: vc.ShaderVaria
     return False
 
 def _apply_constant_twiddle(resources: FFTResources, register: vc.ShaderVariable, omega: complex) -> bool:
-    scaled_angle = 2 * np.angle(omega) / np.pi
-    rounded_angle = np.round(scaled_angle)
+    scaled_angle = 2 * npc.angle(omega) / npc.pi
+    rounded_angle = npc.round(scaled_angle)
 
-    if np.abs(scaled_angle - rounded_angle) >= 1e-8:
+    if abs(scaled_angle - rounded_angle) >= 1e-8:
         return False
 
     return _apply_right_angle_twiddle(resources, register, int(rounded_angle))
@@ -89,7 +89,7 @@ def radix_P(resources: FFTResources, inverse: bool, register_list: List[vc.Shade
                 resources.radix_registers[i] -= register_list[j]
                 continue
 
-            omega = np.exp(1j * angle_factor * i * j / len(register_list))
+            omega = npc.exp_complex(1j * angle_factor * i * j / len(register_list))
             resources.omega_register[:] = vc.mult_complex(register_list[j], omega)
             resources.radix_registers[i] += resources.omega_register
 
@@ -119,7 +119,7 @@ def apply_twiddle_factors(
             if twiddle_index == 0:
                 continue
 
-            omega = np.exp(1j * angle_factor * i * twiddle_index / twiddle_N)
+            omega = npc.exp_complex(1j * angle_factor * i * twiddle_index / twiddle_N)
 
             _apply_twiddle_to_register(resources, register_list[i], omega)
             continue
@@ -149,7 +149,7 @@ def _radix_composite_fused_power_of_two(
         base_twiddle = None
         if isinstance(twiddle_index, int):
             if twiddle_index != 0:
-                base_twiddle = np.exp(1j * angle_factor * outer_twiddle_stride * twiddle_index / twiddle_N)
+                base_twiddle = npc.exp_complex(1j * angle_factor * outer_twiddle_stride * twiddle_index / twiddle_N)
         else:
             resources.omega_register.real = (angle_factor * outer_twiddle_stride / twiddle_N) * twiddle_index
             resources.omega_register[:] = vc.complex_from_euler_angle(resources.omega_register.real)
@@ -158,7 +158,7 @@ def _radix_composite_fused_power_of_two(
         for i in range(0, N // prime):
             inner_block_offset = i % output_stride
             block_index = (i * prime) // block_width
-            fixed_twiddle = np.exp(1j * angle_factor * inner_block_offset / block_width)
+            fixed_twiddle = npc.exp_complex(1j * angle_factor * inner_block_offset / block_width)
 
             _apply_combined_twiddle_to_register(
                 resources=resources,
@@ -189,7 +189,7 @@ def radix_composite(
     
     N = len(register_list)
 
-    assert N == np.prod(primes), "Product of primes must be equal to the number of registers"
+    assert N == npc.prod(primes), "Product of primes must be equal to the number of registers"
 
     vc.comment(f"Performing a Radix-{primes} FFT on {N} registers")
 

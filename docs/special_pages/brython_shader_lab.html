@@ -141,10 +141,17 @@
   <div class="split">
     <div class="pane code">
       <div class="pane-header">Code</div>
-      <textarea id="code" spellcheck="false">import vkdispatch
-print("Hello from Brython!")
-for i in range(3):
-    print("Line", i + 1)</textarea>
+      <textarea id="code" spellcheck="false">import vkdispatch as vd
+import vkdispatch.codegen as vc
+from vkdispatch.codegen.abreviations import *
+
+@vd.shader("buff.size")
+def add_scalar(buff: Buff[f32], bias: Const[f32]):
+    tid = vc.global_invocation_id().x
+    buff[tid] = buff[tid] + bias
+
+
+print(add_scalar)</textarea>
     </div>
     <div class="pane output">
       <div class="pane-header">Output</div>
