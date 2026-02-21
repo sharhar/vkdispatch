@@ -6,7 +6,7 @@ from .dtype import dtype
 from .context import Handle, Signal
 from .errors import check_for_errors
 
-from .dtype import complex64
+from .dtype import complex64, uint32, int32, float32
 
 from .._compat import numpy_compat as npc
 from .dtype import to_numpy_dtype, from_numpy_dtype
@@ -40,6 +40,9 @@ class Buffer(Handle, typing.Generic[_ArgType]):
 
     def __init__(self, shape: Tuple[int, ...], var_type: dtype) -> None:
         super().__init__()
+
+        if isinstance(shape, int):
+            shape = (shape,)
 
         if len(shape) > 3:
             raise ValueError("Buffer shape must be 1, 2, or 3 dimensions!")
@@ -236,6 +239,21 @@ def asbuffer(array: typing.Any) -> Buffer:
 
     return buffer
 
+def buffer_u32(shape: Tuple[int, ...]) -> Buffer:
+    """Create a buffer of unsigned 32-bit integers with the specified shape."""
+    return Buffer(shape, uint32)
+
+def buffer_i32(shape: Tuple[int, ...]) -> Buffer:
+    """Create a buffer of signed 32-bit integers with the specified shape."""
+    return Buffer(shape, int32)
+
+def buffer_f32(shape: Tuple[int, ...]) -> Buffer:
+    """Create a buffer of 32-bit floating-point numbers with the specified shape."""
+    return Buffer(shape, float32)
+
+def buffer_c64(shape: Tuple[int, ...]) -> Buffer:
+    """Create a buffer of 64-bit complex numbers with the specified shape."""
+    return Buffer(shape, complex64)
 
 class RFFTBuffer(Buffer):
     def __init__(self, shape: Tuple[int, ...]):

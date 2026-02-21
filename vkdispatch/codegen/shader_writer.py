@@ -74,6 +74,9 @@ def scope_increment():
 def scope_decrement():
     shader_writer().scope_decrement()
 
+def scope_indentation() -> str:
+    return "    " * shader_writer().scope_num
+
 def new_var(var_type: dtypes.dtype,
             var_name: Optional[str],
             parents: list,

@@ -235,8 +235,11 @@ class ShaderFunction:
         self.build()
         return self.make_repr()
     
-    def make_repr(self, line_numbers: bool = True) -> str:
+    def make_repr(self, line_numbers: bool = None) -> str:
         result = ""
+
+        if line_numbers is None:
+            line_numbers = vc.get_shader_print_line_numbers()
 
         for ii, line in enumerate(self.source.split("\n")):
             line_prefix = f"{ii + 1:4d}: " if line_numbers else ""

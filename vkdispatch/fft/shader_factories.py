@@ -115,13 +115,18 @@ def make_convolution_shader(
             kernel_map=kernel_map
         )
 
-        vc.comment("Performing forward FFT stage in convolution shader")
+        vc.comment("""Convolution pipeline phase 1/3.
+Load spatial-domain input samples and run a forward FFT into frequency space.
+Then shuffle registers so lane layout matches kernel application and inverse passes.""")
 
         io_manager.read_input(signal_range=input_signal_range) 
         ctx.execute(inverse=False)
         ctx.register_shuffle()
 
-        vc.comment("Performing convolution stage in convolution shader")
+        vc.comment("""Convolution pipeline phase 2/3.
+Apply one or more frequency-domain kernels to the transformed input spectrum.
+For multi-kernel runs, restore from backup registers so each kernel sees
+identical FFT-domain source values before inverse transformation.""")
         backup_registers = None
 
         if kernel_num > 1:
@@ -129,7 +134,10 @@ def make_convolution_shader(
             backup_registers.read_from_registers(ctx.registers)
 
         for kern_index in range(kernel_num):
-            vc.comment(f"Processing kernel {kern_index}")
+            vc.comment(f"""Convolution pipeline phase 3/3. Kernel {kern_index + 1}/{kernel_num}.
+Map this kernel onto the current spectrum.
+Run inverse FFT back to the spatial domain, optionally normalize by length,
+and write this kernel's output slice to global memory.""")
 
             if backup_registers is not None:
                 ctx.registers.read_from_registers(backup_registers)

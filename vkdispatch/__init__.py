@@ -16,7 +16,7 @@ from .base.context import make_context, select_queue_families
 from .base.context import is_context_initialized
 
 from .base.buffer import asbuffer
-from .base.buffer import Buffer
+from .base.buffer import Buffer, buffer_u32, buffer_i32, buffer_f32, buffer_c64
 from .base.buffer import asrfftbuffer
 from .base.buffer import RFFTBuffer
 
