@@ -6,7 +6,7 @@ from . import utils
 def to_dtype(var_type: dtypes.dtype, *args):
     return utils.new_var(
         var_type,
-        f"{var_type.glsl_type}({', '.join([utils.resolve_input(elem) for elem in args])})", 
+        utils.backend_constructor(var_type, *args),
         args,
         lexical_unit=True
     )
@@ -78,4 +78,3 @@ def to_mat3(*args):
 
 def to_mat4(*args):
     return to_dtype(dtypes.mat4, *args)
-

@@ -1,11 +1,15 @@
 import threading
 import vkdispatch.base.dtype as dtypes
 from .shader_writer import set_shader_writer
-from .builder import ShaderBuilder
-from typing import Optional
+from .backends import CodeGenBackend, GLSLBackend, CUDABackend
+from typing import Optional, TYPE_CHECKING, Union
+
+if TYPE_CHECKING:
+    from .builder import ShaderBuilder
 
 _builder_context = threading.local()
 _shader_print_line_numbers = threading.local()
+_codegen_backend = threading.local()
 
 def get_shader_print_line_numbers() -> bool:
     return getattr(_shader_print_line_numbers, 'value', False)
@@ -16,7 +20,39 @@ def set_shader_print_line_numbers(value: bool):
 def _get_builder() -> Optional['ShaderBuilder']:
     return getattr(_builder_context, 'active_builder', None)
 
-def set_builder(builder: ShaderBuilder):
+def _get_codegen_backend() -> Optional[CodeGenBackend]:
+    return getattr(_codegen_backend, 'active_backend', None)
+
+def set_codegen_backend(backend: Optional[Union[CodeGenBackend, str]]):
+    if backend is None:
+        _codegen_backend.active_backend = None
+        return
+
+    if isinstance(backend, str):
+        backend_name = backend.lower()
+
+        if backend_name == "glsl":
+            _codegen_backend.active_backend = GLSLBackend()
+            return
+
+        if backend_name == "cuda":
+            _codegen_backend.active_backend = CUDABackend()
+            return
+
+        raise ValueError(f"Unknown codegen backend '{backend}'")
+
+    _codegen_backend.active_backend = backend
+
+def get_codegen_backend() -> CodeGenBackend:
+    backend = _get_codegen_backend()
+
+    if backend is None:
+        backend = GLSLBackend()
+        _codegen_backend.active_backend = backend
+
+    return backend
+
+def set_builder(builder: 'ShaderBuilder'):
     if builder is None:
         _builder_context.active_builder = None
         set_shader_writer(None)
@@ -26,11 +62,10 @@ def set_builder(builder: ShaderBuilder):
     set_shader_writer(builder)
     _builder_context.active_builder = builder
 
-def get_builder() -> ShaderBuilder:
+def get_builder() -> 'ShaderBuilder':
     builder = _get_builder()
     assert builder is not None, "No global ShaderBuilder is set for the current thread!"
     return builder
 
 def shared_buffer(var_type: dtypes.dtype, size: int, var_name: Optional[str] = None):
     return get_builder().shared_buffer(var_type, size, var_name)
-
