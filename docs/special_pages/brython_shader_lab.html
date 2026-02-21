@@ -338,8 +338,8 @@
   <div class="toolbar">
     <button class="icon-btn" id="help-btn" title="Help">?</button>
     <button class="icon-btn" id="opts-btn" title="Options">⚙</button>
-    <h1>Brython In-Browser Python Runner</h1>
     <button id="run-btn">▶ Run</button>
+    <h1>Brython In-Browser Python Runner</h1>
     <button id="share-btn">🔗 Share</button>
   </div>
 
@@ -351,9 +351,27 @@
     </div>
     <div class="overlay-body">
       <p>
-        Placeholder explanation text goes here. This panel will contain
-        documentation, usage tips, and examples for using the in-browser
-        Python runner and the vkdispatch library.
+        This lab is designed for rapid shader-authoring workflows: write Python in the left pane,
+        run it in the browser, and inspect generated output on the right. It is especially useful
+        for researchers who want to iterate on kernel structure and inspect code generation without
+        switching to a full native setup.
+      </p>
+      <p>
+        The key feature is shader visibility: when you print a decorated shader function (for
+        example, <code>print(add_scalar)</code>), the panel shows the generated GLSL. This makes
+        it easy to validate indexing logic, control flow, and type usage directly from the
+        high-level Python definition.
+      </p>
+      <p>
+        The Options panel controls a dummy device model, not your physical GPU. You can adjust
+        limits such as subgroup size, workgroup limits, and shared memory to test how your shader
+        configuration behaves under different device constraints.
+      </p>
+      <p>
+        Most standard <code>vkdispatch</code> APIs are available in this environment (buffers,
+        images, descriptor bindings, and dispatch calls), but this page is intended for codegen and
+        interface exploration. Many operations are simulated, and dispatch execution is not a real
+        GPU compute run.
       </p>
     </div>
   </div>
@@ -544,9 +562,23 @@ document["run-btn"].bind("click", run_code)
 
   <script>
   (function () {
-    /* ── share / load from URL ── */
+    /* ── device-param field mapping ── */
+    var deviceFields = [
+      { key: "ss",  id: "opt-subgroup-size" },
+      { key: "wsx", id: "opt-wg-size-x" },
+      { key: "wsy", id: "opt-wg-size-y" },
+      { key: "wsz", id: "opt-wg-size-z" },
+      { key: "wi",  id: "opt-wg-invocations" },
+      { key: "wcx", id: "opt-wg-count-x" },
+      { key: "wcy", id: "opt-wg-count-y" },
+      { key: "wcz", id: "opt-wg-count-z" },
+      { key: "sm",  id: "opt-shared-memory" },
+    ];
+
+    /* ── load state from URL ── */
     var hash = window.location.hash.slice(1);
     var params = new URLSearchParams(hash);
+
     if (params.has("code")) {
       try {
         document.getElementById("code").value =
@@ -556,6 +588,13 @@ document["run-btn"].bind("click", run_code)
       }
     }
 
+    deviceFields.forEach(function (f) {
+      if (params.has(f.key)) {
+        document.getElementById(f.id).value = params.get(f.key);
+      }
+    });
+
+    /* ── clipboard helper ── */
     function copyToClipboard(text) {
       if (navigator.clipboard && window.isSecureContext) {
         return navigator.clipboard.writeText(text);
@@ -575,16 +614,31 @@ document["run-btn"].bind("click", run_code)
       return Promise.resolve();
     }
 
+    /* ── share button ── */
     document
       .getElementById("share-btn")
       .addEventListener("click", function () {
         var code = document.getElementById("code").value;
         var encoded = btoa(unescape(encodeURIComponent(code)));
+
+        var hashParts = ["code=" + encoded];
+        deviceFields.forEach(function (f) {
+          var val = document.getElementById(f.id).value.trim();
+          if (val !== "") {
+            hashParts.push(
+              encodeURIComponent(f.key) +
+                "=" +
+                encodeURIComponent(val)
+            );
+          }
+        });
+
         var url =
           window.location.origin +
           window.location.pathname +
-          "#code=" +
-          encoded;
+          "#" +
+          hashParts.join("&");
+
         copyToClipboard(url).then(function () {
           alert("Link copied to clipboard!");
         });
@@ -631,7 +685,6 @@ document["run-btn"].bind("click", run_code)
     function toggle(panelId) {
       var panel = document.getElementById(panelId);
       var isVisible = panel.classList.contains("visible");
-      // close all panels first
       document.querySelectorAll(".overlay-panel").forEach(function (p) {
         p.classList.remove("visible");
       });
