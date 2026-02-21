@@ -113,9 +113,16 @@ class ShaderVariable(BaseVariable):
         if dtypes.is_scalar(self.var_type):
             assert all(c == 'x' for c in components), f"Cannot swizzle scalar variable '{self.resolve()}' with components other than 'x'!"
 
+            swizzle_expr = f"{self.resolve()}.x"
+            if len(components) > 1:
+                swizzle_expr = get_codegen_backend().constructor(
+                    return_type,
+                    [f"{self.resolve()}.x" for _ in components]
+                )
+
             return ShaderVariable(
                 var_type=return_type,
-                name=f"{self.resolve()}.{components}",
+                name=swizzle_expr,
                 parents=[self],
                 lexical_unit=True,
                 settable=self.settable,
@@ -131,9 +138,16 @@ class ShaderVariable(BaseVariable):
         if self.var_type.shape[0] < 2:
             assert 'y' not in components, f"Cannot swizzle variable '{self.resolve()}' of type '{self.var_type.name}' with component 'y'!"
 
+        swizzle_expr = f"{self.resolve()}.{components}"
+        if len(components) > 1:
+            swizzle_expr = get_codegen_backend().constructor(
+                return_type,
+                [f"{self.resolve()}.{elem}" for elem in components]
+            )
+
         return ShaderVariable(
             var_type=return_type,
-            name=f"{self.resolve()}.{components}",
+            name=swizzle_expr,
             parents=[self],
             lexical_unit=True,
             settable=self.settable,

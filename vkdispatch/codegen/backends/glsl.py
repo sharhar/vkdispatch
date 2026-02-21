@@ -63,6 +63,18 @@ class GLSLBackend(CodeGenBackend):
     def ninf_f32_expr(self) -> str:
         return "uintBitsToFloat(0xFF800000)"
 
+    def float_bits_to_int_expr(self, var_expr: str) -> str:
+        return f"floatBitsToInt({var_expr})"
+
+    def float_bits_to_uint_expr(self, var_expr: str) -> str:
+        return f"floatBitsToUint({var_expr})"
+
+    def int_bits_to_float_expr(self, var_expr: str) -> str:
+        return f"intBitsToFloat({var_expr})"
+
+    def uint_bits_to_float_expr(self, var_expr: str) -> str:
+        return f"uintBitsToFloat({var_expr})"
+
     def global_invocation_id_expr(self) -> str:
         return "gl_GlobalInvocationID"
 

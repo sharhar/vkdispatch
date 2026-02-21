@@ -135,7 +135,11 @@ class ShaderBuilder(ShaderWriter):
 
         self.flags = flags
         self.is_apple_device = is_apple_device
-        self.backend = backend if backend is not None else get_codegen_backend()
+        if backend is not None:
+            self.backend = backend
+        else:
+            # Use the selected backend type while keeping per-builder backend state isolated.
+            self.backend = get_codegen_backend().__class__()
 
         self.pre_header = self.backend.pre_header(
             enable_subgroup_ops=not (self.flags & ShaderFlags.NO_SUBGROUP_OPS),
@@ -145,6 +149,7 @@ class ShaderBuilder(ShaderWriter):
         self.reset()
 
     def reset(self) -> None:
+        self.backend.reset_state()
         self.binding_count = 0
         self.pc_struct = StructBuilder()
         self.uniform_struct = StructBuilder()

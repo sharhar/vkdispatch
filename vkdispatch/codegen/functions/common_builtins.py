@@ -347,7 +347,7 @@ def float_bits_to_int(var: Any) -> Union[ShaderVariable, int]:
 
     return utils.new_var(
         dtypes.int32,
-        f"floatBitsToInt({var.resolve()})",
+        utils.codegen_backend().float_bits_to_int_expr(var.resolve()),
         parents=[var],
         lexical_unit=True
     )
@@ -360,7 +360,7 @@ def float_bits_to_uint(var: Any) -> Union[ShaderVariable, int]:
 
     return utils.new_var(
         dtypes.uint32,
-        f"floatBitsToUint({var.resolve()})",
+        utils.codegen_backend().float_bits_to_uint_expr(var.resolve()),
         parents=[var],
         lexical_unit=True
     )
@@ -373,7 +373,7 @@ def int_bits_to_float(var: Any) -> Union[ShaderVariable, float]:
 
     return utils.new_var(
         dtypes.float32,
-        f"intBitsToFloat({var.resolve()})",
+        utils.codegen_backend().int_bits_to_float_expr(var.resolve()),
         parents=[var],
         lexical_unit=True
     )
@@ -386,7 +386,7 @@ def uint_bits_to_float(var: Any) -> Union[ShaderVariable, float]:
 
     return utils.new_var(
         dtypes.float32,
-        f"uintBitsToFloat({var.resolve()})",
+        utils.codegen_backend().uint_bits_to_float_expr(var.resolve()),
         parents=[var],
         lexical_unit=True
     )
