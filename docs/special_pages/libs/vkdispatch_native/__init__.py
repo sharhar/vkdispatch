@@ -85,6 +85,19 @@ _images = {}
 _samplers = {}
 _fft_plans = {}
 
+# Device limits exposed through get_devices(); mutable so docs UI can tune them.
+_DEFAULT_SUBGROUP_SIZE = 32
+_DEFAULT_MAX_WORKGROUP_SIZE = (1024, 1024, 64)
+_DEFAULT_MAX_WORKGROUP_INVOCATIONS = 1024
+_DEFAULT_MAX_WORKGROUP_COUNT = (65535, 65535, 65535)
+_DEFAULT_MAX_COMPUTE_SHARED_MEMORY_SIZE = 64 * 1024
+
+_device_subgroup_size = _DEFAULT_SUBGROUP_SIZE
+_device_max_workgroup_size = _DEFAULT_MAX_WORKGROUP_SIZE
+_device_max_workgroup_invocations = _DEFAULT_MAX_WORKGROUP_INVOCATIONS
+_device_max_workgroup_count = _DEFAULT_MAX_WORKGROUP_COUNT
+_device_max_compute_shared_memory_size = _DEFAULT_MAX_COMPUTE_SHARED_MEMORY_SIZE
+
 
 # --- Internal objects ---
 
@@ -354,7 +367,90 @@ def _clear_error():
     _error_string = None
 
 
+def _as_positive_int(name, value):
+    try:
+        parsed = int(value)
+    except Exception as exc:
+        raise ValueError("%s must be an integer" % name) from exc
+
+    if parsed <= 0:
+        raise ValueError("%s must be greater than zero" % name)
+
+    return parsed
+
+
+def _as_positive_triplet(name, value):
+    try:
+        parts = list(value)
+    except Exception as exc:
+        raise ValueError("%s must contain exactly 3 integers" % name) from exc
+
+    if len(parts) != 3:
+        raise ValueError("%s must contain exactly 3 integers" % name)
+
+    return (
+        _as_positive_int("%s[0]" % name, parts[0]),
+        _as_positive_int("%s[1]" % name, parts[1]),
+        _as_positive_int("%s[2]" % name, parts[2]),
+    )
+
+
 # --- API: context/init/errors/logging ---
+
+
+def reset_device_options():
+    global _device_subgroup_size
+    global _device_max_workgroup_size
+    global _device_max_workgroup_invocations
+    global _device_max_workgroup_count
+    global _device_max_compute_shared_memory_size
+
+    _device_subgroup_size = _DEFAULT_SUBGROUP_SIZE
+    _device_max_workgroup_size = _DEFAULT_MAX_WORKGROUP_SIZE
+    _device_max_workgroup_invocations = _DEFAULT_MAX_WORKGROUP_INVOCATIONS
+    _device_max_workgroup_count = _DEFAULT_MAX_WORKGROUP_COUNT
+    _device_max_compute_shared_memory_size = _DEFAULT_MAX_COMPUTE_SHARED_MEMORY_SIZE
+
+
+def set_device_options(
+    subgroup_size=None,
+    max_workgroup_size=None,
+    max_workgroup_invocations=None,
+    max_workgroup_count=None,
+    max_compute_shared_memory_size=None,
+):
+    global _device_subgroup_size
+    global _device_max_workgroup_size
+    global _device_max_workgroup_invocations
+    global _device_max_workgroup_count
+    global _device_max_compute_shared_memory_size
+
+    if subgroup_size is not None:
+        _device_subgroup_size = _as_positive_int("subgroup_size", subgroup_size)
+
+    if max_workgroup_size is not None:
+        _device_max_workgroup_size = _as_positive_triplet(
+            "max_workgroup_size",
+            max_workgroup_size,
+        )
+
+    if max_workgroup_invocations is not None:
+        _device_max_workgroup_invocations = _as_positive_int(
+            "max_workgroup_invocations",
+            max_workgroup_invocations,
+        )
+
+    if max_workgroup_count is not None:
+        _device_max_workgroup_count = _as_positive_triplet(
+            "max_workgroup_count",
+            max_workgroup_count,
+        )
+
+    if max_compute_shared_memory_size is not None:
+        _device_max_compute_shared_memory_size = _as_positive_int(
+            "max_compute_shared_memory_size",
+            max_compute_shared_memory_size,
+        )
 
 
 def init(debug, log_level):
@@ -404,19 +500,19 @@ def get_devices():
         1,  # uniform_and_storage_buffer_16_bit_access
         1,  # storage_push_constant_16
         1,  # storage_input_output_16
-        (1024, 1024, 64),  # max_workgroup_size
-        1024,  # max_workgroup_invocations
-        (65535, 65535, 65535),  # max_workgroup_count
+        _device_max_workgroup_size,  # max_workgroup_size
+        _device_max_workgroup_invocations,  # max_workgroup_invocations
+        _device_max_workgroup_count,  # max_workgroup_count
         8,  # max_descriptor_set_count
         256,  # max_push_constant_size
         1 << 30,  # max_storage_buffer_range
         65536,  # max_uniform_buffer_range
         16,  # uniform_buffer_alignment
-        32,  # subgroup_size
+        _device_subgroup_size,  # subgroup_size
         0x7FFFFFFF,  # supported_stages
         0x7FFFFFFF,  # supported_operations
         1,  # quad_operations_in_all_stages
-        64 * 1024,  # max_compute_shared_memory_size
+        _device_max_compute_shared_memory_size,  # max_compute_shared_memory_size
         [
             (8, 0x006),  # compute + transfer
             (4, 0x007),  # graphics + compute + transfer
@@ -956,6 +1052,8 @@ def stage_fft_record(command_list, plan, buffer, inverse, kernel, input_buffer):
 
 
 __all__ = [
+    "reset_device_options",
+    "set_device_options",
     "init",
     "log",
     "set_log_level",

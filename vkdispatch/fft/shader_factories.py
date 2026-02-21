@@ -6,6 +6,7 @@ from .._compat import numpy_compat as npc
 
 from typing import Tuple, Optional
 from functools import lru_cache
+import threading
 
 @lru_cache(maxsize=None)
 def make_fft_shader(
@@ -75,14 +76,13 @@ def make_transpose_shader(
 
     return ctx.get_callable()
 
-__static_global_kernel_index: int = None
+_kernel_index_state = threading.local()
 
 def set_global_kernel_index(index: Optional[int]):
-    global __static_global_kernel_index
-    __static_global_kernel_index = index
+    _kernel_index_state.index = index
 
 def mapped_kernel_index() -> Optional[int]:
-    return __static_global_kernel_index
+    return getattr(_kernel_index_state, "index", None)
 
 @lru_cache(maxsize=None)
 def make_convolution_shader(
