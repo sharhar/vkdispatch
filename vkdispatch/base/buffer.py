@@ -2,13 +2,14 @@ from typing import Tuple
 from typing import List
 from typing import Union
 
-import numpy as np
-
 from .dtype import dtype
 from .context import Handle, Signal
 from .errors import check_for_errors
 
-from .dtype import to_numpy_dtype, from_numpy_dtype, complex64
+from .dtype import complex64
+
+import numpy as np
+from .dtype import to_numpy_dtype, from_numpy_dtype
 
 import vkdispatch_native
 
@@ -45,7 +46,13 @@ class Buffer(Handle, typing.Generic[_ArgType]):
 
         self.var_type: dtype = var_type
         self.shape: Tuple[int] = shape
-        self.size: int = int(np.prod(shape))
+        #self.size: int = int(np.prod(shape))
+
+        size = 1
+        for dim in shape:
+            size *= dim
+        self.size = size
+
         self.mem_size: int = self.size * self.var_type.item_size
 
         if self.size > 2 ** 30:
@@ -216,25 +223,6 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         results = self._do_reads(true_scalar, data_shape, None)
 
         return np.array(results)
-
-        # if index is not None:
-        #     if index < 0:
-        #         raise ValueError(f"Invalid buffer index {index}!")
-        #     result_bytes = vkdispatch_native.buffer_read(
-        #         self._handle, 0, self.mem_size, index
-        #     )
-
-        #     result = np.frombuffer(result_bytes, dtype=to_numpy_dtype(true_scalar)).reshape(data_shape)
-
-        #     check_for_errors()
-        # else:
-        #     result = np.zeros((self.context.queue_count,) + self.shape + self.var_type.true_numpy_shape, dtype=to_numpy_dtype(true_scalar))
-
-        #     for i in range(self.context.queue_count):
-        #         result[i] = self.read(i)
-
-        # return result
-
 
 def asbuffer(array: np.ndarray) -> Buffer:
     """Cast a numpy array to a buffer object."""

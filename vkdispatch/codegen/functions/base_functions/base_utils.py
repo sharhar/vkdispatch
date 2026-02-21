@@ -1,6 +1,8 @@
 import vkdispatch.base.dtype as dtypes
 from vkdispatch.codegen.variables.base_variable import BaseVariable
+
 import numpy as np
+
 from typing import Any, Optional
 
 import numbers
@@ -23,9 +25,15 @@ def is_number(x) -> bool:
 def is_int_number(x) -> bool:
     return isinstance(x, numbers.Integral) and not isinstance(x, bool)
 
+def _is_numpy_float(x) -> bool:
+    #if is_brython():
+    #    return False
+
+    return isinstance(x, np.floating)
+
 def is_float_number(x) -> bool:
     return isinstance(x, numbers.Real) and not isinstance(x, numbers.Integral) and not isinstance(x, bool) \
-           and (isinstance(x, float) or isinstance(x, np.floating))
+           and (isinstance(x, float) or _is_numpy_float(x))
 
 def is_complex_number(x) -> bool:
     return isinstance(x, numbers.Complex) and not isinstance(x, numbers.Real)
@@ -50,8 +58,14 @@ def number_to_dtype(number: numbers.Number):
     else:
         raise TypeError(f"Unsupported number type: {type(number)}")
 
+def _check_is_int_numpy(x) -> bool:
+    #if is_brython():
+    #    return False
+
+    return np.issubdtype(type(x), np.integer)
+
 def check_is_int(variable):
-    return isinstance(variable, int) or np.issubdtype(type(variable), np.integer)
+    return isinstance(variable, int) or _check_is_int_numpy(variable)
 
 def dtype_to_floating(var_type: dtypes.dtype) -> dtypes.dtype:
     if var_type == dtypes.int32 or var_type == dtypes.uint32:

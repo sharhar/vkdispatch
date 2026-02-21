@@ -10,6 +10,8 @@ deps/
 
 codebase.txt
 
+docs/special_pages/libs/vkdispatch
+
 *.png
 *.csv
 *.exec
