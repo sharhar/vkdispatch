@@ -11,6 +11,7 @@ Welcome to vkdispatch's documentation!
 Welcome to the vkdispatch documentation website!
 
 To learn how to install vkdispatch, go to the :doc:`Getting Started<getting_started>` Section.
+To understand the internals and module layout, start with :doc:`Code Structure and Execution Flow<tutorials/code_structure>`.
 
 Additionally, below are a set of tutorials on vkdispatch usage and a full API reference.
 

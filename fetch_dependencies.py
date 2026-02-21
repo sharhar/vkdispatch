@@ -43,7 +43,7 @@ def clone_and_checkout(repo_url, commit_hash, output_dir):
         sys.exit(1)
 
 dependencies = [
-    ("https://github.com/sharhar/VkFFT.git", "3796c119e4962ddb737a2e3193c5f97a21900f05", "deps/VkFFT"), # my fork of VkFFT, will change to official repo once PR is merged
+    ("https://github.com/sharhar/VkFFT.git", "9cb0da8ab98f0f3a10debd1466f13cab65ce9bc3", "deps/VkFFT"), # my fork of VkFFT, will change to official repo once PR is merged
     ("https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git", "5677097bafb8477097c6e3354ce68b7a44fd01a4", "deps/VMA"),
     ("https://github.com/KhronosGroup/Vulkan-Headers.git", "eaa319dade959cb61ed2229c8ea42e307cc8f8b3", "deps/Vulkan-Headers"),
     ("https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git", "ad7f699a7b2b5deb66eb3de19f24aa33597ed65b", "deps/Vulkan-Utility-Libraries"),
@@ -60,7 +60,7 @@ if len(sys.argv) > 1 and sys.argv[1] == "--no-molten-vk":
 
 os.makedirs("deps/MoltenVK", exist_ok=True)
 
-molten_vk_url = "https://github.com/KhronosGroup/MoltenVK/releases/download/v1.2.8/MoltenVK-macos.tar"
+molten_vk_url = "https://github.com/KhronosGroup/MoltenVK/releases/download/v1.4.0/MoltenVK-macos.tar"
 molten_vk_path = "deps/MoltenVK"
 molten_vk_filename = "MoltenVK-macos.tar"
 molten_vk_full_file_path = os.path.join(molten_vk_path, molten_vk_filename)

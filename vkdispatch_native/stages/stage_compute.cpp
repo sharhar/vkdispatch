@@ -32,7 +32,7 @@ static uint32_t* glsl_to_spirv_util(glslang_stage_t stage, glslang_resource_t* r
         LOG_ERROR("GLSL preprocessing failed %s", shader_name);
         LOG_ERROR("%s", glslang_shader_get_info_log(shader));
         LOG_ERROR("%s", glslang_shader_get_info_debug_log(shader));
-        LOG_ERROR("%s", input.code);
+        // LOG_ERROR("%s", input.code);
         glslang_shader_delete(shader);
         return NULL;
     }
@@ -41,7 +41,7 @@ static uint32_t* glsl_to_spirv_util(glslang_stage_t stage, glslang_resource_t* r
         LOG_ERROR("GLSL parsing failed %s", shader_name);
         LOG_ERROR("%s", glslang_shader_get_info_log(shader));
         LOG_ERROR("%s", glslang_shader_get_info_debug_log(shader));
-        LOG_ERROR("%s", glslang_shader_get_preprocessed_code(shader));
+        // LOG_ERROR("%s", glslang_shader_get_preprocessed_code(shader));
         glslang_shader_delete(shader);
         return NULL;
     }
@@ -53,7 +53,7 @@ static uint32_t* glsl_to_spirv_util(glslang_stage_t stage, glslang_resource_t* r
         LOG_ERROR("GLSL linking failed %s", shader_name);
         LOG_ERROR("%s", glslang_program_get_info_log(program));
         LOG_ERROR("%s", glslang_program_get_info_debug_log(program));
-        LOG_ERROR("%s", glslang_shader_get_preprocessed_code(shader));
+        // LOG_ERROR("%s", glslang_shader_get_preprocessed_code(shader));
         glslang_program_delete(program);
         glslang_shader_delete(shader);
         return NULL;

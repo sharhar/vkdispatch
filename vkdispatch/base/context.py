@@ -10,7 +10,7 @@ import weakref
 import os, signal
 
 from .errors import check_for_errors, set_running
-from .init import DeviceInfo, get_devices, initialize, set_log_level, LogLevel
+from .init import DeviceInfo, get_devices, initialize, set_log_level, LogLevel, log_info
 
 import vkdispatch_native
 
@@ -86,10 +86,12 @@ class Handle:
         if self.destroyed:
             return
 
-        child_list = list(self.children_dict.values())
+        child_keys = list(self.children_dict.keys())
 
-        for child in child_list:
-            child.destroy()
+        for child_handle in child_keys:
+            if child_handle in self.children_dict:
+                child = self.children_dict[child_handle]
+                child.destroy()
 
         assert len(self.children_dict) == 0, "Not all children were destroyed!"
         
@@ -104,7 +106,31 @@ class Handle:
             self.context.handles_dict.pop(self._handle)
         
         self.destroyed = True
-        
+
+class Signal:
+    ptr_addr: int
+
+    def __init__(self, ptr_addr: int = None):
+        self.ptr_addr = ptr_addr
+
+    def wait(self, wait_for_timestamp: bool, queue_index: int):
+        done = False
+        while not done:
+            done = vkdispatch_native.signal_wait(
+                self.ptr_addr, wait_for_timestamp, queue_index
+            )
+            check_for_errors()
+
+    def try_wait(self, wait_for_timestamp: bool, queue_index: int):
+        done = vkdispatch_native.signal_wait(
+            self.ptr_addr, wait_for_timestamp, queue_index
+        )
+        check_for_errors()
+
+        return done
+
+    def free(self):
+        vkdispatch_native.signal_destroy(self.ptr_addr)
 
 class Context:
     """
@@ -125,7 +151,8 @@ class Context:
     """
 
     _handle: int
-    devices: List[int]
+    device_ids: List[int]
+    mapped_device_ids: List[int]
     device_infos: List[DeviceInfo]
     queue_families: List[List[int]]
     queue_count: int
@@ -139,15 +166,16 @@ class Context:
 
     def __init__(
         self,
-        devices: List[int],
+        device_ids: List[int],
         queue_families: List[List[int]]
     ) -> None:
-        self.devices = devices
-        self.device_infos = [get_devices()[dev] for dev in devices]
+        self.device_ids = device_ids
+        self.device_infos = [get_devices()[dev] for dev in device_ids]
         self.queue_families = queue_families
         self.queue_count = sum([len(i) for i in queue_families])
         self.handles_dict = weakref.WeakValueDictionary()
-        self._handle = vkdispatch_native.context_create(devices, queue_families)
+        self.mapped_device_ids = [dev.dev_index for dev in self.device_infos]
+        self._handle = vkdispatch_native.context_create(self.mapped_device_ids, queue_families)
         check_for_errors()
         
         subgroup_sizes = []
@@ -194,6 +222,9 @@ class Context:
 
         self.uniform_buffer_alignment = max(uniform_buffer_alignments)
         self.max_shared_memory = min(max_shared_memory)
+    
+    def is_apple(self) -> bool:
+        return any([device.is_apple() for device in self.device_infos])
 
 def get_compute_queue_family_index(device: DeviceInfo, device_index: int) -> int:
     # First check if we have a pure compute queue family with (sparse) transfer capabilities
@@ -353,9 +384,9 @@ def make_context(
             [dev >= 0 and dev < total_devices for dev in device_ids]
         ), f"All device indicies must between 0 and {total_devices}"
 
-        print(f"Creating context with devices {device_ids} and queue families {queue_families}")
-
         __context = Context(device_ids, queue_families)
+
+        queue_wait_idle(queue_index=None, context=__context)
 
     return __context
 
@@ -369,7 +400,7 @@ def get_context() -> Context:
 def get_context_handle() -> int:
     return get_context()._handle
 
-def queue_wait_idle(queue_index: int = None) -> None:
+def queue_wait_idle(queue_index: int = None, context: Context = None) -> None:
     """
     Wait for the specified queue to finish processing. For all queues, leave queue_index as None.
     
@@ -377,17 +408,33 @@ def queue_wait_idle(queue_index: int = None) -> None:
         queue_index (int): The index of the queue.
     """
 
-    assert queue_index is None or isinstance(queue_index, int), "queue_index must be an integer or None."
-    assert queue_index is None or queue_index >= -1, "queue_index must be a non-negative integer or -1 (for all queues)."
-    assert queue_index is None or queue_index < get_context().queue_count, f"Queue index {queue_index} is out of bounds for context with {get_context().queue_count} queues."
+    if context is None:
+        context = get_context()
 
-    vkdispatch_native.context_queue_wait_idle(get_context_handle(), queue_index if queue_index is not None else -1)
+    assert queue_index is None or isinstance(queue_index, int), "queue_index must be an integer or None."
+    assert queue_index is None or queue_index >= 0, "queue_index must be a non-negative integer or None (for all queues)."
+    assert queue_index is None or queue_index < context.queue_count, f"Queue index {queue_index} is out of bounds for context with {context.queue_count} queues."
+
+    if queue_index is None:
+        for i in range(context.queue_count):
+            queue_wait_idle(i, context)
+        return
+
+    signal_ptr = vkdispatch_native.signal_insert(context._handle, queue_index)
     check_for_errors()
+    
+    signal = Signal(signal_ptr)
+    signal.wait(True, queue_index)
+    check_for_errors()
+
+    signal.free()
 
 def destroy_context() -> None:
     """
     Destroys the current context and cleans up resources.
     """
+    log_info("Destroying context...")
+
     global __context
     set_running(False)
 
@@ -395,10 +442,12 @@ def destroy_context() -> None:
         handles_list = list(__context.handles_dict.values())
 
         for handle in handles_list:
+            log_info(f"Destroying handle {handle._handle}...")
             handle.destroy()
 
         assert len(__context.handles_dict) == 0, "Not all handles were destroyed!"
 
+        log_info("Calling native context destroy...")
         vkdispatch_native.context_destroy(__context._handle)
         __context = None
 

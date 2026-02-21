@@ -1,4 +1,5 @@
 import vkdispatch as vd
+import vkdispatch.codegen as vc
 import numpy as np
 import dataclasses
 from typing import List, Tuple, Optional
@@ -89,51 +90,6 @@ class FFTRegisterStageConfig:
             self.sdata_width_padded = self.sdata_width
             self.sdata_size = self.sdata_width_padded * int(np.prod(threads_primes))
 
-    def __str__(self):
-        """
-        Returns a string representation of the FFTRegisterStageConfig object.
-
-        """
-        return f"""
-FFT Stage Config:
-    primes: {self.primes}
-    fft_length: {self.fft_length}
-    instance_count: {self.instance_count}
-    registers_used: {self.registers_used}
-    remainder: {self.remainder}
-    remainder_offset: {self.remainder_offset}
-    extra_ffts: {self.extra_ffts}
-    thread_count: {self.thread_count}
-    sdata_size: {self.sdata_size}
-    sdata_width: {self.sdata_width}
-    sdata_width_padded: {self.sdata_width_padded}"""
-    
-    def __repr__(self):
-        """
-        Returns a string representation of the FFTRegisterStageConfig object.
-
-        """
-        return str(self)
-
-@dataclasses.dataclass
-class FFTParams:
-    config: "FFTConfig" = None
-    inverse: bool = False
-    normalize: bool = True
-    r2c: bool = False
-    batch_outer_stride: int = None
-    batch_inner_stride: int = None
-    fft_stride: int = None
-    angle_factor: float = None
-    input_sdata: bool = False
-    input_buffers: List[vd.Buffer] = None
-    output_buffers: List[vd.Buffer] = None
-    passthrough: bool = False
-
-    sdata_row_size: Optional[int] = None
-    sdata_row_size_padded: Optional[int] = None
-
-
 @dataclasses.dataclass
 class FFTConfig:
     N: int
@@ -144,13 +100,12 @@ class FFTConfig:
     fft_stride: int
     batch_outer_stride: int
     batch_outer_count: int
-    batch_inner_stride: int
     batch_inner_count: int
     batch_threads: int
     sdata_allocation: int
 
-    sdata_row_size: Optional[int]
-    sdata_row_size_padded: Optional[int]
+    sdata_row_size: int
+    sdata_row_size_padded: int
 
     def __init__(self, buffer_shape: Tuple, axis: int = None, max_register_count: int = None):
         if axis is None:
@@ -164,7 +119,6 @@ class FFTConfig:
         self.batch_outer_stride = self.fft_stride * N
         self.batch_outer_count = total_buffer_length // self.batch_outer_stride
 
-        self.batch_inner_stride = 1
         self.batch_inner_count = self.fft_stride
         
         self.N = N
@@ -172,8 +126,8 @@ class FFTConfig:
         if max_register_count is None:
             max_register_count = default_register_limit()
 
-        if N == 16 and vd.get_devices()[0].is_nvidia():
-            max_register_count = 15  # Special case for 16-point FFTs because this is faster
+        if N==16 or N==8 or N==4 or N==2 and vd.get_devices()[0].is_nvidia():
+            max_register_count = max(2, N//2)
 
         max_register_count = min(max_register_count, N)
 
@@ -192,7 +146,9 @@ class FFTConfig:
 
         assert self.register_count <= max_register_count, f"Register count {self.register_count} exceeds max register count {max_register_count}"
 
-        self.sdata_allocation = 1 
+        self.sdata_allocation = 1
+        self.sdata_row_size = 1
+        self.sdata_row_size_padded = 1
 
         for stage in self.stages:
             if stage.sdata_size < self.sdata_allocation:
@@ -212,28 +168,5 @@ class FFTConfig:
     def __repr__(self):
         return str(self)
     
-    def params(self,
-               inverse: bool = False,
-               normalize: bool = True,
-               r2c: bool = False,
-               input_sdata: bool = False,
-               input_buffers: List[vd.Buffer] = None,
-               output_buffers: List[vd.Buffer] = None,
-               passthrough: bool = False) -> FFTParams:
-        return FFTParams(
-            config=self,
-            inverse=inverse,
-            normalize=normalize,
-            r2c=r2c,
-            batch_outer_stride=self.batch_outer_stride,
-            batch_inner_stride=self.batch_inner_stride,
-            fft_stride=self.fft_stride,
-            angle_factor=2 * np.pi * (1 if inverse else -1),
-            input_sdata=input_sdata,
-            input_buffers=input_buffers,
-            output_buffers=output_buffers,
-            passthrough=passthrough,
-            sdata_row_size=self.sdata_row_size,
-            sdata_row_size_padded=self.sdata_row_size_padded
-        )
-    
+    def angle_factor(self, inverse: bool) -> float:
+        return 2 * np.pi * (1 if inverse else -1)

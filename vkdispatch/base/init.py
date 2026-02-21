@@ -1,6 +1,7 @@
-import typing
+
 from enum import Enum
 import os
+from typing import Tuple, List, Optional
 
 import inspect
 
@@ -31,7 +32,7 @@ device_type_ranks_dict = {
     4: 1
 }
 
-def get_queue_type_strings(queue_type: int, verbose: bool) -> typing.List[str]:
+def get_queue_type_strings(queue_type: int, verbose: bool) -> List[str]:
     """
     A function which returns a list of strings representing the queue's supported operations.
 
@@ -154,9 +155,9 @@ class DeviceInfo:
         uniform_and_storage_buffer_16_bit_access: int,
         storage_push_constant_16: int,
         storage_input_output_16: int,
-        max_workgroup_size: typing.Tuple[int, int, int],
+        max_workgroup_size: Tuple[int, int, int],
         max_workgroup_invocations: int,
-        max_workgroup_count: typing.Tuple[int, int, int],
+        max_workgroup_count: Tuple[int, int, int],
         max_bound_descriptor_sets: int,
         max_push_constant_size: int,
         max_storage_buffer_range: int,
@@ -167,9 +168,13 @@ class DeviceInfo:
         supported_operations: int,
         quad_operations_in_all_stages: int,
         max_compute_shared_memory_size: int,
-        queue_properties: typing.List[typing.Tuple[int, int]]
+        queue_properties: List[Tuple[int, int]],
+        scalar_block_layout: int,
+        timeline_semaphores: int,
+        uuid: Optional[bytes],
     ):
         self.dev_index = dev_index
+        self.sorted_index = -1  # to be set later
 
         self.version_variant = version_variant
         self.version_major = version_major
@@ -216,6 +221,10 @@ class DeviceInfo:
 
         self.queue_properties = queue_properties
 
+        self.scalar_block_layout = scalar_block_layout
+        self.timeline_semaphores = timeline_semaphores
+        self.uuid = uuid
+
     def is_nvidia(self) -> bool:
         """
         A method which checks if the device is an NVIDIA device.
@@ -224,6 +233,15 @@ class DeviceInfo:
             `bool`: A flag indicating whether the device is an NVIDIA device.
         """
         return "NVIDIA" in self.device_name
+    
+    def is_apple(self) -> bool:
+        """
+        A method which checks if the device is an Apple device.
+
+        Returns:
+            `bool`: A flag indicating whether the device is an Apple device.
+        """
+        return "Apple" in self.device_name
 
     def get_info_string(self, verbose: bool = False) -> str:
         """
@@ -236,7 +254,7 @@ class DeviceInfo:
             str: A string representation of the device information.
         """
 
-        result = f"Device {self.dev_index}: {self.device_name}\n"
+        result = f"Device {self.sorted_index}: {self.device_name}\n"
 
         result += f"\tVulkan Version: {self.version_major}.{self.version_minor}.{self.version_patch}\n"
         result += f"\tDevice Type: {device_type_id_to_str_dict[self.device_type]}\n"
@@ -249,10 +267,23 @@ class DeviceInfo:
             result += f"\tVendor ID={self.vendor_id}\n"
             result += f"\tDevice ID={self.device_id}\n"
 
+
+            if self.uuid is not None:
+                uuid_str = '-'.join([
+                    self.uuid[0:4].hex(),
+                    self.uuid[4:6].hex(),
+                    self.uuid[6:8].hex(),
+                    self.uuid[8:10].hex(),
+                    self.uuid[10:16].hex(),
+                ])
+                result += f"\tUUID: {uuid_str}\n"
+
         result += "\n\tFeatures:\n"
 
         if verbose:
             result += f"\t\tFloat32 Atomics: {self.shader_buffer_float32_atomics == 1}\n"
+            result += f"\t\tScalar Block Layout: {self.scalar_block_layout == 1}\n"
+            result += f"\t\tTimeline Semaphores: {self.timeline_semaphores == 1}\n"
         
         result += f"\t\tFloat32 Atomic Add: {self.shader_buffer_float32_atomic_add == 1}\n"
 
@@ -297,13 +328,15 @@ class DeviceInfo:
                 result += f"\t\t{ii} (count={queue[0]}, flags={hex(queue[1])}): "
                 result += " | ".join(queue_types) + "\n"
 
+        
+
         return result
     
     def __repr__(self) -> str:
         return self.get_info_string()
 
 __initilized_instance: bool = False
-
+__device_infos: List[DeviceInfo] = None
 
 def is_initialized() -> bool:
     """
@@ -316,6 +349,45 @@ def is_initialized() -> bool:
     global __initilized_instance
 
     return __initilized_instance
+
+def get_cuda_device_map():
+    """
+    Returns a dict mapping CUDA device index -> UUID (bytes).
+    Format: { 0: b'\x00...', 1: b'\x01...' }
+
+    If the CUDA driver bindings are not available, returns None.
+    """
+    try:
+        from cuda.bindings import driver
+    except (ImportError, ModuleNotFoundError):
+        __log_noinit("'cuda-python' not installed, skipping CUDA device matching", level=LogLevel.WARNING)
+        return None
+
+    try:
+        err, = driver.cuInit(0)
+        if err != driver.CUresult.CUDA_SUCCESS:
+            raise RuntimeError("Failed to initialize CUDA Driver API")
+
+        err, count = driver.cuDeviceGetCount()
+        if err != driver.CUresult.CUDA_SUCCESS:
+            raise RuntimeError("Failed to get CUDA device count")
+
+        uuid_map = {}
+
+        for i in range(count):
+            err, device = driver.cuDeviceGet(i)
+            if err != driver.CUresult.CUDA_SUCCESS:
+                continue
+
+            err, uuid_bytes = driver.cuDeviceGetUuid(device)
+            if err == driver.CUresult.CUDA_SUCCESS:
+                assert len(uuid_bytes.bytes) == 16
+                uuid_map[i] = uuid_bytes.bytes
+    except Exception as e:
+        __log_noinit(f"Error while querying CUDA devices: {e}", level=LogLevel.WARNING)
+        return None
+
+    return uuid_map
 
 def initialize(debug_mode: bool = False, log_level: LogLevel = LogLevel.WARNING, loader_debug_logs: bool = False):
     """
@@ -332,6 +404,7 @@ def initialize(debug_mode: bool = False, log_level: LogLevel = LogLevel.WARNING,
     """
 
     global __initilized_instance
+    global __device_infos
 
     if __initilized_instance:
         return
@@ -341,11 +414,54 @@ def initialize(debug_mode: bool = False, log_level: LogLevel = LogLevel.WARNING,
 
     vkdispatch_native.init(debug_mode, log_level.value)
     check_for_errors()
+
+    devivces = [
+        DeviceInfo(ii, *dev_obj)
+        for ii, dev_obj in enumerate(vkdispatch_native.get_devices())
+    ]
+
+    is_cuda = any(dev.is_nvidia() for dev in devivces)
+
+    cuda_uuids = get_cuda_device_map() if is_cuda else None
+
+    if cuda_uuids is None:
+        __initilized_instance = True
+        __device_infos = devivces
+        for ii, dev in enumerate(__device_infos):
+            dev.sorted_index = ii
+        return
+    
+    # try to match CUDA devices to Vulkan devices by UUID
+    cuda_uuid_to_index = {
+        uuid_bytes: cuda_index
+        for cuda_index, uuid_bytes in cuda_uuids.items()
+    }
+    matched_devices: List[Tuple[int, DeviceInfo, int]]= []
+    unmatched_devices: List[DeviceInfo] = []
+    for dev in devivces:
+        if dev.uuid is not None and dev.uuid in cuda_uuid_to_index:
+            #print(f"Matched Vulkan device {ii} ({dev.device_name}) to CUDA device {cuda_uuid_to_index[dev.uuid]} with UUID {dev.uuid.hex()}")
+            matched_devices.append( (cuda_uuid_to_index[dev.uuid], dev) )
+        else:
+            #print(f"Could not match Vulkan device {ii} ({dev.device_name}) with UUID {dev.uuid.hex()} to any CUDA device")
+            unmatched_devices.append(dev)
+
+    # sort matched devices by CUDA index
+    matched_devices.sort(key=lambda x: x[0])
+
+    # return matched devices first (by CUDA index), then unmatched devices (by Vulkan order)
+    result = [dev for _, dev in matched_devices] + unmatched_devices
+    #result_ids = [ii for _, _, ii in matched_devices] + unmatched_device_ids
+
+    for dev_id, dev in enumerate(result):
+        #print(f"Final device order index {dev.sorted_index} -> Vulkan device {dev_id} ({dev.device_name})")
+        dev.sorted_index = dev_id
     
     __initilized_instance = True
+    __device_infos = result
 
 
-def get_devices() -> typing.List[DeviceInfo]:
+def get_devices() -> List[DeviceInfo]:
     """
     Get a list of DeviceInfo instances representing all the Vulkan devices on the system.
 
@@ -353,12 +469,28 @@ def get_devices() -> typing.List[DeviceInfo]:
         `List[DeviceInfo]`: A list of DeviceInfo instances.
     """
 
-    initialize()
+    global __device_infos
 
-    return [
-        DeviceInfo(ii, *dev_obj)
-        for ii, dev_obj in enumerate(vkdispatch_native.get_devices())
-    ]
+    initialize()    
+    
+    return __device_infos
+
+def __log_noinit(text: str, end: str = '\n', level: LogLevel = LogLevel.ERROR, stack_offset: int = 1):
+    """
+    A function which logs a message at the specified log level.
+
+    Args:
+        level (`LogLevel`): The log level.
+        message (`str`): The message to log.
+    """
+
+    frame = inspect.stack()[stack_offset]
+    vkdispatch_native.log(
+        level.value, 
+        (text + end).encode(), 
+        os.path.relpath(frame.filename, os.getcwd()).encode(), 
+        frame.lineno
+    )
 
 def log(text: str, end: str = '\n', level: LogLevel = LogLevel.ERROR, stack_offset: int = 1):
     """
@@ -371,13 +503,7 @@ def log(text: str, end: str = '\n', level: LogLevel = LogLevel.ERROR, stack_offs
 
     initialize()
 
-    frame = inspect.stack()[stack_offset]
-    vkdispatch_native.log(
-        level.value, 
-        (text + end).encode(), 
-        os.path.relpath(frame.filename, os.getcwd()).encode(), 
-        frame.lineno
-    )
+    __log_noinit(text, end, level, stack_offset + 1)
 
 def log_error(text: str, end: str = '\n'):
     """

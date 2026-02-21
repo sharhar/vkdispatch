@@ -1,17 +1,17 @@
 from typing import Any
-from typing import Callable
 from typing import List
 from typing import Dict
-from typing import Union
-from typing import Tuple
-from typing import Optional
+from typing import Tuple, Optional
 
 import uuid
-
-import numpy as np
+import threading
 
 import vkdispatch as vd
 import vkdispatch.codegen as vc
+
+from vkdispatch.base.command_list import CommandList
+from vkdispatch.base.compute_plan import ComputePlan
+from vkdispatch.base.descriptor_set import DescriptorSet
 
 from .buffer_builder import BufferUsage
 from .buffer_builder import BufferBuilder
@@ -35,8 +35,20 @@ class ImageBindInfo:
     read_access: bool
     write_access: bool
 
-class CommandGraph(vd.CommandList):
-    """TODO: Docstring"""
+class CommandGraph(CommandList):
+    """
+    A high-level abstraction over ``CommandList`` that manages resource binding and push constants automatically.
+
+    Unlike a raw ``CommandList``, a ``CommandGraph`` tracks variable state and handles the 
+    complexities of ``BufferBuilder`` for push constants and uniform buffers. It serves 
+    as the default recording target for shader functions.
+
+    :param reset_on_submit: If True, the graph clears its recorded commands immediately after submission.
+    :type reset_on_submit: bool
+    :param submit_on_record: If True, commands are submitted to the GPU immediately upon recording 
+                             (simulating immediate mode execution).
+    :type submit_on_record: bool
+    """
 
     _reset_on_submit: bool
     submit_on_record: bool
@@ -53,7 +65,7 @@ class CommandGraph(vd.CommandList):
     uniform_constants_size: int
     uniform_constants_buffer: vd.Buffer
 
-    uniform_descriptors: List[Tuple[vd.DescriptorSet, int, int]]
+    uniform_descriptors: List[Tuple[DescriptorSet, int, int]]
 
     name_to_pc_key_dict: Dict[str, List[Tuple[str, str]]]
     queued_pc_values: Dict[Tuple[str, str], Any]
@@ -113,7 +125,7 @@ class CommandGraph(vd.CommandList):
             self.queued_pc_values[key] = value
     
     def record_shader(self, 
-                      plan: vd.ComputePlan,
+                      plan: ComputePlan,
                       shader_description: vc.ShaderDescription, 
                       exec_limits: Tuple[int, int, int], 
                       blocks: Tuple[int, int, int],
@@ -123,7 +135,25 @@ class CommandGraph(vd.CommandList):
                       pc_values: Dict[str, Any] = {},
                       shader_uuid: str = None
                     ) -> None:
-        descriptor_set = vd.DescriptorSet(plan)
+        """
+        Internal method to record a high-level shader execution.
+
+        This method handles the creation of ``DescriptorSet`` objects, binding of buffers 
+        and images, and populating push constant/uniform data before calling the base 
+        ``record_compute_plan``.
+
+        :param plan: The compute plan to execute.
+        :param shader_description: Metadata about the shader source and layout.
+        :param exec_limits: The execution limits (grid size) in x, y, z.
+        :param blocks: The number of workgroups to dispatch.
+        :param bound_buffers: List of buffers to bind.
+        :param bound_samplers: List of images/samplers to bind.
+        :param uniform_values: Dictionary of values for uniform buffer objects.
+        :param pc_values: Dictionary of values for push constants.
+        :param shader_uuid: Unique identifier for this shader instance (for caching).
+        """
+
+        descriptor_set = DescriptorSet(plan)
 
         if shader_uuid is None:
             shader_uuid = shader_description.name + "_" + str(uuid.uuid4())
@@ -221,27 +251,32 @@ class CommandGraph(vd.CommandList):
     def submit_any(self, instance_count: int = None) -> None:
         self.submit(instance_count=instance_count, queue_index=-1)
 
-__default_graph = None
-__custom_graph = None
+_global_graph = threading.local()
+
+#__default_graph = None
+#__custom_graph = None
+
+def _get_global_graph() -> Optional[CommandGraph]:
+    return getattr(_global_graph, 'custom_graph', None)
 
 def default_graph() -> CommandGraph:
-    global __default_graph
+    if not hasattr(_global_graph, 'default_graph'):
+        _global_graph.default_graph = CommandGraph(reset_on_submit=True, submit_on_record=True)
 
-    if __default_graph is None:
-        __default_graph = CommandGraph(reset_on_submit=True, submit_on_record=True)
-
-    return __default_graph
+    return _global_graph.default_graph
 
 def global_graph() -> CommandGraph:
-    global __custom_graph
+    custom_graph = _get_global_graph()
 
-    if __custom_graph is not None:
-        return __custom_graph
+    if custom_graph is not None:
+        return custom_graph
 
     return default_graph()
 
 def set_global_graph(graph: CommandGraph = None) -> CommandGraph:
-    global __custom_graph
-    old_value = __custom_graph
-    __custom_graph = graph 
-    return old_value
+    if graph is None:
+        _global_graph.custom_graph = None
+        return
+
+    assert _get_global_graph() is None, "A global CommandGraph is already set for the current thread!"
+    _global_graph.custom_graph = graph

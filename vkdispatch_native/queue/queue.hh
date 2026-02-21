@@ -17,7 +17,6 @@ struct RecordingResultData {
 struct WorkQueueItem {
     uint64_t current_index;
     struct WorkHeader* work_header;
-    //Signal* signal;
     RecordingResultData* recording_result;
     VkPipelineStageFlags* waitStage;
 };
@@ -41,6 +40,7 @@ public:
     void record_worker(int worker_id);
     void submit_worker();
 
+    bool try_wait_for_timestamp(uint64_t timestamp);
     void wait_for_timestamp(uint64_t timestamp);
 
     void fused_worker();

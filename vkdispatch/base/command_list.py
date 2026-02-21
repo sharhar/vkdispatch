@@ -13,10 +13,14 @@ import numpy as np
 
 class CommandList(Handle):
     """
-    A class for recording and submitting command lists to the device.
+    Represents a sequence of GPU commands to be executed on a device.
+
+    CommandLists are used to record dispatch operations, memory barriers, and 
+    synchronization points. They act as the primary unit of work submission 
+    to the Vulkan queue.
 
     Attributes:
-        _handle (int): The handle to the command list.
+        _handle (int): The internal handle to the native Vulkan command buffer wrapper.
     """
 
     def __init__(self) -> None:
@@ -44,12 +48,14 @@ class CommandList(Handle):
                             descriptor_set: DescriptorSet,
                             blocks: Tuple[int, int, int]) -> None:
         """
-        Record a compute plan to the command list.
+        Records a compute shader dispatch into the command list.
 
-        Args:
-            plan (ComputePlan): The compute plan to record to the command list.
-            descriptor_set (DescriptorSet): The descriptor set to bind to the compute plan.
-            blocks (Tuple[int, int, int]): The number of blocks to run the compute shader in.
+        :param plan: The compiled compute plan (shader) to execute.
+        :type plan: vkdispatch.base.compute_plan.ComputePlan
+        :param descriptor_set: The resource bindings (buffers, images) for this execution.
+        :type descriptor_set: vkdispatch.base.descriptor_set.DescriptorSet
+        :param blocks: The dimensions of the workgroup grid (x, y, z) to dispatch.
+        :type blocks: Tuple[int, int, int]
         """
         self.register_parent(plan)
         self.register_parent(descriptor_set)
@@ -74,7 +80,17 @@ class CommandList(Handle):
 
     def submit(self, data: Optional[bytes] = None, queue_index: int = -2, instance_count: Optional[int] = None) -> None:
         """
-        Submit the command list to the specified device with additional data to
+        Submits the recorded command list to the GPU queue for execution.
+
+        :param data: Optional binary data (e.g., push constants) to append to the 
+                     front of the command list buffer before submission.
+        :type data: Optional[bytes]
+        :param queue_index: The index of the queue to submit to. -2 uses the default queue associated 
+                            with the command list's context.
+        :type queue_index: int
+        :param instance_count: The number of instances to execute if instanced dispatch is used.
+        :type instance_count: Optional[int]
+        :raises ValueError: If data length logic conflicts with instance size.
         """
 
         if data is None and instance_count is None:
@@ -92,7 +108,9 @@ class CommandList(Handle):
         if self.get_instance_size() != 0:
             assert self.get_instance_size() * instance_count == len(data), "Data length must be the product of the instance size and instance count!"
 
-        vkdispatch_native.command_list_submit(
-            self._handle, data, instance_count, queue_index
-        )
-        check_for_errors()
+        done = False
+        while not done:
+            done = vkdispatch_native.command_list_submit(
+                self._handle, data, instance_count, queue_index
+            )
+            check_for_errors()

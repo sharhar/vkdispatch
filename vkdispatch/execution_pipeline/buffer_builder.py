@@ -13,6 +13,8 @@ import numpy as np
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
+from vkdispatch.base.dtype import to_numpy_dtype
+
 @dataclasses.dataclass
 class BufferedStructEntry:
     memory_slice: slice
@@ -67,7 +69,7 @@ class BufferBuilder:
         offset = self.instance_bytes
 
         for elem in elements:
-            np_dtype = np.dtype(vd.to_numpy_dtype(elem.dtype if elem.dtype.scalar is None else elem.dtype.scalar))
+            np_dtype = np.dtype(to_numpy_dtype(elem.dtype if elem.dtype.scalar is None else elem.dtype.scalar))
 
             np_shape = elem.dtype.numpy_shape
 
@@ -149,13 +151,16 @@ class BufferBuilder:
             else:
                 (self.backing_buffer[0, buffer_element.memory_slice]).view(buffer_element.dtype)[:] = arr
 
-#    def __repr__(self) -> str:
-#        result = "Push Constant Buffer:\n"
-#
-#        for elem in self.elements:
-#            result += f"\t{elem.name} ({elem.dtype.name}): {self.numpy_arrays[elem.index]}\n"
-#
-#        return result[:-1]
+    def __repr__(self) -> str:
+       result = "Push Constant Buffer:\n"
+
+       for key, elem in self.element_map.items():
+           buffer_element = self.element_map[key]
+           value = (self.backing_buffer[:, buffer_element.memory_slice]).view(buffer_element.dtype)
+
+           result += f"\t{key[0]}, {key[1]} ({elem.dtype}): {value}\n"
+
+       return result[:-1]
 
     def prepare(self, instance_count: int) -> None:
         if self.instance_count != instance_count:
