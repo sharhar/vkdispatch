@@ -11,6 +11,7 @@ deps/
 codebase.txt
 
 docs/special_pages/libs/vkdispatch
+docs/special_pages/libs/vkdispatch.brython.js
 
 *.png
 *.csv
