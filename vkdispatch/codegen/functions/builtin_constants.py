@@ -4,7 +4,7 @@ from . import utils
 def inf_f32():
     return utils.new_var(
         dtypes.float32,
-        "uintBitsToFloat(0x7F800000)",
+        utils.codegen_backend().inf_f32_expr(),
         [],
         lexical_unit=True
     )
@@ -12,7 +12,7 @@ def inf_f32():
 def ninf_f32():
     return utils.new_var(
         dtypes.float32,
-        "uintBitsToFloat(0xFF800000)",
+        utils.codegen_backend().ninf_f32_expr(),
         [],
         lexical_unit=True
     )
@@ -20,7 +20,7 @@ def ninf_f32():
 def global_invocation_id():
     return utils.new_var(
         dtypes.uvec3,
-        "gl_GlobalInvocationID",
+        utils.codegen_backend().global_invocation_id_expr(),
         [],
         lexical_unit=True
     )
@@ -28,7 +28,7 @@ def global_invocation_id():
 def local_invocation_id():
     return utils.new_var(
         dtypes.uvec3,
-        "gl_LocalInvocationID",
+        utils.codegen_backend().local_invocation_id_expr(),
         [],
         lexical_unit=True
     )
@@ -36,7 +36,7 @@ def local_invocation_id():
 def local_invocation_index():
     return utils.new_var(
         dtypes.uint32,
-        "gl_LocalInvocationIndex",
+        utils.codegen_backend().local_invocation_index_expr(),
         [],
         lexical_unit=True
     )
@@ -44,7 +44,7 @@ def local_invocation_index():
 def workgroup_id():
     return utils.new_var(
         dtypes.uvec3,
-        "gl_WorkGroupID",
+        utils.codegen_backend().workgroup_id_expr(),
         [],
         lexical_unit=True
     )
@@ -52,7 +52,7 @@ def workgroup_id():
 def workgroup_size():
     return utils.new_var(
         dtypes.uvec3,
-        "gl_WorkGroupSize",
+        utils.codegen_backend().workgroup_size_expr(),
         [],
         lexical_unit=True
     )
@@ -60,7 +60,7 @@ def workgroup_size():
 def num_workgroups():
     return utils.new_var(
         dtypes.uvec3,
-        "gl_NumWorkGroups",
+        utils.codegen_backend().num_workgroups_expr(),
         [],
         lexical_unit=True
     )
@@ -68,7 +68,7 @@ def num_workgroups():
 def num_subgroups():
     return utils.new_var(
         dtypes.uint32,
-        "gl_NumSubgroups",
+        utils.codegen_backend().num_subgroups_expr(),
         [],
         lexical_unit=True
     )
@@ -76,7 +76,7 @@ def num_subgroups():
 def subgroup_id():
     return utils.new_var(
         dtypes.uint32,
-        "gl_SubgroupID",
+        utils.codegen_backend().subgroup_id_expr(),
         [],
         lexical_unit=True
     )
@@ -84,7 +84,7 @@ def subgroup_id():
 def subgroup_size():
     return utils.new_var(
         dtypes.uint32,
-        "gl_SubgroupSize",
+        utils.codegen_backend().subgroup_size_expr(),
         [],
         lexical_unit=True
     )
@@ -92,7 +92,7 @@ def subgroup_size():
 def subgroup_invocation_id():
     return utils.new_var(
         dtypes.uint32,
-        "gl_SubgroupInvocationID",
+        utils.codegen_backend().subgroup_invocation_id_expr(),
         [],
         lexical_unit=True
     )

@@ -7,6 +7,7 @@ import numbers
 
 from ...._compat import numpy_compat as npc
 from vkdispatch.codegen.shader_writer import new_scaled_var, append_contents, new_name
+from vkdispatch.codegen.global_builder import get_codegen_backend
 
 from vkdispatch.codegen.shader_writer import new_var as new_var_impl
 
@@ -84,11 +85,16 @@ def resolve_input(var: Any) -> str:
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
     return var.resolve()
 
+def backend_constructor(var_type: dtypes.dtype, *args) -> str:
+    return get_codegen_backend().constructor(
+        var_type,
+        [resolve_input(elem) for elem in args]
+    )
 
 def to_dtype_base(var_type: dtypes.dtype, *args):
     return new_base_var(
         var_type,
-        f"{var_type.glsl_type}({', '.join([resolve_input(elem) for elem in args])})", 
+        backend_constructor(var_type, *args),
         args,
         lexical_unit=True
     )

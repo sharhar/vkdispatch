@@ -258,6 +258,7 @@ setup(
         "vkdispatch.base",
         "vkdispatch._compat", 
         "vkdispatch.codegen",
+        "vkdispatch.codegen.backends", 
         "vkdispatch.codegen.functions", 
         "vkdispatch.codegen.functions.base_functions", 
         "vkdispatch.codegen.variables", 

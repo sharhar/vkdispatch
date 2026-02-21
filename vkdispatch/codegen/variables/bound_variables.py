@@ -2,6 +2,7 @@ from .variables import ShaderVariable
 import vkdispatch.base.dtype as dtypes
 
 from ..functions import type_casting
+from ..global_builder import get_codegen_backend
 
 from typing import Callable, Optional
 
@@ -79,28 +80,40 @@ class ImageVariable(BoundVariable):
     def sample(self, coord: "ShaderVariable", lod: "ShaderVariable" = None) -> "ShaderVariable":
         if self.dimensions == 0:
             raise ValueError("Cannot sample a texture with dimension 0!")
+
+        backend = get_codegen_backend()
         
         sample_coord_string = ""
 
         if self.dimensions == 1:
-            sample_coord_string = f"((({coord.resolve()}) + 0.5) / textureSize({self.resolve()}, 0))"        
+            sample_coord_string = f"((({coord.resolve()}) + 0.5) / {backend.texture_size_expr(self.resolve(), 0, self.dimensions)})"
         elif self.dimensions == 2:
-            sample_coord_string = f"((vec2({coord.resolve()}.xy) + 0.5) / vec2(textureSize({self.resolve()}, 0)))"
+            coord_expr = backend.constructor(dtypes.vec2, [f"{coord.resolve()}.xy"])
+            tex_size_expr = backend.constructor(
+                dtypes.vec2,
+                [backend.texture_size_expr(self.resolve(), 0, self.dimensions)]
+            )
+            sample_coord_string = f"(({coord_expr} + 0.5) / {tex_size_expr})"
         elif self.dimensions == 3:
-            sample_coord_string = f"((vec3({coord.resolve()}.xyz) + 0.5) / vec3(textureSize({self.resolve()}, 0)))"
+            coord_expr = backend.constructor(dtypes.vec3, [f"{coord.resolve()}.xyz"])
+            tex_size_expr = backend.constructor(
+                dtypes.vec3,
+                [backend.texture_size_expr(self.resolve(), 0, self.dimensions)]
+            )
+            sample_coord_string = f"(({coord_expr} + 0.5) / {tex_size_expr})"
         else:
             raise ValueError("Unsupported number of dimensions!")
 
         if lod is None:
             return type_casting.str_to_dtype(
                  dtypes.vec4,
-                 f"texture({self.resolve()}, {sample_coord_string})",
+                 backend.sample_texture_expr(self.resolve(), sample_coord_string),
                  [self],
                  lexical_unit=True)
         
         return type_casting.str_to_dtype(
                  dtypes.vec4,
-                 f"texture({self.resolve()}, {sample_coord_string}, {lod.resolve()})",
+                 backend.sample_texture_expr(self.resolve(), sample_coord_string, lod.resolve()),
                  [self, lod],
                  lexical_unit=True)
         
