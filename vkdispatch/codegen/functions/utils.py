@@ -18,6 +18,9 @@ def new_var(var_type: dtypes.dtype,
 def codegen_backend():
     return get_codegen_backend()
 
+def mark_backend_feature(feature_name: str) -> None:
+    codegen_backend().mark_feature_usage(feature_name)
+
 def backend_type_name(var_type: dtypes.dtype) -> str:
     return codegen_backend().type_name(var_type)
 
