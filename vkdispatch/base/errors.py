@@ -1,4 +1,4 @@
-import vkdispatch_native
+from .backend import native
 
 running = True
 
@@ -17,7 +17,7 @@ def check_for_errors():
     Check for errors in the vkdispatch_native library and raise a RuntimeError if found.
     """
     global running
-    error = vkdispatch_native.get_error_string()
+    error = native.get_error_string()
 
     if error == 0 or not running:
         return
@@ -32,7 +32,7 @@ def check_for_compute_stage_errors():
     Check for errors in the shader compilation stage of the vkdispatch_native library and raise a RuntimeError if found.
     """
 
-    error = vkdispatch_native.get_error_string()
+    error = native.get_error_string()
 
     if error == 0:
         return

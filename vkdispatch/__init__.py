@@ -1,6 +1,7 @@
 from .base.init import DeviceInfo
 from .base.init import LogLevel
 from .base.init import get_devices
+from .base.init import get_backend
 from .base.init import initialize
 from .base.init import is_initialized
 from .base.init import log, log_error, log_warning, log_info, log_verbose, set_log_level

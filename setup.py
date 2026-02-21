@@ -256,6 +256,7 @@ setup(
     packages=[
         "vkdispatch", 
         "vkdispatch.base",
+        "vkdispatch.backends",
         "vkdispatch._compat", 
         "vkdispatch.codegen",
         "vkdispatch.codegen.backends", 

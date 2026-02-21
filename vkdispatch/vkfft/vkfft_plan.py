@@ -1,4 +1,4 @@
-import vkdispatch_native
+from vkdispatch.base.backend import native
 
 import vkdispatch as vd
 
@@ -64,7 +64,7 @@ class VkFFTPlan(Handle):
             for dim in input_shape:
                 input_size *= dim
 
-        handle = vkdispatch_native.stage_fft_plan_create(
+        handle = native.stage_fft_plan_create(
             self.context._handle, 
             list(reversed(self.shape)), 
             [axis for axis in flipped_axes if axis >= 0 and axis < 3], 
@@ -88,14 +88,14 @@ class VkFFTPlan(Handle):
         self.register_handle(handle)
 
     def _destroy(self):
-        vkdispatch_native.stage_fft_plan_destroy(self._handle)
+        native.stage_fft_plan_destroy(self._handle)
         check_for_errors()
 
     def __del__(self):
         self.destroy()
 
     def record(self, graph: vd.CommandGraph, buffer: vd.Buffer, inverse: bool = False, kernel: vd.Buffer = None, input: vd.Buffer = None):
-        vkdispatch_native.stage_fft_record(
+        native.stage_fft_record(
             graph._handle, 
             self._handle, 
             buffer._handle, 
