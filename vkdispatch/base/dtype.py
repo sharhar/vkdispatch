@@ -1,5 +1,3 @@
-import numpy as np
-
 from typing import Optional
 
 class dtype:
@@ -379,26 +377,32 @@ def cross_type(dtype1: dtype, dtype2: dtype) -> dtype:
     if is_scalar(dtype1) and is_scalar(dtype2):
         return cross_scalar_scalar(dtype1, dtype2)
 
-def from_numpy_dtype(dtype: type) -> dtype:
-    if dtype == np.int32:
-        return int32
-    elif dtype == np.uint32:
-        return uint32
-    elif dtype == np.float32:
-        return float32
-    elif dtype == np.complex64:
-        return complex64
-    else:
-        raise ValueError(f"Unsupported dtype ({dtype})!")
+# We skip the numpy code when running in Brython, since numpy is not available there
+from .brython_utils import is_brython
+if not is_brython():
 
-def to_numpy_dtype(shader_type: dtype) -> np.dtype:
-    if shader_type == int32:
-        return np.int32
-    elif shader_type == uint32:
-        return np.uint32
-    elif shader_type == float32:
-        return np.float32
-    elif shader_type == complex64:
-        return np.complex64
-    else:
-        raise ValueError(f"Unsupported shader_type ({shader_type})!")
+    import numpy as np
+
+    def from_numpy_dtype(dtype: type) -> dtype:
+        if dtype == np.int32:
+            return int32
+        elif dtype == np.uint32:
+            return uint32
+        elif dtype == np.float32:
+            return float32
+        elif dtype == np.complex64:
+            return complex64
+        else:
+            raise ValueError(f"Unsupported dtype ({dtype})!")
+
+    def to_numpy_dtype(shader_type: dtype) -> np.dtype:
+        if shader_type == int32:
+            return np.int32
+        elif shader_type == uint32:
+            return np.uint32
+        elif shader_type == float32:
+            return np.float32
+        elif shader_type == complex64:
+            return np.complex64
+        else:
+            raise ValueError(f"Unsupported shader_type ({shader_type})!")

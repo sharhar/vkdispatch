@@ -1,8 +1,6 @@
 import vkdispatch.base.dtype as dtypes
 from typing import List, Optional
 
-import numpy as np
-
 class BaseVariable:
     var_type: dtypes.dtype
     name: str
@@ -68,7 +66,10 @@ class BaseVariable:
             parent.write_callback()
 
     def printf_args(self) -> str:
-        total_count = np.prod(self.var_type.shape)
+        total_count = 1 # np.prod(self.var_type.shape)
+
+        for dim in self.var_type.shape:
+            total_count *= dim
 
         if total_count == 1:
             return self.name

@@ -1,7 +1,20 @@
 import vkdispatch.base.dtype as dtypes
 from  vkdispatch.codegen.variables.base_variable import BaseVariable
 from typing import Any
+
+#from vkdispatch.base.brython_utils import is_brython
+
+#if not is_brython():
 import numpy as np
+
+def my_log2_int(x: int) -> int:
+    return int(np.round(np.log2(x)))
+# else:
+#     import math
+
+#     def my_log2_int(x: int) -> int:
+#         return int(round(math.log2(x)))
+
 
 from . import base_utils
 
@@ -100,7 +113,7 @@ def mul(var: BaseVariable, other: Any, inplace: bool = False) -> BaseVariable:
                 return var
 
             if dtypes.is_integer_dtype(var.var_type) and base_utils.is_int_number(other) and base_utils.is_int_power_of_2(other):
-                power = int(np.round(np.log2(other)))
+                power = my_log2_int(other)
                 return base_utils.new_base_var(var.var_type, f"{var.resolve()} << {power}", [var])
 
             return base_utils.new_scaled_var(
@@ -184,7 +197,7 @@ def floordiv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool
                 return var
 
             if base_utils.is_int_power_of_2(other):
-                power = int(np.round(np.log2(other)))
+                power = my_log2_int(other)
                 return base_utils.new_base_var(var.var_type, f"{var.resolve()} >> {power}", [var])
 
             return base_utils.new_base_var(
