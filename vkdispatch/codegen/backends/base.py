@@ -14,6 +14,10 @@ class CodeGenBackend:
 
     name: str = "base"
 
+    def reset_state(self) -> None:
+        # Stateless backends can ignore this.
+        return
+
     def type_name(self, var_type: dtypes.dtype) -> str:
         raise NotImplementedError
 
@@ -57,6 +61,18 @@ class CodeGenBackend:
         raise NotImplementedError
 
     def ninf_f32_expr(self) -> str:
+        raise NotImplementedError
+
+    def float_bits_to_int_expr(self, var_expr: str) -> str:
+        raise NotImplementedError
+
+    def float_bits_to_uint_expr(self, var_expr: str) -> str:
+        raise NotImplementedError
+
+    def int_bits_to_float_expr(self, var_expr: str) -> str:
+        raise NotImplementedError
+
+    def uint_bits_to_float_expr(self, var_expr: str) -> str:
         raise NotImplementedError
 
     def global_invocation_id_expr(self) -> str:
