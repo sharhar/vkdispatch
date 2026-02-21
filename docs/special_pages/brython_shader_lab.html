@@ -558,6 +558,9 @@ def run_code(event):
 
 
 document["run-btn"].bind("click", run_code)
+
+# Auto-run once when the Brython runtime is ready.
+run_code(None)
   </script>
 
   <script>
@@ -716,6 +719,7 @@ document["run-btn"].bind("click", run_code)
           .getElementById("opts-panel")
           .classList.remove("visible");
       });
+
   })();
   </script>
 </body>
