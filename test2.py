@@ -10,4 +10,6 @@ def add_scalar(buff: Buff[f32], bias: Const[f32]):
     buff[tid] = buff[tid] + bias
 
 
+vd.fft.cache_clear()
+
 print(add_scalar)
