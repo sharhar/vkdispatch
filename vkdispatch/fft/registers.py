@@ -91,19 +91,12 @@ class FFTRegisters:
         if out_format.keys() != in_format.keys():
             return False
 
-        shuffled_registers = [None] * len(self.registers)
+        # Some stages can use fewer registers than config.register_count.
+        # Shuffle only registers that appear in the input format.
+        shuffled_registers = list(self.registers)
 
-        for i in range(len(self.registers)):
-            format_key = None
-            
-            for k, v in in_format.items():
-                if v == i:
-                    format_key = k
-                    break
-
-            assert format_key is not None, f"Could not find register '{i}' in output format???: {in_format}"
-
-            shuffled_registers[i] = self.registers[out_format[format_key]]
+        for format_key, input_register in in_format.items():
+            shuffled_registers[input_register] = self.registers[out_format[format_key]]
 
         for i in range(len(self.registers)):
             self.registers[i] = shuffled_registers[i]
