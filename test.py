@@ -40,7 +40,7 @@ reference = np.fft.fft(input_data)
 
 shape = make_shape(fft_size, data_size)
 
-buffer = vd.Buffer(shape, var_type=vd.complex64)
+buffer = vd.buffer_c64(shape) #Buffer(shape, var_type=vd.complex64)
 
 buffer.write(input_data)
 vd.fft.fft(buffer) #, print_shader=True)
