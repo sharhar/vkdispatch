@@ -1,6 +1,6 @@
-import numpy as np
+from typing import Any, Optional
 
-from typing import Optional
+from .._compat import numpy_compat as npc
 
 class dtype:
     name: str
@@ -379,26 +379,29 @@ def cross_type(dtype1: dtype, dtype2: dtype) -> dtype:
     if is_scalar(dtype1) and is_scalar(dtype2):
         return cross_scalar_scalar(dtype1, dtype2)
 
-def from_numpy_dtype(dtype: type) -> dtype:
-    if dtype == np.int32:
+def from_numpy_dtype(dtype: Any) -> dtype:
+    dtype_name = npc.host_dtype_name(dtype)
+
+    if dtype_name == "int32":
         return int32
-    elif dtype == np.uint32:
+    elif dtype_name == "uint32":
         return uint32
-    elif dtype == np.float32:
+    elif dtype_name == "float32":
         return float32
-    elif dtype == np.complex64:
+    elif dtype_name == "complex64":
         return complex64
     else:
         raise ValueError(f"Unsupported dtype ({dtype})!")
 
-def to_numpy_dtype(shader_type: dtype) -> np.dtype:
+
+def to_numpy_dtype(shader_type: dtype) -> Any:
     if shader_type == int32:
-        return np.int32
+        return npc.host_dtype("int32") if not npc.HAS_NUMPY else npc.numpy_module().int32
     elif shader_type == uint32:
-        return np.uint32
+        return npc.host_dtype("uint32") if not npc.HAS_NUMPY else npc.numpy_module().uint32
     elif shader_type == float32:
-        return np.float32
+        return npc.host_dtype("float32") if not npc.HAS_NUMPY else npc.numpy_module().float32
     elif shader_type == complex64:
-        return np.complex64
+        return npc.host_dtype("complex64") if not npc.HAS_NUMPY else npc.numpy_module().complex64
     else:
         raise ValueError(f"Unsupported shader_type ({shader_type})!")

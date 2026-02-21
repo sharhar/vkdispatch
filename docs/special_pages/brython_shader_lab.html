@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brython Runner</title>
+  <script src="https://cdn.jsdelivr.net/npm/brython@3.12.2/brython.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/brython@3.12.2/brython_stdlib.js"></script>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --ink: #162136;
+      --muted: #586178;
+      --border: #cfd8e6;
+      --accent: #005fcc;
+      --accent-hover: #004aa0;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      height: 100%;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: #1a1a2e;
+      color: var(--ink);
+      overflow: hidden;
+    }
+
+    /* ── top bar ── */
+    .toolbar {
+      height: 48px;
+      background: #0f0f23;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      border-bottom: 1px solid #2a2a4a;
+    }
+
+    .toolbar h1 {
+      font-size: 1rem;
+      color: #c7d2fe;
+      font-weight: 600;
+    }
+
+    .toolbar button {
+      border: 0;
+      background: var(--accent);
+      color: #fff;
+      padding: 7px 18px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .toolbar button:hover {
+      background: var(--accent-hover);
+    }
+
+    /* ── main split ── */
+    .split {
+      display: flex;
+      height: calc(100% - 48px);
+    }
+
+    .pane {
+      width: 50%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .pane-header {
+      height: 32px;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* ── code pane (left) ── */
+    .pane.code {
+      border-right: 1px solid #2a2a4a;
+    }
+
+    .pane.code .pane-header {
+      background: #16163a;
+      color: #7c8bbf;
+    }
+
+    #code {
+      flex: 1;
+      width: 100%;
+      resize: none;
+      border: none;
+      outline: none;
+      padding: 14px;
+      font: 14px/1.6 "SFMono-Regular", Consolas, "Liberation Mono",
+        Menlo, monospace;
+      background: #1e1e3a;
+      color: #e2e8f0;
+      tab-size: 4;
+    }
+
+    /* ── output pane (right) ── */
+    .pane.output .pane-header {
+      background: #0d1a0d;
+      color: #5fa35f;
+    }
+
+    #output {
+      flex: 1;
+      width: 100%;
+      resize: none;
+      border: none;
+      outline: none;
+      padding: 14px;
+      font: 14px/1.6 "SFMono-Regular", Consolas, "Liberation Mono",
+        Menlo, monospace;
+      background: #0f172a;
+      color: #c7f4d9;
+    }
+  </style>
+</head>
+<body onload="brython({pythonpath: ['libs']})">
+  <div class="toolbar">
+    <h1>Brython In-Browser Python Runner</h1>
+    <button id="run-btn">▶ Run</button>
+  </div>
+
+  <div class="split">
+    <div class="pane code">
+      <div class="pane-header">Code</div>
+      <textarea id="code" spellcheck="false">import vkdispatch as vd
+import vkdispatch.codegen as vc
+from vkdispatch.codegen.abreviations import *
+
+@vd.shader("buff.size")
+def add_scalar(buff: Buff[f32], bias: Const[f32]):
+    tid = vc.global_invocation_id().x
+    buff[tid] = buff[tid] + bias
+
+
+print(add_scalar)</textarea>
+    </div>
+    <div class="pane output">
+      <div class="pane-header">Output</div>
+      <textarea id="output" readonly></textarea>
+    </div>
+  </div>
+
+  <script type="text/python">
+from browser import document
+import sys
+import traceback
+
+
+class OutputBuffer:
+    def __init__(self, target):
+        self.target = target
+
+    def write(self, value):
+        if value is None:
+            return
+        self.target.value += str(value)
+
+    def flush(self):
+        pass
+
+
+def run_code(event):
+    code = document["code"].value
+    output_el = document["output"]
+    output_el.value = ""
+
+    stdout_buffer = OutputBuffer(output_el)
+    stderr_buffer = OutputBuffer(output_el)
+
+    old_stdout, old_stderr = sys.stdout, sys.stderr
+    sys.stdout, sys.stderr = stdout_buffer, stderr_buffer
+    namespace = {"__name__": "__main__"}
+
+    try:
+        exec(code, namespace)
+    except Exception:
+        traceback.print_exc()
+    finally:
+        sys.stdout, sys.stderr = old_stdout, old_stderr
+
+
+document["run-btn"].bind("click", run_code)
+  </script>
+</body>
+</html>

@@ -2,7 +2,6 @@ import vkdispatch.codegen as vc
 
 from typing import Optional, Tuple
 
-import numpy as np
 import dataclasses
 
 from .registers import FFTRegisters

@@ -475,6 +475,8 @@ def _sig_handler(signum, frame):
     signal.signal(signum, signal.SIG_DFL)
     os.kill(os.getpid(), signum)
 
-# Install from the main thread
-signal.signal(signal.SIGINT, _sig_handler)
-signal.signal(signal.SIGTERM, _sig_handler)
+
+from .brython_utils import is_brython
+if not is_brython():
+    signal.signal(signal.SIGINT, _sig_handler)
+    signal.signal(signal.SIGTERM, _sig_handler)

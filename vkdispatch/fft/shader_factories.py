@@ -2,7 +2,7 @@ import vkdispatch as vd
 import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import *
 
-import numpy as np
+from .._compat import numpy_compat as npc
 
 from typing import Tuple, Optional
 from functools import lru_cache
@@ -50,7 +50,7 @@ def get_transposed_size(
     config = vd.fft.FFTConfig(buffer_shape, axis)
     grid = vd.fft.FFTGridManager(config, True, False)
 
-    return np.prod(grid.local_size) * np.prod(grid.workgroup_count) * config.register_count
+    return npc.prod(grid.local_size) * npc.prod(grid.workgroup_count) * config.register_count
 
 @lru_cache(maxsize=None)
 def make_transpose_shader(

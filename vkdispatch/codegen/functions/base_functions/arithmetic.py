@@ -1,7 +1,12 @@
 import vkdispatch.base.dtype as dtypes
 from  vkdispatch.codegen.variables.base_variable import BaseVariable
 from typing import Any
-import numpy as np
+
+from ...._compat import numpy_compat as npc
+
+def my_log2_int(x: int) -> int:
+    return int(npc.round(npc.log2(x)))
+
 
 from . import base_utils
 
@@ -100,7 +105,7 @@ def mul(var: BaseVariable, other: Any, inplace: bool = False) -> BaseVariable:
                 return var
 
             if dtypes.is_integer_dtype(var.var_type) and base_utils.is_int_number(other) and base_utils.is_int_power_of_2(other):
-                power = int(np.round(np.log2(other)))
+                power = my_log2_int(other)
                 return base_utils.new_base_var(var.var_type, f"{var.resolve()} << {power}", [var])
 
             return base_utils.new_scaled_var(
@@ -184,7 +189,7 @@ def floordiv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool
                 return var
 
             if base_utils.is_int_power_of_2(other):
-                power = int(np.round(np.log2(other)))
+                power = my_log2_int(other)
                 return base_utils.new_base_var(var.var_type, f"{var.resolve()} >> {power}", [var])
 
             return base_utils.new_base_var(

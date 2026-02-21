@@ -1,7 +1,6 @@
 import vkdispatch.base.dtype as dtypes
 from ..variables.variables import ShaderVariable
 from typing import Any, Union
-import numpy as np
 
 from .common_builtins import fma
 

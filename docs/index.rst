@@ -28,6 +28,11 @@ Additionally, below are a set of tutorials on vkdispatch usage and a full API re
 .. toctree::
    :maxdepth: 2
 
+   Special <special/index>
+
+.. toctree::
+   :maxdepth: 2
+
    Full Internal Documentation <internal_api>
 
 

@@ -6,7 +6,7 @@ from .stage import make_reduction_stage, ReductionParams
 
 from typing import List, Optional
 
-import numpy as np
+from .._compat import numpy_compat as npc
 
 class ReduceFunction:
     def __init__(self,
@@ -98,7 +98,7 @@ class ReduceFunction:
 
             assert input_stride == 1, "Reduction axes must be contiguous!"
 
-        workgroups_x = int(np.ceil(input_size / (self.group_size * input_stride)))
+        workgroups_x = int(npc.ceil(input_size / (self.group_size * input_stride)))
 
         if workgroups_x > self.group_size:
             workgroups_x = self.group_size

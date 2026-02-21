@@ -1,13 +1,13 @@
 import vkdispatch.base.dtype as dtypes
 from ..variables.variables import ShaderVariable
 from typing import Any, Union
-import numpy as np
 
 from . import utils
+from ..._compat import numpy_compat as npc
 
 def length(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(np.abs(var))
+        return npc.abs_value(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -20,7 +20,7 @@ def length(var: Any) -> Union[ShaderVariable, float]:
 
 def distance(x: Any, y: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(y) and utils.is_number(x):
-        return float(np.abs(y - x))
+        return npc.abs_value(y - x)
     
     base_var = None
 
@@ -40,7 +40,7 @@ def distance(x: Any, y: Any) -> Union[ShaderVariable, float]:
 
 def dot(x: Any, y: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(y) and utils.is_number(x):
-        return float(np.dot(x, y))
+        return npc.dot(x, y)
     
     base_var = None
 
