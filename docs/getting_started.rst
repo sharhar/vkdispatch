@@ -76,6 +76,7 @@ Next Steps
 
 Now that you've got `vkdispatch` up and running, consider exploring the following:
 
+*   :doc:`Code Structure and Execution Flow<tutorials/code_structure>`: A guided tour of how Python, codegen, and native layers fit together.
 *   :doc:`Tutorials<tutorials/index>`: Our curated guide to the most commonly used classes and functions.
 *   :doc:`Full Python API Reference<python_api>`: A comprehensive list of all Python-facing components.
 
