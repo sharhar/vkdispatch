@@ -300,7 +300,7 @@ class ShaderBuilder(ShaderWriter):
             if elem.count > 1:
                 decleration_suffix = f"[{elem.count}]"
 
-            declerations.append(f"\t{decleration_type} {elem.name}{decleration_suffix};")
+            declerations.append(f"    {decleration_type} {elem.name}{decleration_suffix};")
         
         return "\n".join(declerations)
 
@@ -314,7 +314,7 @@ class ShaderBuilder(ShaderWriter):
         
         uniform_decleration_contents = self.compose_struct_decleration(uniform_elements)
         if len(uniform_decleration_contents) > 0:
-            header += f"\nlayout(set = 0, binding = 0, scalar) uniform UniformObjectBuffer {{\n { uniform_decleration_contents } \n}} UBO;\n"
+            header += f"\nlayout(set = 0, binding = 0, scalar) uniform UniformObjectBuffer {{\n{ uniform_decleration_contents }\n}} UBO;\n"
 
         binding_type_list = [BindingType.UNIFORM_BUFFER]
         binding_access = [(True, False)]  # UBO is read-only
@@ -342,11 +342,11 @@ class ShaderBuilder(ShaderWriter):
         pc_decleration_contents = self.compose_struct_decleration(pc_elements)
         
         if len(pc_decleration_contents) > 0:
-            header += f"\nlayout(push_constant, scalar) uniform PushConstant {{\n { pc_decleration_contents } \n}} PC;\n"
+            header += f"\nlayout(push_constant, scalar) uniform PushConstant {{\n{ pc_decleration_contents }\n}} PC;\n"
 
         return ShaderDescription(
             header=header,
-            body=f"void main() {{\n{self.contents}\n}}\n",
+            body=f"void main() {{\n{self.contents}}}\n",
             name=name,
             pc_size=self.pc_struct.size, 
             pc_structure=pc_elements, 
