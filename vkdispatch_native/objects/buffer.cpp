@@ -161,6 +161,7 @@ void buffer_write_staging_extern(struct Buffer* buffer, int queue_index, void* d
     void* mapped;
     VK_CALL(vmaMapMemory(ctx->allocators[device_index], staging_allocation, &mapped));
     memcpy(mapped, data, size);
+    VK_CALL(vmaFlushAllocation(ctx->allocators[device_index], staging_allocation, 0, size));
     vmaUnmapMemory(ctx->allocators[device_index], staging_allocation);
 }
 
@@ -172,6 +173,7 @@ void buffer_read_staging_extern(struct Buffer* buffer, int queue_index, void* da
     
     void* mapped;
     VK_CALL(vmaMapMemory(ctx->allocators[device_index], staging_allocation, &mapped));
+    VK_CALL(vmaInvalidateAllocation(ctx->allocators[device_index], staging_allocation, 0, size));
     memcpy(data, mapped, size);
     vmaUnmapMemory(ctx->allocators[device_index], staging_allocation);
 }
