@@ -18,6 +18,10 @@ class CodeGenBackend:
         # Stateless backends can ignore this.
         return
 
+    def mark_feature_usage(self, feature_name: str) -> None:
+        # Backends that emit optional helper code can override this.
+        return
+
     def type_name(self, var_type: dtypes.dtype) -> str:
         raise NotImplementedError
 

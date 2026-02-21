@@ -44,6 +44,11 @@ def set_codegen_backend(backend: Optional[Union[CodeGenBackend, str]]):
     _codegen_backend.active_backend = backend
 
 def get_codegen_backend() -> CodeGenBackend:
+    builder = _get_builder()
+
+    if builder is not None:
+        return builder.backend
+
     backend = _get_codegen_backend()
 
     if backend is None:

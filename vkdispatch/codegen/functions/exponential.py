@@ -102,6 +102,7 @@ def inversesqrt(var: Any) -> Union[ShaderVariable, float]:
         return float(1.0 / npc.sqrt(var))
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    utils.mark_backend_feature("inversesqrt")
 
     return utils.new_var(
         utils.dtype_to_floating(var.var_type),

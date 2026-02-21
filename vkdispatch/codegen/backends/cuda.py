@@ -1,5 +1,3 @@
-import re
-
 from typing import Dict, List, Optional, Set
 
 import vkdispatch.base.dtype as dtypes
@@ -284,53 +282,6 @@ class CUDABackend(CodeGenBackend):
         "subgroup_xor": ["subgroup_size"],
     }
 
-    _HELPER_PATTERNS: Dict[str, re.Pattern] = {
-        "mat2_type": re.compile(r"\bvkdispatch_mat2\b"),
-        "mat3_type": re.compile(r"\bvkdispatch_mat3\b"),
-        "mat4_type": re.compile(r"\bvkdispatch_mat4\b"),
-        "make_mat2": re.compile(r"\bvkdispatch_make_mat2\s*\("),
-        "make_mat3": re.compile(r"\bvkdispatch_make_mat3\s*\("),
-        "make_mat4": re.compile(r"\bvkdispatch_make_mat4\s*\("),
-        "make_int2": re.compile(r"\bvkdispatch_make_int2\s*\("),
-        "make_int3": re.compile(r"\bvkdispatch_make_int3\s*\("),
-        "make_int4": re.compile(r"\bvkdispatch_make_int4\s*\("),
-        "make_uint2": re.compile(r"\bvkdispatch_make_uint2\s*\("),
-        "make_uint3": re.compile(r"\bvkdispatch_make_uint3\s*\("),
-        "make_uint4": re.compile(r"\bvkdispatch_make_uint4\s*\("),
-        "make_float2": re.compile(r"\bvkdispatch_make_float2\s*\("),
-        "make_float3": re.compile(r"\bvkdispatch_make_float3\s*\("),
-        "make_float4": re.compile(r"\bvkdispatch_make_float4\s*\("),
-        "global_invocation_id": re.compile(r"\bvkdispatch_global_invocation_id\s*\("),
-        "local_invocation_id": re.compile(r"\bvkdispatch_local_invocation_id\s*\("),
-        "workgroup_id": re.compile(r"\bvkdispatch_workgroup_id\s*\("),
-        "local_invocation_index": re.compile(r"\bvkdispatch_local_invocation_index\s*\("),
-        "subgroup_size": re.compile(r"\bvkdispatch_subgroup_size\s*\("),
-        "num_subgroups": re.compile(r"\bvkdispatch_num_subgroups\s*\("),
-        "subgroup_id": re.compile(r"\bvkdispatch_subgroup_id\s*\("),
-        "subgroup_invocation_id": re.compile(r"\bvkdispatch_subgroup_invocation_id\s*\("),
-        "subgroup_add": re.compile(r"\bvkdispatch_subgroup_add\s*\("),
-        "subgroup_mul": re.compile(r"\bvkdispatch_subgroup_mul\s*\("),
-        "subgroup_min": re.compile(r"\bvkdispatch_subgroup_min\s*\("),
-        "subgroup_max": re.compile(r"\bvkdispatch_subgroup_max\s*\("),
-        "subgroup_and": re.compile(r"\bvkdispatch_subgroup_and\s*\("),
-        "subgroup_or": re.compile(r"\bvkdispatch_subgroup_or\s*\("),
-        "subgroup_xor": re.compile(r"\bvkdispatch_subgroup_xor\s*\("),
-        "mod": re.compile(r"\bmod\s*\("),
-        "fract": re.compile(r"\bfract\s*\("),
-        "roundEven": re.compile(r"\broundEven\s*\("),
-        "mix": re.compile(r"\bmix\s*\("),
-        "step": re.compile(r"\bstep\s*\("),
-        "smoothstep": re.compile(r"\bsmoothstep\s*\("),
-        "radians": re.compile(r"\bradians\s*\("),
-        "degrees": re.compile(r"\bdegrees\s*\("),
-        "inversesqrt": re.compile(r"\binversesqrt\s*\("),
-        "floatBitsToInt": re.compile(r"\bfloatBitsToInt\s*\("),
-        "floatBitsToUint": re.compile(r"\bfloatBitsToUint\s*\("),
-        "intBitsToFloat": re.compile(r"\bintBitsToFloat\s*\("),
-        "uintBitsToFloat": re.compile(r"\buintBitsToFloat\s*\("),
-        "sample_texture": re.compile(r"\bvkdispatch_sample_texture\s*\("),
-    }
-
     def __init__(self) -> None:
         self._fixed_preamble = ""
         self.reset_state()
@@ -338,6 +289,14 @@ class CUDABackend(CodeGenBackend):
     def reset_state(self) -> None:
         self._kernel_params: List[str] = []
         self._entry_alias_lines: List[str] = []
+        self._feature_usage: Dict[str, bool] = {
+            feature_name: False
+            for feature_name in self._HELPER_SNIPPETS
+        }
+
+    def mark_feature_usage(self, feature_name: str) -> None:
+        if feature_name in self._feature_usage:
+            self._feature_usage[feature_name] = True
 
     def _register_kernel_param(self, param_decl: str) -> None:
         if param_decl not in self._kernel_params:
@@ -379,10 +338,13 @@ class CUDABackend(CodeGenBackend):
             return "float4"
 
         if var_type == dtypes.mat2:
+            self.mark_feature_usage("mat2_type")
             return "vkdispatch_mat2"
         if var_type == dtypes.mat3:
+            self.mark_feature_usage("mat3_type")
             return "vkdispatch_mat3"
         if var_type == dtypes.mat4:
+            self.mark_feature_usage("mat4_type")
             return "vkdispatch_mat4"
 
         raise ValueError(f"Unsupported CUDA type mapping for '{var_type.name}'")
@@ -395,13 +357,17 @@ class CUDABackend(CodeGenBackend):
             return f"(({target_type})({args[0]}))"
 
         if var_type == dtypes.mat2:
+            self.mark_feature_usage("make_mat2")
             return f"vkdispatch_make_mat2({', '.join(args)})"
         if var_type == dtypes.mat3:
+            self.mark_feature_usage("make_mat3")
             return f"vkdispatch_make_mat3({', '.join(args)})"
         if var_type == dtypes.mat4:
+            self.mark_feature_usage("make_mat4")
             return f"vkdispatch_make_mat4({', '.join(args)})"
 
         helper_name = f"vkdispatch_make_{target_type}"
+        self.mark_feature_usage(f"make_{target_type}")
         return f"{helper_name}({', '.join(args)})"
 
     def pre_header(self, *, enable_subgroup_ops: bool, enable_printf: bool) -> str:
@@ -434,15 +400,14 @@ class CUDABackend(CodeGenBackend):
 
         return resolved
 
-    def _helper_header(self, header: str, body: str) -> str:
-        usage_source = f"{header}\n{body}"
-        detected_helpers: Set[str] = set()
+    def _helper_header(self) -> str:
+        enabled_helpers = {
+            helper_name
+            for helper_name, is_enabled in self._feature_usage.items()
+            if is_enabled
+        }
 
-        for helper_name, helper_pattern in self._HELPER_PATTERNS.items():
-            if helper_pattern.search(usage_source) is not None:
-                detected_helpers.add(helper_name)
-
-        resolved_helpers = self._resolve_helper_dependencies(detected_helpers)
+        resolved_helpers = self._resolve_helper_dependencies(enabled_helpers)
 
         if len(resolved_helpers) == 0:
             return ""
@@ -463,7 +428,7 @@ class CUDABackend(CodeGenBackend):
             f"#define VKDISPATCH_EXPECTED_LOCAL_SIZE_Z {z}\n"
         )
 
-        helper_header = self._helper_header(header, body)
+        helper_header = self._helper_header()
 
         if len(helper_header) == 0:
             return f"{expected_size_header}\n{header}\n{body}"
@@ -527,51 +492,67 @@ class CUDABackend(CodeGenBackend):
         )
 
     def inf_f32_expr(self) -> str:
+        self.mark_feature_usage("uintBitsToFloat")
         return "uintBitsToFloat(0x7F800000u)"
 
     def ninf_f32_expr(self) -> str:
+        self.mark_feature_usage("uintBitsToFloat")
         return "uintBitsToFloat(0xFF800000u)"
 
     def float_bits_to_int_expr(self, var_expr: str) -> str:
+        self.mark_feature_usage("floatBitsToInt")
         return f"floatBitsToInt({var_expr})"
 
     def float_bits_to_uint_expr(self, var_expr: str) -> str:
+        self.mark_feature_usage("floatBitsToUint")
         return f"floatBitsToUint({var_expr})"
 
     def int_bits_to_float_expr(self, var_expr: str) -> str:
+        self.mark_feature_usage("intBitsToFloat")
         return f"intBitsToFloat({var_expr})"
 
     def uint_bits_to_float_expr(self, var_expr: str) -> str:
+        self.mark_feature_usage("uintBitsToFloat")
         return f"uintBitsToFloat({var_expr})"
 
     def global_invocation_id_expr(self) -> str:
+        self.mark_feature_usage("global_invocation_id")
         return "vkdispatch_global_invocation_id()"
 
     def local_invocation_id_expr(self) -> str:
+        self.mark_feature_usage("local_invocation_id")
         return "vkdispatch_local_invocation_id()"
 
     def local_invocation_index_expr(self) -> str:
+        self.mark_feature_usage("local_invocation_index")
         return "vkdispatch_local_invocation_index()"
 
     def workgroup_id_expr(self) -> str:
+        self.mark_feature_usage("workgroup_id")
         return "vkdispatch_workgroup_id()"
 
     def workgroup_size_expr(self) -> str:
+        self.mark_feature_usage("make_uint3")
         return "vkdispatch_make_uint3((unsigned int)blockDim.x, (unsigned int)blockDim.y, (unsigned int)blockDim.z)"
 
     def num_workgroups_expr(self) -> str:
+        self.mark_feature_usage("make_uint3")
         return "vkdispatch_make_uint3((unsigned int)gridDim.x, (unsigned int)gridDim.y, (unsigned int)gridDim.z)"
 
     def num_subgroups_expr(self) -> str:
+        self.mark_feature_usage("num_subgroups")
         return "vkdispatch_num_subgroups()"
 
     def subgroup_id_expr(self) -> str:
+        self.mark_feature_usage("subgroup_id")
         return "vkdispatch_subgroup_id()"
 
     def subgroup_size_expr(self) -> str:
+        self.mark_feature_usage("subgroup_size")
         return "vkdispatch_subgroup_size()"
 
     def subgroup_invocation_id_expr(self) -> str:
+        self.mark_feature_usage("subgroup_invocation_id")
         return "vkdispatch_subgroup_invocation_id()"
 
     def barrier_statement(self) -> str:
@@ -593,27 +574,35 @@ class CUDABackend(CodeGenBackend):
         return "__threadfence_block();"
 
     def subgroup_add_expr(self, arg_expr: str) -> str:
+        self.mark_feature_usage("subgroup_add")
         return f"vkdispatch_subgroup_add({arg_expr})"
 
     def subgroup_mul_expr(self, arg_expr: str) -> str:
+        self.mark_feature_usage("subgroup_mul")
         return f"vkdispatch_subgroup_mul({arg_expr})"
 
     def subgroup_min_expr(self, arg_expr: str) -> str:
+        self.mark_feature_usage("subgroup_min")
         return f"vkdispatch_subgroup_min({arg_expr})"
 
     def subgroup_max_expr(self, arg_expr: str) -> str:
+        self.mark_feature_usage("subgroup_max")
         return f"vkdispatch_subgroup_max({arg_expr})"
 
     def subgroup_and_expr(self, arg_expr: str) -> str:
+        self.mark_feature_usage("subgroup_and")
         return f"vkdispatch_subgroup_and({arg_expr})"
 
     def subgroup_or_expr(self, arg_expr: str) -> str:
+        self.mark_feature_usage("subgroup_or")
         return f"vkdispatch_subgroup_or({arg_expr})"
 
     def subgroup_xor_expr(self, arg_expr: str) -> str:
+        self.mark_feature_usage("subgroup_xor")
         return f"vkdispatch_subgroup_xor({arg_expr})"
 
     def subgroup_elect_expr(self) -> str:
+        self.mark_feature_usage("subgroup_invocation_id")
         return "((int)(vkdispatch_subgroup_invocation_id() == 0u))"
 
     def subgroup_barrier_statement(self) -> str:
@@ -633,13 +622,16 @@ class CUDABackend(CodeGenBackend):
         if dimensions == 1:
             return "1.0f"
         if dimensions == 2:
+            self.mark_feature_usage("make_float2")
             return "vkdispatch_make_float2(1.0f)"
         if dimensions == 3:
+            self.mark_feature_usage("make_float3")
             return "vkdispatch_make_float3(1.0f)"
 
         raise ValueError(f"Unsupported texture dimensions '{dimensions}'")
 
     def sample_texture_expr(self, texture_expr: str, coord_expr: str, lod_expr: Optional[str] = None) -> str:
+        self.mark_feature_usage("sample_texture")
         if lod_expr is None:
             return f"vkdispatch_sample_texture({texture_expr}, {coord_expr})"
 

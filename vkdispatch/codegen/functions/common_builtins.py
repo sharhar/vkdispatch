@@ -113,6 +113,7 @@ def round_even(var: Any) -> Union[ShaderVariable, float]:
         return npc.round(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    utils.mark_backend_feature("roundEven")
 
     return utils.new_var(
         utils.dtype_to_floating(var.var_type),
@@ -126,6 +127,7 @@ def fract(var: Any) -> Union[ShaderVariable, float]:
         return float(var - npc.floor(var))
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    utils.mark_backend_feature("fract")
 
     return utils.new_var(
         utils.dtype_to_floating(var.var_type),
@@ -146,6 +148,8 @@ def mod(x: Any, y: Any) -> Union[ShaderVariable, float]:
         base_var = x
     else:
         raise AssertionError("Arguments must be ShaderVariables or numbers")
+    
+    utils.mark_backend_feature("mod")
 
     return utils.new_var(
         utils.dtype_to_floating(base_var.var_type),
@@ -160,6 +164,7 @@ def modf(x: Any, y: Any) -> Tuple[ShaderVariable, ShaderVariable]:
         return float(a), float(b)
     
     if utils.is_number(x) and isinstance(y, ShaderVariable):
+        utils.mark_backend_feature("mod")
         return utils.new_var(
             utils.dtype_to_floating(y.var_type),
             f"mod({x}, {y.resolve()})",
@@ -167,6 +172,7 @@ def modf(x: Any, y: Any) -> Tuple[ShaderVariable, ShaderVariable]:
         )
     
     if utils.is_number(y) and isinstance(x, ShaderVariable):
+        utils.mark_backend_feature("mod")
         return utils.new_var(
             utils.dtype_to_floating(x.var_type),
             f"mod({x.resolve()}, {y})",
@@ -175,6 +181,7 @@ def modf(x: Any, y: Any) -> Tuple[ShaderVariable, ShaderVariable]:
 
     assert isinstance(y, ShaderVariable), "First argument must be a ShaderVariable or number"
     assert isinstance(x, ShaderVariable), "Second argument must be a ShaderVariable or number"
+    utils.mark_backend_feature("mod")
 
     return utils.new_var(
         utils.dtype_to_floating(y.var_type),
@@ -262,6 +269,8 @@ def mix(x: Any, y: Any, a: Any) -> Union[ShaderVariable, float]:
         base_var = x
     else:
         raise AssertionError("Arguments must be ShaderVariables or numbers")
+    
+    utils.mark_backend_feature("mix")
 
     return utils.new_var(
         utils.dtype_to_floating(base_var.var_type),
@@ -282,6 +291,8 @@ def step(edge: Any, x: Any) -> Union[ShaderVariable, float]:
         base_var = edge
     else:
         raise AssertionError("Arguments must be ShaderVariables or numbers")
+    
+    utils.mark_backend_feature("step")
 
     return utils.new_var(
         utils.dtype_to_floating(base_var.var_type),
@@ -305,6 +316,8 @@ def smoothstep(edge0: Any, edge1: Any, x: Any) -> Union[ShaderVariable, float]:
         base_var = edge0
     else:
         raise AssertionError("Arguments must be ShaderVariables or numbers")
+    
+    utils.mark_backend_feature("smoothstep")
 
     return utils.new_var(
         utils.dtype_to_floating(base_var.var_type),
