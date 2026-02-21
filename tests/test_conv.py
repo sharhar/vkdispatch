@@ -156,6 +156,30 @@ def test_convolution_2d_real():
 
     vd.fft.cache_clear()
 
+def test_convolution_2d_real_register_shuffle_edge_case():
+    max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
+    max_fft_size = min(max_fft_size, vd.get_context().max_workgroup_size[0])
+
+    # This shape triggers the register shuffle path where stage-local register usage
+    # is smaller than config.register_count (N=162 on convolution axis).
+    if max_fft_size < 162:
+        return
+
+    shape = (162, 13)
+    data = np.random.rand(*shape).astype(np.float32)
+    data2 = np.random.rand(*shape).astype(np.float32)
+
+    test_data = vd.asrfftbuffer(data)
+    kernel_data = vd.asrfftbuffer(data2)
+
+    vd.fft.rfft2(kernel_data)
+    vd.fft.convolve2DR(test_data, kernel_data)
+
+    reference_data = numpy_convolution(data, data2).real
+    assert np.allclose(reference_data, test_data.read_real(0), atol=1e-3)
+
+    vd.fft.cache_clear()
+
 # def test_convolution_2d_inner():
 #     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 

@@ -423,6 +423,11 @@ from browser import document
 import sys
 import traceback
 
+import vkdispatch_native
+import vkdispatch.base.context as vd_context
+import vkdispatch.base.init as vd_init
+import vkdispatch.execution_pipeline.command_graph as vd_command_graph
+
 
 class OutputBuffer:
     def __init__(self, target):
@@ -435,6 +440,74 @@ class OutputBuffer:
 
     def flush(self):
         pass
+
+
+def _parse_positive_int(element_id, field_name):
+    raw = document[element_id].value.strip()
+
+    if raw == "":
+        raise ValueError(f"{field_name} cannot be empty.")
+
+    try:
+        parsed = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be an integer.") from exc
+
+    if parsed <= 0:
+        raise ValueError(f"{field_name} must be greater than zero.")
+
+    return parsed
+
+
+def _read_device_options():
+    return {
+        "subgroup_size": _parse_positive_int("opt-subgroup-size", "Subgroup Size"),
+        "max_workgroup_size": (
+            _parse_positive_int("opt-wg-size-x", "Max Workgroup Size X"),
+            _parse_positive_int("opt-wg-size-y", "Max Workgroup Size Y"),
+            _parse_positive_int("opt-wg-size-z", "Max Workgroup Size Z"),
+        ),
+        "max_workgroup_invocations": _parse_positive_int(
+            "opt-wg-invocations",
+            "Max Workgroup Invocations",
+        ),
+        "max_workgroup_count": (
+            _parse_positive_int("opt-wg-count-x", "Max Workgroup Count X"),
+            _parse_positive_int("opt-wg-count-y", "Max Workgroup Count Y"),
+            _parse_positive_int("opt-wg-count-z", "Max Workgroup Count Z"),
+        ),
+        "max_compute_shared_memory_size": _parse_positive_int(
+            "opt-shared-memory",
+            "Max Shared Memory (bytes)",
+        ),
+    }
+
+
+def _reset_vkdispatch_runtime():
+    # Clear existing context handles and native context without going through
+    # vd_context.destroy_context(), which emits logs using inspect.stack().
+    # Brython's frame objects do not provide all CPython inspect attributes.
+    context = getattr(vd_context, "__context", None)
+    if context is not None:
+        if hasattr(vd_context, "set_running"):
+            vd_context.set_running(False)
+
+        handles_list = list(context.handles_dict.values())
+        for handle in handles_list:
+            handle.destroy()
+
+        vkdispatch_native.context_destroy(context._handle)
+        vd_context.__context = None
+
+    # Force vkdispatch to re-read device info from vkdispatch_native.
+    vd_init.__initilized_instance = False
+    vd_init.__device_infos = None
+
+    # Recreate command graph state so it does not retain stale handles.
+    state = vd_command_graph._global_graph
+    for attr_name in ("custom_graph", "default_graph"):
+        if hasattr(state, attr_name):
+            delattr(state, attr_name)
 
 
 def run_code(event):
@@ -450,6 +523,15 @@ def run_code(event):
     namespace = {"__name__": "__main__"}
 
     try:
+        options = _read_device_options()
+        vkdispatch_native.set_device_options(
+            subgroup_size=options["subgroup_size"],
+            max_workgroup_size=options["max_workgroup_size"],
+            max_workgroup_invocations=options["max_workgroup_invocations"],
+            max_workgroup_count=options["max_workgroup_count"],
+            max_compute_shared_memory_size=options["max_compute_shared_memory_size"],
+        )
+        _reset_vkdispatch_runtime()
         exec(code, namespace)
     except Exception:
         traceback.print_exc()
