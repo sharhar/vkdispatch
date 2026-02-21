@@ -1,4 +1,4 @@
-import vkdispatch_native
+from .backend import native
 
 from .context import Handle
 from .errors import check_for_compute_stage_errors, check_for_errors
@@ -30,7 +30,7 @@ class ComputePlan(Handle):
         self.shader_source = shader_source
         self.binding_list = binding_type_list
 
-        handle = vkdispatch_native.stage_compute_plan_create(
+        handle = native.stage_compute_plan_create(
             self.context._handle, shader_source.encode(), self.binding_list, pc_size, shader_name.encode()
         )
         check_for_compute_stage_errors()
@@ -38,7 +38,7 @@ class ComputePlan(Handle):
         self.register_handle(handle)
 
     def _destroy(self) -> None:
-        vkdispatch_native.stage_compute_plan_destroy(self._handle)
+        native.stage_compute_plan_destroy(self._handle)
         check_for_errors()
     
     def __del__(self) -> None:

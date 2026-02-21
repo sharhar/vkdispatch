@@ -11,6 +11,19 @@ _builder_context = threading.local()
 _shader_print_line_numbers = threading.local()
 _codegen_backend = threading.local()
 
+
+def _make_runtime_default_codegen_backend() -> CodeGenBackend:
+    try:
+        from vkdispatch.base.backend import BACKEND_PYCUDA, get_active_backend_name
+
+        if get_active_backend_name() == BACKEND_PYCUDA:
+            return CUDABackend()
+    except Exception:
+        # If runtime backend metadata is unavailable, fall back to GLSL.
+        pass
+
+    return GLSLBackend()
+
 def get_shader_print_line_numbers() -> bool:
     return getattr(_shader_print_line_numbers, 'value', False)
 
@@ -52,7 +65,7 @@ def get_codegen_backend() -> CodeGenBackend:
     backend = _get_codegen_backend()
 
     if backend is None:
-        backend = GLSLBackend()
+        backend = _make_runtime_default_codegen_backend()
         _codegen_backend.active_backend = backend
 
     return backend

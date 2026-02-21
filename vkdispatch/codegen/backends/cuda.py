@@ -459,22 +459,26 @@ class CUDABackend(CodeGenBackend):
         return f"__shared__ {self.type_name(var_type)} {name}[{size}];"
 
     def uniform_block_declaration(self, contents: str) -> str:
-        self._register_kernel_param("const UniformObjectBuffer* UBO_ptr")
-        self._register_alias_line("const UniformObjectBuffer& UBO = *UBO_ptr;")
+        self._register_kernel_param("const UniformObjectBuffer* vkdispatch_uniform_ptr")
+        self._register_alias_line("const UniformObjectBuffer& UBO = *vkdispatch_uniform_ptr;")
         return f"\nstruct UniformObjectBuffer {{\n{contents}\n}};\n"
 
     def storage_buffer_declaration(self, binding: int, var_type: dtypes.dtype, name: str) -> str:
         struct_name = f"Buffer{binding}"
-        self._register_kernel_param(f"{struct_name} {name}")
+        param_name = f"vkdispatch_binding_{binding}_ptr"
+        self._register_kernel_param(f"{self.type_name(var_type)}* {param_name}")
+        self._register_alias_line(f"{struct_name} {name} = {{{param_name}}};")
         return f"struct {struct_name} {{ {self.type_name(var_type)}* data; }};\n"
 
     def sampler_declaration(self, binding: int, dimensions: int, name: str) -> str:
-        self._register_kernel_param(f"cudaTextureObject_t {name}")
+        param_name = f"vkdispatch_sampler_{binding}"
+        self._register_kernel_param(f"cudaTextureObject_t {param_name}")
+        self._register_alias_line(f"cudaTextureObject_t {name} = {param_name};")
         return f"// sampler binding {binding}, dimensions={dimensions}\n"
 
     def push_constant_declaration(self, contents: str) -> str:
-        self._register_kernel_param("const PushConstant* PC_ptr")
-        self._register_alias_line("const PushConstant& PC = *PC_ptr;")
+        self._register_kernel_param("const PushConstant* vkdispatch_pc_ptr")
+        self._register_alias_line("const PushConstant& PC = *vkdispatch_pc_ptr;")
         return f"\nstruct PushConstant {{\n{contents}\n}};\n"
 
     def entry_point(self, body_contents: str) -> str:

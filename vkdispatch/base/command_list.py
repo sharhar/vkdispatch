@@ -1,7 +1,7 @@
 from typing import Tuple
 from typing import Optional
 
-import vkdispatch_native
+from .backend import native
 
 from .context import Handle
 from .errors import check_for_errors
@@ -24,12 +24,12 @@ class CommandList(Handle):
     def __init__(self) -> None:
         super().__init__()
 
-        handle = vkdispatch_native.command_list_create(self.context._handle)
+        handle = native.command_list_create(self.context._handle)
         self.register_handle(handle)
         check_for_errors()
 
     def _destroy(self) -> None:
-        vkdispatch_native.command_list_destroy(self._handle)
+        native.command_list_destroy(self._handle)
         check_for_errors()
 
     def __del__(self) -> None:
@@ -37,7 +37,7 @@ class CommandList(Handle):
 
     def get_instance_size(self) -> int:
         """Get the total size of the command list in bytes."""
-        result = vkdispatch_native.command_list_get_instance_size(self._handle)
+        result = native.command_list_get_instance_size(self._handle)
         check_for_errors()
         return result
 
@@ -58,7 +58,7 @@ class CommandList(Handle):
         self.register_parent(plan)
         self.register_parent(descriptor_set)
 
-        vkdispatch_native.stage_compute_record(
+        native.stage_compute_record(
             self._handle,
             plan._handle,
             descriptor_set._handle,
@@ -71,7 +71,7 @@ class CommandList(Handle):
     def reset(self) -> None:
         """Reset the command list.
         """
-        vkdispatch_native.command_list_reset(self._handle)
+        native.command_list_reset(self._handle)
         check_for_errors()
 
         self.clear_parents()
@@ -108,7 +108,7 @@ class CommandList(Handle):
 
         done = False
         while not done:
-            done = vkdispatch_native.command_list_submit(
+            done = native.command_list_submit(
                 self._handle, data, instance_count, queue_index
             )
             check_for_errors()

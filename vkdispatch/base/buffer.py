@@ -11,7 +11,7 @@ from .dtype import complex64, uint32, int32, float32
 from .._compat import numpy_compat as npc
 from .dtype import to_numpy_dtype, from_numpy_dtype
 
-import vkdispatch_native
+from .backend import native
 
 import typing
 
@@ -72,14 +72,14 @@ class Buffer(Handle, typing.Generic[_ArgType]):
 
         self.signals = []
 
-        handle = vkdispatch_native.buffer_create(
+        handle = native.buffer_create(
             self.context._handle, self.mem_size, 0
         )
         check_for_errors()
 
         self.signals = [
             Signal(
-                vkdispatch_native.buffer_get_queue_signal(
+                native.buffer_get_queue_signal(
                     handle, queue_index
                 )
             )
@@ -94,13 +94,13 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         for ii, signal in enumerate(self.signals):
             signal.wait(False, ii)
 
-        vkdispatch_native.buffer_destroy(self._handle)
+        native.buffer_destroy(self._handle)
 
     def __del__(self) -> None:
         self.destroy()
 
     def _wait_staging_idle(self, index: int):
-        is_idle = vkdispatch_native.buffer_wait_staging_idle(self._handle, index)
+        is_idle = native.buffer_wait_staging_idle(self._handle, index)
         check_for_errors()
         return is_idle
 
@@ -120,10 +120,10 @@ class Buffer(Handle, typing.Generic[_ArgType]):
 
                 completed_stages[i] = 1
 
-                vkdispatch_native.buffer_write_staging(self._handle, queue_index, data, len(data))
+                native.buffer_write_staging(self._handle, queue_index, data, len(data))
                 check_for_errors()
 
-                vkdispatch_native.buffer_write(self._handle, 0, len(data), queue_index)
+                native.buffer_write(self._handle, 0, len(data), queue_index)
                 check_for_errors()
 
     def write(self, data: Union[bytes, bytearray, memoryview, typing.Any], index: int = None) -> None:
@@ -177,7 +177,7 @@ class Buffer(Handle, typing.Generic[_ArgType]):
                 if completed_stages[i] == 0:
                     if self.signals[queue_index].try_wait(False, queue_index):
                         completed_stages[i] = 1
-                        vkdispatch_native.buffer_read(self._handle, 0, mem_size, queue_index)
+                        native.buffer_read(self._handle, 0, mem_size, queue_index)
                         check_for_errors()
                     else:
                         continue
@@ -188,7 +188,7 @@ class Buffer(Handle, typing.Generic[_ArgType]):
                     else:
                         continue
 
-                bytes_list[i] = vkdispatch_native.buffer_read_staging(self._handle, queue_index, mem_size)
+                bytes_list[i] = native.buffer_read_staging(self._handle, queue_index, mem_size)
                 check_for_errors()
         
         host_arrays = []
