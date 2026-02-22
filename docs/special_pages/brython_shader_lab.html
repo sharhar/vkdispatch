@@ -378,6 +378,7 @@
       <button data-backend="cuda">CUDA</button>
     </div>
     <h1>VkDispatch Shader Playground</h1>
+    <button id="copy-output-btn">⎘ Copy</button>
     <button id="share-btn">🔗 Share</button>
   </div>
 
@@ -737,6 +738,15 @@ print(add_scalar)</textarea>
       document.body.removeChild(ta);
       return Promise.resolve();
     }
+
+    /* ── copy output button ── */
+    document
+      .getElementById("copy-output-btn")
+      .addEventListener("click", function () {
+        copyToClipboard(window.cmOutput.getValue()).then(function () {
+          alert("Output copied to clipboard!");
+        });
+      });
 
     /* ── share button ── */
     document
