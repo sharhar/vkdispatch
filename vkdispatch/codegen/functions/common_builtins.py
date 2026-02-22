@@ -419,9 +419,12 @@ def fma(a: Any, b: Any, c: Any) -> Union[ShaderVariable, float]:
     else:
         raise AssertionError("Arguments must be ShaderVariables or numbers")
 
+    result_type = utils.dtype_to_floating(base_var.var_type)
+    fma_function = utils.codegen_backend().fma_function_name(result_type)
+
     return utils.new_var(
-        utils.dtype_to_floating(base_var.var_type),
-        f"fma({utils.resolve_input(a)}, {utils.resolve_input(b)}, {utils.resolve_input(c)})",
+        result_type,
+        f"{fma_function}({utils.resolve_input(a)}, {utils.resolve_input(b)}, {utils.resolve_input(c)})",
         parents=[a, b, c],
         lexical_unit=True
     )

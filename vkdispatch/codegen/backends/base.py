@@ -28,6 +28,9 @@ class CodeGenBackend:
     def constructor(self, var_type: dtypes.dtype, args: List[str]) -> str:
         raise NotImplementedError
 
+    def fma_function_name(self, var_type: dtypes.dtype) -> str:
+        return "fma"
+
     def pre_header(self, *, enable_subgroup_ops: bool, enable_printf: bool) -> str:
         raise NotImplementedError
 
