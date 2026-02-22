@@ -20,6 +20,12 @@ cuda_kernel = """
 #define VKDISPATCH_ENABLE_SUBGROUP_OPS 1
 #define VKDISPATCH_ENABLE_PRINTF 1
 
+__device__ __forceinline__ float2 operator+(float2 a, float2 b) { return make_float2(a.x + b.x, a.y + b.y); }
+__device__ __forceinline__ float2 operator-(float2 a, float2 b) { return make_float2(a.x - b.x, a.y - b.y); }
+__device__ __forceinline__ float2 operator*(float2 a, float2 b) { return make_float2(a.x * b.x, a.y * b.y); }
+__device__ __forceinline__ float2 operator*(float s, float2 v) { return make_float2(s * v.x, s * v.y); }
+__device__ __forceinline__ float2 operator*(float2 v, float s) { return make_float2(v.x * s, v.y * s); }
+
 __device__ __forceinline__ float2 vkdispatch_make_float2(float x, float y) { return make_float2(x, y); }
 __device__ __forceinline__ float2 vkdispatch_make_float2(float x) { return make_float2(x, x); }
 template <typename TVec> __device__ __forceinline__ float2 vkdispatch_make_float2(TVec v) { return make_float2((float)v.x, (float)v.y); }
@@ -45,26 +51,27 @@ struct UniformObjectBuffer {
 };
 struct Buffer1 { float2* data; };
 
-extern "C" __global__ void vkdispatch_main(const UniformObjectBuffer* UBO_ptr, Buffer1 buf1) {
-    const UniformObjectBuffer& UBO = *UBO_ptr;
+extern "C" __global__ void vkdispatch_main(const UniformObjectBuffer* vkdispatch_uniform_ptr, float2* vkdispatch_binding_1_ptr) {
+    const UniformObjectBuffer& UBO = *vkdispatch_uniform_ptr;
+    Buffer1 buf1 = {vkdispatch_binding_1_ptr};
     unsigned int workgroup_index = ((unsigned int)(vkdispatch_workgroup_id().x));
     unsigned int tid = vkdispatch_local_invocation_id().x;
     unsigned int input_batch_offset = ((unsigned int)(0));
     unsigned int output_batch_offset = ((unsigned int)(0));
-    float2 omega_register = vkdispatch_make_float2(0);
+    float2 omega_register = vkdispatch_make_float2(0.0f);
     unsigned int subsequence_offset = ((unsigned int)(0));
     unsigned int io_index = ((unsigned int)(0));
     unsigned int io_index_2 = ((unsigned int)(0));
-    float2 radix_register_0 = vkdispatch_make_float2(0);
-    float2 radix_register_1 = vkdispatch_make_float2(0);
-    float2 fft_reg_0 = vkdispatch_make_float2(0);
-    float2 fft_reg_1 = vkdispatch_make_float2(0);
-    float2 fft_reg_2 = vkdispatch_make_float2(0);
-    float2 fft_reg_3 = vkdispatch_make_float2(0);
-    float2 fft_reg_4 = vkdispatch_make_float2(0);
-    float2 fft_reg_5 = vkdispatch_make_float2(0);
-    float2 fft_reg_6 = vkdispatch_make_float2(0);
-    float2 fft_reg_7 = vkdispatch_make_float2(0);
+    float2 radix_register_0 = vkdispatch_make_float2(0.0f);
+    float2 radix_register_1 = vkdispatch_make_float2(0.0f);
+    float2 fft_reg_0 = vkdispatch_make_float2(0.0f);
+    float2 fft_reg_1 = vkdispatch_make_float2(0.0f);
+    float2 fft_reg_2 = vkdispatch_make_float2(0.0f);
+    float2 fft_reg_3 = vkdispatch_make_float2(0.0f);
+    float2 fft_reg_4 = vkdispatch_make_float2(0.0f);
+    float2 fft_reg_5 = vkdispatch_make_float2(0.0f);
+    float2 fft_reg_6 = vkdispatch_make_float2(0.0f);
+    float2 fft_reg_7 = vkdispatch_make_float2(0.0f);
     
     /* Reading input samples from global memory into FFT registers. */
     input_batch_offset = ((workgroup_index + vkdispatch_local_invocation_id().y) << 6);
@@ -160,7 +167,7 @@ extern "C" __global__ void vkdispatch_main(const UniformObjectBuffer* UBO_ptr, B
      * For each non-DC lane i>0, multiply by W_N^(i * twiddle_index).
      * This phase-aligns each sub-FFT with its parent decomposition stage.
      */
-    radix_register_0 = vkdispatch_make_float2(fma(fft_reg_5.x, 0.7071067811865476, ((-fft_reg_5.y) * -0.7071067811865475)), fma(fft_reg_5.x, -0.7071067811865475, (fft_reg_5.y * 0.7071067811865476)));
+    radix_register_0 = vkdispatch_make_float2(fmaf(fft_reg_5.x, 0.7071067811865476, ((-fft_reg_5.y) * -0.7071067811865475)), fmaf(fft_reg_5.x, -0.7071067811865475, (fft_reg_5.y * 0.7071067811865476)));
     fft_reg_5 = radix_register_0;
     /* Radix-2 butterfly base case */
     radix_register_0 = fft_reg_5;
@@ -187,7 +194,7 @@ extern "C" __global__ void vkdispatch_main(const UniformObjectBuffer* UBO_ptr, B
      * For each non-DC lane i>0, multiply by W_N^(i * twiddle_index).
      * This phase-aligns each sub-FFT with its parent decomposition stage.
      */
-    radix_register_0 = vkdispatch_make_float2(fma(fft_reg_7.x, -0.7071067811865475, ((-fft_reg_7.y) * -0.7071067811865476)), fma(fft_reg_7.x, -0.7071067811865476, (fft_reg_7.y * -0.7071067811865475)));
+    radix_register_0 = vkdispatch_make_float2(fmaf(fft_reg_7.x, -0.7071067811865475, ((-fft_reg_7.y) * -0.7071067811865476)), fmaf(fft_reg_7.x, -0.7071067811865476, (fft_reg_7.y * -0.7071067811865475)));
     fft_reg_7 = radix_register_0;
     /* Radix-2 butterfly base case */
     radix_register_0 = fft_reg_7;
@@ -265,31 +272,31 @@ extern "C" __global__ void vkdispatch_main(const UniformObjectBuffer* UBO_ptr, B
      */
     omega_register.x = (tid * -0.09817477042468103);
     omega_register = vkdispatch_make_float2(cos(omega_register.x), sin(omega_register.x));
-    radix_register_0 = vkdispatch_make_float2(fma(fft_reg_4.x, omega_register.x, ((-fft_reg_4.y) * omega_register.y)), fma(fft_reg_4.x, omega_register.y, (fft_reg_4.y * omega_register.x)));
+    radix_register_0 = vkdispatch_make_float2(fmaf(fft_reg_4.x, omega_register.x, ((-fft_reg_4.y) * omega_register.y)), fmaf(fft_reg_4.x, omega_register.y, (fft_reg_4.y * omega_register.x)));
     fft_reg_4 = radix_register_0;
     omega_register.x = (tid * -0.19634954084936207);
     omega_register = vkdispatch_make_float2(cos(omega_register.x), sin(omega_register.x));
-    radix_register_0 = vkdispatch_make_float2(fma(fft_reg_2.x, omega_register.x, ((-fft_reg_2.y) * omega_register.y)), fma(fft_reg_2.x, omega_register.y, (fft_reg_2.y * omega_register.x)));
+    radix_register_0 = vkdispatch_make_float2(fmaf(fft_reg_2.x, omega_register.x, ((-fft_reg_2.y) * omega_register.y)), fmaf(fft_reg_2.x, omega_register.y, (fft_reg_2.y * omega_register.x)));
     fft_reg_2 = radix_register_0;
     omega_register.x = (tid * -0.2945243112740431);
     omega_register = vkdispatch_make_float2(cos(omega_register.x), sin(omega_register.x));
-    radix_register_0 = vkdispatch_make_float2(fma(fft_reg_6.x, omega_register.x, ((-fft_reg_6.y) * omega_register.y)), fma(fft_reg_6.x, omega_register.y, (fft_reg_6.y * omega_register.x)));
+    radix_register_0 = vkdispatch_make_float2(fmaf(fft_reg_6.x, omega_register.x, ((-fft_reg_6.y) * omega_register.y)), fmaf(fft_reg_6.x, omega_register.y, (fft_reg_6.y * omega_register.x)));
     fft_reg_6 = radix_register_0;
     omega_register.x = (tid * -0.39269908169872414);
     omega_register = vkdispatch_make_float2(cos(omega_register.x), sin(omega_register.x));
-    radix_register_0 = vkdispatch_make_float2(fma(fft_reg_1.x, omega_register.x, ((-fft_reg_1.y) * omega_register.y)), fma(fft_reg_1.x, omega_register.y, (fft_reg_1.y * omega_register.x)));
+    radix_register_0 = vkdispatch_make_float2(fmaf(fft_reg_1.x, omega_register.x, ((-fft_reg_1.y) * omega_register.y)), fmaf(fft_reg_1.x, omega_register.y, (fft_reg_1.y * omega_register.x)));
     fft_reg_1 = radix_register_0;
     omega_register.x = (tid * -0.4908738521234052);
     omega_register = vkdispatch_make_float2(cos(omega_register.x), sin(omega_register.x));
-    radix_register_0 = vkdispatch_make_float2(fma(fft_reg_5.x, omega_register.x, ((-fft_reg_5.y) * omega_register.y)), fma(fft_reg_5.x, omega_register.y, (fft_reg_5.y * omega_register.x)));
+    radix_register_0 = vkdispatch_make_float2(fmaf(fft_reg_5.x, omega_register.x, ((-fft_reg_5.y) * omega_register.y)), fmaf(fft_reg_5.x, omega_register.y, (fft_reg_5.y * omega_register.x)));
     fft_reg_5 = radix_register_0;
     omega_register.x = (tid * -0.5890486225480862);
     omega_register = vkdispatch_make_float2(cos(omega_register.x), sin(omega_register.x));
-    radix_register_0 = vkdispatch_make_float2(fma(fft_reg_3.x, omega_register.x, ((-fft_reg_3.y) * omega_register.y)), fma(fft_reg_3.x, omega_register.y, (fft_reg_3.y * omega_register.x)));
+    radix_register_0 = vkdispatch_make_float2(fmaf(fft_reg_3.x, omega_register.x, ((-fft_reg_3.y) * omega_register.y)), fmaf(fft_reg_3.x, omega_register.y, (fft_reg_3.y * omega_register.x)));
     fft_reg_3 = radix_register_0;
     omega_register.x = (tid * -0.6872233929727672);
     omega_register = vkdispatch_make_float2(cos(omega_register.x), sin(omega_register.x));
-    radix_register_0 = vkdispatch_make_float2(fma(fft_reg_7.x, omega_register.x, ((-fft_reg_7.y) * omega_register.y)), fma(fft_reg_7.x, omega_register.y, (fft_reg_7.y * omega_register.x)));
+    radix_register_0 = vkdispatch_make_float2(fmaf(fft_reg_7.x, omega_register.x, ((-fft_reg_7.y) * omega_register.y)), fmaf(fft_reg_7.x, omega_register.y, (fft_reg_7.y * omega_register.x)));
     fft_reg_7 = radix_register_0;
     /* Radix-2 butterfly base case */
     radix_register_0 = fft_reg_1;
@@ -354,7 +361,7 @@ extern "C" __global__ void vkdispatch_main(const UniformObjectBuffer* UBO_ptr, B
      * For each non-DC lane i>0, multiply by W_N^(i * twiddle_index).
      * This phase-aligns each sub-FFT with its parent decomposition stage.
      */
-    radix_register_0 = vkdispatch_make_float2(fma(fft_reg_5.x, 0.7071067811865476, ((-fft_reg_5.y) * -0.7071067811865475)), fma(fft_reg_5.x, -0.7071067811865475, (fft_reg_5.y * 0.7071067811865476)));
+    radix_register_0 = vkdispatch_make_float2(fmaf(fft_reg_5.x, 0.7071067811865476, ((-fft_reg_5.y) * -0.7071067811865475)), fmaf(fft_reg_5.x, -0.7071067811865475, (fft_reg_5.y * 0.7071067811865476)));
     fft_reg_5 = radix_register_0;
     /* Radix-2 butterfly base case */
     radix_register_0 = fft_reg_5;
@@ -381,7 +388,7 @@ extern "C" __global__ void vkdispatch_main(const UniformObjectBuffer* UBO_ptr, B
      * For each non-DC lane i>0, multiply by W_N^(i * twiddle_index).
      * This phase-aligns each sub-FFT with its parent decomposition stage.
      */
-    radix_register_0 = vkdispatch_make_float2(fma(fft_reg_7.x, -0.7071067811865475, ((-fft_reg_7.y) * -0.7071067811865476)), fma(fft_reg_7.x, -0.7071067811865476, (fft_reg_7.y * -0.7071067811865475)));
+    radix_register_0 = vkdispatch_make_float2(fmaf(fft_reg_7.x, -0.7071067811865475, ((-fft_reg_7.y) * -0.7071067811865476)), fmaf(fft_reg_7.x, -0.7071067811865476, (fft_reg_7.y * -0.7071067811865475)));
     fft_reg_7 = radix_register_0;
     /* Radix-2 butterfly base case */
     radix_register_0 = fft_reg_7;
@@ -435,7 +442,7 @@ cuda.memcpy_htod(ubo_gpu, ubo_bytes)
 
 # --- Set up Buffer1 data (float2 = 2x float32 per element) ---
 
-buf1_data = np.random.randn(n, 2).astype(np.float32)
+buf1_data = np.random.randn(n).astype(np.complex64)
 buf1_gpu = cuda.mem_alloc(buf1_data.nbytes)
 cuda.memcpy_htod(buf1_gpu, buf1_data)
 
@@ -447,15 +454,17 @@ buf1_struct = struct.pack("P", int(buf1_gpu))  # "P" = pointer-sized uint
 # --- Launch ---
 
 kernel(
-    ubo_gpu,          # const UniformObjectBuffer* — passed as pointer
-    buf1_struct,      # Buffer1 — passed by value as raw bytes
-    block=(256, 1, 1),
-    grid=((n + 255) // 256, 1),
+    ubo_gpu,
+    buf1_gpu,
+    block=(8, 1, 1),
+    grid=(1, 1),
 )
 
 # --- Verify ---
 
+print(buf1_data.shape)
+
 result = np.empty_like(buf1_data)
 cuda.memcpy_dtoh(result, buf1_gpu)
-assert np.allclose(result, buf1_data * 2.0)
+assert np.allclose(result, np.fft.fft(buf1_data))
 print("Success:", result[:4])

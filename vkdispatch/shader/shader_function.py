@@ -12,6 +12,7 @@ from vkdispatch.base.compute_plan import ComputePlan
 from .signature import ShaderArgumentType, ShaderSignature
 
 import uuid
+import sys
 
 import dataclasses
 
@@ -214,24 +215,25 @@ class ShaderFunction:
 
         self.bounds = ExectionBounds(self.shader_signature.get_names_and_defaults(), my_local_size, self.workgroups, self.exec_size)
 
-        runtime_backend = vd.get_backend()
-        shader_backend_name = (
-            self.shader_description.backend.name
-            if self.shader_description.backend is not None
-            else "glsl"
-        )
-
-        if runtime_backend == BACKEND_PYCUDA and shader_backend_name != "cuda":
-            raise RuntimeError(
-                "PyCUDA runtime backend requires CUDA codegen output. "
-                "Call vd.initialize(backend='pycuda') before building shaders."
+        if not sys.implementation.name == "Brython":
+            runtime_backend = vd.get_backend()
+            shader_backend_name = (
+                self.shader_description.backend.name
+                if self.shader_description.backend is not None
+                else "glsl"
             )
 
-        if runtime_backend == BACKEND_VULKAN and shader_backend_name == "cuda":
-            raise RuntimeError(
-                "Vulkan runtime backend cannot execute CUDA codegen output. "
-                "Use GLSL codegen or initialize with backend='pycuda'."
-            )
+            if runtime_backend == BACKEND_PYCUDA and shader_backend_name != "cuda":
+                raise RuntimeError(
+                    "PyCUDA runtime backend requires CUDA codegen output. "
+                    "Call vd.initialize(backend='pycuda') before building shaders."
+                )
+
+            if runtime_backend == BACKEND_VULKAN and shader_backend_name == "cuda":
+                raise RuntimeError(
+                    "Vulkan runtime backend cannot execute CUDA codegen output. "
+                    "Use GLSL codegen or initialize with backend='pycuda'."
+                )
 
         self.source = self.shader_description.make_source(
             my_local_size[0], my_local_size[1], my_local_size[2]
