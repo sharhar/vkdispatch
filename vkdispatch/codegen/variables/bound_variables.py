@@ -82,6 +82,7 @@ class ImageVariable(BoundVariable):
             raise ValueError("Cannot sample a texture with dimension 0!")
 
         backend = get_codegen_backend()
+        backend.mark_texture_sample_dimension(self.dimensions)
         
         sample_coord_string = ""
 

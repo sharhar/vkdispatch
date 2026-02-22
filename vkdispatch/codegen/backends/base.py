@@ -22,6 +22,21 @@ class CodeGenBackend:
         # Backends that emit optional helper code can override this.
         return
 
+    def mark_composite_unary_op(self, var_type: dtypes.dtype, op: str) -> None:
+        # Backends with composite helper/operator code can override this.
+        return
+
+    def mark_composite_binary_op(
+        self,
+        lhs_type: dtypes.dtype,
+        rhs_type: dtypes.dtype,
+        op: str,
+        *,
+        inplace: bool = False,
+    ) -> None:
+        # Backends with composite helper/operator code can override this.
+        return
+
     def type_name(self, var_type: dtypes.dtype) -> str:
         raise NotImplementedError
 
@@ -165,3 +180,6 @@ class CodeGenBackend:
 
     def sample_texture_expr(self, texture_expr: str, coord_expr: str, lod_expr: Optional[str] = None) -> str:
         raise NotImplementedError
+
+    def mark_texture_sample_dimension(self, dimensions: int) -> None:
+        return
