@@ -415,7 +415,8 @@ def initialize(
         loader_debug_logs (bool): A flag to enable vulkan loader debug logs.
         backend (`Optional[str]`): Runtime backend to use. Supported values are
             "vulkan" and "pycuda". If omitted, the currently selected backend is
-            reused (or "vulkan" if no backend was selected yet).
+            reused. If no backend was selected yet, `VKDISPATCH_BACKEND` is used
+            when set, otherwise "vulkan" is used.
     """
 
     global __initilized_instance
@@ -423,7 +424,9 @@ def initialize(
     global __backend_name
 
     backend_name = normalize_backend_name(
-        backend if backend is not None else get_active_backend_name()
+        backend
+        if backend is not None
+        else get_active_backend_name(os.environ.get("VKDISPATCH_BACKEND"))
     )
 
     if __initilized_instance:

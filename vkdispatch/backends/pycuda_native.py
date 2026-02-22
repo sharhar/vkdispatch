@@ -118,6 +118,7 @@ class _Signal:
     context_handle: int
     queue_index: int
     event: Optional["cuda.Event"] = None
+    submitted: bool = True
     done: bool = True
 
 
@@ -136,7 +137,7 @@ class _Buffer:
     context_handle: int
     size: int
     device_allocation: "cuda.DeviceAllocation"
-    staging_data: List[bytearray]
+    staging_data: List[object]
     signal_handles: List[int]
 
 
@@ -182,6 +183,16 @@ class _DescriptorSet:
     plan_handle: int
     buffer_bindings: Dict[int, Tuple[int, int, int, int, int, int]] = field(default_factory=dict)
     image_bindings: Dict[int, Tuple[int, int, int, int]] = field(default_factory=dict)
+
+
+@dataclass
+class _ResolvedLaunch:
+    plan: _ComputePlan
+    blocks: Tuple[int, int, int]
+    pc_offset: int
+    pc_size: int
+    args: Tuple[object, ...]
+    pc_scratch: Optional["cuda.DeviceAllocation"] = None
 
 
 # --- Helper utilities ---
@@ -255,8 +266,10 @@ def _activate_context(ctx: _Context):
 
 
 def _record_signal(signal: _Signal, stream: "cuda.Stream") -> None:
+    signal.submitted = True
     signal.done = False
-    signal.event = cuda.Event()
+    if signal.event is None:
+        signal.event = cuda.Event()
     signal.event.record(stream)
 
 
@@ -271,6 +284,14 @@ def _query_signal(signal: _Signal) -> bool:
 
     signal.done = bool(done)
     return signal.done
+
+
+def _allocate_staging_storage(size: int):
+    try:
+        # Pagelocked host memory improves async HtoD/DtoH throughput and overlap.
+        return cuda.pagelocked_empty(int(size), np.uint8)
+    except Exception:
+        return bytearray(int(size))
 
 
 def _parse_local_size(source: str) -> Tuple[int, int, int]:
@@ -397,6 +418,50 @@ def _build_kernel_args(
         )
 
     return args
+
+
+def _build_kernel_args_template(
+    plan: _ComputePlan,
+    descriptor_set: Optional[_DescriptorSet],
+    command_list: _CommandList,
+    pc_size: int,
+) -> Tuple[Tuple[object, ...], Optional["cuda.DeviceAllocation"]]:
+    args: List[object] = []
+    pc_scratch: Optional["cuda.DeviceAllocation"] = None
+
+    for param in plan.params:
+        if param.kind == "uniform":
+            if descriptor_set is None:
+                raise RuntimeError("Kernel requires a descriptor set but none was provided")
+
+            args.append(np.uintp(_resolve_buffer_pointer(descriptor_set, 0)))
+            continue
+
+        if param.kind == "storage":
+            if descriptor_set is None:
+                raise RuntimeError("Kernel requires a descriptor set but none was provided")
+
+            if param.binding is None:
+                raise RuntimeError("Storage parameter has no binding index")
+
+            args.append(np.uintp(_resolve_buffer_pointer(descriptor_set, param.binding)))
+            continue
+
+        if param.kind == "push_constant":
+            if pc_scratch is None:
+                pc_scratch = _ensure_pc_scratch(command_list, int(pc_size))
+            args.append(np.uintp(int(pc_scratch)))
+            continue
+
+        if param.kind == "sampler":
+            raise RuntimeError("PyCUDA backend does not support sampled image bindings yet")
+
+        raise RuntimeError(
+            f"Unsupported kernel parameter '{param.raw_name}'. "
+            "Expected vkdispatch_uniform_ptr / vkdispatch_binding_<N>_ptr / vkdispatch_pc_ptr."
+        )
+
+    return tuple(args), pc_scratch
 
 
 # --- API: context/init/logging ---
@@ -618,14 +683,34 @@ def get_error_string():
 
 
 def signal_wait(signal_ptr, wait_for_timestamp, queue_index):
-    _ = wait_for_timestamp
-    _ = queue_index
-
     signal_obj = _signals.get(int(signal_ptr))
     if signal_obj is None:
         return True
 
-    return _query_signal(signal_obj)
+    if not bool(wait_for_timestamp):
+        # PyCUDA records signals synchronously on submission; host-side "recorded" waits
+        # should therefore complete immediately once an event exists.
+        if signal_obj.event is None:
+            return bool(signal_obj.done)
+        return bool(signal_obj.submitted)
+
+    if signal_obj.done:
+        return True
+
+    if signal_obj.event is None:
+        return bool(signal_obj.done)
+
+    ctx = _contexts.get(signal_obj.context_handle)
+    if ctx is None:
+        return _query_signal(signal_obj)
+
+    try:
+        with _activate_context(ctx):
+            signal_obj.event.synchronize()
+        signal_obj.done = True
+        return True
+    except Exception:
+        return _query_signal(signal_obj)
 
 
 def signal_insert(context, queue_index):
@@ -637,7 +722,7 @@ def signal_insert(context, queue_index):
     if len(selected) == 0:
         selected = [0]
 
-    signal = _Signal(context_handle=int(context), queue_index=selected[0], done=False)
+    signal = _Signal(context_handle=int(context), queue_index=selected[0], submitted=False, done=False)
     handle = _new_handle(_signals, signal)
 
     try:
@@ -682,7 +767,7 @@ def buffer_create(context, size, per_device):
             context_handle=int(context),
             size=size,
             device_allocation=allocation,
-            staging_data=[bytearray(size) for _ in range(ctx.queue_count)],
+            staging_data=[_allocate_staging_storage(size) for _ in range(ctx.queue_count)],
             signal_handles=signal_handles,
         )
         return _new_handle(_buffers, obj)
@@ -744,7 +829,9 @@ def buffer_write_staging(buffer, queue_index, data, size):
     if size <= 0:
         return
 
-    obj.staging_data[queue_index][:size] = payload[:size]
+    payload_view = memoryview(payload)[:size]
+    staging_view = memoryview(obj.staging_data[queue_index])
+    staging_view[:size] = payload_view
 
 
 def buffer_read_staging(buffer, queue_index, size):
@@ -757,10 +844,12 @@ def buffer_read_staging(buffer, queue_index, size):
         return bytes(int(size))
 
     size = max(0, int(size))
-    if size <= len(obj.staging_data[queue_index]):
-        return bytes(obj.staging_data[queue_index][:size])
+    staging = obj.staging_data[queue_index]
 
-    return bytes(obj.staging_data[queue_index]) + bytes(size - len(obj.staging_data[queue_index]))
+    if size <= len(staging):
+        return bytes(staging[:size])
+
+    return bytes(staging) + bytes(size - len(staging))
 
 
 def buffer_write(buffer, offset, size, index):
@@ -908,35 +997,57 @@ def command_list_submit(command_list, data, instance_count, index):
 
     try:
         with _activate_context(ctx):
+            payload_view = memoryview(payload) if payload else None
+
             for queue_index in queue_targets:
                 stream = ctx.streams[queue_index]
+                resolved_launches: List[_ResolvedLaunch] = []
+                pc_offset = 0
+
+                for command in obj.commands:
+                    plan = _compute_plans.get(command.plan_handle)
+                    if plan is None:
+                        raise RuntimeError(f"Invalid compute plan handle {command.plan_handle}")
+
+                    descriptor_set = None
+                    if command.descriptor_set_handle != 0:
+                        descriptor_set = _descriptor_sets.get(command.descriptor_set_handle)
+                        if descriptor_set is None:
+                            raise RuntimeError(
+                                f"Invalid descriptor set handle {command.descriptor_set_handle}"
+                            )
+
+                    pc_size = int(command.pc_size)
+                    args, pc_scratch = _build_kernel_args_template(plan, descriptor_set, obj, pc_size)
+                    resolved_launches.append(
+                        _ResolvedLaunch(
+                            plan=plan,
+                            blocks=command.blocks,
+                            pc_offset=pc_offset,
+                            pc_size=pc_size,
+                            args=args,
+                            pc_scratch=pc_scratch,
+                        )
+                    )
+                    pc_offset += pc_size
 
                 for instance in range(instance_count):
-                    cursor = instance * instance_size
+                    instance_base = instance * instance_size
 
-                    for command in obj.commands:
-                        plan = _compute_plans.get(command.plan_handle)
-                        if plan is None:
-                            raise RuntimeError(f"Invalid compute plan handle {command.plan_handle}")
+                    for launch in resolved_launches:
+                        if launch.pc_scratch is not None and launch.pc_size > 0:
+                            start = instance_base + launch.pc_offset
+                            end = start + launch.pc_size
+                            cuda.memcpy_htod_async(
+                                launch.pc_scratch,
+                                payload_view[start:end],
+                                stream,
+                            )
 
-                        descriptor_set = None
-                        if command.descriptor_set_handle != 0:
-                            descriptor_set = _descriptor_sets.get(command.descriptor_set_handle)
-                            if descriptor_set is None:
-                                raise RuntimeError(
-                                    f"Invalid descriptor set handle {command.descriptor_set_handle}"
-                                )
-
-                        pc_size = int(command.pc_size)
-                        pc_data = payload[cursor:cursor + pc_size] if pc_size > 0 else b""
-                        cursor += pc_size
-
-                        args = _build_kernel_args(plan, descriptor_set, obj, pc_data, stream)
-
-                        plan.function(
-                            *args,
-                            block=plan.local_size,
-                            grid=command.blocks,
+                        launch.plan.function(
+                            *launch.args,
+                            block=launch.plan.local_size,
+                            grid=launch.blocks,
                             stream=stream,
                         )
     except Exception as exc:
