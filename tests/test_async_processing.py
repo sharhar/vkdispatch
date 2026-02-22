@@ -1,7 +1,7 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
-vd.initialize(debug_mode=True, backend="pycuda") #, log_level=vd.LogLevel.INFO)
+vd.initialize(debug_mode=True) #, log_level=vd.LogLevel.INFO)
 
 import dataclasses
 import enum
