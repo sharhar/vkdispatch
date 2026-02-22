@@ -1131,7 +1131,11 @@ def stage_compute_plan_create(context, shader_source, bindings, pc_size, shader_
 
     try:
         with _activate_context(ctx):
-            module = SourceModule(source_text, no_extern_c=True)
+            module = SourceModule(
+                source_text,
+                no_extern_c=True,
+                options=["-w"]
+            )
             function = module.get_function("vkdispatch_main")
     except Exception as exc:
         _set_error(f"Failed to compile CUDA kernel '{shader_name_bytes.decode(errors='ignore')}': {exc}")
