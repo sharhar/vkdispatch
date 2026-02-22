@@ -93,6 +93,31 @@
       background: #3a3a6a;
     }
 
+    /* ── toast notification ── */
+    .toast {
+      position: fixed;
+      top: 56px;
+      right: 16px;
+      background: rgba(15, 23, 42, 0.96);
+      color: #e2e8f0;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      box-shadow: 0 14px 32px rgba(0, 0, 0, 0.35);
+      opacity: 0;
+      transform: translateY(-8px);
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+      z-index: 200;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
     /* ── backend toggle ── */
     .backend-toggle {
       display: flex;
@@ -381,6 +406,7 @@
     <button id="copy-output-btn">⎘ Copy</button>
     <button id="share-btn">🔗 Share</button>
   </div>
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Help panel -->
   <div class="overlay-panel" id="help-panel">
@@ -739,12 +765,29 @@ print(add_scalar)</textarea>
       return Promise.resolve();
     }
 
+    /* ── toast helper ── */
+    var toastTimer = null;
+    function showToast(message) {
+      var toast = document.getElementById("toast");
+      if (!toast) return;
+      toast.textContent = message;
+      toast.classList.remove("show");
+      void toast.offsetWidth; /* restart transition for repeated clicks */
+      toast.classList.add("show");
+      if (toastTimer) {
+        clearTimeout(toastTimer);
+      }
+      toastTimer = setTimeout(function () {
+        toast.classList.remove("show");
+      }, 1600);
+    }
+
     /* ── copy output button ── */
     document
       .getElementById("copy-output-btn")
       .addEventListener("click", function () {
         copyToClipboard(window.cmOutput.getValue()).then(function () {
-          alert("Output copied to clipboard!");
+          showToast("Output copied to clipboard.");
         });
       });
 
@@ -788,7 +831,7 @@ print(add_scalar)</textarea>
           hashParts.join("&");
 
         copyToClipboard(url).then(function () {
-          alert("Link copied to clipboard!");
+          showToast("Share link copied to clipboard.");
         });
       });
 
