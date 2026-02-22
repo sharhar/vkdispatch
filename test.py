@@ -4,6 +4,8 @@ import numpy as np
 
 from typing import Tuple
 
+vd.initialize(backend="pycuda")
+
 def make_shape(fft_size: int, data_size: int) -> Tuple[int, ...]:
     total_square_size = fft_size * fft_size
     assert data_size % total_square_size == 0, "Data size must be a multiple of fft_size squared"

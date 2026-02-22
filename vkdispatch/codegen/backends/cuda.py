@@ -63,6 +63,13 @@ class CUDABackend(CodeGenBackend):
             "__device__ __forceinline__ uint4 vkdispatch_make_uint4(unsigned int x) { return make_uint4(x, x, x, x); }\n"
             "template <typename TVec> __device__ __forceinline__ uint4 vkdispatch_make_uint4(TVec v) { return make_uint4((unsigned int)v.x, (unsigned int)v.y, (unsigned int)v.z, (unsigned int)v.w); }"
         ),
+        "float2_ops": (
+            "__device__ __forceinline__ float2 operator+(float2 a, float2 b) { return make_float2(a.x + b.x, a.y + b.y); }\n"
+            "__device__ __forceinline__ float2 operator-(float2 a, float2 b) { return make_float2(a.x - b.x, a.y - b.y); }\n"
+            "__device__ __forceinline__ float2 operator*(float2 a, float2 b) { return make_float2(a.x * b.x, a.y * b.y); }\n"
+            "__device__ __forceinline__ float2 operator*(float s, float2 v) { return make_float2(s * v.x, s * v.y); }\n"
+            "__device__ __forceinline__ float2 operator*(float2 v, float s) { return make_float2(v.x * s, v.y * s); }"
+        ),
         "make_float2": (
             "__device__ __forceinline__ float2 vkdispatch_make_float2(float x, float y) { return make_float2(x, y); }\n"
             "__device__ __forceinline__ float2 vkdispatch_make_float2(float x) { return make_float2(x, x); }\n"
@@ -232,6 +239,7 @@ class CUDABackend(CodeGenBackend):
         "make_uint2",
         "make_uint3",
         "make_uint4",
+        "float2_ops",
         "make_float2",
         "make_float3",
         "make_float4",
@@ -306,6 +314,14 @@ class CUDABackend(CodeGenBackend):
         if alias_line not in self._entry_alias_lines:
             self._entry_alias_lines.append(alias_line)
 
+    @staticmethod
+    def _is_plain_integer_literal(expr: str) -> bool:
+        if len(expr) == 0:
+            return False
+        if expr[0] in "+-":
+            return len(expr) > 1 and expr[1:].isdigit()
+        return expr.isdigit()
+
     def type_name(self, var_type: dtypes.dtype) -> str:
         if var_type == dtypes.int32:
             return "int"
@@ -314,6 +330,7 @@ class CUDABackend(CodeGenBackend):
         if var_type == dtypes.float32:
             return "float"
         if var_type == dtypes.complex64:
+            self.mark_feature_usage("float2_ops")
             return "float2"
 
         if var_type == dtypes.ivec2:
@@ -331,6 +348,7 @@ class CUDABackend(CodeGenBackend):
             return "uint4"
 
         if var_type == dtypes.vec2:
+            self.mark_feature_usage("float2_ops")
             return "float2"
         if var_type == dtypes.vec3:
             return "float3"
@@ -350,6 +368,13 @@ class CUDABackend(CodeGenBackend):
         raise ValueError(f"Unsupported CUDA type mapping for '{var_type.name}'")
 
     def constructor(self, var_type: dtypes.dtype, args: List[str]) -> str:
+        if (
+            len(args) == 1
+            and var_type in (dtypes.complex64, dtypes.vec2, dtypes.vec3, dtypes.vec4)
+            and self._is_plain_integer_literal(args[0])
+        ):
+            args = [f"{args[0]}.0f"]
+
         target_type = self.type_name(var_type)
 
         if dtypes.is_scalar(var_type):
@@ -502,6 +527,11 @@ class CUDABackend(CodeGenBackend):
     def ninf_f32_expr(self) -> str:
         self.mark_feature_usage("uintBitsToFloat")
         return "uintBitsToFloat(0xFF800000u)"
+
+    def fma_function_name(self, var_type: dtypes.dtype) -> str:
+        if var_type == dtypes.float32:
+            return "fmaf"
+        return "fma"
 
     def float_bits_to_int_expr(self, var_expr: str) -> str:
         self.mark_feature_usage("floatBitsToInt")
