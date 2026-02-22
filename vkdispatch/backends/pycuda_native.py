@@ -1049,6 +1049,8 @@ def stage_compute_plan_create(context, shader_source, bindings, pc_size, shader_
 
 
 def stage_compute_plan_destroy(plan):
+    if plan is None:
+        return
     _compute_plans.pop(int(plan), None)
 
 

@@ -65,10 +65,21 @@ class CUDABackend(CodeGenBackend):
         ),
         "float2_ops": (
             "__device__ __forceinline__ float2 operator+(float2 a, float2 b) { return make_float2(a.x + b.x, a.y + b.y); }\n"
+            "__device__ __forceinline__ float2 operator-(float2 v) { return make_float2(-v.x, -v.y); }\n"
             "__device__ __forceinline__ float2 operator-(float2 a, float2 b) { return make_float2(a.x - b.x, a.y - b.y); }\n"
             "__device__ __forceinline__ float2 operator*(float2 a, float2 b) { return make_float2(a.x * b.x, a.y * b.y); }\n"
+            "__device__ __forceinline__ float2 operator/(float2 a, float2 b) { return make_float2(a.x / b.x, a.y / b.y); }\n"
             "__device__ __forceinline__ float2 operator*(float s, float2 v) { return make_float2(s * v.x, s * v.y); }\n"
-            "__device__ __forceinline__ float2 operator*(float2 v, float s) { return make_float2(v.x * s, v.y * s); }"
+            "__device__ __forceinline__ float2 operator*(float2 v, float s) { return make_float2(v.x * s, v.y * s); }\n"
+            "__device__ __forceinline__ float2 operator/(float2 v, float s) { return make_float2(v.x / s, v.y / s); }\n"
+            "__device__ __forceinline__ float2& operator+=(float2& a, float2 b) { a.x += b.x; a.y += b.y; return a; }\n"
+            "__device__ __forceinline__ float2& operator+=(float2& a, float b) { a.x += b; a.y += b; return a; }\n"
+            "__device__ __forceinline__ float2& operator-=(float2& a, float2 b) { a.x -= b.x; a.y -= b.y; return a; }\n"
+            "__device__ __forceinline__ float2& operator-=(float2& a, float b) { a.x -= b; a.y -= b; return a; }\n"
+            "__device__ __forceinline__ float2& operator*=(float2& a, float2 b) { a.x *= b.x; a.y *= b.y; return a; }\n"
+            "__device__ __forceinline__ float2& operator*=(float2& a, float b) { a.x *= b; a.y *= b; return a; }\n"
+            "__device__ __forceinline__ float2& operator/=(float2& a, float2 b) { a.x /= b.x; a.y /= b.y; return a; }\n"
+            "__device__ __forceinline__ float2& operator/=(float2& a, float b) { a.x /= b; a.y /= b; return a; }"
         ),
         "make_float2": (
             "__device__ __forceinline__ float2 vkdispatch_make_float2(float x, float y) { return make_float2(x, y); }\n"

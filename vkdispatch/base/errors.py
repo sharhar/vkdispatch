@@ -39,5 +39,7 @@ def check_for_compute_stage_errors():
 
     if not isinstance(error, str):
         raise RuntimeError("Unknown error occurred")
+    
+    print("Shader compilation error:\n", error)
 
     raise RuntimeError("Error occurred in compute stage")
