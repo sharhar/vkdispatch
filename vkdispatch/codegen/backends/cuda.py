@@ -589,6 +589,8 @@ class CUDABackend(CodeGenBackend):
         self._composite_type_usage: Set[str] = set()
         self._composite_vec_op_usage: Dict[str, Set[str]] = {}
         self._composite_mat_op_usage: Dict[str, Set[str]] = {}
+        self._composite_vec_unary_math_usage: Dict[str, Set[str]] = {}
+        self._composite_vec_binary_math_usage: Dict[str, Set[str]] = {}
         self._sample_texture_dims: Set[int] = set()
         self._feature_usage: Dict[str, bool] = {
             feature_name: False
@@ -648,6 +650,14 @@ class CUDABackend(CodeGenBackend):
     def _record_mat_op(self, key: str, token: str) -> None:
         self._record_composite_type_key(key)
         self._composite_mat_op_usage.setdefault(key, set()).add(token)
+
+    def _record_vec_unary_math(self, key: str, func_name: str) -> None:
+        self._record_composite_type_key(key)
+        self._composite_vec_unary_math_usage.setdefault(key, set()).add(func_name)
+
+    def _record_vec_binary_math(self, key: str, func_name: str, signature: str) -> None:
+        self._record_composite_type_key(key)
+        self._composite_vec_binary_math_usage.setdefault(key, set()).add(f"{func_name}:{signature}")
 
     def _propagate_matrix_vec_dependencies(self, mat_key: str, token: str) -> None:
         dim = _CUDA_MAT_TYPE_SPECS[mat_key][3]
@@ -817,7 +827,86 @@ class CUDABackend(CodeGenBackend):
             parts.append(_cuda_emit_mat_type(mat_name, vec_name, dim, self._composite_mat_op_usage.get(key, set())))
             parts.append(_cuda_emit_mat_helpers(mat_name, key, vec_name, vec_helper_suffix, dim))
 
+        vec_math_helpers = self._emit_used_vec_math_helpers()
+        if len(vec_math_helpers) > 0:
+            parts.append(vec_math_helpers)
+
         return "\n\n".join(parts)
+
+    def _emit_used_vec_math_helpers(self) -> str:
+        helper_sections: List[str] = []
+
+        unary_order = [
+            "sin",
+            "cos",
+            "tan",
+            "asin",
+            "acos",
+            "atan",
+            "sinh",
+            "cosh",
+            "tanh",
+            "asinh",
+            "acosh",
+            "atanh",
+            "exp",
+            "exp2",
+            "log",
+            "log2",
+            "sqrt",
+        ]
+        binary_order = ["atan2", "pow"]
+        signature_order = ["vv", "vs", "sv"]
+
+        for key in ["float2", "float3", "float4"]:
+            unary_funcs = self._composite_vec_unary_math_usage.get(key, set())
+            binary_tokens = self._composite_vec_binary_math_usage.get(key, set())
+            if len(unary_funcs) == 0 and len(binary_tokens) == 0:
+                continue
+
+            if key not in _CUDA_VEC_TYPE_SPECS:
+                continue
+
+            vec_name, _, dim, _, _ = _CUDA_VEC_TYPE_SPECS[key]
+            comps = _cuda_vec_components(dim)
+            lines: List[str] = []
+
+            for func_name in unary_order:
+                if func_name not in unary_funcs:
+                    continue
+                scalar_func = self._cuda_fast_unary_math_name(func_name)
+                comp_args = ", ".join([f"{scalar_func}(v.{c})" for c in comps])
+                lines.append(
+                    f"__device__ __forceinline__ {vec_name} {func_name}(const {vec_name}& v) {{ return vkdispatch_make_{key}({comp_args}); }}"
+                )
+
+            for func_name in binary_order:
+                scalar_func = self._cuda_fast_binary_math_name(func_name)
+                for signature in signature_order:
+                    token = f"{func_name}:{signature}"
+                    if token not in binary_tokens:
+                        continue
+
+                    if signature == "vv":
+                        comp_args = ", ".join([f"{scalar_func}(a.{c}, b.{c})" for c in comps])
+                        lines.append(
+                            f"__device__ __forceinline__ {vec_name} {func_name}(const {vec_name}& a, const {vec_name}& b) {{ return vkdispatch_make_{key}({comp_args}); }}"
+                        )
+                    elif signature == "vs":
+                        comp_args = ", ".join([f"{scalar_func}(a.{c}, b)" for c in comps])
+                        lines.append(
+                            f"__device__ __forceinline__ {vec_name} {func_name}(const {vec_name}& a, float b) {{ return vkdispatch_make_{key}({comp_args}); }}"
+                        )
+                    elif signature == "sv":
+                        comp_args = ", ".join([f"{scalar_func}(a, b.{c})" for c in comps])
+                        lines.append(
+                            f"__device__ __forceinline__ {vec_name} {func_name}(float a, const {vec_name}& b) {{ return vkdispatch_make_{key}({comp_args}); }}"
+                        )
+
+            if len(lines) > 0:
+                helper_sections.append("\n".join(lines))
+
+        return "\n\n".join(helper_sections)
 
     def _emit_sample_texture_helpers(self) -> str:
         dims = set(self._sample_texture_dims)
@@ -1178,13 +1267,8 @@ class CUDABackend(CodeGenBackend):
         if helper_suffix is None:
             return None
 
-        self._record_composite_type_key(helper_suffix)
-        self.mark_feature_usage(f"make_{helper_suffix}")
-
-        call_name = self._cuda_fast_unary_math_name(func_name)
-        components = self._cuda_float_vec_components_for_suffix(helper_suffix)
-        args = ", ".join([f"{call_name}(({arg_expr}).{comp})" for comp in components])
-        return f"vkdispatch_make_{helper_suffix}({args})"
+        self._record_vec_unary_math(helper_suffix, func_name)
+        return f"{func_name}({arg_expr})"
 
     def _cuda_componentwise_binary_math_expr(
         self,
@@ -1206,18 +1290,9 @@ class CUDABackend(CodeGenBackend):
         helper_suffix = lhs_helper if lhs_helper is not None else rhs_helper
         assert helper_suffix is not None
 
-        self._record_composite_type_key(helper_suffix)
-        self.mark_feature_usage(f"make_{helper_suffix}")
-
-        call_name = self._cuda_fast_binary_math_name(func_name)
-        components = self._cuda_float_vec_components_for_suffix(helper_suffix)
-        args: List[str] = []
-        for comp in components:
-            lhs_comp_expr = f"(({lhs_expr}).{comp})" if lhs_helper is not None else lhs_expr
-            rhs_comp_expr = f"(({rhs_expr}).{comp})" if rhs_helper is not None else rhs_expr
-            args.append(f"{call_name}({lhs_comp_expr}, {rhs_comp_expr})")
-
-        return f"vkdispatch_make_{helper_suffix}({', '.join(args)})"
+        signature = ("v" if lhs_helper is not None else "s") + ("v" if rhs_helper is not None else "s")
+        self._record_vec_binary_math(helper_suffix, func_name, signature)
+        return f"{func_name}({lhs_expr}, {rhs_expr})"
 
     def unary_math_expr(self, func_name: str, arg_type: dtypes.dtype, arg_expr: str) -> str:
         vector_expr = self._cuda_componentwise_unary_math_expr(func_name, arg_type, arg_expr)
