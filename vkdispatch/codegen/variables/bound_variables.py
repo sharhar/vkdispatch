@@ -88,14 +88,14 @@ class ImageVariable(BoundVariable):
         if self.dimensions == 1:
             sample_coord_string = f"((({coord.resolve()}) + 0.5) / {backend.texture_size_expr(self.resolve(), 0, self.dimensions)})"
         elif self.dimensions == 2:
-            coord_expr = backend.constructor(dtypes.vec2, [f"{coord.resolve()}.xy"])
+            coord_expr = backend.constructor(dtypes.vec2, [f"{coord.resolve()}.x", f"{coord.resolve()}.y"])
             tex_size_expr = backend.constructor(
                 dtypes.vec2,
                 [backend.texture_size_expr(self.resolve(), 0, self.dimensions)]
             )
             sample_coord_string = f"(({coord_expr} + 0.5) / {tex_size_expr})"
         elif self.dimensions == 3:
-            coord_expr = backend.constructor(dtypes.vec3, [f"{coord.resolve()}.xyz"])
+            coord_expr = backend.constructor(dtypes.vec3, [f"{coord.resolve()}.x", f"{coord.resolve()}.y", f"{coord.resolve()}.z"])
             tex_size_expr = backend.constructor(
                 dtypes.vec3,
                 [backend.texture_size_expr(self.resolve(), 0, self.dimensions)]
