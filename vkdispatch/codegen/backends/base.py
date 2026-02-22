@@ -46,6 +46,22 @@ class CodeGenBackend:
     def fma_function_name(self, var_type: dtypes.dtype) -> str:
         return "fma"
 
+    def unary_math_expr(self, func_name: str, arg_type: dtypes.dtype, arg_expr: str) -> str:
+        return f"{func_name}({arg_expr})"
+
+    def binary_math_expr(
+        self,
+        func_name: str,
+        lhs_type: dtypes.dtype,
+        lhs_expr: str,
+        rhs_type: dtypes.dtype,
+        rhs_expr: str,
+    ) -> str:
+        if func_name == "atan2":
+            return f"atan({lhs_expr}, {rhs_expr})"
+
+        return f"{func_name}({lhs_expr}, {rhs_expr})"
+
     def pre_header(self, *, enable_subgroup_ops: bool, enable_printf: bool) -> str:
         raise NotImplementedError
 

@@ -1103,6 +1103,155 @@ class CUDABackend(CodeGenBackend):
             return "fmaf"
         return "fma"
 
+    @staticmethod
+    def _cuda_fast_unary_math_name(func_name: str) -> str:
+        if func_name == "sin":
+            return "__sinf"
+        if func_name == "cos":
+            return "__cosf"
+        if func_name == "tan":
+            return "__tanf"
+        if func_name == "exp":
+            return "__expf"
+        if func_name == "exp2":
+            return "__exp2f"
+        if func_name == "log":
+            return "__logf"
+        if func_name == "log2":
+            return "__log2f"
+        if func_name == "asin":
+            return "asinf"
+        if func_name == "acos":
+            return "acosf"
+        if func_name == "atan":
+            return "atanf"
+        if func_name == "sinh":
+            return "sinhf"
+        if func_name == "cosh":
+            return "coshf"
+        if func_name == "tanh":
+            return "tanhf"
+        if func_name == "asinh":
+            return "asinhf"
+        if func_name == "acosh":
+            return "acoshf"
+        if func_name == "atanh":
+            return "atanhf"
+        if func_name == "sqrt":
+            return "sqrtf"
+
+        return func_name
+
+    @staticmethod
+    def _cuda_fast_binary_math_name(func_name: str) -> str:
+        if func_name == "atan2":
+            return "atan2f"
+        if func_name == "pow":
+            return "__powf"
+
+        return func_name
+
+    @staticmethod
+    def _cuda_float_vec_helper_suffix(var_type: dtypes.dtype) -> Optional[str]:
+        if var_type == dtypes.complex64 or var_type == dtypes.vec2:
+            return "float2"
+        if var_type == dtypes.vec3:
+            return "float3"
+        if var_type == dtypes.vec4:
+            return "float4"
+
+        return None
+
+    @staticmethod
+    def _cuda_float_vec_components_for_suffix(helper_suffix: str) -> List[str]:
+        if helper_suffix == "float2":
+            return ["x", "y"]
+        if helper_suffix == "float3":
+            return ["x", "y", "z"]
+        if helper_suffix == "float4":
+            return ["x", "y", "z", "w"]
+
+        raise ValueError(f"Unsupported CUDA float vector helper suffix '{helper_suffix}'")
+
+    def _cuda_componentwise_unary_math_expr(self, func_name: str, arg_type: dtypes.dtype, arg_expr: str) -> Optional[str]:
+        helper_suffix = self._cuda_float_vec_helper_suffix(arg_type)
+        if helper_suffix is None:
+            return None
+
+        self._record_composite_type_key(helper_suffix)
+        self.mark_feature_usage(f"make_{helper_suffix}")
+
+        call_name = self._cuda_fast_unary_math_name(func_name)
+        components = self._cuda_float_vec_components_for_suffix(helper_suffix)
+        args = ", ".join([f"{call_name}(({arg_expr}).{comp})" for comp in components])
+        return f"vkdispatch_make_{helper_suffix}({args})"
+
+    def _cuda_componentwise_binary_math_expr(
+        self,
+        func_name: str,
+        lhs_type: dtypes.dtype,
+        lhs_expr: str,
+        rhs_type: dtypes.dtype,
+        rhs_expr: str,
+    ) -> Optional[str]:
+        lhs_helper = self._cuda_float_vec_helper_suffix(lhs_type)
+        rhs_helper = self._cuda_float_vec_helper_suffix(rhs_type)
+
+        if lhs_helper is None and rhs_helper is None:
+            return None
+
+        if lhs_helper is not None and rhs_helper is not None and lhs_helper != rhs_helper:
+            return None
+
+        helper_suffix = lhs_helper if lhs_helper is not None else rhs_helper
+        assert helper_suffix is not None
+
+        self._record_composite_type_key(helper_suffix)
+        self.mark_feature_usage(f"make_{helper_suffix}")
+
+        call_name = self._cuda_fast_binary_math_name(func_name)
+        components = self._cuda_float_vec_components_for_suffix(helper_suffix)
+        args: List[str] = []
+        for comp in components:
+            lhs_comp_expr = f"(({lhs_expr}).{comp})" if lhs_helper is not None else lhs_expr
+            rhs_comp_expr = f"(({rhs_expr}).{comp})" if rhs_helper is not None else rhs_expr
+            args.append(f"{call_name}({lhs_comp_expr}, {rhs_comp_expr})")
+
+        return f"vkdispatch_make_{helper_suffix}({', '.join(args)})"
+
+    def unary_math_expr(self, func_name: str, arg_type: dtypes.dtype, arg_expr: str) -> str:
+        vector_expr = self._cuda_componentwise_unary_math_expr(func_name, arg_type, arg_expr)
+        if vector_expr is not None:
+            return vector_expr
+
+        if arg_type == dtypes.float32:
+            return f"{self._cuda_fast_unary_math_name(func_name)}({arg_expr})"
+
+        return super().unary_math_expr(func_name, arg_type, arg_expr)
+
+    def binary_math_expr(
+        self,
+        func_name: str,
+        lhs_type: dtypes.dtype,
+        lhs_expr: str,
+        rhs_type: dtypes.dtype,
+        rhs_expr: str,
+    ) -> str:
+        vector_expr = self._cuda_componentwise_binary_math_expr(
+            func_name,
+            lhs_type,
+            lhs_expr,
+            rhs_type,
+            rhs_expr,
+        )
+        if vector_expr is not None:
+            return vector_expr
+
+        if dtypes.is_scalar(lhs_type) and dtypes.is_scalar(rhs_type):
+            return f"{self._cuda_fast_binary_math_name(func_name)}({lhs_expr}, {rhs_expr})"
+
+        return f"{func_name}({lhs_expr}, {rhs_expr})"
+
     def float_bits_to_int_expr(self, var_expr: str) -> str:
         self.mark_feature_usage("floatBitsToInt")
         return f"floatBitsToInt({var_expr})"
