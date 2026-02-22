@@ -9,12 +9,8 @@ def resolve_arg(arg: Any):
     return utils.resolve_input(arg)
 
 def printf(format: str, *args: Any):
-    args_string = ""
-
-    for arg in args:
-        args_string += f", {resolve_arg(arg)}"
-
-    utils.append_contents(f'debugPrintfEXT("{format}" {args_string});\n')
+    resolved_args = [resolve_arg(arg) for arg in args]
+    utils.append_contents(utils.codegen_backend().printf_statement(format, resolved_args) + "\n")
 
 def print_vars(*args: Any, seperator=" "):
     args_list = []
@@ -30,9 +26,4 @@ def print_vars(*args: Any, seperator=" "):
 
     fmt = seperator.join(fmts)
     
-    args_argument = ""
-
-    if len(args_list) > 0:
-        args_argument = f", {','.join(args_list)}"
-
-    utils.append_contents(f'debugPrintfEXT("{fmt}"{args_argument});\n')
+    utils.append_contents(utils.codegen_backend().printf_statement(fmt, args_list) + "\n")

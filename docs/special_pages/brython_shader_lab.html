@@ -93,6 +93,35 @@
       background: #3a3a6a;
     }
 
+    /* ── backend toggle ── */
+    .backend-toggle {
+      display: flex;
+      align-items: center;
+      background: #2a2a4a;
+      border-radius: 6px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .backend-toggle button {
+      padding: 6px 14px;
+      border-radius: 0;
+      background: transparent;
+      color: #7c8bbf;
+      font-size: 0.8rem;
+      font-weight: 600;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .backend-toggle button:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .backend-toggle button.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
     /* ── main split ── */
     .split {
       display: flex;
@@ -344,6 +373,10 @@
     <button class="icon-btn" id="help-btn" title="Help">?</button>
     <button class="icon-btn" id="opts-btn" title="Options">⚙</button>
     <button id="run-btn">▶ Run</button>
+    <div class="backend-toggle" id="backend-toggle">
+      <button class="active" data-backend="glsl">GLSL</button>
+      <button data-backend="cuda">CUDA</button>
+    </div>
     <h1>VkDispatch Shader Playground</h1>
     <button id="share-btn">🔗 Share</button>
   </div>
@@ -596,6 +629,37 @@ print(add_scalar)</textarea>
       }
     );
 
+    /* ── Track current backend ── */
+    window.currentBackend = "glsl";
+
+    /* ── Backend toggle buttons ── */
+    var toggleContainer = document.getElementById("backend-toggle");
+    var toggleButtons = toggleContainer.querySelectorAll("button");
+
+    toggleButtons.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var backend = btn.getAttribute("data-backend");
+        if (backend === window.currentBackend) return;
+
+        window.currentBackend = backend;
+
+        toggleButtons.forEach(function (b) {
+          b.classList.remove("active");
+        });
+        btn.classList.add("active");
+
+        /* Switch output highlighting mode */
+        if (backend === "cuda") {
+          window.cmOutput.setOption("mode", "text/x-csrc");
+        } else {
+          window.cmOutput.setOption("mode", "text/x-glsl");
+        }
+
+        /* Trigger a run via the run button click */
+        document.getElementById("run-btn").click();
+      });
+    });
+
     /* ── URL hash restore ── */
     var deviceFields = [
       { key: "ss",  id: "opt-subgroup-size" },
@@ -623,6 +687,21 @@ print(add_scalar)</textarea>
         window.cmCode.setValue(decoded);
       } catch (e) {
         console.error("Failed to decode code from URL:", e);
+      }
+    }
+
+    /* Restore backend from URL */
+    if (params.has("be")) {
+      var be = params.get("be").toLowerCase();
+      if (be === "cuda") {
+        window.currentBackend = "cuda";
+        toggleButtons.forEach(function (b) {
+          b.classList.remove("active");
+          if (b.getAttribute("data-backend") === "cuda") {
+            b.classList.add("active");
+          }
+        });
+        window.cmOutput.setOption("mode", "text/x-csrc");
       }
     }
 
@@ -667,6 +746,10 @@ print(add_scalar)</textarea>
         var encoded = btoa(unescape(encodeURIComponent(code)));
 
         var hashParts = ["code=" + encoded];
+
+        /* Include backend in share link */
+        hashParts.push("be=" + encodeURIComponent(window.currentBackend));
+
         deviceFields.forEach(function (f) {
           var val = document.getElementById(f.id).value.trim();
           if (val !== "") {
@@ -678,9 +761,9 @@ print(add_scalar)</textarea>
           }
         });
         toggleFields.forEach(function (f) {
-          var checked = document.getElementById(f.id).checked
-            ? "1"
-            : "0";
+          var el = document.getElementById(f.id);
+          if (!el) return;
+          var checked = el.checked ? "1" : "0";
           hashParts.push(
             encodeURIComponent(f.key) +
               "=" +
@@ -785,6 +868,7 @@ import vkdispatch_native
 import vkdispatch.base.context as vd_context
 import vkdispatch.base.init as vd_init
 import vkdispatch.execution_pipeline.command_graph as vd_command_graph
+import vkdispatch.fft.shader_factories as vd_fft_shader_factories
 import vkdispatch.codegen as vc
 
 
@@ -888,9 +972,12 @@ def run_code(event):
             max_compute_shared_memory_size=options["max_compute_shared_memory_size"],
         )
         _reset_vkdispatch_runtime()
-        #vc.set_shader_print_line_numbers(
-        #    bool(document["opt-shader-line-numbers"].checked)
-        #)
+
+        # Set codegen backend based on toggle state
+        backend = str(window.currentBackend)
+        vc.set_codegen_backend(backend)
+        vd_fft_shader_factories.cache_clear()
+
         exec(code, namespace)
     except Exception:
         traceback.print_exc()

@@ -10,6 +10,14 @@ def my_log2_int(x: int) -> int:
 
 from . import base_utils
 
+
+def _mark_arith_unary(var: BaseVariable, op: str) -> None:
+    base_utils.get_codegen_backend().mark_composite_unary_op(var.var_type, op)
+
+
+def _mark_arith_binary(lhs_type: dtypes.dtype, rhs_type: dtypes.dtype, op: str, *, inplace: bool = False) -> None:
+    base_utils.get_codegen_backend().mark_composite_binary_op(lhs_type, rhs_type, op, inplace=inplace)
+
 def arithmetic_op_common(var: BaseVariable,
                          other: Any,
                          reverse: bool = False,
@@ -46,6 +54,7 @@ def add(var: BaseVariable, other: Any, inplace: bool = False) -> BaseVariable:
     return_type = arithmetic_op_common(var, other, inplace=inplace)
 
     if base_utils.is_scalar_number(other):
+        _mark_arith_binary(var.var_type, base_utils.number_to_dtype(other), "+", inplace=inplace)
         if not inplace:
             return base_utils.new_scaled_var(
                 return_type,
@@ -57,6 +66,7 @@ def add(var: BaseVariable, other: Any, inplace: bool = False) -> BaseVariable:
         return var
 
     assert isinstance(other, BaseVariable)
+    _mark_arith_binary(var.var_type, other.var_type, "+", inplace=inplace)
 
     if not inplace:
         return base_utils.new_base_var(
@@ -71,6 +81,13 @@ def sub(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
     return_type = arithmetic_op_common(var, other, reverse=reverse, inplace=inplace)
 
     if base_utils.is_scalar_number(other):
+        scalar_type = base_utils.number_to_dtype(other)
+        if reverse and not inplace:
+            _mark_arith_unary(var, "-")
+            _mark_arith_binary(var.var_type, scalar_type, "+", inplace=False)
+        else:
+            # Non-reverse scalar subtraction is emitted as `+ (-scalar)` via scaled-var optimization.
+            _mark_arith_binary(var.var_type, scalar_type, "+" if not inplace else "-", inplace=inplace)
         if not inplace:
             return base_utils.new_scaled_var(
                 return_type,
@@ -82,6 +99,7 @@ def sub(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
         return var
 
     assert isinstance(other, BaseVariable)
+    _mark_arith_binary(var.var_type if not reverse else other.var_type, other.var_type if not reverse else var.var_type, "-", inplace=inplace)
 
     if not inplace:
         return base_utils.new_base_var(
@@ -106,14 +124,17 @@ def mul(var: BaseVariable, other: Any, inplace: bool = False) -> BaseVariable:
 
             if dtypes.is_integer_dtype(var.var_type) and base_utils.is_int_number(other) and base_utils.is_int_power_of_2(other):
                 power = my_log2_int(other)
+                _mark_arith_binary(var.var_type, base_utils.number_to_dtype(other), "<<", inplace=False)
                 return base_utils.new_base_var(var.var_type, f"{var.resolve()} << {power}", [var])
 
+            _mark_arith_binary(var.var_type, base_utils.number_to_dtype(other), "*", inplace=False)
             return base_utils.new_scaled_var(
                 return_type,
                 var.resolve(),
                 scale=other,
                 parents=[var])
 
+        _mark_arith_binary(var.var_type, base_utils.number_to_dtype(other), "*", inplace=True)
         base_utils.append_contents(f"{var.resolve()} *= {other};\n")
         return var
 
@@ -125,6 +146,7 @@ def mul(var: BaseVariable, other: Any, inplace: bool = False) -> BaseVariable:
     if dtypes.is_matrix(var.var_type) and dtypes.is_matrix(other.var_type):
         raise ValueError("Matrix multiplication is not supported via the `*` operator. Use `@` operator instead.")
 
+    _mark_arith_binary(var.var_type, other.var_type, "*", inplace=inplace)
     if not inplace:
         return base_utils.new_base_var(
             var.var_type,
@@ -142,6 +164,11 @@ def truediv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool 
     return_type = dtypes.make_floating_dtype(return_type)
 
     if base_utils.is_scalar_number(other):
+        scalar_f_type = dtypes.float32
+        if not reverse:
+            _mark_arith_binary(return_type, scalar_f_type, "/", inplace=inplace)
+        else:
+            _mark_arith_binary(scalar_f_type, return_type, "/", inplace=inplace)
         if not inplace:
             return base_utils.new_base_var(
                 return_type,
@@ -163,6 +190,9 @@ def truediv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool 
     if dtypes.is_matrix(var.var_type) and dtypes.is_matrix(other.var_type):
         raise ValueError("Matrix division is not supported.")
 
+    lhs_mark_type = return_type if not reverse else dtypes.make_floating_dtype(other.var_type)
+    rhs_mark_type = dtypes.make_floating_dtype(other.var_type) if not reverse else return_type
+    _mark_arith_binary(lhs_mark_type, rhs_mark_type, "/", inplace=inplace)
     if not inplace:
         return base_utils.new_base_var(
             return_type,
@@ -190,8 +220,11 @@ def floordiv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool
 
             if base_utils.is_int_power_of_2(other):
                 power = my_log2_int(other)
+                _mark_arith_binary(var.var_type, base_utils.number_to_dtype(other), ">>", inplace=False)
                 return base_utils.new_base_var(var.var_type, f"{var.resolve()} >> {power}", [var])
 
+            scalar_type = base_utils.number_to_dtype(other)
+            _mark_arith_binary(var.var_type if not reverse else scalar_type, scalar_type if not reverse else var.var_type, "/", inplace=False)
             return base_utils.new_base_var(
                 return_type,
                 (
@@ -201,10 +234,12 @@ def floordiv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool
                 ),
                 parents=[var])
 
+        _mark_arith_binary(var.var_type, base_utils.number_to_dtype(other), "/", inplace=True)
         base_utils.append_contents(f"{var.resolve()} /= {other};\n")
         return var
 
     assert isinstance(other, BaseVariable)
+    _mark_arith_binary(var.var_type if not reverse else other.var_type, other.var_type if not reverse else var.var_type, "/", inplace=inplace)
 
     if not inplace:
         return base_utils.new_base_var(
@@ -225,6 +260,8 @@ def mod(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
     assert dtypes.is_integer_dtype(return_type), "Modulus is only supported for integer types."
 
     if base_utils.is_scalar_number(other):
+        scalar_type = base_utils.number_to_dtype(other)
+        _mark_arith_binary(var.var_type if not reverse else scalar_type, scalar_type if not reverse else var.var_type, "%", inplace=inplace)
         if not inplace:
             return base_utils.new_base_var(
                 return_type,
@@ -239,6 +276,7 @@ def mod(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
         return var
 
     assert isinstance(other, BaseVariable)
+    _mark_arith_binary(var.var_type if not reverse else other.var_type, other.var_type if not reverse else var.var_type, "%", inplace=inplace)
 
     if not inplace:
         return base_utils.new_base_var(
@@ -286,6 +324,7 @@ def pow(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
     return var
 
 def neg(var: BaseVariable) -> BaseVariable:
+    _mark_arith_unary(var, "-")
     return base_utils.new_base_var(
         var.var_type,
         f"-{var.resolve()}",

@@ -6,8 +6,14 @@ from typing import Tuple, List, Optional
 import inspect
 
 from .errors import check_for_errors
-
-import vkdispatch_native
+from .backend import (
+    BACKEND_VULKAN,
+    clear_active_backend,
+    get_active_backend_name,
+    native,
+    normalize_backend_name,
+    set_active_backend,
+)
 
 # string representations of device types
 device_type_id_to_str_dict = {
@@ -337,6 +343,7 @@ class DeviceInfo:
 
 __initilized_instance: bool = False
 __device_infos: List[DeviceInfo] = None
+__backend_name: str = BACKEND_VULKAN
 
 def is_initialized() -> bool:
     """
@@ -389,7 +396,12 @@ def get_cuda_device_map():
 
     return uuid_map
 
-def initialize(debug_mode: bool = False, log_level: LogLevel = LogLevel.WARNING, loader_debug_logs: bool = False):
+def initialize(
+    debug_mode: bool = False,
+    log_level: LogLevel = LogLevel.WARNING,
+    loader_debug_logs: bool = False,
+    backend: Optional[str] = None,
+):
     """
     A function which initializes the Vulkan dispatch library.
 
@@ -401,64 +413,97 @@ def initialize(debug_mode: bool = False, log_level: LogLevel = LogLevel.WARNING,
             LogLevel.WARNING
             LogLevel.ERROR
         loader_debug_logs (bool): A flag to enable vulkan loader debug logs.
+        backend (`Optional[str]`): Runtime backend to use. Supported values are
+            "vulkan" and "pycuda". If omitted, the currently selected backend is
+            reused. If no backend was selected yet, `VKDISPATCH_BACKEND` is used
+            when set, otherwise "vulkan" is used.
     """
 
     global __initilized_instance
     global __device_infos
+    global __backend_name
+
+    backend_name = normalize_backend_name(
+        backend
+        if backend is not None
+        else get_active_backend_name(os.environ.get("VKDISPATCH_BACKEND"))
+    )
 
     if __initilized_instance:
+        if __backend_name != backend_name:
+            raise RuntimeError(
+                f"vkdispatch is already initialized with backend '{__backend_name}'. "
+                f"Cannot reinitialize with '{backend_name}' in the same process."
+            )
         return
-    
-    if loader_debug_logs:
-        os.environ["VK_LOADER_DEBUG"] = "all"
 
-    vkdispatch_native.init(debug_mode, log_level.value)
-    check_for_errors()
+    set_active_backend(backend_name)
 
-    devivces = [
-        DeviceInfo(ii, *dev_obj)
-        for ii, dev_obj in enumerate(vkdispatch_native.get_devices())
-    ]
+    try:
+        if loader_debug_logs and backend_name == BACKEND_VULKAN:
+            os.environ["VK_LOADER_DEBUG"] = "all"
 
-    is_cuda = any(dev.is_nvidia() for dev in devivces)
+        native.init(debug_mode, log_level.value)
+        check_for_errors()
 
-    cuda_uuids = get_cuda_device_map() if is_cuda else None
+        devivces = [
+            DeviceInfo(ii, *dev_obj)
+            for ii, dev_obj in enumerate(native.get_devices())
+        ]
 
-    if cuda_uuids is None:
+        if backend_name != BACKEND_VULKAN:
+            __initilized_instance = True
+            __backend_name = backend_name
+            __device_infos = devivces
+            for ii, dev in enumerate(__device_infos):
+                dev.sorted_index = ii
+            return
+
+        is_cuda = any(dev.is_nvidia() for dev in devivces)
+
+        cuda_uuids = get_cuda_device_map() if is_cuda else None
+
+        if cuda_uuids is None:
+            __initilized_instance = True
+            __backend_name = backend_name
+            __device_infos = devivces
+            for ii, dev in enumerate(__device_infos):
+                dev.sorted_index = ii
+            return
+        
+        # try to match CUDA devices to Vulkan devices by UUID
+        cuda_uuid_to_index = {
+            uuid_bytes: cuda_index
+            for cuda_index, uuid_bytes in cuda_uuids.items()
+        }
+        matched_devices: List[Tuple[int, DeviceInfo, int]]= []
+        unmatched_devices: List[DeviceInfo] = []
+        for dev in devivces:
+            if dev.uuid is not None and dev.uuid in cuda_uuid_to_index:
+                #print(f"Matched Vulkan device {ii} ({dev.device_name}) to CUDA device {cuda_uuid_to_index[dev.uuid]} with UUID {dev.uuid.hex()}")
+                matched_devices.append( (cuda_uuid_to_index[dev.uuid], dev) )
+            else:
+                #print(f"Could not match Vulkan device {ii} ({dev.device_name}) with UUID {dev.uuid.hex()} to any CUDA device")
+                unmatched_devices.append(dev)
+
+        # sort matched devices by CUDA index
+        matched_devices.sort(key=lambda x: x[0])
+
+        # return matched devices first (by CUDA index), then unmatched devices (by Vulkan order)
+        result = [dev for _, dev in matched_devices] + unmatched_devices
+        #result_ids = [ii for _, _, ii in matched_devices] + unmatched_device_ids
+
+        for dev_id, dev in enumerate(result):
+            #print(f"Final device order index {dev.sorted_index} -> Vulkan device {dev_id} ({dev.device_name})")
+            dev.sorted_index = dev_id
+        
         __initilized_instance = True
-        __device_infos = devivces
-        for ii, dev in enumerate(__device_infos):
-            dev.sorted_index = ii
-        return
-    
-    # try to match CUDA devices to Vulkan devices by UUID
-    cuda_uuid_to_index = {
-        uuid_bytes: cuda_index
-        for cuda_index, uuid_bytes in cuda_uuids.items()
-    }
-    matched_devices: List[Tuple[int, DeviceInfo, int]]= []
-    unmatched_devices: List[DeviceInfo] = []
-    for dev in devivces:
-        if dev.uuid is not None and dev.uuid in cuda_uuid_to_index:
-            #print(f"Matched Vulkan device {ii} ({dev.device_name}) to CUDA device {cuda_uuid_to_index[dev.uuid]} with UUID {dev.uuid.hex()}")
-            matched_devices.append( (cuda_uuid_to_index[dev.uuid], dev) )
-        else:
-            #print(f"Could not match Vulkan device {ii} ({dev.device_name}) with UUID {dev.uuid.hex()} to any CUDA device")
-            unmatched_devices.append(dev)
-
-    # sort matched devices by CUDA index
-    matched_devices.sort(key=lambda x: x[0])
-
-    # return matched devices first (by CUDA index), then unmatched devices (by Vulkan order)
-    result = [dev for _, dev in matched_devices] + unmatched_devices
-    #result_ids = [ii for _, _, ii in matched_devices] + unmatched_device_ids
-
-    for dev_id, dev in enumerate(result):
-        #print(f"Final device order index {dev.sorted_index} -> Vulkan device {dev_id} ({dev.device_name})")
-        dev.sorted_index = dev_id
-    
-    __initilized_instance = True
-    __device_infos = result
+        __backend_name = backend_name
+        __device_infos = result
+    except Exception:
+        if not __initilized_instance:
+            clear_active_backend()
+        raise
 
 
 def get_devices() -> List[DeviceInfo]:
@@ -471,9 +516,16 @@ def get_devices() -> List[DeviceInfo]:
 
     global __device_infos
 
-    initialize()    
+    initialize(backend=get_active_backend_name())
     
     return __device_infos
+
+
+def get_backend() -> str:
+    if __initilized_instance:
+        return __backend_name
+
+    return get_active_backend_name()
 
 def __log_noinit(text: str, end: str = '\n', level: LogLevel = LogLevel.ERROR, stack_offset: int = 1):
     """
@@ -485,7 +537,7 @@ def __log_noinit(text: str, end: str = '\n', level: LogLevel = LogLevel.ERROR, s
     """
 
     frame = inspect.stack()[stack_offset]
-    vkdispatch_native.log(
+    native.log(
         level.value, 
         (text + end).encode(), 
         os.path.relpath(frame.filename, os.getcwd()).encode(), 
@@ -501,7 +553,7 @@ def log(text: str, end: str = '\n', level: LogLevel = LogLevel.ERROR, stack_offs
         message (`str`): The message to log.
     """
 
-    initialize()
+    initialize(backend=get_active_backend_name())
 
     __log_noinit(text, end, level, stack_offset + 1)
 
@@ -553,6 +605,6 @@ def set_log_level(level: LogLevel):
         level (`LogLevel`): The log level.
     """
 
-    initialize()
+    initialize(backend=get_active_backend_name())
 
-    vkdispatch_native.set_log_level(level.value)
+    native.set_log_level(level.value)

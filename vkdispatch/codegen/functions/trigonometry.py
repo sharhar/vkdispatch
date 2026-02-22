@@ -25,6 +25,7 @@ def radians(var: Any) -> Union[ShaderVariable, float]:
         return var * (3.141592653589793 / 180.0)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    utils.mark_backend_feature("radians")
 
     return utils.new_var(
         dtype_to_floating(var.var_type),
@@ -38,6 +39,7 @@ def degrees(var: Any) -> Union[ShaderVariable, float]:
         return var * (180.0 / 3.141592653589793)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    utils.mark_backend_feature("degrees")
 
     return utils.new_var(
         dtype_to_floating(var.var_type),

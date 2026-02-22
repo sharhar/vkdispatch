@@ -1,7 +1,7 @@
 import typing
 from enum import Enum
 
-import vkdispatch_native
+from .backend import native
 
 from .._compat import numpy_compat as npc
 from . import dtype as vdt
@@ -218,7 +218,7 @@ class Sampler(Handle):
 
         self.image = image
         
-        handle = vkdispatch_native.image_create_sampler(
+        handle = native.image_create_sampler(
             self.context._handle,
             mag_filter.value,
             min_filter.value,
@@ -234,7 +234,7 @@ class Sampler(Handle):
         self.register_parent(image)
 
     def _destroy(self):
-        vkdispatch_native.image_destroy_sampler(self._handle)
+        native.image_destroy_sampler(self._handle)
     
     def __del__(self) -> None:
         self.destroy()
@@ -296,13 +296,13 @@ class Image(Handle):
         if channels == 1:
             self.array_shape = self.array_shape[:-1]
 
-        self.block_size: int = vkdispatch_native.image_format_block_size(
+        self.block_size: int = native.image_format_block_size(
             self.format.value
         )
 
         self.mem_size: int = npc.prod(self.shape) * self.block_size
 
-        handle: int = vkdispatch_native.image_create(
+        handle: int = native.image_create(
             self.context._handle,
             self.extent,
             self.layers,
@@ -315,7 +315,7 @@ class Image(Handle):
         self.register_handle(handle)
 
     def _destroy(self) -> None:
-        vkdispatch_native.image_destroy(self._handle)
+        native.image_destroy(self._handle)
 
     def __del__(self) -> None:
         self.destroy()
@@ -333,7 +333,7 @@ class Image(Handle):
         if data_size != self.mem_size:
             raise ValueError(f"Image buffer sizes must match! {data_size} != {self.mem_size}")
 
-        vkdispatch_native.image_write(
+        native.image_write(
             self._handle,
             true_data,
             [0, 0, 0],
@@ -350,7 +350,7 @@ class Image(Handle):
             true_scalar = self.dtype
 
         out_size = npc.prod(self.array_shape) * true_scalar.item_size
-        out_bytes = vkdispatch_native.image_read(
+        out_bytes = native.image_read(
             self._handle, out_size, [0, 0, 0], self.extent, 0, self.layers, device_index
         )
         return npc.from_buffer(out_bytes, dtype=vdt.to_numpy_dtype(true_scalar), shape=self.array_shape)

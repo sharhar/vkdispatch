@@ -9,8 +9,6 @@ from . import utils
 
 from .trigonometry import cos, sin
 
-from ..shader_writer import scope_indentation
-
 def complex_from_euler_angle(angle: ShaderVariable):
     return to_complex(cos(angle), sin(angle))
 
@@ -24,9 +22,7 @@ def validate_complex_number(arg1: Any) -> Union[ShaderVariable, complex]:
     return complex(arg1)
     
 def _new_big_complex(arg1: Any, arg2: Any):
-    var_str = f"""{dtypes.complex64.glsl_type}(
-{scope_indentation()}    {utils.resolve_input(arg1)},
-{scope_indentation()}    {utils.resolve_input(arg2)})"""
+    var_str = utils.backend_constructor(dtypes.complex64, arg1, arg2)
 
     return utils.new_var(
         dtypes.complex64,

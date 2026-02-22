@@ -10,9 +10,9 @@ import weakref
 import os, signal
 
 from .errors import check_for_errors, set_running
-from .init import DeviceInfo, get_devices, initialize, set_log_level, LogLevel, log_info
+from .init import DeviceInfo, get_backend, get_devices, initialize, set_log_level, LogLevel, log_info
+from .backend import BACKEND_PYCUDA, native
 
-import vkdispatch_native
 
 class Handle:
     context: "Context"
@@ -96,9 +96,11 @@ class Handle:
         assert len(self.children_dict) == 0, "Not all children were destroyed!"
         
         assert not self.canary, "Handle was already destroyed!"
-        self._destroy()
+        if self._handle is not None:
+            self._destroy()
+            check_for_errors()
+
         self.canary = True
-        check_for_errors()
                 
         self.clear_parents()
 
@@ -116,13 +118,13 @@ class Signal:
     def wait(self, wait_for_timestamp: bool, queue_index: int):
         done = False
         while not done:
-            done = vkdispatch_native.signal_wait(
+            done = native.signal_wait(
                 self.ptr_addr, wait_for_timestamp, queue_index
             )
             check_for_errors()
 
     def try_wait(self, wait_for_timestamp: bool, queue_index: int):
-        done = vkdispatch_native.signal_wait(
+        done = native.signal_wait(
             self.ptr_addr, wait_for_timestamp, queue_index
         )
         check_for_errors()
@@ -130,7 +132,7 @@ class Signal:
         return done
 
     def free(self):
-        vkdispatch_native.signal_destroy(self.ptr_addr)
+        native.signal_destroy(self.ptr_addr)
 
 class Context:
     """
@@ -175,7 +177,7 @@ class Context:
         self.queue_count = sum([len(i) for i in queue_families])
         self.handles_dict = weakref.WeakValueDictionary()
         self.mapped_device_ids = [dev.dev_index for dev in self.device_infos]
-        self._handle = vkdispatch_native.context_create(self.mapped_device_ids, queue_families)
+        self._handle = native.context_create(self.mapped_device_ids, queue_families)
         check_for_errors()
         
         subgroup_sizes = []
@@ -369,6 +371,17 @@ def make_context(
                     select_queue_families(dev_index, queue_family_count)
                 )
 
+        if get_backend() == BACKEND_PYCUDA:
+            if len(device_ids) != 1:
+                raise NotImplementedError(
+                    "The PyCUDA backend currently supports exactly one device."
+                )
+
+            if len(queue_families) != 1 or len(queue_families[0]) != 1:
+                raise NotImplementedError(
+                    "The PyCUDA backend currently supports exactly one queue."
+                )
+
         total_devices = len(get_devices())
 
         # Do type checking before passing to native code
@@ -420,7 +433,7 @@ def queue_wait_idle(queue_index: int = None, context: Context = None) -> None:
             queue_wait_idle(i, context)
         return
 
-    signal_ptr = vkdispatch_native.signal_insert(context._handle, queue_index)
+    signal_ptr = native.signal_insert(context._handle, queue_index)
     check_for_errors()
     
     signal = Signal(signal_ptr)
@@ -433,23 +446,25 @@ def destroy_context() -> None:
     """
     Destroys the current context and cleans up resources.
     """
-    log_info("Destroying context...")
-
     global __context
     set_running(False)
 
-    if __context is not None:
-        handles_list = list(__context.handles_dict.values())
+    if __context is None:
+        return
 
-        for handle in handles_list:
-            log_info(f"Destroying handle {handle._handle}...")
-            handle.destroy()
+    log_info("Destroying context...")
 
-        assert len(__context.handles_dict) == 0, "Not all handles were destroyed!"
+    handles_list = list(__context.handles_dict.values())
 
-        log_info("Calling native context destroy...")
-        vkdispatch_native.context_destroy(__context._handle)
-        __context = None
+    for handle in handles_list:
+        log_info(f"Destroying handle {handle._handle}...")
+        handle.destroy()
+
+    assert len(__context.handles_dict) == 0, "Not all handles were destroyed!"
+
+    log_info("Calling native context destroy...")
+    native.context_destroy(__context._handle)
+    __context = None
 
 atexit.register(destroy_context)
 
@@ -457,7 +472,7 @@ def stop_threads() -> None:
     """
     Stops all threads in the context.
     """
-    vkdispatch_native.context_stop_threads(get_context_handle())
+    native.context_stop_threads(get_context_handle())
 
 _shutdown_once = False
 

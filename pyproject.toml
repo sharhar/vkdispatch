@@ -33,4 +33,5 @@ Issues = "https://github.com/sharhar/vkdispatch/issues"
 [project.optional-dependencies]
 cli = ["Click"]
 cuda = ["cuda-python"]
+pycuda = ["pycuda"]
 numpy = ["numpy"]

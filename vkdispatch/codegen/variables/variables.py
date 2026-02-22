@@ -6,6 +6,7 @@ from ..functions.base_functions import arithmetic
 from ..functions.base_functions import bitwise
 from ..functions.base_functions import arithmetic_comparisons
 from ..functions.base_functions import base_utils
+from ..global_builder import get_codegen_backend
 
 from typing import List, Union, Optional
 
@@ -112,9 +113,16 @@ class ShaderVariable(BaseVariable):
         if dtypes.is_scalar(self.var_type):
             assert all(c == 'x' for c in components), f"Cannot swizzle scalar variable '{self.resolve()}' with components other than 'x'!"
 
+            swizzle_expr = f"{self.resolve()}.x"
+            if len(components) > 1:
+                swizzle_expr = get_codegen_backend().constructor(
+                    return_type,
+                    [f"{self.resolve()}.x" for _ in components]
+                )
+
             return ShaderVariable(
                 var_type=return_type,
-                name=f"{self.resolve()}.{components}",
+                name=swizzle_expr,
                 parents=[self],
                 lexical_unit=True,
                 settable=self.settable,
@@ -130,9 +138,16 @@ class ShaderVariable(BaseVariable):
         if self.var_type.shape[0] < 2:
             assert 'y' not in components, f"Cannot swizzle variable '{self.resolve()}' of type '{self.var_type.name}' with component 'y'!"
 
+        swizzle_expr = f"{self.resolve()}.{components}"
+        if len(components) > 1:
+            swizzle_expr = get_codegen_backend().constructor(
+                return_type,
+                [f"{self.resolve()}.{elem}" for elem in components]
+            )
+
         return ShaderVariable(
             var_type=return_type,
-            name=f"{self.resolve()}.{components}",
+            name=swizzle_expr,
             parents=[self],
             lexical_unit=True,
             settable=self.settable,
@@ -162,7 +177,11 @@ class ShaderVariable(BaseVariable):
         if base_utils.is_number(value):
             if self.var_type == dtypes.complex64:
                 complex_value = complex(value)
-                base_utils.append_contents(f"{self.resolve()} = vec2({complex_value.real}, {complex_value.imag});\n")
+                complex_constructor = get_codegen_backend().constructor(
+                    dtypes.complex64,
+                    [str(complex_value.real), str(complex_value.imag)]
+                )
+                base_utils.append_contents(f"{self.resolve()} = {complex_constructor};\n")
                 return
 
             base_utils.append_contents(f"{self.resolve()} = {value};\n")
@@ -229,13 +248,13 @@ class ShaderVariable(BaseVariable):
         )
 
         self.read_callback()
-        base_utils.append_contents(f"{new_var.var_type.glsl_type} {new_var.name} = {self.resolve()};\n")
+        base_utils.append_contents(f"{get_codegen_backend().type_name(new_var.var_type)} {new_var.name} = {self.resolve()};\n")
         return new_var
 
     def to_dtype(self, var_type: dtypes.dtype) -> "ShaderVariable":
         return base_utils.new_base_var(
             var_type,
-            f"{var_type.glsl_type}({self.resolve()})", 
+            get_codegen_backend().constructor(var_type, [self.resolve()]),
             [self],
             lexical_unit=True
         )

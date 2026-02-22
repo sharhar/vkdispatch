@@ -25,7 +25,7 @@ def new_register(var_type: dtypes.dtype, *args, var_name: Optional[str] = None):
 
     decleration = to_dtype(var_type, *args).resolve()
 
-    utils.append_contents(f"{new_var.var_type.glsl_type} {new_var.name} = {decleration};\n")
+    utils.append_contents(f"{utils.backend_type_name(new_var.var_type)} {new_var.name} = {decleration};\n")
 
     return new_var
 

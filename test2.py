@@ -1,7 +1,9 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
-vd.initialize(debug_mode=True) #, log_level=vd.LogLevel.INFO)
+vd.initialize(debug_mode=True, backend="pycuda") #, log_level=vd.LogLevel.INFO)
+
+vc.set_codegen_backend("cuda")
 
 import dataclasses
 import enum
@@ -130,30 +132,7 @@ def get_array(index: int, config: RunConfig) -> np.ndarray:
 def make_source(commands: List[ProgramCommand]):
     local_size_x = vd.get_context().max_workgroup_size[0]
 
-    if vd.get_backend() == "pycuda":
-        header = (
-            f"#define VKDISPATCH_EXPECTED_LOCAL_SIZE_X {local_size_x}\n"
-            "#define VKDISPATCH_EXPECTED_LOCAL_SIZE_Y 1\n"
-            "#define VKDISPATCH_EXPECTED_LOCAL_SIZE_Z 1\n\n"
-            "struct PushConstant {\n"
-            "    unsigned int exec_count;\n"
-            "};\n\n"
-            "extern \"C\" __global__ void vkdispatch_main(\n"
-            "    float* vkdispatch_binding_0_ptr,\n"
-            "    float* vkdispatch_binding_1_ptr,\n"
-            "    const PushConstant* vkdispatch_pc_ptr\n"
-            ") {\n"
-            "        const PushConstant& PC = *vkdispatch_pc_ptr;\n"
-            "        unsigned int tid = (unsigned int)(blockIdx.x * blockDim.x + threadIdx.x);\n"
-            "\n"
-            "        if (PC.exec_count <= tid) {\n"
-            "            return;\n"
-            "        }\n"
-            "\n"
-            "        float value = vkdispatch_binding_1_ptr[tid];\n"
-        )
-    else:
-        header = """
+    header = """
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 //#extension GL_EXT_debug_printf : enable
@@ -193,13 +172,7 @@ void main() {
         elif command.command_type == CommandType.COS_VALUE:
             body += f"        value = cos(value);\n"
 
-    if vd.get_backend() == "pycuda":
-        ending = """
-        vkdispatch_binding_0_ptr[tid] = value;
-}
-"""
-    else:
-        ending = """
+    ending = """
         bufOut.data[tid] = value;
 }
 """
@@ -327,3 +300,5 @@ def test_async_commands():
             assert np.allclose(vkbuffer, numpy_buffer, atol=1e-3)
     
     clear_caches()
+
+test_async_commands()

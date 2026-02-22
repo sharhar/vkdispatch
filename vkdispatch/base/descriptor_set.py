@@ -1,4 +1,4 @@
-import vkdispatch_native
+from .backend import native
 
 from .errors import check_for_errors
 
@@ -15,13 +15,13 @@ class DescriptorSet(Handle):
         super().__init__()
 
         self._bound_resources = []
-        handle = vkdispatch_native.descriptor_set_create(compute_plan._handle)
+        handle = native.descriptor_set_create(compute_plan._handle)
         check_for_errors()
         self.register_handle(handle)
         self.register_parent(compute_plan)
     
     def _destroy(self) -> None:
-        vkdispatch_native.descriptor_set_destroy(self._handle)
+        native.descriptor_set_destroy(self._handle)
         check_for_errors()
 
     def __del__(self) -> None:
@@ -30,7 +30,7 @@ class DescriptorSet(Handle):
     def bind_buffer(self, buffer: Buffer, binding: int, offset: int = 0, range: int = 0, uniform: bool = False, read_access: bool = True, write_access: bool = True) -> None:
         self.register_parent(buffer)
 
-        vkdispatch_native.descriptor_set_write_buffer(
+        native.descriptor_set_write_buffer(
             self._handle,
             binding,
             buffer._handle,
@@ -45,7 +45,7 @@ class DescriptorSet(Handle):
     def bind_sampler(self, sampler: Sampler, binding: int, read_access: bool = True, write_access: bool = True) -> None:
         self.register_parent(sampler)
 
-        vkdispatch_native.descriptor_set_write_image(
+        native.descriptor_set_write_image(
             self._handle,
             binding,
             sampler.image._handle,
