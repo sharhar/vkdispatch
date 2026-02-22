@@ -96,9 +96,11 @@ class Handle:
         assert len(self.children_dict) == 0, "Not all children were destroyed!"
         
         assert not self.canary, "Handle was already destroyed!"
-        self._destroy()
+        if self._handle is not None:
+            self._destroy()
+            check_for_errors()
+
         self.canary = True
-        check_for_errors()
                 
         self.clear_parents()
 
