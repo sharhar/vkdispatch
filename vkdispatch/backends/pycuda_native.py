@@ -518,20 +518,20 @@ def get_devices():
         total_memory = int(dev.total_memory())
 
         max_workgroup_size = (
-            int(attrs.get(cuda.device_attribute.MAX_BLOCK_DIM_X, 1024)),
-            int(attrs.get(cuda.device_attribute.MAX_BLOCK_DIM_Y, 1024)),
-            int(attrs.get(cuda.device_attribute.MAX_BLOCK_DIM_Z, 64)),
+            int(attrs.get(cuda.device_attribute.MAX_BLOCK_DIM_X, 0)),
+            int(attrs.get(cuda.device_attribute.MAX_BLOCK_DIM_Y, 0)),
+            int(attrs.get(cuda.device_attribute.MAX_BLOCK_DIM_Z, 0)),
         )
 
         max_workgroup_count = (
-            int(attrs.get(cuda.device_attribute.MAX_GRID_DIM_X, 65535)),
-            int(attrs.get(cuda.device_attribute.MAX_GRID_DIM_Y, 65535)),
-            int(attrs.get(cuda.device_attribute.MAX_GRID_DIM_Z, 65535)),
+            int(attrs.get(cuda.device_attribute.MAX_GRID_DIM_X, 0)),
+            int(attrs.get(cuda.device_attribute.MAX_GRID_DIM_Y, 0)),
+            int(attrs.get(cuda.device_attribute.MAX_GRID_DIM_Z, 0)),
         )
 
-        subgroup_size = int(attrs.get(cuda.device_attribute.WARP_SIZE, 32))
+        subgroup_size = int(attrs.get(cuda.device_attribute.WARP_SIZE, 0))
         max_shared_memory = int(
-            attrs.get(cuda.device_attribute.MAX_SHARED_MEMORY_PER_BLOCK, 48 * 1024)
+            attrs.get(cuda.device_attribute.MAX_SHARED_MEMORY_PER_BLOCK, 0)
         )
 
         try:
@@ -563,7 +563,7 @@ def get_devices():
                 1,  # storage_push_constant_16
                 1,  # storage_input_output_16
                 max_workgroup_size,
-                int(attrs.get(cuda.device_attribute.MAX_THREADS_PER_BLOCK, 1024)),
+                int(attrs.get(cuda.device_attribute.MAX_THREADS_PER_BLOCK, 0)),
                 max_workgroup_count,
                 8,  # max descriptor sets (virtualized for parity)
                 4096,  # max push constant size

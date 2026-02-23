@@ -917,13 +917,14 @@ from browser import document, window
 import sys
 import traceback
 
-import vkdispatch_native
+import vkdispatch as vd
 import vkdispatch.base.context as vd_context
 import vkdispatch.base.init as vd_init
 import vkdispatch.execution_pipeline.command_graph as vd_command_graph
 import vkdispatch.fft.shader_factories as vd_fft_shader_factories
 import vkdispatch.codegen as vc
 
+vd.initialize(backend="dummy")
 
 class OutputBuffer:
     def __init__(self):
@@ -984,16 +985,8 @@ def _read_device_options():
 
 def _reset_vkdispatch_runtime():
     context = getattr(vd_context, "__context", None)
-    if context is not None:
-        if hasattr(vd_context, "set_running"):
-            vd_context.set_running(False)
-
-        handles_list = list(context.handles_dict.values())
-        for handle in handles_list:
-            handle.destroy()
-
-        vkdispatch_native.context_destroy(context._handle)
-        vd_context.__context = None
+    #if context is not None:
+    #    vd_context.destroy_context()
 
     vd_init.__initilized_instance = False
     vd_init.__device_infos = None
@@ -1017,14 +1010,17 @@ def run_code(event):
 
     try:
         options = _read_device_options()
-        vkdispatch_native.set_device_options(
+        _reset_vkdispatch_runtime()
+
+        vd.initialize(backend="dummy")
+        vd.get_context()
+        vd.set_dummy_context_params(
             subgroup_size=options["subgroup_size"],
             max_workgroup_size=options["max_workgroup_size"],
             max_workgroup_invocations=options["max_workgroup_invocations"],
             max_workgroup_count=options["max_workgroup_count"],
-            max_compute_shared_memory_size=options["max_compute_shared_memory_size"],
+            max_shared_memory=options["max_compute_shared_memory_size"],
         )
-        _reset_vkdispatch_runtime()
 
         # Set codegen backend based on toggle state
         backend = str(window.currentBackend)
