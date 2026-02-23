@@ -11,7 +11,7 @@ import os, signal
 
 from .errors import check_for_errors, set_running
 from .init import DeviceInfo, get_backend, get_devices, initialize, set_log_level, LogLevel, log_info
-from .backend import BACKEND_PYCUDA, native
+from .backend import BACKEND_DUMMY, BACKEND_PYCUDA, native
 
 
 class Handle:
@@ -179,7 +179,10 @@ class Context:
         self.mapped_device_ids = [dev.dev_index for dev in self.device_infos]
         self._handle = native.context_create(self.mapped_device_ids, queue_families)
         check_for_errors()
-        
+
+        self._refresh_limits_from_device_infos()
+
+    def _refresh_limits_from_device_infos(self) -> None:
         subgroup_sizes = []
         max_workgroup_sizes_x = []
         max_workgroup_sizes_y = []
@@ -412,6 +415,109 @@ def get_context() -> Context:
 
 def get_context_handle() -> int:
     return get_context()._handle
+
+def _as_positive_int(name: str, value) -> int:
+    try:
+        result = int(value)
+    except Exception as exc:
+        raise ValueError(f"{name} must be a positive integer") from exc
+
+    if result <= 0:
+        raise ValueError(f"{name} must be a positive integer")
+
+    return result
+
+def _as_positive_triplet(name: str, value) -> Tuple[int, int, int]:
+    try:
+        parts = list(value)
+    except Exception as exc:
+        raise ValueError(f"{name} must contain exactly 3 positive integers") from exc
+
+    if len(parts) != 3:
+        raise ValueError(f"{name} must contain exactly 3 positive integers")
+
+    return (
+        _as_positive_int(f"{name}[0]", parts[0]),
+        _as_positive_int(f"{name}[1]", parts[1]),
+        _as_positive_int(f"{name}[2]", parts[2]),
+    )
+
+def set_dummy_context_params(
+    subgroup_size: int = None,
+    max_workgroup_size: Tuple[int, int, int] = None,
+    max_workgroup_invocations: int = None,
+    max_workgroup_count: Tuple[int, int, int] = None,
+    max_shared_memory: int = None,
+) -> None:
+    """
+    Update cached context/device limit values for the active dummy backend context.
+
+    This only works when a dummy context already exists.
+    """
+    global __context
+
+    if get_backend() != BACKEND_DUMMY:
+        raise RuntimeError(
+            "set_dummy_context_params() is only supported when running with backend='dummy'."
+        )
+
+    if __context is None:
+        __context = get_context()
+
+    validated_subgroup_size = None
+    validated_max_workgroup_size = None
+    validated_max_workgroup_invocations = None
+    validated_max_workgroup_count = None
+    validated_max_shared_memory = None
+
+    backend_kwargs = {}
+
+    if subgroup_size is not None:
+        validated_subgroup_size = _as_positive_int("subgroup_size", subgroup_size)
+        backend_kwargs["subgroup_size"] = validated_subgroup_size
+
+    if max_workgroup_size is not None:
+        validated_max_workgroup_size = _as_positive_triplet("max_workgroup_size", max_workgroup_size)
+        backend_kwargs["max_workgroup_size"] = validated_max_workgroup_size
+
+    if max_workgroup_invocations is not None:
+        validated_max_workgroup_invocations = _as_positive_int(
+            "max_workgroup_invocations",
+            max_workgroup_invocations,
+        )
+        backend_kwargs["max_workgroup_invocations"] = validated_max_workgroup_invocations
+
+    if max_workgroup_count is not None:
+        validated_max_workgroup_count = _as_positive_triplet("max_workgroup_count", max_workgroup_count)
+        backend_kwargs["max_workgroup_count"] = validated_max_workgroup_count
+
+    if max_shared_memory is not None:
+        validated_max_shared_memory = _as_positive_int("max_shared_memory", max_shared_memory)
+        backend_kwargs["max_compute_shared_memory_size"] = validated_max_shared_memory
+
+    if backend_kwargs:
+        native.set_device_options(**backend_kwargs)
+        check_for_errors()
+
+    for device in __context.device_infos:
+        if validated_subgroup_size is not None:
+            device.sub_group_size = validated_subgroup_size
+
+        if validated_max_workgroup_size is not None:
+            device.max_workgroup_size = validated_max_workgroup_size
+
+        if validated_max_workgroup_invocations is not None:
+            device.max_workgroup_invocations = validated_max_workgroup_invocations
+
+        if validated_max_workgroup_count is not None:
+            device.max_workgroup_count = validated_max_workgroup_count
+
+        if validated_max_shared_memory is not None:
+            device.max_compute_shared_memory_size = validated_max_shared_memory
+
+        device.uniform_buffer_alignment = 0
+
+    __context._refresh_limits_from_device_infos()
 
 def queue_wait_idle(queue_index: int = None, context: Context = None) -> None:
     """

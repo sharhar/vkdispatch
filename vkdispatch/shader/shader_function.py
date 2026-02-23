@@ -17,7 +17,7 @@ import sys
 import dataclasses
 
 from .._compat import numpy_compat as npc
-from ..base.backend import BACKEND_PYCUDA, BACKEND_VULKAN
+from ..base.backend import BACKEND_DUMMY, BACKEND_PYCUDA, BACKEND_VULKAN
 
 class LaunchParametersHolder:
     def __init__(self, names_and_defaults, args, kwargs) -> None:
@@ -227,13 +227,14 @@ class ShaderFunction:
                 else "glsl"
             )
 
-            if runtime_backend == BACKEND_PYCUDA and shader_backend_name != "cuda":
+            if runtime_backend == BACKEND_DUMMY:
+                pass
+            elif runtime_backend == BACKEND_PYCUDA and shader_backend_name != "cuda":
                 raise RuntimeError(
                     "PyCUDA runtime backend requires CUDA codegen output. "
                     "Call vd.initialize(backend='pycuda') before building shaders."
                 )
-
-            if runtime_backend == BACKEND_VULKAN and shader_backend_name == "cuda":
+            elif runtime_backend == BACKEND_VULKAN and shader_backend_name == "cuda":
                 raise RuntimeError(
                     "Vulkan runtime backend cannot execute CUDA codegen output. "
                     "Use GLSL codegen or initialize with backend='pycuda'."

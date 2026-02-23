@@ -1,14 +1,20 @@
-import pycuda.autoprimaryctx
-import pycuda.gpuarray as cua
-from pyvkfft.fft import fftn
-import numpy as np
+import vkdispatch as vd
+import vkdispatch.codegen as vc
+from vkdispatch.codegen.abreviations import *
 
-d0 = cua.to_gpu(np.random.uniform(0,1,(200,200)).astype(np.complex64))
-# This will compute the fft to a new GPU array
-d1 = fftn(d0)
+vd.initialize(backend="dummy")
 
-# An in-place transform can also be done by specifying the destination
-d0 = fftn(d0, d0)
+vd.set_dummy_context_params(max_workgroup_size=(64, 1, 1))
 
-# Or an out-of-place transform to an existing array (the destination array is always returned)
-d1 = fftn(d0, d1)
+@vd.shader("buff.size")
+def add_scalar(buff: Buff[f32], bias: Const[f32]):
+    tid = vc.global_invocation_id().x
+    buff[tid] = buff[tid] + bias
+
+buff = vd.buffer_f32(10)
+
+add_scalar(buff, 1.0)
+
+print(buff.read(0))
+
+print(add_scalar)

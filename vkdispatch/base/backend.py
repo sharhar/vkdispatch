@@ -6,8 +6,9 @@ from typing import Dict, Optional
 
 BACKEND_VULKAN = "vulkan"
 BACKEND_PYCUDA = "pycuda"
+BACKEND_DUMMY = "dummy"
 
-_VALID_BACKENDS = {BACKEND_VULKAN, BACKEND_PYCUDA}
+_VALID_BACKENDS = {BACKEND_VULKAN, BACKEND_PYCUDA, BACKEND_DUMMY}
 _active_backend_name: Optional[str] = None
 _backend_modules: Dict[str, ModuleType] = {}
 
@@ -58,6 +59,8 @@ def _load_backend_module(backend_name: str) -> ModuleType:
         module = importlib.import_module("vkdispatch_native")
     elif backend_name == BACKEND_PYCUDA:
         module = importlib.import_module("vkdispatch.backends.pycuda_native")
+    elif backend_name == BACKEND_DUMMY:
+        module = importlib.import_module("vkdispatch.backends.dummy_native")
     else:
         # Defensive guard for future refactors.
         raise ValueError(f"Unsupported backend '{backend_name}'")

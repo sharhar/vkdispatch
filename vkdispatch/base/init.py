@@ -414,7 +414,7 @@ def initialize(
             LogLevel.ERROR
         loader_debug_logs (bool): A flag to enable vulkan loader debug logs.
         backend (`Optional[str]`): Runtime backend to use. Supported values are
-            "vulkan" and "pycuda". If omitted, the currently selected backend is
+            "vulkan", "pycuda", and "dummy". If omitted, the currently selected backend is
             reused. If no backend was selected yet, `VKDISPATCH_BACKEND` is used
             when set, otherwise "vulkan" is used.
     """
