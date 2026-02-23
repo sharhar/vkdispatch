@@ -182,12 +182,15 @@ class ShaderVariable(BaseVariable):
                 complex_value = complex(value)
                 complex_constructor = get_codegen_backend().constructor(
                     dtypes.complex64,
-                    [str(complex_value.real), str(complex_value.imag)]
+                    [
+                        base_utils.format_number_literal(complex_value.real),
+                        base_utils.format_number_literal(complex_value.imag),
+                    ]
                 )
                 base_utils.append_contents(f"{self.resolve()} = {complex_constructor};\n")
                 return
 
-            base_utils.append_contents(f"{self.resolve()} = {value};\n")
+            base_utils.append_contents(f"{self.resolve()} = {base_utils.format_number_literal(value)};\n")
             return
 
         assert self.var_type == value.var_type, f"Cannot set variable of type '{self.var_type.name}' to value of type '{value.var_type.name}'!"
@@ -328,7 +331,7 @@ class ScaledAndOfftsetIntVariable(ShaderVariable):
     def new_from_self(self, scale: int = 1, offset: int = 0):
         child_vartype = self.var_type
 
-        if isinstance(scale, float) or isinstance(offset, float):
+        if base_utils.is_float_number(scale) or base_utils.is_float_number(offset):
             child_vartype = var_types_to_floating(self.var_type)
 
         return ScaledAndOfftsetIntVariable(
@@ -340,8 +343,14 @@ class ScaledAndOfftsetIntVariable(ShaderVariable):
         )
 
     def resolve(self) -> str:        
-        scale_str = f" * {self.scale}" if self.scale != 1 else ""
-        offset_str = f" + {self.offset}" if self.offset != 0 else ""
+        scale_str = (
+            f" * {base_utils.format_number_literal(self.scale)}"
+            if self.scale != 1 else ""
+        )
+        offset_str = (
+            f" + {base_utils.format_number_literal(self.offset)}"
+            if self.offset != 0 else ""
+        )
 
         if scale_str == "" and offset_str == "":
             return self.base_name

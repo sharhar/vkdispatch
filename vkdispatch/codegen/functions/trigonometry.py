@@ -112,7 +112,7 @@ def atan2(y: Any, x: Any) -> Union[ShaderVariable, float]:
                 result_type,
                 y.resolve(),
                 dtypes.float32,
-                str(x),
+                utils.resolve_input(x),
             ),
             parents=[y]
         )
@@ -124,7 +124,7 @@ def atan2(y: Any, x: Any) -> Union[ShaderVariable, float]:
             utils.codegen_backend().binary_math_expr(
                 "atan2",
                 dtypes.float32,
-                str(y),
+                utils.resolve_input(y),
                 result_type,
                 x.resolve(),
             ),

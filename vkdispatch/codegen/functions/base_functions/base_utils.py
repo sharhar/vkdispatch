@@ -4,6 +4,7 @@ from vkdispatch.codegen.variables.base_variable import BaseVariable
 from typing import Any, Optional
 
 import numbers
+import math
 
 from ...._compat import numpy_compat as npc
 from vkdispatch.codegen.shader_writer import new_scaled_var, append_contents, new_name
@@ -76,11 +77,33 @@ def dtype_to_floating(var_type: dtypes.dtype) -> dtypes.dtype:
     
     return var_type
 
+def format_number_literal(var: numbers.Number, *, force_float32: bool = False) -> str:
+    if is_complex_number(var):
+        return str(var)
+
+    if is_float_number(var) or (force_float32 and is_int_number(var)):
+        value = float(var)
+
+        if math.isinf(value):
+            if value > 0:
+                return get_codegen_backend().inf_f32_expr()
+            return get_codegen_backend().ninf_f32_expr()
+
+        if math.isnan(value):
+            return "(0.0f / 0.0f)"
+
+        literal = repr(value)
+        if "e" not in literal and "E" not in literal and "." not in literal:
+            literal += ".0"
+        return literal + "f"
+
+    return str(var)
+
 def resolve_input(var: Any) -> str:
     #print("Resolving input:", var)
 
     if is_number(var):
-        return str(var)
+        return format_number_literal(var)
     
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
     return var.resolve()

@@ -62,7 +62,7 @@ def add(var: BaseVariable, other: Any, inplace: bool = False) -> BaseVariable:
                 offset=other,
                 parents=[var])
 
-        base_utils.append_contents(f"{var.resolve()} += {other};\n")
+        base_utils.append_contents(f"{var.resolve()} += {base_utils.format_number_literal(other)};\n")
         return var
 
     assert isinstance(other, BaseVariable)
@@ -95,7 +95,7 @@ def sub(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
                 offset=other,
                 parents=[var])
 
-        base_utils.append_contents(f"{var.resolve()} -= {other};\n")
+        base_utils.append_contents(f"{var.resolve()} -= {base_utils.format_number_literal(other)};\n")
         return var
 
     assert isinstance(other, BaseVariable)
@@ -135,7 +135,7 @@ def mul(var: BaseVariable, other: Any, inplace: bool = False) -> BaseVariable:
                 parents=[var])
 
         _mark_arith_binary(var.var_type, base_utils.number_to_dtype(other), "*", inplace=True)
-        base_utils.append_contents(f"{var.resolve()} *= {other};\n")
+        base_utils.append_contents(f"{var.resolve()} *= {base_utils.format_number_literal(other)};\n")
         return var
 
     assert isinstance(other, BaseVariable)
@@ -165,6 +165,7 @@ def truediv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool 
 
     if base_utils.is_scalar_number(other):
         scalar_f_type = dtypes.float32
+        other_expr = base_utils.format_number_literal(other, force_float32=True)
         if not reverse:
             _mark_arith_binary(return_type, scalar_f_type, "/", inplace=inplace)
         else:
@@ -173,13 +174,13 @@ def truediv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool 
             return base_utils.new_base_var(
                 return_type,
                 (
-                    f"{base_utils.to_dtype_base(return_type, var).resolve()} / {float(other)}"
+                    f"{base_utils.to_dtype_base(return_type, var).resolve()} / {other_expr}"
                     if not reverse else
-                    f"{float(other)} / {base_utils.to_dtype_base(return_type, var).resolve()}"
+                    f"{other_expr} / {base_utils.to_dtype_base(return_type, var).resolve()}"
                 ),
                 parents=[var])
 
-        base_utils.append_contents(f"{var.resolve()} /= {float(other)};\n")
+        base_utils.append_contents(f"{var.resolve()} /= {other_expr};\n")
         return var
 
     assert isinstance(other, BaseVariable)
@@ -295,17 +296,18 @@ def pow(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
     return_type = arithmetic_op_common(var, other, reverse=reverse, inplace=inplace)
 
     if base_utils.is_scalar_number(other):
+        other_expr = base_utils.format_number_literal(other)
         if not inplace:
             return base_utils.new_base_var(
                 return_type,
                 (
-                    f"pow({var.resolve()}, {other})"
+                    f"pow({var.resolve()}, {other_expr})"
                     if not reverse else
-                    f"pow({other}, {var.resolve()})"
+                    f"pow({other_expr}, {var.resolve()})"
                 ),
                 parents=[var])
 
-        base_utils.append_contents(f"{var.resolve()} = pow({var.resolve()}, {other});\n")
+        base_utils.append_contents(f"{var.resolve()} = pow({var.resolve()}, {other_expr});\n")
         return var
 
     assert isinstance(other, BaseVariable)

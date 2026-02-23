@@ -167,7 +167,7 @@ def modf(x: Any, y: Any) -> Tuple[ShaderVariable, ShaderVariable]:
         utils.mark_backend_feature("mod")
         return utils.new_var(
             utils.dtype_to_floating(y.var_type),
-            f"mod({x}, {y.resolve()})",
+            f"mod({utils.resolve_input(x)}, {y.resolve()})",
             parents=[y]
         )
     
@@ -175,7 +175,7 @@ def modf(x: Any, y: Any) -> Tuple[ShaderVariable, ShaderVariable]:
         utils.mark_backend_feature("mod")
         return utils.new_var(
             utils.dtype_to_floating(x.var_type),
-            f"mod({x.resolve()}, {y})",
+            f"mod({x.resolve()}, {utils.resolve_input(y)})",
             parents=[x]
         )
 

@@ -52,8 +52,18 @@ def else_if_all(*args: List[ShaderVariable]):
     utils.scope_increment()
 
 def return_statement(arg=None):
-    arg = arg if arg is not None else ""
-    utils.append_contents(f"return {arg};\n")
+    if arg is None:
+        utils.append_contents("return;\n")
+        return
+
+    if isinstance(arg, str):
+        arg_expr = arg
+    elif isinstance(arg, ShaderVariable) or utils.is_number(arg):
+        arg_expr = utils.resolve_input(arg)
+    else:
+        arg_expr = str(arg)
+
+    utils.append_contents(f"return {arg_expr};\n")
 
 def while_statement(arg: ShaderVariable):
     utils.append_contents(f"while({proc_bool(arg)}) {'{'}\n")
