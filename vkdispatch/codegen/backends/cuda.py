@@ -21,6 +21,7 @@ def _cuda_emit_vec_type(
     vec_name: str,
     scalar_type: str,
     dim: int,
+    cuda_native_type: str,
     *,
     allow_unary_neg: bool,
     enable_bitwise: bool,
@@ -50,38 +51,56 @@ def _cuda_emit_vec_type(
     def has(token: str) -> bool:
         return token in needed_ops
 
+    def self_comp(c: str) -> str:
+        return f"v.{c}"
+
+    def wrap_comp(obj: str, c: str) -> str:
+        return f"{obj}.v.{c}"
+
+    def native_comp(obj: str, c: str) -> str:
+        return f"{obj}.{c}"
+
+    def index_op_body() -> str:
+        branches: List[str] = []
+        for idx, c in enumerate(comps):
+            prefix = "if" if idx == 0 else "else if"
+            branches.append(f"{prefix} (i == {idx}) return v.{c};")
+        branches.append(f"else return v.{comps[0]};")
+        return " ".join(branches)
+
     lines: List[str] = [f"struct {vec_name} {{"]
-    lines.extend([f"    {scalar_type} {c};" for c in comps])
+    lines.append(f"    {cuda_native_type} v;")
     lines.append("")
     ctor_args = ", ".join([f"{scalar_type} {c}_" for c in comps])
-    ctor_init = ", ".join([f"{c}({c}_)" for c in comps])
-    splat_init = ", ".join([f"{c}(s)" for c in comps])
-    cast_init = ", ".join([f"{c}(({scalar_type})v.{c})" for c in comps])
+    ctor_init = "{" + ", ".join([f"{c}_" for c in comps]) + "}"
+    splat_init = "{" + ", ".join(["s" for _ in comps]) + "}"
+    cast_init = "{" + ", ".join([f"({scalar_type}){native_comp('src', c)}" for c in comps]) + "}"
     lines.append(f"    __device__ __forceinline__ {vec_name}() = default;")
-    lines.append(f"    __device__ __forceinline__ {vec_name}({ctor_args}) : {ctor_init} {{}}")
-    lines.append(f"    __device__ __forceinline__ explicit {vec_name}({scalar_type} s) : {splat_init} {{}}")
+    lines.append(f"    __device__ __forceinline__ {vec_name}({ctor_args}) : v{ctor_init} {{}}")
+    lines.append(f"    __device__ __forceinline__ explicit {vec_name}({scalar_type} s) : v{splat_init} {{}}")
+    lines.append(f"    __device__ __forceinline__ explicit {vec_name}(const {cuda_native_type}& native) : v(native) {{}}")
     lines.append("    template <typename TVec>")
-    lines.append(f"    __device__ __forceinline__ explicit {vec_name}(TVec v) : {cast_init} {{}}")
-    lines.append(f"    __device__ __forceinline__ {scalar_type}& operator[](int i) {{ return (&x)[i]; }}")
-    lines.append(f"    __device__ __forceinline__ const {scalar_type}& operator[](int i) const {{ return (&x)[i]; }}")
+    lines.append(f"    __device__ __forceinline__ explicit {vec_name}(const TVec& src) : v{cast_init} {{}}")
+    lines.append(f"    __device__ __forceinline__ {scalar_type}& operator[](int i) {{ {index_op_body()} }}")
+    lines.append(f"    __device__ __forceinline__ const {scalar_type}& operator[](int i) const {{ {index_op_body()} }}")
 
     if allow_unary_neg and has("un:-"):
-        neg_expr = ", ".join([f"-{c}" for c in comps])
+        neg_expr = ", ".join([f"-{self_comp(c)}" for c in comps])
         lines.append(f"    __device__ __forceinline__ {vec_name} operator-() const {{ return {vec_name}({neg_expr}); }}")
 
     if enable_bitwise and has("un:~"):
-        not_expr = ", ".join([f"~{c}" for c in comps])
+        not_expr = ", ".join([f"~{self_comp(c)}" for c in comps])
         lines.append(f"    __device__ __forceinline__ {vec_name} operator~() const {{ return {vec_name}({not_expr}); }}")
 
     for op in ["+", "-", "*", "/"]:
         op_assign = op + "="
         if has(f"cmpd:{op}=:v"):
-            vv_ops = _cuda_join_statements([f"{c} {op_assign} b.{c};" for c in comps])
+            vv_ops = _cuda_join_statements([f"{self_comp(c)} {op_assign} {wrap_comp('b', c)};" for c in comps])
             lines.append(
                 f"    __device__ __forceinline__ {vec_name}& operator{op_assign}(const {vec_name}& b) {{ {vv_ops} return *this; }}"
             )
         if has(f"cmpd:{op}=:s"):
-            sv_ops = _cuda_join_statements([f"{c} {op_assign} b;" for c in comps])
+            sv_ops = _cuda_join_statements([f"{self_comp(c)} {op_assign} b;" for c in comps])
             lines.append(
                 f"    __device__ __forceinline__ {vec_name}& operator{op_assign}({scalar_type} b) {{ {sv_ops} return *this; }}"
             )
@@ -90,35 +109,41 @@ def _cuda_emit_vec_type(
         for op in ["&", "|", "^", "<<", ">>"]:
             op_assign = op + "="
             if has(f"cmpd:{op}=:v"):
-                vv_ops = _cuda_join_statements([f"{c} {op_assign} b.{c};" for c in comps])
+                vv_ops = _cuda_join_statements([f"{self_comp(c)} {op_assign} {wrap_comp('b', c)};" for c in comps])
                 lines.append(
                     f"    __device__ __forceinline__ {vec_name}& operator{op_assign}(const {vec_name}& b) {{ {vv_ops} return *this; }}"
                 )
             if has(f"cmpd:{op}=:s"):
-                sv_ops = _cuda_join_statements([f"{c} {op_assign} b;" for c in comps])
+                sv_ops = _cuda_join_statements([f"{self_comp(c)} {op_assign} b;" for c in comps])
                 lines.append(
                     f"    __device__ __forceinline__ {vec_name}& operator{op_assign}({scalar_type} b) {{ {sv_ops} return *this; }}"
                 )
 
     lines.append("};")
+    lines.append(
+        f'static_assert(sizeof({vec_name}) == sizeof({cuda_native_type}), "{vec_name} size must match {cuda_native_type}");'
+    )
+    lines.append(
+        f'static_assert(alignof({vec_name}) == alignof({cuda_native_type}), "{vec_name} alignment must match {cuda_native_type}");'
+    )
 
     # Arithmetic operators (vector/vector, vector/scalar, scalar/vector)
     for op in ["+", "-", "*", "/"]:
         if has(f"bin:{op}:vv"):
-            vv_expr = ", ".join([f"(a.{c} {op} b.{c})" for c in comps])
+            vv_expr = ", ".join([f"({wrap_comp('a', c)} {op} {wrap_comp('b', c)})" for c in comps])
             lines.append(
                 f"__device__ __forceinline__ {vec_name} operator{op}(const {vec_name}& a, const {vec_name}& b) {{ return {vec_name}({vv_expr}); }}"
             )
         if has(f"bin:{op}:vs"):
-            vs_expr = ", ".join([f"(a.{c} {op} b)" for c in comps])
+            vs_expr = ", ".join([f"({wrap_comp('a', c)} {op} b)" for c in comps])
             lines.append(
                 f"__device__ __forceinline__ {vec_name} operator{op}(const {vec_name}& a, {scalar_type} b) {{ return {vec_name}({vs_expr}); }}"
             )
         if has(f"bin:{op}:sv"):
             if op in ["+", "*"]:
-                sv_expr = ", ".join([f"(a {op} b.{c})" for c in comps])
+                sv_expr = ", ".join([f"(a {op} {wrap_comp('b', c)})" for c in comps])
             else:
-                sv_expr = ", ".join([f"({scalar_type})(a {op} b.{c})" for c in comps])
+                sv_expr = ", ".join([f"({scalar_type})(a {op} {wrap_comp('b', c)})" for c in comps])
             lines.append(
                 f"__device__ __forceinline__ {vec_name} operator{op}({scalar_type} a, const {vec_name}& b) {{ return {vec_name}({sv_expr}); }}"
             )
@@ -126,17 +151,17 @@ def _cuda_emit_vec_type(
     if enable_bitwise:
         for op in ["&", "|", "^", "<<", ">>"]:
             if has(f"bin:{op}:vv"):
-                vv_expr = ", ".join([f"(a.{c} {op} b.{c})" for c in comps])
+                vv_expr = ", ".join([f"({wrap_comp('a', c)} {op} {wrap_comp('b', c)})" for c in comps])
                 lines.append(
                     f"__device__ __forceinline__ {vec_name} operator{op}(const {vec_name}& a, const {vec_name}& b) {{ return {vec_name}({vv_expr}); }}"
                 )
             if has(f"bin:{op}:vs"):
-                vs_expr = ", ".join([f"(a.{c} {op} b)" for c in comps])
+                vs_expr = ", ".join([f"({wrap_comp('a', c)} {op} b)" for c in comps])
                 lines.append(
                     f"__device__ __forceinline__ {vec_name} operator{op}(const {vec_name}& a, {scalar_type} b) {{ return {vec_name}({vs_expr}); }}"
                 )
             if has(f"bin:{op}:sv"):
-                sv_expr = ", ".join([f"({scalar_type})(a {op} b.{c})" for c in comps])
+                sv_expr = ", ".join([f"({scalar_type})(a {op} {wrap_comp('b', c)})" for c in comps])
                 lines.append(
                     f"__device__ __forceinline__ {vec_name} operator{op}({scalar_type} a, const {vec_name}& b) {{ return {vec_name}({sv_expr}); }}"
                 )
@@ -156,6 +181,32 @@ def _cuda_emit_vec_helper(helper_suffix: str, vec_name: str, scalar_type: str, d
             f"__device__ __forceinline__ {vec_name} vkdispatch_make_{helper_suffix}(TVec v) {{ return {vec_name}(v); }}",
         ]
     )
+
+
+def _cuda_emit_vec_wrapper_conversion_helpers(
+    helper_suffix: str,
+    vec_name: str,
+    scalar_type: str,
+    dim: int,
+    *,
+    available_keys: Optional[Set[str]] = None,
+) -> str:
+    comps = _cuda_vec_components(dim)
+    dim_keys = [key for key in _CUDA_VEC_TYPE_SPECS if key.endswith(str(dim))]
+    if available_keys is not None:
+        dim_keys = [key for key in dim_keys if key in available_keys]
+
+    lines: List[str] = []
+    for src_key in dim_keys:
+        if src_key == helper_suffix:
+            continue
+        src_vec_name = _CUDA_VEC_TYPE_SPECS[src_key][0]
+        ctor_args = ", ".join([f"({scalar_type})src.v.{c}" for c in comps])
+        lines.append(
+            f"__device__ __forceinline__ {vec_name} vkdispatch_make_{helper_suffix}(const {src_vec_name}& src) {{ return {vec_name}({ctor_args}); }}"
+        )
+
+    return "\n".join(lines)
 
 
 def _cuda_emit_mat_type(mat_name: str, vec_name: str, dim: int, needed_ops: Optional[Set[str]] = None) -> str:
@@ -249,7 +300,7 @@ def _cuda_emit_mat_type(mat_name: str, vec_name: str, dim: int, needed_ops: Opti
     # GLSL-style matrix/vector products (column-major)
     vec_comps = _cuda_vec_components(dim)
     if has("bin:*:mv"):
-        mat_vec_terms = [f"(m.c{i} * v.{vec_comps[i]})" for i in range(dim)]
+        mat_vec_terms = [f"(m.c{i} * v.v.{vec_comps[i]})" for i in range(dim)]
         mat_vec_expr = " + ".join(mat_vec_terms)
         lines.append(
             f"__device__ __forceinline__ {vec_name} operator* (const {mat_name}& m, const {vec_name}& v) {{ return {mat_vec_expr}; }}"
@@ -258,7 +309,7 @@ def _cuda_emit_mat_type(mat_name: str, vec_name: str, dim: int, needed_ops: Opti
     if has("bin:*:vm"):
         row_exprs: List[str] = []
         for col_idx in range(dim):
-            terms = [f"(v.{vec_comps[row_idx]} * m.c{col_idx}.{vec_comps[row_idx]})" for row_idx in range(dim)]
+            terms = [f"(v.v.{vec_comps[row_idx]} * m.c{col_idx}.v.{vec_comps[row_idx]})" for row_idx in range(dim)]
             row_exprs.append(" + ".join(terms))
         lines.append(
             f"__device__ __forceinline__ {vec_name} operator* (const {vec_name}& v, const {mat_name}& m) {{ return {vec_name}({', '.join(row_exprs)}); }}"
@@ -303,28 +354,34 @@ def _cuda_composite_helpers() -> str:
     parts: List[str] = []
 
     vector_specs = [
-        ("vkdispatch_int2", "int", 2, True, True, "int2"),
-        ("vkdispatch_int3", "int", 3, True, True, "int3"),
-        ("vkdispatch_int4", "int", 4, True, True, "int4"),
-        ("vkdispatch_uint2", "unsigned int", 2, False, True, "uint2"),
-        ("vkdispatch_uint3", "unsigned int", 3, False, True, "uint3"),
-        ("vkdispatch_uint4", "unsigned int", 4, False, True, "uint4"),
-        ("vkdispatch_float2", "float", 2, True, False, "float2"),
-        ("vkdispatch_float3", "float", 3, True, False, "float3"),
-        ("vkdispatch_float4", "float", 4, True, False, "float4"),
+        ("vkdispatch_int2", "int", 2, "int2", True, True),
+        ("vkdispatch_int3", "int", 3, "int3", True, True),
+        ("vkdispatch_int4", "int", 4, "int4", True, True),
+        ("vkdispatch_uint2", "unsigned int", 2, "uint2", False, True),
+        ("vkdispatch_uint3", "unsigned int", 3, "uint3", False, True),
+        ("vkdispatch_uint4", "unsigned int", 4, "uint4", False, True),
+        ("vkdispatch_float2", "float", 2, "float2", True, False),
+        ("vkdispatch_float3", "float", 3, "float3", True, False),
+        ("vkdispatch_float4", "float", 4, "float4", True, False),
     ]
 
-    for vec_name, scalar_type, dim, allow_neg, enable_bitwise, helper_suffix in vector_specs:
+    for vec_name, scalar_type, dim, cuda_native_type, allow_neg, enable_bitwise in vector_specs:
         parts.append(
             _cuda_emit_vec_type(
                 vec_name,
                 scalar_type,
                 dim,
+                cuda_native_type,
                 allow_unary_neg=allow_neg,
                 enable_bitwise=enable_bitwise,
             )
         )
-        parts.append(_cuda_emit_vec_helper(helper_suffix, vec_name, scalar_type, dim))
+        parts.append(_cuda_emit_vec_helper(cuda_native_type, vec_name, scalar_type, dim))
+
+    for vec_name, scalar_type, dim, cuda_native_type, _, _ in vector_specs:
+        conversion_helpers = _cuda_emit_vec_wrapper_conversion_helpers(cuda_native_type, vec_name, scalar_type, dim)
+        if len(conversion_helpers) > 0:
+            parts.append(conversion_helpers)
 
     matrix_specs = [
         ("vkdispatch_mat2", "mat2", "vkdispatch_float2", "float2", 2),
@@ -340,15 +397,15 @@ def _cuda_composite_helpers() -> str:
 
 
 _CUDA_VEC_TYPE_SPECS = {
-    "int2": ("vkdispatch_int2", "int", 2, True, True),
-    "int3": ("vkdispatch_int3", "int", 3, True, True),
-    "int4": ("vkdispatch_int4", "int", 4, True, True),
-    "uint2": ("vkdispatch_uint2", "unsigned int", 2, False, True),
-    "uint3": ("vkdispatch_uint3", "unsigned int", 3, False, True),
-    "uint4": ("vkdispatch_uint4", "unsigned int", 4, False, True),
-    "float2": ("vkdispatch_float2", "float", 2, True, False),
-    "float3": ("vkdispatch_float3", "float", 3, True, False),
-    "float4": ("vkdispatch_float4", "float", 4, True, False),
+    "int2": ("vkdispatch_int2", "int", 2, "int2", True, True),
+    "int3": ("vkdispatch_int3", "int", 3, "int3", True, True),
+    "int4": ("vkdispatch_int4", "int", 4, "int4", True, True),
+    "uint2": ("vkdispatch_uint2", "unsigned int", 2, "uint2", False, True),
+    "uint3": ("vkdispatch_uint3", "unsigned int", 3, "uint3", False, True),
+    "uint4": ("vkdispatch_uint4", "unsigned int", 4, "uint4", False, True),
+    "float2": ("vkdispatch_float2", "float", 2, "float2", True, False),
+    "float3": ("vkdispatch_float3", "float", 3, "float3", True, False),
+    "float4": ("vkdispatch_float4", "float", 4, "float4", True, False),
 }
 
 _CUDA_MAT_TYPE_SPECS = {
@@ -803,21 +860,37 @@ class CUDABackend(CodeGenBackend):
         parts: List[str] = []
 
         vec_order = ["int2", "int3", "int4", "uint2", "uint3", "uint4", "float2", "float3", "float4"]
+        emitted_vec_keys: Set[str] = set()
         for key in vec_order:
             if key not in self._composite_type_usage:
                 continue
-            vec_name, scalar_type, dim, allow_neg, enable_bitwise = _CUDA_VEC_TYPE_SPECS[key]
+            vec_name, scalar_type, dim, cuda_native_type, allow_neg, enable_bitwise = _CUDA_VEC_TYPE_SPECS[key]
+            emitted_vec_keys.add(key)
             parts.append(
                 _cuda_emit_vec_type(
                     vec_name,
                     scalar_type,
                     dim,
+                    cuda_native_type,
                     allow_unary_neg=allow_neg,
                     enable_bitwise=enable_bitwise,
                     needed_ops=self._composite_vec_op_usage.get(key, set()),
                 )
             )
             parts.append(_cuda_emit_vec_helper(key, vec_name, scalar_type, dim))
+        for key in vec_order:
+            if key not in emitted_vec_keys:
+                continue
+            vec_name, scalar_type, dim, _, _, _ = _CUDA_VEC_TYPE_SPECS[key]
+            conversion_helpers = _cuda_emit_vec_wrapper_conversion_helpers(
+                key,
+                vec_name,
+                scalar_type,
+                dim,
+                available_keys=emitted_vec_keys,
+            )
+            if len(conversion_helpers) > 0:
+                parts.append(conversion_helpers)
 
         mat_order = ["mat2", "mat3", "mat4"]
         for key in mat_order:
@@ -867,7 +940,7 @@ class CUDABackend(CodeGenBackend):
             if key not in _CUDA_VEC_TYPE_SPECS:
                 continue
 
-            vec_name, _, dim, _, _ = _CUDA_VEC_TYPE_SPECS[key]
+            vec_name, _, dim, _, _, _ = _CUDA_VEC_TYPE_SPECS[key]
             comps = _cuda_vec_components(dim)
             lines: List[str] = []
 
@@ -875,7 +948,7 @@ class CUDABackend(CodeGenBackend):
                 if func_name not in unary_funcs:
                     continue
                 scalar_func = self._cuda_fast_unary_math_name(func_name)
-                comp_args = ", ".join([f"{scalar_func}(v.{c})" for c in comps])
+                comp_args = ", ".join([f"{scalar_func}(v.v.{c})" for c in comps])
                 lines.append(
                     f"__device__ __forceinline__ {vec_name} {func_name}(const {vec_name}& v) {{ return vkdispatch_make_{key}({comp_args}); }}"
                 )
@@ -888,17 +961,17 @@ class CUDABackend(CodeGenBackend):
                         continue
 
                     if signature == "vv":
-                        comp_args = ", ".join([f"{scalar_func}(a.{c}, b.{c})" for c in comps])
+                        comp_args = ", ".join([f"{scalar_func}(a.v.{c}, b.v.{c})" for c in comps])
                         lines.append(
                             f"__device__ __forceinline__ {vec_name} {func_name}(const {vec_name}& a, const {vec_name}& b) {{ return vkdispatch_make_{key}({comp_args}); }}"
                         )
                     elif signature == "vs":
-                        comp_args = ", ".join([f"{scalar_func}(a.{c}, b)" for c in comps])
+                        comp_args = ", ".join([f"{scalar_func}(a.v.{c}, b)" for c in comps])
                         lines.append(
                             f"__device__ __forceinline__ {vec_name} {func_name}(const {vec_name}& a, float b) {{ return vkdispatch_make_{key}({comp_args}); }}"
                         )
                     elif signature == "sv":
-                        comp_args = ", ".join([f"{scalar_func}(a, b.{c})" for c in comps])
+                        comp_args = ", ".join([f"{scalar_func}(a, b.v.{c})" for c in comps])
                         lines.append(
                             f"__device__ __forceinline__ {vec_name} {func_name}(float a, const {vec_name}& b) {{ return vkdispatch_make_{key}({comp_args}); }}"
                         )
@@ -924,19 +997,19 @@ class CUDABackend(CodeGenBackend):
             self._record_composite_type_key("float4")
         if 2 in dims:
             lines.append(
-                "__device__ __forceinline__ vkdispatch_float4 vkdispatch_sample_texture(cudaTextureObject_t tex, vkdispatch_float2 coord) { return vkdispatch_make_float4(tex2D<float4>(tex, coord.x, coord.y)); }"
+                "__device__ __forceinline__ vkdispatch_float4 vkdispatch_sample_texture(cudaTextureObject_t tex, vkdispatch_float2 coord) { return vkdispatch_make_float4(tex2D<float4>(tex, coord.v.x, coord.v.y)); }"
             )
             lines.append(
-                "__device__ __forceinline__ vkdispatch_float4 vkdispatch_sample_texture(cudaTextureObject_t tex, vkdispatch_float2 coord, float lod) { return vkdispatch_make_float4(tex2DLod<float4>(tex, coord.x, coord.y, lod)); }"
+                "__device__ __forceinline__ vkdispatch_float4 vkdispatch_sample_texture(cudaTextureObject_t tex, vkdispatch_float2 coord, float lod) { return vkdispatch_make_float4(tex2DLod<float4>(tex, coord.v.x, coord.v.y, lod)); }"
             )
             self._record_composite_type_key("float2")
             self._record_composite_type_key("float4")
         if 3 in dims:
             lines.append(
-                "__device__ __forceinline__ vkdispatch_float4 vkdispatch_sample_texture(cudaTextureObject_t tex, vkdispatch_float3 coord) { return vkdispatch_make_float4(tex3D<float4>(tex, coord.x, coord.y, coord.z)); }"
+                "__device__ __forceinline__ vkdispatch_float4 vkdispatch_sample_texture(cudaTextureObject_t tex, vkdispatch_float3 coord) { return vkdispatch_make_float4(tex3D<float4>(tex, coord.v.x, coord.v.y, coord.v.z)); }"
             )
             lines.append(
-                "__device__ __forceinline__ vkdispatch_float4 vkdispatch_sample_texture(cudaTextureObject_t tex, vkdispatch_float3 coord, float lod) { return vkdispatch_make_float4(tex3DLod<float4>(tex, coord.x, coord.y, coord.z, lod)); }"
+                "__device__ __forceinline__ vkdispatch_float4 vkdispatch_sample_texture(cudaTextureObject_t tex, vkdispatch_float3 coord, float lod) { return vkdispatch_make_float4(tex3DLod<float4>(tex, coord.v.x, coord.v.y, coord.v.z, lod)); }"
             )
             self._record_composite_type_key("float3")
             self._record_composite_type_key("float4")
@@ -1041,6 +1114,17 @@ class CUDABackend(CodeGenBackend):
         self.mark_feature_usage(f"make_{helper_suffix}")
         return f"{helper_name}({', '.join(args)})"
 
+    def component_access_expr(self, expr: str, component: str, base_type: dtypes.dtype) -> str:
+        if dtypes.is_scalar(base_type):
+            if component == "x":
+                return expr
+            return super().component_access_expr(expr, component, base_type)
+
+        if dtypes.is_vector(base_type) or dtypes.is_complex(base_type):
+            return f"{expr}.v.{component}"
+
+        return super().component_access_expr(expr, component, base_type)
+
     def pre_header(self, *, enable_subgroup_ops: bool, enable_printf: bool) -> str:
         self.reset_state()
 
@@ -1133,10 +1217,12 @@ class CUDABackend(CodeGenBackend):
 
     def exec_bounds_guard(self, exec_count_expr: str) -> str:
         gid = self.global_invocation_id_expr()
+        exec_expr = f"({exec_count_expr})"
+        gid_expr = f"({gid})"
         return (
-            f"if (({exec_count_expr}).x <= ({gid}).x || "
-            f"({exec_count_expr}).y <= ({gid}).y || "
-            f"({exec_count_expr}).z <= ({gid}).z) {{ return; }}\n"
+            f"if ({self.component_access_expr(exec_expr, 'x', dtypes.uvec4)} <= {self.component_access_expr(gid_expr, 'x', dtypes.uvec3)} || "
+            f"{self.component_access_expr(exec_expr, 'y', dtypes.uvec4)} <= {self.component_access_expr(gid_expr, 'y', dtypes.uvec3)} || "
+            f"{self.component_access_expr(exec_expr, 'z', dtypes.uvec4)} <= {self.component_access_expr(gid_expr, 'z', dtypes.uvec3)}) {{ return; }}\n"
         )
 
     def shared_buffer_declaration(self, var_type: dtypes.dtype, name: str, size: int) -> str:

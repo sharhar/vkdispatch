@@ -43,6 +43,9 @@ class CodeGenBackend:
     def constructor(self, var_type: dtypes.dtype, args: List[str]) -> str:
         raise NotImplementedError
 
+    def component_access_expr(self, expr: str, component: str, base_type: dtypes.dtype) -> str:
+        return f"{expr}.{component}"
+
     def fma_function_name(self, var_type: dtypes.dtype) -> str:
         return "fma"
 

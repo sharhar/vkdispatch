@@ -206,9 +206,13 @@ class ShaderFunction:
 
             signature = ShaderSignature.from_inspectable_function(builder, self.func)
             
-            self.func(*signature.get_variables())
-
-            vc.set_builder(old_builder)
+            try:
+                self.func(*signature.get_variables())
+            except Exception as e:
+                print(f"Error during shader inspection: {e}")
+                raise e
+            finally:
+                vc.set_builder(old_builder)
 
             self.shader_description = builder.build(self.func.__module__ + "." + self.func.__name__)
             self.shader_signature = signature

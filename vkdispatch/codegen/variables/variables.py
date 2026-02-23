@@ -109,15 +109,18 @@ class ShaderVariable(BaseVariable):
 
         sample_type = self.var_type if dtypes.is_scalar(self.var_type) else self.var_type.child_type
         return_type = sample_type if len(components) == 1 else dtypes.to_vector(sample_type, len(components))
+        backend = get_codegen_backend()
+        base_expr = self.resolve()
 
         if dtypes.is_scalar(self.var_type):
             assert all(c == 'x' for c in components), f"Cannot swizzle scalar variable '{self.resolve()}' with components other than 'x'!"
 
-            swizzle_expr = f"{self.resolve()}.x"
+            scalar_x_expr = backend.component_access_expr(base_expr, "x", self.var_type)
+            swizzle_expr = scalar_x_expr
             if len(components) > 1:
-                swizzle_expr = get_codegen_backend().constructor(
+                swizzle_expr = backend.constructor(
                     return_type,
-                    [f"{self.resolve()}.x" for _ in components]
+                    [scalar_x_expr for _ in components]
                 )
 
             return ShaderVariable(
@@ -125,8 +128,8 @@ class ShaderVariable(BaseVariable):
                 name=swizzle_expr,
                 parents=[self],
                 lexical_unit=True,
-                settable=self.settable,
-                register=self.register
+                settable=self.settable and len(components) == 1,
+                register=self.register and len(components) == 1
             )
 
         if self.var_type.shape[0] < 4:
@@ -138,11 +141,11 @@ class ShaderVariable(BaseVariable):
         if self.var_type.shape[0] < 2:
             assert 'y' not in components, f"Cannot swizzle variable '{self.resolve()}' of type '{self.var_type.name}' with component 'y'!"
 
-        swizzle_expr = f"{self.resolve()}.{components}"
+        swizzle_expr = backend.component_access_expr(base_expr, components, self.var_type)
         if len(components) > 1:
-            swizzle_expr = get_codegen_backend().constructor(
+            swizzle_expr = backend.constructor(
                 return_type,
-                [f"{self.resolve()}.{elem}" for elem in components]
+                [backend.component_access_expr(base_expr, elem, self.var_type) for elem in components]
             )
 
         return ShaderVariable(
@@ -150,8 +153,8 @@ class ShaderVariable(BaseVariable):
             name=swizzle_expr,
             parents=[self],
             lexical_unit=True,
-            settable=self.settable,
-            register=self.register
+            settable=self.settable and len(components) == 1,
+            register=self.register and len(components) == 1
         )
     
     def conjugate(self) -> "ShaderVariable":
