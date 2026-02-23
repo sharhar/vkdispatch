@@ -252,16 +252,17 @@ class ShaderFunction:
             )
         except Exception as e:
             print(f"Error building shader: {e}")
-            print(self.make_repr())
+            print(self.get_src())
             raise e
 
         self.ready = True
 
     def __repr__(self) -> str:
-        self.build()
-        return self.make_repr()
+        return self.get_src()
     
-    def make_repr(self, line_numbers: bool = None) -> str:
+    def get_src(self, line_numbers: bool = None) -> str:
+        self.build()
+
         result = ""
 
         if line_numbers is None:
