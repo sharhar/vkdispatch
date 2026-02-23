@@ -350,6 +350,25 @@ def _cuda_emit_mat_helpers(mat_name: str, helper_suffix: str, vec_name: str, vec
     )
 
 
+def _cuda_emit_subgroup_shuffle_xor_vec_overloads(vec_keys: Set[str]) -> str:
+    lines: List[str] = []
+    vec_order = ["int2", "int3", "int4", "uint2", "uint3", "uint4", "float2", "float3", "float4"]
+
+    for key in vec_order:
+        if key not in vec_keys:
+            continue
+
+        vec_name, _, dim, _, _, _ = _CUDA_VEC_TYPE_SPECS[key]
+        comps = _cuda_vec_components(dim)
+        comp_exprs = ", ".join([f"__shfl_xor_sync(mask, value.v.{c}, lane_mask)" for c in comps])
+        lines.append(
+            f"__device__ __forceinline__ {vec_name} vkdispatch_subgroup_shuffle_xor(unsigned int mask, const {vec_name}& value, int lane_mask) "
+            f"{{ return vkdispatch_make_{key}({comp_exprs}); }}"
+        )
+
+    return "\n".join(lines)
+
+
 def _cuda_composite_helpers() -> str:
     parts: List[str] = []
 
@@ -477,12 +496,18 @@ class CUDABackend(CodeGenBackend):
             "    return vkdispatch_local_invocation_index() % vkdispatch_subgroup_size();\n"
             "}"
         ),
+        "subgroup_shuffle_xor": (
+            "template <typename T>\n"
+            "__device__ __forceinline__ T vkdispatch_subgroup_shuffle_xor(unsigned int mask, T value, int lane_mask) {\n"
+            "    return __shfl_xor_sync(mask, value, lane_mask);\n"
+            "}"
+        ),
         "subgroup_add": (
             "template <typename T>\n"
             "__device__ __forceinline__ T vkdispatch_subgroup_add(T value) {\n"
             "    unsigned int mask = 0xffffffffu;\n"
             "    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {\n"
-            "        value += __shfl_xor_sync(mask, value, (int)offset);\n"
+            "        value = value + vkdispatch_subgroup_shuffle_xor(mask, value, (int)offset);\n"
             "    }\n"
             "    return value;\n"
             "}"
@@ -492,7 +517,7 @@ class CUDABackend(CodeGenBackend):
             "__device__ __forceinline__ T vkdispatch_subgroup_mul(T value) {\n"
             "    unsigned int mask = 0xffffffffu;\n"
             "    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {\n"
-            "        value *= __shfl_xor_sync(mask, value, (int)offset);\n"
+            "        value = value * vkdispatch_subgroup_shuffle_xor(mask, value, (int)offset);\n"
             "    }\n"
             "    return value;\n"
             "}"
@@ -502,7 +527,7 @@ class CUDABackend(CodeGenBackend):
             "__device__ __forceinline__ T vkdispatch_subgroup_min(T value) {\n"
             "    unsigned int mask = 0xffffffffu;\n"
             "    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {\n"
-            "        T other = __shfl_xor_sync(mask, value, (int)offset);\n"
+            "        T other = vkdispatch_subgroup_shuffle_xor(mask, value, (int)offset);\n"
             "        value = other < value ? other : value;\n"
             "    }\n"
             "    return value;\n"
@@ -513,7 +538,7 @@ class CUDABackend(CodeGenBackend):
             "__device__ __forceinline__ T vkdispatch_subgroup_max(T value) {\n"
             "    unsigned int mask = 0xffffffffu;\n"
             "    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {\n"
-            "        T other = __shfl_xor_sync(mask, value, (int)offset);\n"
+            "        T other = vkdispatch_subgroup_shuffle_xor(mask, value, (int)offset);\n"
             "        value = other > value ? other : value;\n"
             "    }\n"
             "    return value;\n"
@@ -524,7 +549,7 @@ class CUDABackend(CodeGenBackend):
             "__device__ __forceinline__ T vkdispatch_subgroup_and(T value) {\n"
             "    unsigned int mask = 0xffffffffu;\n"
             "    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {\n"
-            "        value &= __shfl_xor_sync(mask, value, (int)offset);\n"
+            "        value = value & vkdispatch_subgroup_shuffle_xor(mask, value, (int)offset);\n"
             "    }\n"
             "    return value;\n"
             "}"
@@ -534,7 +559,7 @@ class CUDABackend(CodeGenBackend):
             "__device__ __forceinline__ T vkdispatch_subgroup_or(T value) {\n"
             "    unsigned int mask = 0xffffffffu;\n"
             "    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {\n"
-            "        value |= __shfl_xor_sync(mask, value, (int)offset);\n"
+            "        value = value | vkdispatch_subgroup_shuffle_xor(mask, value, (int)offset);\n"
             "    }\n"
             "    return value;\n"
             "}"
@@ -544,7 +569,7 @@ class CUDABackend(CodeGenBackend):
             "__device__ __forceinline__ T vkdispatch_subgroup_xor(T value) {\n"
             "    unsigned int mask = 0xffffffffu;\n"
             "    for (unsigned int offset = vkdispatch_subgroup_size() >> 1; offset > 0u; offset >>= 1u) {\n"
-            "        value ^= __shfl_xor_sync(mask, value, (int)offset);\n"
+            "        value = value ^ vkdispatch_subgroup_shuffle_xor(mask, value, (int)offset);\n"
             "    }\n"
             "    return value;\n"
             "}"
@@ -580,6 +605,7 @@ class CUDABackend(CodeGenBackend):
         "num_subgroups",
         "subgroup_id",
         "subgroup_invocation_id",
+        "subgroup_shuffle_xor",
         "subgroup_add",
         "subgroup_mul",
         "subgroup_min",
@@ -627,13 +653,13 @@ class CUDABackend(CodeGenBackend):
         "num_subgroups": ["subgroup_size"],
         "subgroup_id": ["local_invocation_index", "subgroup_size"],
         "subgroup_invocation_id": ["local_invocation_index", "subgroup_size"],
-        "subgroup_add": ["subgroup_size"],
-        "subgroup_mul": ["subgroup_size"],
-        "subgroup_min": ["subgroup_size"],
-        "subgroup_max": ["subgroup_size"],
-        "subgroup_and": ["subgroup_size"],
-        "subgroup_or": ["subgroup_size"],
-        "subgroup_xor": ["subgroup_size"],
+        "subgroup_add": ["subgroup_size", "subgroup_shuffle_xor"],
+        "subgroup_mul": ["subgroup_size", "subgroup_shuffle_xor"],
+        "subgroup_min": ["subgroup_size", "subgroup_shuffle_xor"],
+        "subgroup_max": ["subgroup_size", "subgroup_shuffle_xor"],
+        "subgroup_and": ["subgroup_size", "subgroup_shuffle_xor"],
+        "subgroup_or": ["subgroup_size", "subgroup_shuffle_xor"],
+        "subgroup_xor": ["subgroup_size", "subgroup_shuffle_xor"],
     }
 
     def __init__(self) -> None:
@@ -859,6 +885,22 @@ class CUDABackend(CodeGenBackend):
 
         parts: List[str] = []
 
+        # Subgroup helpers use vector binary operators internally (e.g. value = value + shuffled)
+        # even if user code never directly emits the corresponding operator on that vector type.
+        subgroup_vec_op_requirements = [
+            ("subgroup_add", "bin:+:vv"),
+            ("subgroup_mul", "bin:*:vv"),
+            ("subgroup_and", "bin:&:vv"),
+            ("subgroup_or", "bin:|:vv"),
+            ("subgroup_xor", "bin:^:vv"),
+        ]
+        for feature_name, token in subgroup_vec_op_requirements:
+            if not self._feature_usage.get(feature_name, False):
+                continue
+            for key in self._composite_type_usage:
+                if key in _CUDA_VEC_TYPE_SPECS:
+                    self._composite_vec_op_usage.setdefault(key, set()).add(token)
+
         vec_order = ["int2", "int3", "int4", "uint2", "uint3", "uint4", "float2", "float3", "float4"]
         emitted_vec_keys: Set[str] = set()
         for key in vec_order:
@@ -891,6 +933,10 @@ class CUDABackend(CodeGenBackend):
             )
             if len(conversion_helpers) > 0:
                 parts.append(conversion_helpers)
+
+        subgroup_shuffle_overloads = _cuda_emit_subgroup_shuffle_xor_vec_overloads(emitted_vec_keys)
+        if len(subgroup_shuffle_overloads) > 0:
+            parts.append(subgroup_shuffle_overloads)
 
         mat_order = ["mat2", "mat3", "mat4"]
         for key in mat_order:
