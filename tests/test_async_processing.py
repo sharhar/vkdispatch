@@ -130,7 +130,7 @@ def get_array(index: int, config: RunConfig) -> np.ndarray:
 def make_source(commands: List[ProgramCommand]):
     local_size_x = vd.get_context().max_workgroup_size[0]
 
-    if vd.get_backend() == "pycuda":
+    if vd.get_backend() == "pycuda" or vd.get_backend() == "cuda-python":
         header = (
             f"#define VKDISPATCH_EXPECTED_LOCAL_SIZE_X {local_size_x}\n"
             "#define VKDISPATCH_EXPECTED_LOCAL_SIZE_Y 1\n"
