@@ -127,6 +127,7 @@ class CommandGraph(CommandList):
 
         self.uniform_descriptors = []
         self.buffers_valid = False
+        self._cuda_graph_uniform_buffers.clear()
         self._structure_version += 1
 
     def _is_cuda_python_backend(self) -> bool:
@@ -190,6 +191,7 @@ class CommandGraph(CommandList):
         """
 
         descriptor_set = DescriptorSet(plan)
+        invocation_uniform_buffer: Optional[vd.Buffer] = None
 
         if shader_uuid is None:
             shader_uuid = shader_description.name + "_" + str(uuid.uuid4())
@@ -265,8 +267,9 @@ class CommandGraph(CommandList):
                     True,
                     write_access=False,
                 )
-                self.register_parent(invocation_uniform_buffer)
-                self._cuda_graph_uniform_buffers.append(invocation_uniform_buffer)
+                if not self.submit_on_record:
+                    self.register_parent(invocation_uniform_buffer)
+                    self._cuda_graph_uniform_buffers.append(invocation_uniform_buffer)
         else:
             if len(shader_description.uniform_structure) > 0:
                 uniform_offset, uniform_range = self.uniform_builder.register_struct(shader_uuid, shader_description.uniform_structure)
@@ -285,6 +288,10 @@ class CommandGraph(CommandList):
 
         if self.submit_on_record:
             self.submit()
+            if self._reset_on_submit:
+                descriptor_set.destroy()
+                if invocation_uniform_buffer is not None:
+                    invocation_uniform_buffer.destroy()
 
     def _resolve_queue_index_for_staging(self, queue_index: int) -> int:
         if queue_index is None or queue_index < 0:
