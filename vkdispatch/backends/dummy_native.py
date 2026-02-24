@@ -96,7 +96,7 @@ def _clear_error():
 
 _DUMMY_CODEGEN_ONLY_ERROR = (
     "The 'dummy' backend is codegen-only and does not support runtime GPU "
-    "operations. Use backend='vulkan' or backend='pycuda' for execution."
+    "operations. Use backend='vulkan', backend='pycuda', or backend='cuda-python' for execution."
 )
 
 

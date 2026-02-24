@@ -12,7 +12,11 @@ import vkdispatch.codegen as vc
 from vkdispatch.base.command_list import CommandList
 from vkdispatch.base.compute_plan import ComputePlan
 from vkdispatch.base.descriptor_set import DescriptorSet
-from vkdispatch.base.backend import native
+from vkdispatch.base.backend import (
+    BACKEND_CUDA_PYTHON,
+    CUDA_RUNTIME_BACKENDS,
+    native,
+)
 from vkdispatch.base.errors import check_for_errors
 
 from .buffer_builder import BufferUsage
@@ -81,6 +85,7 @@ class CommandGraph(CommandList):
 
     name_to_pc_key_dict: Dict[str, List[Tuple[str, str]]]
     queued_pc_values: Dict[Tuple[str, str], Any]
+    _cuda_graph_uniform_buffers: List[vd.Buffer]
 
     def __init__(self, reset_on_submit: bool = False, submit_on_record: bool = False) -> None:
         super().__init__()
@@ -102,6 +107,7 @@ class CommandGraph(CommandList):
 
         self.uniform_constants_size = 0
         self.uniform_constants_buffer = vd.Buffer(shape=(4096,), var_type=vd.uint32) # Create a base static constants buffer at size 4k bytes
+        self._cuda_graph_uniform_buffers = []
         self._structure_version = 0
         self._capture_id_counter = 0
 
@@ -122,8 +128,17 @@ class CommandGraph(CommandList):
         self.uniform_descriptors = []
         self.buffers_valid = False
         self._structure_version += 1
+
+    def _is_cuda_python_backend(self) -> bool:
+        return vd.get_backend() == BACKEND_CUDA_PYTHON
     
     def bind_var(self, name: str):
+        if vd.get_backend() in CUDA_RUNTIME_BACKENDS:
+            raise RuntimeError(
+                "CommandGraph.bind_var() is disabled for CUDA backends. "
+                "Pass Variable values directly at shader invocation."
+            )
+
         def register_var(key: Tuple[str, str]):
             if not name in self.name_to_pc_key_dict.keys():
                 self.name_to_pc_key_dict[name] = []
@@ -133,6 +148,12 @@ class CommandGraph(CommandList):
         return register_var
     
     def set_var(self, name: str, value: Any):
+        if vd.get_backend() in CUDA_RUNTIME_BACKENDS:
+            raise RuntimeError(
+                "CommandGraph.set_var() is disabled for CUDA backends. "
+                "Pass Variable values directly at shader invocation."
+            )
+
         if name not in self.name_to_pc_key_dict.keys():
             raise ValueError("Variable not bound!")
         
@@ -173,17 +194,30 @@ class CommandGraph(CommandList):
         if shader_uuid is None:
             shader_uuid = shader_description.name + "_" + str(uuid.uuid4())
 
+        if vd.get_backend() in CUDA_RUNTIME_BACKENDS and len(pc_values) > 0:
+            raise RuntimeError(
+                "Push-constant Variable payloads are disabled for CUDA backends. "
+                "Variable values must be UBO-backed and provided at shader invocation."
+            )
+
         if len(shader_description.pc_structure) != 0:
+            if vd.get_backend() in CUDA_RUNTIME_BACKENDS:
+                raise RuntimeError(
+                    "CUDA kernels should not emit push-constant layouts. "
+                    "Use UBO-backed variables for CUDA backends."
+                )
             self.pc_builder.register_struct(shader_uuid, shader_description.pc_structure)
-        
-        if len(shader_description.uniform_structure) > 0:
-            uniform_offset, uniform_range = self.uniform_builder.register_struct(shader_uuid, shader_description.uniform_structure)
-            self.uniform_descriptors.append((descriptor_set, uniform_offset, uniform_range))
 
         uniform_field_names = {elem.name for elem in shader_description.uniform_structure}
+        resolved_uniform_values: Dict[Tuple[str, str], Any] = {}
 
         if shader_description.exec_count_name is not None:
-            self.uniform_values[(shader_uuid, shader_description.exec_count_name)] = [exec_limits[0], exec_limits[1], exec_limits[2], 0]
+            resolved_uniform_values[(shader_uuid, shader_description.exec_count_name)] = [
+                exec_limits[0],
+                exec_limits[1],
+                exec_limits[2],
+                0,
+            ]
 
         for buffer_bind_info in bound_buffers:
             descriptor_set.bind_buffer(
@@ -194,7 +228,7 @@ class CommandGraph(CommandList):
             )
             
             if buffer_bind_info.shape_name in uniform_field_names:
-                self.uniform_values[(shader_uuid, buffer_bind_info.shape_name)] = buffer_bind_info.buffer.shader_shape
+                resolved_uniform_values[(shader_uuid, buffer_bind_info.shape_name)] = buffer_bind_info.buffer.shader_shape
         
         for sampler_bind_info in bound_samplers:
             descriptor_set.bind_sampler(
@@ -205,7 +239,41 @@ class CommandGraph(CommandList):
             )
 
         for key, value in uniform_values.items():
-            self.uniform_values[(shader_uuid, key)] = value
+            resolved_uniform_values[(shader_uuid, key)] = value
+
+        if self._is_cuda_python_backend():
+            if len(shader_description.uniform_structure) > 0:
+                invocation_uniform_builder = BufferBuilder(usage=BufferUsage.UNIFORM_BUFFER)
+                _uniform_offset, uniform_range = invocation_uniform_builder.register_struct(
+                    shader_uuid,
+                    shader_description.uniform_structure,
+                )
+                invocation_uniform_builder.prepare(1)
+
+                for key, value in resolved_uniform_values.items():
+                    invocation_uniform_builder[key] = value
+
+                uniform_bytes = invocation_uniform_builder.tobytes()
+                uniform_u32_len = max(1, (len(uniform_bytes) + 3) // 4)
+                invocation_uniform_buffer = vd.Buffer(shape=(uniform_u32_len,), var_type=vd.uint32)
+                invocation_uniform_buffer.write(uniform_bytes)
+                descriptor_set.bind_buffer(
+                    invocation_uniform_buffer,
+                    0,
+                    0,
+                    uniform_range,
+                    True,
+                    write_access=False,
+                )
+                self.register_parent(invocation_uniform_buffer)
+                self._cuda_graph_uniform_buffers.append(invocation_uniform_buffer)
+        else:
+            if len(shader_description.uniform_structure) > 0:
+                uniform_offset, uniform_range = self.uniform_builder.register_struct(shader_uuid, shader_description.uniform_structure)
+                self.uniform_descriptors.append((descriptor_set, uniform_offset, uniform_range))
+
+            for key, value in resolved_uniform_values.items():
+                self.uniform_values[key] = value
         
         for key, value in pc_values.items():
             self.pc_values[(shader_uuid, key)] = value
@@ -246,8 +314,8 @@ class CommandGraph(CommandList):
         instance_count: int = 1,
         queue_index: int = -2,
     ) -> CUDACaptureBinding:
-        if vd.get_backend() != "pycuda":
-            raise RuntimeError("prepare_cuda_capture() is currently only supported with backend='pycuda'.")
+        if vd.get_backend() not in CUDA_RUNTIME_BACKENDS:
+            raise RuntimeError("prepare_cuda_capture() is currently only supported with CUDA backends.")
 
         if instance_count is None:
             instance_count = 1
@@ -294,8 +362,14 @@ class CommandGraph(CommandList):
         *,
         instance_count: Optional[int] = None,
     ) -> None:
-        if vd.get_backend() != "pycuda":
-            raise RuntimeError("update_captured_args() is currently only supported with backend='pycuda'.")
+        if vd.get_backend() not in CUDA_RUNTIME_BACKENDS:
+            raise RuntimeError("update_captured_args() is currently only supported with CUDA backends.")
+
+        if self._is_cuda_python_backend():
+            raise RuntimeError(
+                "update_captured_args() is not supported with backend='cuda-python'. "
+                "Uniform payloads are materialized per shader invocation at record time."
+            )
 
         self._validate_capture_binding(capture)
 

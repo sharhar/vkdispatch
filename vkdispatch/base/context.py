@@ -11,7 +11,7 @@ import os, signal
 
 from .errors import check_for_errors, set_running
 from .init import DeviceInfo, get_backend, get_devices, initialize, set_log_level, LogLevel, log_info
-from .backend import BACKEND_DUMMY, BACKEND_PYCUDA, native
+from .backend import BACKEND_DUMMY, CUDA_RUNTIME_BACKENDS, native
 
 
 class Handle:
@@ -53,6 +53,8 @@ class Handle:
         """
         Clears the parent handles.
         """
+        # children_dict uses weak references, so a child key may disappear
+        # before teardown reaches this point.
         for parent in self.parents.values():
             parent.remove_child_handle(self)
 
@@ -71,10 +73,8 @@ class Handle:
         """
         Removes a child handle from the current handle.
         """
-        if child._handle not in self.children_dict.keys():
-            raise ValueError(f"Child handle {child._handle} does not exist in parent handle!")
-        
-        self.children_dict.pop(child._handle)
+        # Be idempotent to tolerate repeated teardown paths and weakref eviction.
+        self.children_dict.pop(child._handle, None)
 
     def _destroy(self) -> None:
         raise NotImplementedError("destroy is an abstract method and must be implemented by subclasses.")
@@ -374,15 +374,15 @@ def make_context(
                     select_queue_families(dev_index, queue_family_count)
                 )
 
-        if get_backend() == BACKEND_PYCUDA:
+        if get_backend() in CUDA_RUNTIME_BACKENDS:
             if len(device_ids) != 1:
                 raise NotImplementedError(
-                    "The PyCUDA backend currently supports exactly one device."
+                    "The CUDA backends currently support exactly one device."
                 )
 
             if len(queue_families) != 1 or len(queue_families[0]) != 1:
                 raise NotImplementedError(
-                    "The PyCUDA backend currently supports exactly one queue."
+                    "The CUDA backends currently support exactly one queue."
                 )
 
         total_devices = len(get_devices())

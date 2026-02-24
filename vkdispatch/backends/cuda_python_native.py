@@ -1,4 +1,4 @@
-"""PyCUDA-backed runtime shim mirroring the vkdispatch_native API surface.
+"""cuda-python-backed runtime shim mirroring the vkdispatch_native API surface.
 
 This module intentionally matches the function names exposed by the Cython
 extension so existing Python runtime objects can call into either backend.
@@ -8,19 +8,35 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+import ctypes
 import hashlib
+import importlib.util
+import os
+from pathlib import Path
 import re
+import shutil
+import sys
 import threading
 from typing import Dict, List, Optional, Tuple
 
 try:
     import numpy as np
-    import pycuda.driver as cuda
-    from pycuda.compiler import SourceModule
 except Exception as exc:  # pragma: no cover - import failure path
     raise ImportError(
-        "The PyCUDA backend requires both 'pycuda' and 'numpy' to be installed."
+        "The CUDA Python backend requires both 'cuda-python' and 'numpy' to be installed."
     ) from exc
+
+try:
+    from cuda.bindings import driver, nvrtc
+except Exception:
+    try:
+        from cuda import cuda as driver  # type: ignore
+        from cuda import nvrtc  # type: ignore
+    except Exception as exc:  # pragma: no cover - import failure path
+        raise ImportError(
+            "The CUDA Python backend requires the NVIDIA cuda-python package "
+            "(`pip install cuda-python`)."
+        ) from exc
 
 
 # Log level constants mirrored from native bindings.
@@ -92,6 +108,820 @@ _BINDING_PARAM_RE = re.compile(r"vkdispatch_binding_(\d+)_ptr$")
 _SAMPLER_PARAM_RE = re.compile(r"vkdispatch_sampler_(\d+)$")
 
 
+def _to_int(value) -> int:
+    if isinstance(value, int):
+        return int(value)
+
+    if hasattr(value, "value"):
+        try:
+            return int(value.value)
+        except Exception:
+            pass
+
+    return int(value)
+
+
+def _drv_call(names, *args):
+    if isinstance(names, str):
+        names = [names]
+
+    last_error = None
+    for name in names:
+        fn = getattr(driver, name, None)
+        if fn is not None:
+            try:
+                return fn(*args)
+            except TypeError as exc:
+                last_error = exc
+                continue
+
+    if last_error is not None:
+        raise RuntimeError(f"CUDA Driver call failed for {names}: {last_error}") from last_error
+    raise RuntimeError(f"CUDA Driver symbol not found: {names}")
+
+
+def _nvrtc_call(names, *args):
+    if isinstance(names, str):
+        names = [names]
+
+    last_error = None
+    for name in names:
+        fn = getattr(nvrtc, name, None)
+        if fn is not None:
+            try:
+                return fn(*args)
+            except TypeError as exc:
+                last_error = exc
+                continue
+
+    if last_error is not None:
+        raise RuntimeError(f"NVRTC call failed for {names}: {last_error}") from last_error
+    raise RuntimeError(f"NVRTC symbol not found: {names}")
+
+
+def _status_success(status) -> bool:
+    try:
+        return _to_int(status) == 0
+    except Exception:
+        return str(status).endswith("CUDA_SUCCESS") or str(status).endswith("NVRTC_SUCCESS")
+
+
+def _drv_error_string(status) -> str:
+    try:
+        name_res = _drv_call("cuGetErrorName", status)
+        string_res = _drv_call("cuGetErrorString", status)
+        _name_status = name_res[0] if isinstance(name_res, tuple) else 1
+        _string_status = string_res[0] if isinstance(string_res, tuple) else 1
+        if _status_success(_name_status) and _status_success(_string_status):
+            name = name_res[1] if isinstance(name_res, tuple) and len(name_res) > 1 else name_res
+            text = string_res[1] if isinstance(string_res, tuple) and len(string_res) > 1 else string_res
+            if isinstance(name, (bytes, bytearray)):
+                name = name.decode("utf-8", errors="replace")
+            if isinstance(text, (bytes, bytearray)):
+                text = text.decode("utf-8", errors="replace")
+            return f"{name}: {text}"
+    except Exception:
+        pass
+
+    return str(status)
+
+
+def _drv_check(result, op_name: str):
+    if isinstance(result, tuple):
+        status = result[0]
+        payload = result[1:]
+    else:
+        status = result
+        payload = ()
+
+    if not _status_success(status):
+        raise RuntimeError(f"{op_name} failed ({_drv_error_string(status)})")
+
+    if len(payload) == 0:
+        return None
+
+    if len(payload) == 1:
+        return payload[0]
+
+    return payload
+
+
+def _nvrtc_check(result, op_name: str):
+    if isinstance(result, tuple):
+        status = result[0]
+        payload = result[1:]
+    else:
+        status = result
+        payload = ()
+
+    if not _status_success(status):
+        raise RuntimeError(f"{op_name} failed ({status})")
+
+    if len(payload) == 0:
+        return None
+
+    if len(payload) == 1:
+        return payload[0]
+
+    return payload
+
+
+def _nvrtc_read_bytes(program, size_api: str, read_api: str) -> bytes:
+    raw_size = _nvrtc_check(_nvrtc_call(size_api, program), size_api)
+    size = int(_to_int(raw_size))
+    if size <= 0:
+        return b""
+
+    def _normalize_output(data) -> Optional[bytes]:
+        if data is None:
+            return None
+
+        if isinstance(data, memoryview):
+            data = data.tobytes()
+        elif isinstance(data, str):
+            data = data.encode("utf-8", errors="replace")
+
+        if isinstance(data, (bytes, bytearray)):
+            raw = bytes(data)
+            if len(raw) >= size:
+                return raw[:size]
+            return raw + (b"\x00" * (size - len(raw)))
+
+        if isinstance(data, (tuple, list)):
+            for item in data:
+                normalized = _normalize_output(item)
+                if normalized is not None:
+                    return normalized
+
+        return None
+
+    try:
+        direct_data = _nvrtc_check(_nvrtc_call(read_api, program), read_api)
+        normalized = _normalize_output(direct_data)
+        if normalized is not None:
+            return normalized
+    except Exception:
+        pass
+
+    out_c = ctypes.create_string_buffer(size)
+    out_bytearray = bytearray(size)
+    out_bytes = bytes(size)
+
+    for out_candidate in (out_bytes, out_bytearray, out_c):
+        try:
+            call_result = _nvrtc_check(_nvrtc_call(read_api, program, out_candidate), read_api)
+            normalized_result = _normalize_output(call_result)
+            if normalized_result is not None:
+                return normalized_result
+
+            if isinstance(out_candidate, bytearray):
+                return bytes(out_candidate)
+
+            if out_candidate is out_c:
+                return bytes(out_c.raw)
+        except Exception:
+            continue
+
+    return bytes(out_c.raw)
+
+
+def _discover_cuda_include_dirs() -> List[str]:
+    include_dirs: List[str] = []
+    seen = set()
+
+    def add_dir(path_like) -> None:
+        if path_like is None:
+            return
+        try:
+            resolved = str(Path(path_like).resolve())
+        except Exception:
+            resolved = str(path_like)
+        if resolved in seen:
+            return
+        header_path = Path(resolved) / "cuda_runtime.h"
+        if header_path.exists():
+            seen.add(resolved)
+            include_dirs.append(resolved)
+
+    # Standard CUDA environment variables.
+    for env_name in (
+        "CUDA_HOME",
+        "CUDA_PATH",
+        "CUDA_ROOT",
+        "CUDA_TOOLKIT_ROOT_DIR",
+        "CUDAToolkit_ROOT",
+    ):
+        root = os.environ.get(env_name)
+        if root:
+            add_dir(Path(root) / "include")
+
+    # CUDA toolkit from nvcc location.
+    nvcc_path = shutil.which("nvcc")
+    if nvcc_path:
+        try:
+            nvcc_root = Path(nvcc_path).resolve().parent.parent
+            add_dir(nvcc_root / "include")
+        except Exception:
+            pass
+
+    # Common Unix install locations.
+    add_dir("/usr/local/cuda/include")
+    add_dir("/opt/cuda/include")
+    add_dir("/usr/include")
+
+    # Conda cudatoolkit layouts.
+    conda_prefix = os.environ.get("CONDA_PREFIX")
+    if conda_prefix:
+        add_dir(Path(conda_prefix) / "include")
+        add_dir(Path(conda_prefix) / "targets" / "x86_64-linux" / "include")
+        add_dir(Path(conda_prefix) / "Library" / "include")
+
+    # NVIDIA pip wheel layout.
+    for base in sys.path:
+        add_dir(Path(base) / "nvidia" / "cuda_runtime" / "include")
+
+    # Some environments expose this namespace package.
+    try:
+        spec = importlib.util.find_spec("nvidia.cuda_runtime")
+        if spec is not None and spec.submodule_search_locations:
+            for entry in spec.submodule_search_locations:
+                add_dir(Path(entry) / "include")
+    except Exception:
+        pass
+
+    return include_dirs
+
+
+def _prepare_nvrtc_options(options: List[bytes]) -> List[bytes]:
+    normalized: List[bytes] = []
+    has_include_path = False
+
+    for opt in options:
+        as_str = opt.decode("utf-8", errors="replace")
+        if as_str.startswith("-I") or as_str.startswith("--include-path"):
+            has_include_path = True
+        normalized.append(opt)
+
+    if not has_include_path:
+        for include_dir in _discover_cuda_include_dirs():
+            normalized.append(f"--include-path={include_dir}".encode("utf-8"))
+
+    return normalized
+
+
+def _as_driver_handle(type_name: str, value):
+    handle_type = getattr(driver, type_name, None)
+    if handle_type is None:
+        return value
+
+    try:
+        if isinstance(value, handle_type):
+            return value
+    except Exception:
+        pass
+
+    try:
+        return handle_type(_to_int(value))
+    except Exception:
+        return value
+
+
+def _writable_host_ptr(view: memoryview):
+    byte_view = view.cast("B")
+    try:
+        c_buffer = (ctypes.c_ubyte * len(byte_view)).from_buffer(byte_view)
+        return ctypes.addressof(c_buffer), c_buffer
+    except Exception:
+        copied = ctypes.create_string_buffer(byte_view.tobytes())
+        return ctypes.addressof(copied), copied
+
+
+def _readonly_host_ptr(view: memoryview):
+    byte_view = view.cast("B")
+    try:
+        c_buffer = (ctypes.c_ubyte * len(byte_view)).from_buffer(byte_view)
+        return ctypes.addressof(c_buffer), c_buffer
+    except Exception:
+        copied = ctypes.create_string_buffer(byte_view.tobytes())
+        return ctypes.addressof(copied), copied
+
+
+class _DeviceAllocation:
+    def __init__(self, ptr: int):
+        self.ptr = int(ptr)
+        self.freed = False
+
+    def __int__(self):
+        return int(self.ptr)
+
+    def free(self):
+        if self.freed:
+            return
+        _drv_check(
+            _drv_call(
+                ["cuMemFree", "cuMemFree_v2"],
+                _as_driver_handle("CUdeviceptr", self.ptr),
+            ),
+            "cuMemFree",
+        )
+        self.freed = True
+
+
+class _ContextHandle:
+    def __init__(self, context_raw, device_index: int, uses_primary_context: bool):
+        self.context_raw = context_raw
+        self.device_index = int(device_index)
+        self.uses_primary_context = bool(uses_primary_context)
+        self._detached = False
+
+    def push(self):
+        _drv_check(
+            _drv_call(
+                "cuCtxPushCurrent",
+                _as_driver_handle("CUcontext", self.context_raw),
+            ),
+            "cuCtxPushCurrent",
+        )
+
+    def detach(self):
+        if self._detached:
+            return
+
+        if self.uses_primary_context:
+            dev = _drv_check(_drv_call("cuDeviceGet", int(self.device_index)), "cuDeviceGet")
+            _drv_check(_drv_call("cuDevicePrimaryCtxRelease", dev), "cuDevicePrimaryCtxRelease")
+        else:
+            _drv_check(
+                _drv_call(
+                    ["cuCtxDestroy", "cuCtxDestroy_v2"],
+                    _as_driver_handle("CUcontext", self.context_raw),
+                ),
+                "cuCtxDestroy",
+            )
+        self._detached = True
+
+
+class _StreamHandle:
+    def __init__(self, handle: Optional[int] = None, ptr: Optional[int] = None, *args, **kwargs):
+        _ = kwargs
+        if handle is None and ptr is None and len(args) == 1:
+            handle = int(args[0])
+        if handle is None and ptr is not None:
+            handle = int(ptr)
+
+        if handle is None:
+            stream_raw = _drv_check(_drv_call("cuStreamCreate", 0), "cuStreamCreate")
+            self.handle = int(_to_int(stream_raw))
+            self.owned = True
+        else:
+            self.handle = int(handle)
+            self.owned = False
+
+    def synchronize(self):
+        _drv_check(
+            _drv_call(
+                "cuStreamSynchronize",
+                _as_driver_handle("CUstream", self.handle),
+            ),
+            "cuStreamSynchronize",
+        )
+
+    def __int__(self):
+        return int(self.handle)
+
+    @property
+    def ptr(self):
+        return int(self.handle)
+
+    @property
+    def cuda_stream(self):
+        return int(self.handle)
+
+
+class _EventHandle:
+    def __init__(self):
+        self.event_raw = _drv_check(_drv_call("cuEventCreate", 0), "cuEventCreate")
+
+    def record(self, stream_obj: Optional["_StreamHandle"]):
+        stream_handle = 0 if stream_obj is None else int(stream_obj)
+        _drv_check(
+            _drv_call(
+                "cuEventRecord",
+                self.event_raw,
+                _as_driver_handle("CUstream", stream_handle),
+            ),
+            "cuEventRecord",
+        )
+
+    def query(self) -> bool:
+        res = _drv_call("cuEventQuery", self.event_raw)
+        status = res[0] if isinstance(res, tuple) else res
+
+        if _status_success(status):
+            return True
+
+        status_text = str(status)
+        if "NOT_READY" in status_text:
+            return False
+
+        if _to_int(status) != 0:
+            return False
+
+        return True
+
+    def synchronize(self):
+        _drv_check(_drv_call("cuEventSynchronize", self.event_raw), "cuEventSynchronize")
+
+
+class _KernelFunction:
+    def __init__(self, function_raw):
+        self.function_raw = function_raw
+
+    def __call__(self, *args, block, grid, stream=None):
+        arg_values = [ctypes.c_uint64(int(arg)) for arg in args]
+
+        def _dedupe(values):
+            out = []
+            seen = set()
+            for value in values:
+                key = f"{type(value).__name__}:{repr(value)}"
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(value)
+            return out
+
+        arg_ptr_values = [ctypes.addressof(arg_val) for arg_val in arg_values]
+        arg_ptr_array = None
+        if len(arg_ptr_values) > 0:
+            arg_ptr_array = (ctypes.c_void_p * len(arg_ptr_values))(
+                *[ctypes.c_void_p(ptr) for ptr in arg_ptr_values]
+            )
+
+        kernel_param_variants = [None, 0, ctypes.c_void_p(0)]
+        if arg_ptr_array is not None:
+            array_ptr = ctypes.cast(arg_ptr_array, ctypes.POINTER(ctypes.c_void_p))
+            kernel_param_variants = _dedupe(
+                [
+                    arg_ptr_array,
+                    array_ptr,
+                    ctypes.cast(array_ptr, ctypes.c_void_p),
+                    ctypes.cast(array_ptr, ctypes.c_void_p).value,
+                    tuple(arg_ptr_values),
+                    list(arg_ptr_values),
+                    tuple(int(arg_val.value) for arg_val in arg_values),
+                    [int(arg_val.value) for arg_val in arg_values],
+                    tuple(arg_values),
+                    list(arg_values),
+                ]
+            )
+
+        stream_handle = 0 if stream is None else int(stream)
+        stream_variants = _dedupe(
+            [
+                stream_handle,
+                _as_driver_handle("CUstream", stream_handle),
+            ]
+        )
+
+        function_candidates = [
+            self.function_raw,
+            _as_driver_handle("CUfunction", self.function_raw),
+        ]
+        try:
+            function_candidates.append(_to_int(self.function_raw))
+        except Exception:
+            pass
+        function_variants = _dedupe(function_candidates)
+
+        extra_variants = [None, 0, ctypes.c_void_p(0)]
+        last_error = None
+
+        for function_handle in function_variants:
+            for stream_value in stream_variants:
+                for kernel_params in kernel_param_variants:
+                    for extra in extra_variants:
+                        try:
+                            _drv_check(
+                                _drv_call(
+                                    "cuLaunchKernel",
+                                    function_handle,
+                                    int(grid[0]),
+                                    int(grid[1]),
+                                    int(grid[2]),
+                                    int(block[0]),
+                                    int(block[1]),
+                                    int(block[2]),
+                                    0,
+                                    stream_value,
+                                    kernel_params,
+                                    extra,
+                                ),
+                                "cuLaunchKernel",
+                            )
+                            return
+                        except Exception as exc:
+                            last_error = exc
+
+                        try:
+                            _drv_check(
+                                _drv_call(
+                                    "cuLaunchKernel",
+                                    function_handle,
+                                    int(grid[0]),
+                                    int(grid[1]),
+                                    int(grid[2]),
+                                    int(block[0]),
+                                    int(block[1]),
+                                    int(block[2]),
+                                    0,
+                                    stream_value,
+                                    kernel_params,
+                                ),
+                                "cuLaunchKernel",
+                            )
+                            return
+                        except Exception as exc:
+                            last_error = exc
+                            continue
+
+        if last_error is None:
+            raise RuntimeError("cuLaunchKernel failed with no diagnostic.")
+        raise RuntimeError(f"cuLaunchKernel failed: {last_error}") from last_error
+
+
+class SourceModule:
+    def __init__(self, source: str, no_extern_c: bool = True, options: Optional[List[str]] = None):
+        _ = no_extern_c
+        if options is None:
+            options = []
+
+        program_name = b"vkdispatch.cu"
+        source_bytes = source.encode("utf-8")
+        program = _nvrtc_check(
+            _nvrtc_call(
+                "nvrtcCreateProgram",
+                source_bytes,
+                program_name,
+                0,
+                [],
+                [],
+            ),
+            "nvrtcCreateProgram",
+        )
+
+        ptx = b""
+        build_log = b""
+
+        try:
+            encoded_options = [opt.encode("utf-8") if isinstance(opt, str) else bytes(opt) for opt in options]
+            encoded_options = _prepare_nvrtc_options(encoded_options)
+            compile_result = _nvrtc_call("nvrtcCompileProgram", program, len(encoded_options), encoded_options)
+            compile_status = compile_result[0] if isinstance(compile_result, tuple) else compile_result
+
+            build_log = _nvrtc_read_bytes(program, "nvrtcGetProgramLogSize", "nvrtcGetProgramLog")
+            if not _status_success(compile_status):
+                clean_build_log = build_log.rstrip(b"\x00").decode("utf-8", errors="replace")
+                if "could not open source file \"cuda_runtime.h\"" in clean_build_log:
+                    discovered = _discover_cuda_include_dirs()
+                    hint = (
+                        " NVRTC could not find CUDA headers. "
+                        f"Discovered include dirs: {discovered if len(discovered) > 0 else 'none'}. "
+                        "Set CUDA_HOME/CUDA_PATH to your toolkit root or ensure nvcc is on PATH."
+                    )
+                else:
+                    hint = ""
+                raise RuntimeError(
+                    f"NVRTC compilation failed: {clean_build_log}{hint}"
+                )
+
+            ptx = _nvrtc_read_bytes(program, "nvrtcGetPTXSize", "nvrtcGetPTX")
+        finally:
+            try:
+                _nvrtc_check(_nvrtc_call("nvrtcDestroyProgram", program), "nvrtcDestroyProgram")
+            except Exception:
+                pass
+
+        if len(ptx) == 0:
+            raise RuntimeError("NVRTC compilation succeeded but produced an empty PTX payload.")
+        if not ptx.endswith(b"\x00"):
+            ptx += b"\x00"
+
+        self.module_raw = _drv_check(
+            _drv_call(["cuModuleLoadDataEx", "cuModuleLoadData"], ptx),
+            "cuModuleLoadData",
+        )
+
+    def get_function(self, name: str):
+        func_raw = _drv_check(
+            _drv_call("cuModuleGetFunction", self.module_raw, name.encode("utf-8")),
+            "cuModuleGetFunction",
+        )
+        return _KernelFunction(func_raw)
+
+
+class _CudaDevice:
+    class device_attribute:
+        MAX_BLOCK_DIM_X = getattr(
+            getattr(driver, "CUdevice_attribute", object()),
+            "CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X",
+            0,
+        )
+        MAX_BLOCK_DIM_Y = getattr(
+            getattr(driver, "CUdevice_attribute", object()),
+            "CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y",
+            0,
+        )
+        MAX_BLOCK_DIM_Z = getattr(
+            getattr(driver, "CUdevice_attribute", object()),
+            "CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z",
+            0,
+        )
+        MAX_THREADS_PER_BLOCK = getattr(
+            getattr(driver, "CUdevice_attribute", object()),
+            "CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK",
+            0,
+        )
+        MAX_GRID_DIM_X = getattr(
+            getattr(driver, "CUdevice_attribute", object()),
+            "CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X",
+            0,
+        )
+        MAX_GRID_DIM_Y = getattr(
+            getattr(driver, "CUdevice_attribute", object()),
+            "CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y",
+            0,
+        )
+        MAX_GRID_DIM_Z = getattr(
+            getattr(driver, "CUdevice_attribute", object()),
+            "CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z",
+            0,
+        )
+        WARP_SIZE = getattr(
+            getattr(driver, "CUdevice_attribute", object()),
+            "CU_DEVICE_ATTRIBUTE_WARP_SIZE",
+            0,
+        )
+        MAX_SHARED_MEMORY_PER_BLOCK = getattr(
+            getattr(driver, "CUdevice_attribute", object()),
+            "CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK",
+            0,
+        )
+
+    class Device:
+        def __init__(self, index: int):
+            self.index = int(index)
+            self.device_raw = _drv_check(_drv_call("cuDeviceGet", self.index), "cuDeviceGet")
+
+        @staticmethod
+        def count():
+            return int(_drv_check(_drv_call("cuDeviceGetCount"), "cuDeviceGetCount"))
+
+        def get_attributes(self):
+            attrs = {}
+            for attr_name in (
+                "MAX_BLOCK_DIM_X",
+                "MAX_BLOCK_DIM_Y",
+                "MAX_BLOCK_DIM_Z",
+                "MAX_THREADS_PER_BLOCK",
+                "MAX_GRID_DIM_X",
+                "MAX_GRID_DIM_Y",
+                "MAX_GRID_DIM_Z",
+                "WARP_SIZE",
+                "MAX_SHARED_MEMORY_PER_BLOCK",
+            ):
+                attr_enum = getattr(_CudaDevice.device_attribute, attr_name)
+                try:
+                    val = _drv_check(
+                        _drv_call("cuDeviceGetAttribute", attr_enum, self.device_raw),
+                        "cuDeviceGetAttribute",
+                    )
+                    attrs[attr_enum] = int(val)
+                except Exception:
+                    attrs[attr_enum] = 0
+            return attrs
+
+        def compute_capability(self):
+            major_enum = getattr(
+                getattr(driver, "CUdevice_attribute", object()),
+                "CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR",
+                0,
+            )
+            minor_enum = getattr(
+                getattr(driver, "CUdevice_attribute", object()),
+                "CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR",
+                0,
+            )
+            major = _drv_check(_drv_call("cuDeviceGetAttribute", major_enum, self.device_raw), "cuDeviceGetAttribute")
+            minor = _drv_check(_drv_call("cuDeviceGetAttribute", minor_enum, self.device_raw), "cuDeviceGetAttribute")
+            return int(major), int(minor)
+
+        def total_memory(self):
+            return int(_drv_check(_drv_call(["cuDeviceTotalMem", "cuDeviceTotalMem_v2"], self.device_raw), "cuDeviceTotalMem"))
+
+        def pci_bus_id(self):
+            try:
+                bus_id = _drv_check(_drv_call("cuDeviceGetPCIBusId", 64, self.device_raw), "cuDeviceGetPCIBusId")
+                if isinstance(bus_id, (bytes, bytearray)):
+                    return bus_id.decode("utf-8", errors="replace").rstrip("\x00")
+                return str(bus_id)
+            except Exception:
+                return f"cuda-device-{self.index}"
+
+        def name(self):
+            try:
+                name = _drv_check(_drv_call("cuDeviceGetName", 128, self.device_raw), "cuDeviceGetName")
+                if isinstance(name, (bytes, bytearray)):
+                    return name.decode("utf-8", errors="replace").rstrip("\x00")
+                return str(name)
+            except Exception:
+                return f"CUDA Device {self.index}"
+
+        def retain_primary_context(self):
+            ctx_raw = _drv_check(_drv_call("cuDevicePrimaryCtxRetain", self.device_raw), "cuDevicePrimaryCtxRetain")
+            return _ContextHandle(ctx_raw, self.index, True)
+
+        def make_context(self):
+            ctx_raw = _drv_check(
+                _drv_call(["cuCtxCreate", "cuCtxCreate_v2"], 0, self.device_raw),
+                "cuCtxCreate",
+            )
+            return _ContextHandle(ctx_raw, self.index, False)
+
+    class Context:
+        @staticmethod
+        def pop():
+            try:
+                _drv_check(_drv_call("cuCtxPopCurrent"), "cuCtxPopCurrent")
+                return
+            except Exception:
+                pass
+
+            popped = ctypes.c_void_p()
+            _drv_check(_drv_call("cuCtxPopCurrent", popped), "cuCtxPopCurrent")
+
+    Stream = _StreamHandle
+    ExternalStream = _StreamHandle
+    Event = _EventHandle
+    DeviceAllocation = _DeviceAllocation
+    device_attribute = device_attribute
+
+    @staticmethod
+    def init():
+        _drv_check(_drv_call("cuInit", 0), "cuInit")
+
+    @staticmethod
+    def get_driver_version():
+        return int(_drv_check(_drv_call("cuDriverGetVersion"), "cuDriverGetVersion"))
+
+    @staticmethod
+    def mem_alloc(size: int):
+        ptr = _drv_check(
+            _drv_call(["cuMemAlloc", "cuMemAlloc_v2"], int(size)),
+            "cuMemAlloc",
+        )
+        return _DeviceAllocation(int(_to_int(ptr)))
+
+    @staticmethod
+    def memcpy_htod_async(dst_ptr, src_obj, stream_obj):
+        src_view = memoryview(src_obj).cast("B")
+        host_ptr, _keepalive = _readonly_host_ptr(src_view)
+        stream_handle = 0 if stream_obj is None else int(stream_obj)
+        _drv_check(
+            _drv_call(
+                ["cuMemcpyHtoDAsync", "cuMemcpyHtoDAsync_v2"],
+                _as_driver_handle("CUdeviceptr", int(dst_ptr)),
+                host_ptr,
+                len(src_view),
+                _as_driver_handle("CUstream", stream_handle),
+            ),
+            "cuMemcpyHtoDAsync",
+        )
+
+    @staticmethod
+    def memcpy_dtoh_async(dst_obj, src_ptr, stream_obj):
+        dst_view = memoryview(dst_obj).cast("B")
+        host_ptr, _keepalive = _writable_host_ptr(dst_view)
+        stream_handle = 0 if stream_obj is None else int(stream_obj)
+        _drv_check(
+            _drv_call(
+                ["cuMemcpyDtoHAsync", "cuMemcpyDtoHAsync_v2"],
+                host_ptr,
+                _as_driver_handle("CUdeviceptr", int(src_ptr)),
+                len(dst_view),
+                _as_driver_handle("CUstream", stream_handle),
+            ),
+            "cuMemcpyDtoHAsync",
+        )
+
+    @staticmethod
+    def pagelocked_empty(size: int, dtype):
+        return np.empty(int(size), dtype=dtype)
+
+
+cuda = _CudaDevice
+
+
 # --- Runtime state ---
 
 _initialized = False
@@ -128,7 +958,7 @@ class _Signal:
 @dataclass
 class _Context:
     device_index: int
-    pycuda_context: "cuda.Context"
+    cuda_context: "cuda.Context"
     streams: List["cuda.Stream"]
     queue_count: int
     queue_to_device: List[int]
@@ -316,12 +1146,12 @@ def _wrap_external_stream(handle: int):
             stream_obj = ctor()
             _external_stream_cache[handle] = stream_obj
             return stream_obj
-        except Exception as exc:  # pragma: no cover - depends on pycuda version
+        except Exception as exc:  # pragma: no cover - depends on cuda-python version
             last_error = exc
 
     raise RuntimeError(
-        f"Failed to wrap external CUDA stream handle {handle} with PyCUDA. "
-        "This PyCUDA version may not support external stream wrappers."
+        f"Failed to wrap external CUDA stream handle {handle} with CUDA Python. "
+        "This CUDA Python version may not support external stream wrappers."
     ) from last_error
 
 
@@ -366,7 +1196,7 @@ def _context_from_handle(context_handle: int) -> Optional[_Context]:
 
 @contextmanager
 def _activate_context(ctx: _Context):
-    ctx.pycuda_context.push()
+    ctx.cuda_context.push()
     try:
         yield
     finally:
@@ -561,7 +1391,7 @@ def _build_kernel_args(
             continue
 
         if param.kind == "sampler":
-            raise RuntimeError("PyCUDA backend does not support sampled image bindings yet")
+            raise RuntimeError("CUDA Python backend does not support sampled image bindings yet")
 
         raise RuntimeError(
             f"Unsupported kernel parameter '{param.raw_name}'. "
@@ -605,7 +1435,7 @@ def _build_kernel_args_template(
             continue
 
         if param.kind == "sampler":
-            raise RuntimeError("PyCUDA backend does not support sampled image bindings yet")
+            raise RuntimeError("CUDA Python backend does not support sampled image bindings yet")
 
         raise RuntimeError(
             f"Unsupported kernel parameter '{param.raw_name}'. "
@@ -747,16 +1577,16 @@ def context_create(device_indicies, queue_families):
         return 0
 
     if len(device_ids) != 1:
-        _set_error("PyCUDA backend currently supports exactly one device")
+        _set_error("CUDA Python backend currently supports exactly one device")
         return 0
 
     if len(queue_families) != 1 or len(queue_families[0]) != 1:
-        _set_error("PyCUDA backend currently supports exactly one queue")
+        _set_error("CUDA Python backend currently supports exactly one queue")
         return 0
 
     device_index = device_ids[0]
 
-    pycuda_context = None
+    cuda_context = None
     context_pushed = False
 
     try:
@@ -768,17 +1598,17 @@ def context_create(device_indicies, queue_families):
         uses_primary_context = False
 
         if hasattr(dev, "retain_primary_context"):
-            pycuda_context = dev.retain_primary_context()
+            cuda_context = dev.retain_primary_context()
             uses_primary_context = True
-            pycuda_context.push()
-        else:  # pragma: no cover - fallback for older PyCUDA
-            pycuda_context = dev.make_context()
+            cuda_context.push()
+        else:  # pragma: no cover - fallback for older CUDA Python
+            cuda_context = dev.make_context()
         context_pushed = True
         stream = cuda.Stream()
 
         ctx = _Context(
             device_index=device_index,
-            pycuda_context=pycuda_context,
+            cuda_context=cuda_context,
             streams=[stream],
             queue_count=1,
             queue_to_device=[0],
@@ -798,13 +1628,13 @@ def context_create(device_indicies, queue_families):
             except Exception:
                 pass
 
-        if pycuda_context is not None:
+        if cuda_context is not None:
             try:
-                pycuda_context.detach()
+                cuda_context.detach()
             except Exception:
                 pass
 
-        _set_error(f"Failed to create PyCUDA context: {exc}")
+        _set_error(f"Failed to create CUDA Python context: {exc}")
         return 0
 
 
@@ -821,7 +1651,7 @@ def context_destroy(context):
         pass
 
     try:
-        ctx.pycuda_context.detach()
+        ctx.cuda_context.detach()
     except Exception:
         pass
 
@@ -861,7 +1691,7 @@ def signal_wait(signal_ptr, wait_for_timestamp, queue_index):
         return True
 
     if not bool(wait_for_timestamp):
-        # PyCUDA records signals synchronously on submission; host-side "recorded" waits
+        # CUDA Python records signals synchronously on submission; host-side "recorded" waits
         # should therefore complete immediately once an event exists.
         if signal_obj.event is None:
             return bool(signal_obj.done)
@@ -1457,7 +2287,7 @@ def stage_compute_record(command_list, plan, descriptor_set, blocks_x, blocks_y,
     cl.compute_instance_size += int(cp.pc_size)
 
 
-# --- API: images/samplers (not yet implemented on PyCUDA backend) ---
+# --- API: images/samplers (not yet implemented on CUDA Python backend) ---
 
 
 def image_create(context, extent, layers, format, type, view_type, generate_mips):
@@ -1468,7 +2298,7 @@ def image_create(context, extent, layers, format, type, view_type, generate_mips
     _ = type
     _ = view_type
     _ = generate_mips
-    _set_error("PyCUDA backend does not support image objects yet")
+    _set_error("CUDA Python backend does not support image objects yet")
     return 0
 
 
@@ -1496,7 +2326,7 @@ def image_create_sampler(
     _ = min_lod
     _ = max_lod
     _ = border_color
-    _set_error("PyCUDA backend does not support image samplers yet")
+    _set_error("CUDA Python backend does not support image samplers yet")
     return 0
 
 
@@ -1512,7 +2342,7 @@ def image_write(image, data, offset, extent, baseLayer, layerCount, device_index
     _ = baseLayer
     _ = layerCount
     _ = device_index
-    _set_error("PyCUDA backend does not support image writes yet")
+    _set_error("CUDA Python backend does not support image writes yet")
 
 
 def image_format_block_size(format):
@@ -1526,11 +2356,11 @@ def image_read(image, out_size, offset, extent, baseLayer, layerCount, device_in
     _ = baseLayer
     _ = layerCount
     _ = device_index
-    _set_error("PyCUDA backend does not support image reads yet")
+    _set_error("CUDA Python backend does not support image reads yet")
     return bytes(max(0, int(out_size)))
 
 
-# --- API: FFT stage (not yet implemented on PyCUDA backend) ---
+# --- API: FFT stage (not yet implemented on CUDA Python backend) ---
 
 
 def stage_fft_plan_create(
@@ -1569,7 +2399,7 @@ def stage_fft_plan_create(
     _ = num_batches
     _ = single_kernel_multiple_batches
     _ = keep_shader_code
-    _set_error("PyCUDA backend does not support FFT plans yet")
+    _set_error("CUDA Python backend does not support FFT plans yet")
     return 0
 
 
@@ -1584,7 +2414,7 @@ def stage_fft_record(command_list, plan, buffer, inverse, kernel, input_buffer):
     _ = inverse
     _ = kernel
     _ = input_buffer
-    _set_error("PyCUDA backend does not support FFT stages yet")
+    _set_error("CUDA Python backend does not support FFT stages yet")
 
 
 __all__ = [

@@ -3,6 +3,7 @@ from typing import Optional
 from contextlib import contextmanager
 
 from .backend import native
+from .backend import CUDA_RUNTIME_BACKENDS
 from .init import get_backend
 
 from .context import Handle
@@ -84,8 +85,8 @@ class CommandList(Handle):
             yield
             return
 
-        if get_backend() != "pycuda":
-            raise RuntimeError("cuda_stream=... is currently only supported with backend='pycuda'.")
+        if get_backend() not in CUDA_RUNTIME_BACKENDS:
+            raise RuntimeError("cuda_stream=... is currently only supported with CUDA backends.")
 
         native.cuda_stream_override_begin(cuda_stream)
         check_for_errors()

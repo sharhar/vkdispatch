@@ -289,10 +289,10 @@ def from_cuda_array(
     keepalive: bool = True,
 ) -> Buffer:
     from .init import get_backend
-    from .backend import BACKEND_PYCUDA
+    from .backend import CUDA_RUNTIME_BACKENDS
 
-    if get_backend() != BACKEND_PYCUDA:
-        raise RuntimeError("from_cuda_array() is currently only supported with backend='pycuda'.")
+    if get_backend() not in CUDA_RUNTIME_BACKENDS:
+        raise RuntimeError("from_cuda_array() is currently only supported with CUDA backends.")
 
     if not hasattr(obj, "__cuda_array_interface__"):
         raise TypeError("Expected an object with __cuda_array_interface__")

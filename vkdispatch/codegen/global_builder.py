@@ -14,9 +14,9 @@ _codegen_backend = threading.local()
 
 def _make_runtime_default_codegen_backend() -> CodeGenBackend:
     try:
-        from vkdispatch.base.backend import BACKEND_PYCUDA, get_active_backend_name
+        from vkdispatch.base.backend import CUDA_RUNTIME_BACKENDS, get_active_backend_name
 
-        if get_active_backend_name() == BACKEND_PYCUDA:
+        if get_active_backend_name() in CUDA_RUNTIME_BACKENDS:
             return CUDABackend()
     except Exception:
         # If runtime backend metadata is unavailable, fall back to GLSL.

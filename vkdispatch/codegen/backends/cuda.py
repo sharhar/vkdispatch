@@ -1252,14 +1252,13 @@ class CUDABackend(CodeGenBackend):
         self._enable_printf = enable_printf
 
         helper_header = self._helper_header()
+        fp16_include = "#include <cuda_fp16.h>\n" if self._needs_cuda_fp16 else ""
 
 
 
         self._fixed_preamble = (
             "#include <cuda_runtime.h>\n"
-            "#include <math.h>\n"
-            "#include <stdint.h>\n"
-            f"{"#include <cuda_fp16.h>\n" if self._needs_cuda_fp16 else ""}\n"
+            f"{fp16_include}\n"
             f"#define VKDISPATCH_ENABLE_SUBGROUP_OPS {subgroup_support}\n"
             f"#define VKDISPATCH_ENABLE_PRINTF {printf_support}\n\n"
             f"{helper_header}\n\n"
@@ -1330,7 +1329,7 @@ class CUDABackend(CodeGenBackend):
         return "UBO"
 
     def variable_namespace(self) -> str:
-        return "PC"
+        return "UBO"
 
     def exec_bounds_guard(self, exec_count_expr: str) -> str:
         gid = self.global_invocation_id_expr()

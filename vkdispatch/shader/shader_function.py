@@ -17,7 +17,7 @@ import sys
 import dataclasses
 
 from .._compat import numpy_compat as npc
-from ..base.backend import BACKEND_DUMMY, BACKEND_PYCUDA, BACKEND_VULKAN
+from ..base.backend import BACKEND_DUMMY, BACKEND_VULKAN, CUDA_RUNTIME_BACKENDS
 
 class LaunchParametersHolder:
     def __init__(self, names_and_defaults, args, kwargs) -> None:
@@ -271,15 +271,16 @@ class ShaderFunction:
 
         if runtime_backend == BACKEND_DUMMY:
             pass
-        elif runtime_backend == BACKEND_PYCUDA and shader_backend_name != "cuda":
+        elif runtime_backend in CUDA_RUNTIME_BACKENDS and shader_backend_name != "cuda":
             raise RuntimeError(
-                "PyCUDA runtime backend requires CUDA codegen output. "
-                "Call vd.initialize(backend='pycuda') before building shaders."
+                "The selected CUDA runtime backend requires CUDA codegen output. "
+                "Call vd.initialize(backend='pycuda') or vd.initialize(backend='cuda-python') "
+                "before building shaders."
             )
         elif runtime_backend == BACKEND_VULKAN and shader_backend_name == "cuda":
             raise RuntimeError(
                 "Vulkan runtime backend cannot execute CUDA codegen output. "
-                "Use GLSL codegen or initialize with backend='pycuda'."
+                "Use GLSL codegen or initialize with backend='pycuda'/'cuda-python'."
             )
 
         self.source = self.shader_description.make_source(
@@ -348,6 +349,7 @@ class ShaderFunction:
         bound_samplers = []
         uniform_values = {}
         pc_values = {}
+        runtime_backend = vd.get_backend()
 
         shader_uuid = f"{self.shader_description.name}.{uuid.uuid4()}"
 
@@ -402,6 +404,15 @@ class ShaderFunction:
                     uniform_values[shader_arg.shader_name[field.name]] = getattr(arg, field.name)
 
             elif shader_arg.arg_type == ShaderArgumentType.VARIABLE:
+                if runtime_backend in CUDA_RUNTIME_BACKENDS:
+                    if callable(arg):
+                        raise RuntimeError(
+                            "CommandGraph.bind_var()/set_var() are disabled for CUDA backends. "
+                            "Pass Variable values directly at shader invocation."
+                        )
+                    uniform_values[shader_arg.shader_name] = arg
+                    continue
+
                 if len(self.shader_description.pc_structure) == 0:
                     raise ValueError("Something went wrong with push constants!!")
 

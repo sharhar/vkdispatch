@@ -6,9 +6,18 @@ from typing import Dict, Optional
 
 BACKEND_VULKAN = "vulkan"
 BACKEND_PYCUDA = "pycuda"
+BACKEND_CUDA_PYTHON = "cuda-python"
 BACKEND_DUMMY = "dummy"
 
-_VALID_BACKENDS = {BACKEND_VULKAN, BACKEND_PYCUDA, BACKEND_DUMMY}
+_BACKEND_ALIASES = {
+    "cuda_python": BACKEND_CUDA_PYTHON,
+    "cuda-bindings": BACKEND_CUDA_PYTHON,
+    "cuda_bindings": BACKEND_CUDA_PYTHON,
+}
+
+CUDA_RUNTIME_BACKENDS = {BACKEND_PYCUDA, BACKEND_CUDA_PYTHON}
+
+_VALID_BACKENDS = {BACKEND_VULKAN, BACKEND_PYCUDA, BACKEND_CUDA_PYTHON, BACKEND_DUMMY}
 _active_backend_name: Optional[str] = None
 _backend_modules: Dict[str, ModuleType] = {}
 
@@ -24,6 +33,7 @@ def normalize_backend_name(backend: Optional[str]) -> str:
         return BACKEND_VULKAN
 
     backend_name = backend.strip().lower()
+    backend_name = _BACKEND_ALIASES.get(backend_name, backend_name)
     if backend_name not in _VALID_BACKENDS:
         valid = ", ".join(sorted(_VALID_BACKENDS))
         raise ValueError(f"Unknown backend '{backend}'. Expected one of: {valid}")
@@ -66,6 +76,8 @@ def _load_backend_module(backend_name: str) -> ModuleType:
             module = importlib.import_module("vkdispatch_vulkan_native")
         elif backend_name == BACKEND_PYCUDA:
             module = importlib.import_module("vkdispatch.backends.pycuda_native")
+        elif backend_name == BACKEND_CUDA_PYTHON:
+            module = importlib.import_module("vkdispatch.backends.cuda_python_native")
         elif backend_name == BACKEND_DUMMY:
             module = importlib.import_module("vkdispatch.backends.dummy_native")
         else:
@@ -83,6 +95,13 @@ def _load_backend_module(backend_name: str) -> ModuleType:
                 backend_name,
                 "PyCUDA backend is unavailable because the 'vkdispatch.backends.pycuda_native' "
                 f"module could not be imported ({exc}).",
+            ) from exc
+        if backend_name == BACKEND_CUDA_PYTHON:
+            raise BackendUnavailableError(
+                backend_name,
+                "CUDA Python backend is unavailable because the "
+                "'vkdispatch.backends.cuda_python_native' module could not be imported "
+                f"({exc}).",
             ) from exc
         raise
 

@@ -7,6 +7,7 @@ import inspect
 
 from .errors import check_for_errors
 from .backend import (
+    BACKEND_CUDA_PYTHON,
     BACKEND_PYCUDA,
     BACKEND_VULKAN,
     BackendUnavailableError,
@@ -413,13 +414,19 @@ def _set_initialized_state(backend_name: str, devices: List[DeviceInfo]) -> None
         dev.sorted_index = ii
 
 
-def _build_no_gpu_backend_error(vulkan_error: Exception, pycuda_error: Exception) -> RuntimeError:
+def _build_no_gpu_backend_error(
+    vulkan_error: Exception,
+    cuda_python_error: Exception,
+    pycuda_error: Exception,
+) -> RuntimeError:
     return RuntimeError(
         "vkdispatch could not find an available GPU backend.\n"
         f"Vulkan backend unavailable: {vulkan_error}\n"
+        f"CUDA Python backend unavailable: {cuda_python_error}\n"
         f"PyCUDA backend unavailable: {pycuda_error}\n"
-        "Install the Vulkan backend with `pip install vkdispatch`, or install PyCUDA support "
-        "(`pip install pycuda numpy`), or explicitly use `vd.initialize(backend='dummy')` "
+        "Install the Vulkan backend with `pip install vkdispatch`, or install CUDA support "
+        "(`pip install cuda-python` or `pip install pycuda numpy`), or explicitly use "
+        "`vd.initialize(backend='dummy')` "
         "for codegen-only workflows."
     )
 
@@ -428,8 +435,9 @@ def _build_vulkan_backend_error(vulkan_error: Exception) -> RuntimeError:
     return RuntimeError(
         "vkdispatch could not load the Vulkan backend.\n"
         f"Vulkan backend unavailable: {vulkan_error}\n"
-        "Install the Vulkan backend with `pip install vkdispatch`, use the PyCUDA backend "
-        "(`pip install pycuda numpy`, or explicitly use `vd.initialize(backend='dummy')` "
+        "Install the Vulkan backend with `pip install vkdispatch`, use a CUDA backend "
+        "(`pip install cuda-python` or `pip install pycuda numpy`), or explicitly use "
+        "`vd.initialize(backend='dummy')` "
         "for codegen-only workflows."
     )
 
@@ -513,7 +521,7 @@ def initialize(
             LogLevel.ERROR
         loader_debug_logs (bool): A flag to enable vulkan loader debug logs.
         backend (`Optional[str]`): Runtime backend to use. Supported values are
-            "vulkan", "pycuda", and "dummy". If omitted, the currently selected backend is
+            "vulkan", "pycuda", "cuda-python", and "dummy". If omitted, the currently selected backend is
             reused. If no backend was selected yet, `VKDISPATCH_BACKEND` is used
             when set, otherwise "vulkan" is used.
     """
@@ -550,14 +558,27 @@ def initialize(
         except BackendUnavailableError as vulkan_error:
             try:
                 _initialize_with_backend(
-                    BACKEND_PYCUDA,
+                    BACKEND_CUDA_PYTHON,
                     debug_mode=debug_mode,
                     log_level=log_level,
                     loader_debug_logs=loader_debug_logs,
                 )
                 return
-            except Exception as pycuda_error:
-                raise _build_no_gpu_backend_error(vulkan_error, pycuda_error) from pycuda_error
+            except Exception as cuda_python_error:
+                try:
+                    _initialize_with_backend(
+                        BACKEND_PYCUDA,
+                        debug_mode=debug_mode,
+                        log_level=log_level,
+                        loader_debug_logs=loader_debug_logs,
+                    )
+                    return
+                except Exception as pycuda_error:
+                    raise _build_no_gpu_backend_error(
+                        vulkan_error,
+                        cuda_python_error,
+                        pycuda_error,
+                    ) from pycuda_error
 
     try:
         _initialize_with_backend(
