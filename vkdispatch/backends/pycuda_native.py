@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 import hashlib
 import re
+import threading
 from typing import Dict, List, Optional, Tuple
 
 try:
@@ -108,6 +109,8 @@ _descriptor_sets: Dict[int, "_DescriptorSet"] = {}
 _images: Dict[int, object] = {}
 _samplers: Dict[int, object] = {}
 _fft_plans: Dict[int, object] = {}
+_external_stream_cache: Dict[int, object] = {}
+_stream_override = threading.local()
 
 
 # --- Internal objects ---
@@ -129,6 +132,7 @@ class _Context:
     streams: List["cuda.Stream"]
     queue_count: int
     queue_to_device: List[int]
+    uses_primary_context: bool = False
     stopped: bool = False
 
 
@@ -136,7 +140,9 @@ class _Context:
 class _Buffer:
     context_handle: int
     size: int
-    device_allocation: "cuda.DeviceAllocation"
+    device_ptr: int
+    device_allocation: Optional["cuda.DeviceAllocation"]
+    owns_allocation: bool
     staging_data: List[object]
     signal_handles: List[int]
 
@@ -156,6 +162,8 @@ class _CommandList:
     compute_instance_size: int = 0
     pc_scratch: Optional["cuda.DeviceAllocation"] = None
     pc_scratch_size: int = 0
+    pc_host_staging: Optional[object] = None
+    pc_host_staging_size: int = 0
 
 
 @dataclass
@@ -228,6 +236,96 @@ def _clear_error() -> None:
     _error_string = None
 
 
+def _coerce_stream_handle(stream_obj) -> Optional[int]:
+    if stream_obj is None:
+        return None
+
+    if isinstance(stream_obj, int):
+        return int(stream_obj)
+
+    for attr_name in ("cuda_stream", "ptr", "handle"):
+        if hasattr(stream_obj, attr_name):
+            try:
+                return int(getattr(stream_obj, attr_name))
+            except Exception:
+                pass
+
+    nested = getattr(stream_obj, "stream", None)
+    if nested is not None and nested is not stream_obj:
+        try:
+            return _coerce_stream_handle(nested)
+        except Exception:
+            pass
+
+    try:
+        return int(stream_obj)
+    except Exception as exc:
+        raise TypeError(
+            "Unable to extract a CUDA stream handle from the provided object. "
+            "Pass an int handle or an object with .cuda_stream/.ptr/.handle."
+        ) from exc
+
+
+def _stream_override_stack() -> List[Optional[int]]:
+    stack = getattr(_stream_override, "stack", None)
+    if stack is None:
+        stack = []
+        _stream_override.stack = stack
+    return stack
+
+
+def _get_stream_override_handle() -> Optional[int]:
+    stack = getattr(_stream_override, "stack", None)
+    if not stack:
+        return None
+    return stack[-1]
+
+
+def _wrap_external_stream(handle: int):
+    handle = int(handle)
+
+    if handle in _external_stream_cache:
+        return _external_stream_cache[handle]
+
+    if handle == 0:
+        return None
+
+    ctor_attempts = [
+        lambda: cuda.Stream(handle=handle),
+        lambda: cuda.Stream(ptr=handle),
+        lambda: cuda.Stream(int(handle)),
+    ]
+
+    external_cls = getattr(cuda, "ExternalStream", None)
+    if external_cls is not None:
+        ctor_attempts.insert(0, lambda: external_cls(handle))
+
+    last_error = None
+    for ctor in ctor_attempts:
+        try:
+            stream_obj = ctor()
+            _external_stream_cache[handle] = stream_obj
+            return stream_obj
+        except Exception as exc:  # pragma: no cover - depends on pycuda version
+            last_error = exc
+
+    raise RuntimeError(
+        f"Failed to wrap external CUDA stream handle {handle} with PyCUDA. "
+        "This PyCUDA version may not support external stream wrappers."
+    ) from last_error
+
+
+def _stream_for_queue(ctx: _Context, queue_index: int):
+    override_handle = _get_stream_override_handle()
+    if override_handle is None:
+        return ctx.streams[queue_index]
+    return _wrap_external_stream(int(override_handle))
+
+
+def _buffer_device_ptr(buffer_obj: _Buffer) -> int:
+    return int(buffer_obj.device_ptr)
+
+
 def _queue_indices(ctx: _Context, queue_index: int, *, all_on_negative: bool = False) -> List[int]:
     if ctx.queue_count <= 0:
         return []
@@ -294,6 +392,49 @@ def _allocate_staging_storage(size: int):
         return bytearray(int(size))
 
 
+def _ensure_command_payload_staging(command_list: _CommandList, required_size: int):
+    if required_size <= 0:
+        required_size = 1
+
+    if (
+        command_list.pc_host_staging is not None
+        and command_list.pc_host_staging_size >= required_size
+    ):
+        return command_list.pc_host_staging
+
+    command_list.pc_host_staging = _allocate_staging_storage(required_size)
+    command_list.pc_host_staging_size = required_size
+    return command_list.pc_host_staging
+
+
+def _write_command_payload_staging(
+    command_list: _CommandList,
+    payload: bytes,
+    instance_count: int,
+) -> int:
+    instance_count = int(instance_count)
+    if instance_count <= 0:
+        return 0
+
+    instance_size = int(command_list.compute_instance_size)
+    expected_size = instance_size * instance_count if instance_size > 0 else len(payload)
+
+    if instance_size > 0 and len(payload) < expected_size:
+        raise RuntimeError(
+            f"Instance payload is too small ({len(payload)} bytes) for "
+            f"{instance_count} instances of size {instance_size}"
+        )
+
+    if expected_size <= 0:
+        _ensure_command_payload_staging(command_list, 1)
+        return 0
+
+    staging = _ensure_command_payload_staging(command_list, expected_size)
+    payload_view = memoryview(payload)[:expected_size]
+    memoryview(staging)[:expected_size] = payload_view
+    return expected_size
+
+
 def _parse_local_size(source: str) -> Tuple[int, int, int]:
     x_match = _LOCAL_X_RE.search(source)
     y_match = _LOCAL_Y_RE.search(source)
@@ -358,7 +499,7 @@ def _resolve_buffer_pointer(descriptor_set: _DescriptorSet, binding: int) -> int
     if buffer_obj is None:
         raise RuntimeError(f"Invalid buffer handle {buffer_handle} for binding {binding}")
 
-    return int(buffer_obj.device_allocation) + int(offset)
+    return _buffer_device_ptr(buffer_obj) + int(offset)
 
 
 def _ensure_pc_scratch(command_list: _CommandList, required_size: int) -> "cuda.DeviceAllocation":
@@ -614,7 +755,14 @@ def context_create(device_indicies, queue_families):
             return 0
 
         dev = cuda.Device(device_index)
-        pycuda_context = dev.make_context()
+        uses_primary_context = False
+
+        if hasattr(dev, "retain_primary_context"):
+            pycuda_context = dev.retain_primary_context()
+            uses_primary_context = True
+            pycuda_context.push()
+        else:  # pragma: no cover - fallback for older PyCUDA
+            pycuda_context = dev.make_context()
         context_pushed = True
         stream = cuda.Stream()
 
@@ -624,6 +772,7 @@ def context_create(device_indicies, queue_families):
             streams=[stream],
             queue_count=1,
             queue_to_device=[0],
+            uses_primary_context=uses_primary_context,
             stopped=False,
         )
         handle = _new_handle(_contexts, ctx)
@@ -679,6 +828,20 @@ def get_error_string():
     return _error_string
 
 
+def cuda_stream_override_begin(stream_obj):
+    try:
+        stack = _stream_override_stack()
+        stack.append(_coerce_stream_handle(stream_obj))
+    except Exception as exc:
+        _set_error(f"Failed to activate external CUDA stream override: {exc}")
+
+
+def cuda_stream_override_end():
+    stack = _stream_override_stack()
+    if len(stack) > 0:
+        stack.pop()
+
+
 # --- API: signals ---
 
 
@@ -727,7 +890,7 @@ def signal_insert(context, queue_index):
 
     try:
         with _activate_context(ctx):
-            _record_signal(signal, ctx.streams[selected[0]])
+            _record_signal(signal, _stream_for_queue(ctx, selected[0]))
     except Exception as exc:
         _set_error(f"Failed to insert signal: {exc}")
         return 0
@@ -766,13 +929,52 @@ def buffer_create(context, size, per_device):
         obj = _Buffer(
             context_handle=int(context),
             size=size,
+            device_ptr=int(allocation),
             device_allocation=allocation,
+            owns_allocation=True,
             staging_data=[_allocate_staging_storage(size) for _ in range(ctx.queue_count)],
             signal_handles=signal_handles,
         )
         return _new_handle(_buffers, obj)
     except Exception as exc:
         _set_error(f"Failed to create CUDA buffer: {exc}")
+        return 0
+
+
+def buffer_create_external(context, size, device_ptr):
+    ctx = _context_from_handle(int(context))
+    if ctx is None:
+        return 0
+
+    size = int(size)
+    device_ptr = int(device_ptr)
+
+    if size <= 0:
+        _set_error("External buffer size must be greater than zero")
+        return 0
+
+    if device_ptr == 0:
+        _set_error("External buffer device pointer must be non-zero")
+        return 0
+
+    try:
+        signal_handles = [
+            _new_handle(_signals, _Signal(context_handle=int(context), queue_index=i, done=True))
+            for i in range(ctx.queue_count)
+        ]
+
+        obj = _Buffer(
+            context_handle=int(context),
+            size=size,
+            device_ptr=device_ptr,
+            device_allocation=None,
+            owns_allocation=False,
+            staging_data=[_allocate_staging_storage(size) for _ in range(ctx.queue_count)],
+            signal_handles=signal_handles,
+        )
+        return _new_handle(_buffers, obj)
+    except Exception as exc:
+        _set_error(f"Failed to create external CUDA buffer alias: {exc}")
         return 0
 
 
@@ -785,7 +987,7 @@ def buffer_destroy(buffer):
         _signals.pop(signal_handle, None)
 
     ctx = _contexts.get(obj.context_handle)
-    if ctx is None:
+    if ctx is None or not obj.owns_allocation or obj.device_allocation is None:
         return
 
     try:
@@ -870,14 +1072,14 @@ def buffer_write(buffer, offset, size, index):
     try:
         with _activate_context(ctx):
             for queue_index in _queue_indices(ctx, int(index), all_on_negative=True):
-                stream = ctx.streams[queue_index]
+                stream = _stream_for_queue(ctx, queue_index)
                 end = min(offset + size, obj.size)
                 copy_size = end - offset
                 if copy_size <= 0:
                     continue
 
                 src_view = memoryview(obj.staging_data[queue_index])[:copy_size]
-                cuda.memcpy_htod_async(int(obj.device_allocation) + offset, src_view, stream)
+                cuda.memcpy_htod_async(_buffer_device_ptr(obj) + offset, src_view, stream)
 
                 signal = _signals.get(obj.signal_handles[queue_index])
                 if signal is not None:
@@ -908,14 +1110,14 @@ def buffer_read(buffer, offset, size, index):
 
     try:
         with _activate_context(ctx):
-            stream = ctx.streams[queue_index]
+            stream = _stream_for_queue(ctx, queue_index)
             end = min(offset + size, obj.size)
             copy_size = end - offset
             if copy_size <= 0:
                 return
 
             dst_view = memoryview(obj.staging_data[queue_index])[:copy_size]
-            cuda.memcpy_dtoh_async(dst_view, int(obj.device_allocation) + offset, stream)
+            cuda.memcpy_dtoh_async(dst_view, _buffer_device_ptr(obj) + offset, stream)
 
             signal = _signals.get(obj.signal_handles[queue_index])
             if signal is not None:
@@ -941,7 +1143,10 @@ def command_list_destroy(command_list):
         return
 
     ctx = _contexts.get(obj.context_handle)
-    if ctx is None or obj.pc_scratch is None:
+    if ctx is None:
+        return
+
+    if obj.pc_scratch is None:
         return
 
     try:
@@ -965,6 +1170,46 @@ def command_list_reset(command_list):
 
     obj.commands = []
     obj.compute_instance_size = 0
+
+
+def command_list_prepare_cuda_capture(command_list, payload_size):
+    obj = _command_lists.get(int(command_list))
+    if obj is None:
+        _set_error("Invalid command list handle for command_list_prepare_cuda_capture")
+        return
+
+    ctx = _contexts.get(obj.context_handle)
+    if ctx is None:
+        _set_error(f"Missing context for command list {command_list}")
+        return
+
+    payload_size = max(0, int(payload_size))
+
+    try:
+        _ensure_command_payload_staging(obj, max(1, payload_size))
+
+        max_pc_size = 0
+        for command in obj.commands:
+            max_pc_size = max(max_pc_size, int(command.pc_size))
+
+        if max_pc_size > 0:
+            with _activate_context(ctx):
+                _ensure_pc_scratch(obj, max_pc_size)
+    except Exception as exc:
+        _set_error(f"Failed to prepare CUDA capture resources: {exc}")
+
+
+def command_list_write_payload_staging(command_list, data, instance_count):
+    obj = _command_lists.get(int(command_list))
+    if obj is None:
+        _set_error("Invalid command list handle for command_list_write_payload_staging")
+        return
+
+    try:
+        payload = _to_bytes(data) if data is not None else b""
+        _write_command_payload_staging(obj, payload, int(instance_count))
+    except Exception as exc:
+        _set_error(f"Failed to write CUDA command payload staging: {exc}")
 
 
 def command_list_submit(command_list, data, instance_count, index):
@@ -996,11 +1241,26 @@ def command_list_submit(command_list, data, instance_count, index):
         queue_targets = [0]
 
     try:
+        payload_nbytes = instance_size * instance_count if instance_size > 0 else len(payload)
+        if len(payload) > 0:
+            _write_command_payload_staging(obj, payload, instance_count)
+        elif payload_nbytes > 0 and (
+            obj.pc_host_staging is None or obj.pc_host_staging_size < payload_nbytes
+        ):
+            raise RuntimeError(
+                "Command payload staging is not prepared. "
+                "Provide payload data or call command_list_prepare_cuda_capture(...) first."
+            )
+
         with _activate_context(ctx):
-            payload_view = memoryview(payload) if payload else None
+            payload_view = (
+                memoryview(obj.pc_host_staging)[:payload_nbytes]
+                if payload_nbytes > 0 and obj.pc_host_staging is not None
+                else None
+            )
 
             for queue_index in queue_targets:
-                stream = ctx.streams[queue_index]
+                stream = _stream_for_queue(ctx, queue_index)
                 resolved_launches: List[_ResolvedLaunch] = []
                 pc_offset = 0
 

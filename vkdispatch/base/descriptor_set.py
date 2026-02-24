@@ -28,6 +28,9 @@ class DescriptorSet(Handle):
         self.destroy()
 
     def bind_buffer(self, buffer: Buffer, binding: int, offset: int = 0, range: int = 0, uniform: bool = False, read_access: bool = True, write_access: bool = True) -> None:
+        if write_access and not getattr(buffer, "is_writable", True):
+            raise ValueError("Cannot bind a read-only buffer with write access enabled.")
+
         self.register_parent(buffer)
 
         native.descriptor_set_write_buffer(

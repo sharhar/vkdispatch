@@ -1,125 +1,86 @@
-from browser import document, window
-import sys
-import traceback
+# Full end-to-end example:
+# - PyTorch tensor storage is shared with vkdispatch via __cuda_array_interface__
+# - vkdispatch kernel execution is captured inside torch.cuda.CUDAGraph
+# - push-constant value ("scale") is updated between graph replays
+# - a Const[...] argument ("bias") demonstrates UBO packing during capture (static in this example)
+
+import torch
 
 import vkdispatch as vd
-import vkdispatch.base.context as vd_context
-import vkdispatch.base.init as vd_init
-import vkdispatch.execution_pipeline.command_graph as vd_command_graph
-import vkdispatch.fft.shader_factories as vd_fft_shader_factories
 import vkdispatch.codegen as vc
+from vkdispatch.codegen.abreviations import Buff, Const, Var, f32
 
 
-class OutputBuffer:
-    def __init__(self):
-        self._parts = []
+def main():
+    torch.manual_seed(0)
+    torch.cuda.set_device(0)
 
-    def write(self, value):
-        if value is None:
-            return
-        self._parts.append(str(value))
+    # Initialize vkdispatch with the PyCUDA backend and create a context on the same CUDA device.
+    vd.initialize(backend="pycuda")
+    vd.make_context(device_ids=torch.cuda.current_device())
 
-    def flush(self):
-        pass
+    # Define a simple kernel:
+    # y[i] = x[i] * scale + bias
+    #
+    # - scale: Var[f32]  -> push constant (mutable post-record via graph.set_var)
+    # - bias:  Const[f32] -> uniform/constant (packed into UBO path)
+    @vd.shader(exec_size=lambda args: args.x.size)
+    def affine(y: Buff[f32], x: Buff[f32], scale: Var[f32], bias: Const[f32]):
+        tid = vc.global_invocation_id().x
+        y[tid] = x[tid] * scale + bias
 
-    def get_text(self):
-        return "".join(self._parts)
+    # Static tensors are important for CUDA Graph replay (pointer addresses must remain stable).
+    n = 1024
+    x = torch.randn(n, device="cuda", dtype=torch.float32)
+    y = torch.empty_like(x)
 
+    # Zero-copy alias the tensors as vkdispatch buffers via __cuda_array_interface__.
+    bx = vd.from_cuda_array(x)
+    by = vd.from_cuda_array(y)
 
-def _parse_positive_int(element_id, field_name):
-    raw = document[element_id].value.strip()
+    # Build and record a vkdispatch command graph.
+    # Use graph.bind_var("scale") to bind the push-constant slot to a named variable.
+    cmd_graph = vd.CommandGraph()
+    bias_value = 0.25  # This is Const[f32] (UBO-backed in this path), kept static in this example.
 
-    if raw == "":
-        raise ValueError(f"{field_name} cannot be empty.")
+    affine(
+        y=by,
+        x=bx,
+        scale=cmd_graph.bind_var("scale"),
+        bias=bias_value,
+        graph=cmd_graph,
+    )
 
-    try:
-        parsed = int(raw)
-    except ValueError as exc:
-        raise ValueError(f"{field_name} must be an integer.") from exc
+    # Set initial push-constant value before capture.
+    cmd_graph.set_var("scale", 2.0)
 
-    if parsed <= 0:
-        raise ValueError(f"{field_name} must be greater than zero.")
+    # Prepare capture resources (persistent staging, PC scratch, etc.) and pack current args.
+    cap = cmd_graph.prepare_cuda_capture(instance_count=1)
+    cmd_graph.update_captured_args(cap)
 
-    return parsed
+    # Capture vkdispatch submission into a torch CUDA graph.
+    g = torch.cuda.CUDAGraph()
+    with torch.cuda.graph(g):
+        # Submit on the same CUDA stream torch is capturing.
+        cmd_graph.submit(cuda_stream=torch.cuda.current_stream(), capture=cap)
 
+    # The capture run has executed once; validate it.
+    torch.cuda.synchronize()
+    expected = x * 2.0 + bias_value
+    assert torch.allclose(y, expected, atol=1e-5, rtol=1e-5), "Initial captured run mismatch"
 
-def _read_device_options():
-    return {
-        "subgroup_size": _parse_positive_int("opt-subgroup-size", "Subgroup Size"),
-        "max_workgroup_size": (
-            _parse_positive_int("opt-wg-size-x", "Max Workgroup Size X"),
-            _parse_positive_int("opt-wg-size-y", "Max Workgroup Size Y"),
-            _parse_positive_int("opt-wg-size-z", "Max Workgroup Size Z"),
-        ),
-        "max_workgroup_invocations": _parse_positive_int(
-            "opt-wg-invocations",
-            "Max Workgroup Invocations",
-        ),
-        "max_workgroup_count": (
-            _parse_positive_int("opt-wg-count-x", "Max Workgroup Count X"),
-            _parse_positive_int("opt-wg-count-y", "Max Workgroup Count Y"),
-            _parse_positive_int("opt-wg-count-z", "Max Workgroup Count Z"),
-        ),
-        "max_compute_shared_memory_size": _parse_positive_int(
-            "opt-shared-memory",
-            "Max Shared Memory (bytes)",
-        ),
-    }
+    # Replay with different push-constant values.
+    for scale_value in [3.0, -1.5, 0.5]:
+        cmd_graph.set_var("scale", scale_value)
+        cmd_graph.update_captured_args(cap)  # updates persistent PC/UBO staging used by the captured graph
+        g.replay()
 
+        torch.cuda.synchronize()
+        expected = x * scale_value + bias_value
+        assert torch.allclose(y, expected, atol=1e-5, rtol=1e-5), f"Replay mismatch for scale={scale_value}"
 
-def _reset_vkdispatch_runtime():
-    context = getattr(vd_context, "__context", None)
-    if context is not None:
-        vd_context.destroy_context()
-
-    vd_init.__initilized_instance = False
-    vd_init.__device_infos = None
-
-    state = vd_command_graph._global_graph
-    for attr_name in ("custom_graph", "default_graph"):
-        if hasattr(state, attr_name):
-            delattr(state, attr_name)
-
-
-def run_code(event):
-    code = window.cmCode.getValue()
-    window.cmOutput.setValue("")
-
-    stdout_buffer = OutputBuffer()
-    stderr_buffer = OutputBuffer()
-
-    old_stdout, old_stderr = sys.stdout, sys.stderr
-    sys.stdout, sys.stderr = stdout_buffer, stderr_buffer
-    namespace = {"__name__": "__main__"}
-
-    try:
-        options = _read_device_options()
-        _reset_vkdispatch_runtime()
-
-        vd.initialize(backend="dummy")
-        vd.get_context()
-        vd.set_dummy_context_params(
-            subgroup_size=options["subgroup_size"],
-            max_workgroup_size=options["max_workgroup_size"],
-            max_workgroup_invocations=options["max_workgroup_invocations"],
-            max_workgroup_count=options["max_workgroup_count"],
-            max_shared_memory=options["max_compute_shared_memory_size"],
-        )
-
-        # Set codegen backend based on toggle state
-        backend = str(window.currentBackend)
-        vc.set_codegen_backend(backend)
-        vd_fft_shader_factories.cache_clear()
-
-        exec(code, namespace)
-    except Exception:
-        traceback.print_exc()
-    finally:
-        sys.stdout, sys.stderr = old_stdout, old_stderr
-        window.cmOutput.setValue(stdout_buffer.get_text() + stderr_buffer.get_text())
+    print("CUDA graph capture + replay with vkdispatch succeeded.")
 
 
-document["run-btn"].bind("click", run_code)
-
-# Auto-run once when the Brython runtime is ready.
-run_code(None)
+if __name__ == "__main__":
+    main()

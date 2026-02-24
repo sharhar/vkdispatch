@@ -17,6 +17,15 @@ import typing
 
 _ArgType = typing.TypeVar('_ArgType', bound=dtype)
 
+import dataclasses
+
+@dataclasses.dataclass
+class ExternalBufferInfo:
+    writable: bool
+    iface: dict
+    keepalive: bool
+    cuda_ptr: int
+
 class Buffer(Handle, typing.Generic[_ArgType]):
     """
     Represents a contiguous block of memory on the GPU (or shared across multiple devices).
@@ -37,8 +46,14 @@ class Buffer(Handle, typing.Generic[_ArgType]):
     size: int
     mem_size: int
     signals: List[Signal]
+    is_external: bool
+    owns_memory: bool
+    is_writable: bool
+    cuda_ptr: typing.Optional[int]
+    cuda_source: typing.Any
+    cuda_array_stream: typing.Optional[typing.Any]
 
-    def __init__(self, shape: Tuple[int, ...], var_type: dtype) -> None:
+    def __init__(self, shape: Tuple[int, ...], var_type: dtype, external_buffer: ExternalBufferInfo = None) -> None:
         super().__init__()
 
         if isinstance(shape, int):
@@ -49,7 +64,6 @@ class Buffer(Handle, typing.Generic[_ArgType]):
 
         self.var_type: dtype = var_type
         self.shape: Tuple[int] = shape
-        #self.size: int = int(np.prod(shape))
 
         size = 1
         for dim in shape:
@@ -71,10 +85,23 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         self.shader_shape = tuple(shader_shape_internal)
 
         self.signals = []
+        self.is_external = external_buffer is not None
+        self.owns_memory = external_buffer is None
+        self.is_writable = True if external_buffer is None else external_buffer.writable
+        self.cuda_ptr = None if external_buffer is None else external_buffer.cuda_ptr
+        self.cuda_source = None if external_buffer is None else (external_buffer.iface if external_buffer.keepalive else None)
+        self.cuda_array_stream = None if external_buffer is None else external_buffer.iface.get("stream")
 
-        handle = native.buffer_create(
-            self.context._handle, self.mem_size, 0
-        )
+        if external_buffer is not None:
+            handle = native.buffer_create_external(
+                self.context._handle,
+                self.mem_size,
+                self.cuda_ptr,
+            )
+        else:
+            handle = native.buffer_create(
+                self.context._handle, self.mem_size, 0
+            )
         check_for_errors()
 
         self.signals = [
@@ -87,6 +114,17 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         ]
 
         self.register_handle(handle)
+
+    def __repr__(self):
+        return f"""Buffer {self._handle}:
+    shape={self.shape}
+    var_type={self.var_type.name}
+    mem_size={self.mem_size} bytes
+    is_external={self.is_external}
+    writable={self.is_writable}
+    cuda_ptr={self.cuda_ptr}
+    cuda_iface={self.cuda_source}
+"""
 
     def _destroy(self) -> None:
         """Destroy the buffer and all child handles."""
@@ -142,6 +180,9 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         if index is not None:
             assert isinstance(index, int), "Index must be an integer or None!"
             assert index >= 0 and index < self.context.queue_count, "Index must be valid!"
+
+        if not getattr(self, "is_writable", True):
+            raise ValueError("Cannot write to a read-only buffer alias.")
 
         true_data_object = None
 
@@ -238,6 +279,78 @@ def asbuffer(array: typing.Any) -> Buffer:
     buffer.write(array)
 
     return buffer
+
+
+def from_cuda_array(
+    obj: typing.Any,
+    var_type: typing.Optional[dtype] = None,
+    require_contiguous: bool = True,
+    writable: typing.Optional[bool] = None,
+    keepalive: bool = True,
+) -> Buffer:
+    from .init import get_backend
+    from .backend import BACKEND_PYCUDA
+
+    if get_backend() != BACKEND_PYCUDA:
+        raise RuntimeError("from_cuda_array() is currently only supported with backend='pycuda'.")
+
+    if not hasattr(obj, "__cuda_array_interface__"):
+        raise TypeError("Expected an object with __cuda_array_interface__")
+
+    npc.require_numpy("from_cuda_array")
+    np = npc.numpy_module()
+
+    iface = obj.__cuda_array_interface__
+    if not isinstance(iface, dict):
+        raise TypeError("__cuda_array_interface__ must be a dictionary")
+
+    if "shape" not in iface or "typestr" not in iface or "data" not in iface:
+        raise ValueError("__cuda_array_interface__ is missing required fields (shape/typestr/data)")
+
+    shape = tuple(int(dim) for dim in iface["shape"])
+    if len(shape) == 0:
+        shape = (1,)
+
+    data_entry = iface["data"]
+    if not (isinstance(data_entry, tuple) and len(data_entry) >= 2):
+        raise ValueError("__cuda_array_interface__['data'] must be a tuple (ptr, read_only)")
+
+    ptr = int(data_entry[0])
+    source_read_only = bool(data_entry[1])
+
+    inferred_np_dtype = np.dtype(iface["typestr"])
+    inferred_var_type = from_numpy_dtype(inferred_np_dtype)
+    if var_type is None:
+        var_type = inferred_var_type
+
+    if not (var_type == inferred_var_type):
+        raise ValueError(
+            f"CAI dtype ({inferred_np_dtype}) does not match requested vd dtype ({var_type.name})."
+        )
+
+    if require_contiguous:
+        strides = iface.get("strides")
+        if strides is not None:
+            expected_strides = []
+            stride = int(inferred_np_dtype.itemsize)
+            for dim in reversed(shape):
+                expected_strides.insert(0, stride)
+                stride *= int(dim)
+            if tuple(int(x) for x in strides) != tuple(expected_strides):
+                raise ValueError("Only contiguous C-order CUDA arrays are supported in from_cuda_array().")
+
+    buffer_writable = (not source_read_only) if writable is None else bool(writable)
+    if buffer_writable and source_read_only:
+        raise ValueError("Requested writable=True for a read-only CUDA array.")
+    
+    external_buffer_info = ExternalBufferInfo(
+        writable=buffer_writable,
+        iface=iface,
+        keepalive=keepalive,
+        cuda_ptr=ptr
+    )
+
+    return Buffer(shape, var_type, external_buffer=external_buffer_info)
 
 def buffer_u32(shape: Tuple[int, ...]) -> Buffer:
     """Create a buffer of unsigned 32-bit integers with the specified shape."""

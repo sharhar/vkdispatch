@@ -1,7 +1,9 @@
 from typing import Tuple
 from typing import Optional
+from contextlib import contextmanager
 
 from .backend import native
+from .init import get_backend
 
 from .context import Handle
 from .errors import check_for_errors
@@ -76,7 +78,30 @@ class CommandList(Handle):
 
         self.clear_parents()
 
-    def submit(self, data: Optional[bytes] = None, queue_index: int = -2, instance_count: Optional[int] = None) -> None:
+    @contextmanager
+    def _cuda_stream_override(self, cuda_stream):
+        if cuda_stream is None:
+            yield
+            return
+
+        if get_backend() != "pycuda":
+            raise RuntimeError("cuda_stream=... is currently only supported with backend='pycuda'.")
+
+        native.cuda_stream_override_begin(cuda_stream)
+        check_for_errors()
+        try:
+            yield
+        finally:
+            native.cuda_stream_override_end()
+
+    def submit(
+        self,
+        data: Optional[bytes] = None,
+        queue_index: int = -2,
+        instance_count: Optional[int] = None,
+        *,
+        cuda_stream=None,
+    ) -> None:
         """
         Submits the recorded command list to the GPU queue for execution.
 
@@ -106,9 +131,10 @@ class CommandList(Handle):
         if self.get_instance_size() != 0:
             assert self.get_instance_size() * instance_count == len(data), "Data length must be the product of the instance size and instance count!"
 
-        done = False
-        while not done:
-            done = native.command_list_submit(
-                self._handle, data, instance_count, queue_index
-            )
-            check_for_errors()
+        with self._cuda_stream_override(cuda_stream):
+            done = False
+            while not done:
+                done = native.command_list_submit(
+                    self._handle, data, instance_count, queue_index
+                )
+                check_for_errors()

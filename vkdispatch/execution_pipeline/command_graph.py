@@ -12,6 +12,8 @@ import vkdispatch.codegen as vc
 from vkdispatch.base.command_list import CommandList
 from vkdispatch.base.compute_plan import ComputePlan
 from vkdispatch.base.descriptor_set import DescriptorSet
+from vkdispatch.base.backend import native
+from vkdispatch.base.errors import check_for_errors
 
 from .buffer_builder import BufferUsage
 from .buffer_builder import BufferBuilder
@@ -34,6 +36,16 @@ class ImageBindInfo:
     binding: int
     read_access: bool
     write_access: bool
+
+@dataclasses.dataclass
+class CUDACaptureBinding:
+    graph_id: int
+    structure_version: int
+    instance_count: int
+    queue_index: int
+    pc_nbytes: int
+    ubo_nbytes: int
+    valid: bool = True
 
 class CommandGraph(CommandList):
     """
@@ -90,6 +102,8 @@ class CommandGraph(CommandList):
 
         self.uniform_constants_size = 0
         self.uniform_constants_buffer = vd.Buffer(shape=(4096,), var_type=vd.uint32) # Create a base static constants buffer at size 4k bytes
+        self._structure_version = 0
+        self._capture_id_counter = 0
 
     def reset(self) -> None:
         """Reset the command graph by clearing the push constant buffer and descriptor
@@ -107,6 +121,7 @@ class CommandGraph(CommandList):
 
         self.uniform_descriptors = []
         self.buffers_valid = False
+        self._structure_version += 1
     
     def bind_var(self, name: str):
         def register_var(key: Tuple[str, str]):
@@ -198,11 +213,138 @@ class CommandGraph(CommandList):
         super().record_compute_plan(plan, descriptor_set, blocks)
 
         self.buffers_valid = False
+        self._structure_version += 1
 
         if self.submit_on_record:
             self.submit()
 
-    def submit(self, instance_count: int = None, queue_index: int = -2) -> None:
+    def _resolve_queue_index_for_staging(self, queue_index: int) -> int:
+        if queue_index is None or queue_index < 0:
+            return 0
+
+        if queue_index >= self.context.queue_count:
+            raise ValueError(f"Queue index {queue_index} is out of bounds for context queue_count={self.context.queue_count}")
+
+        return int(queue_index)
+
+    def _validate_capture_binding(self, capture: CUDACaptureBinding) -> None:
+        if not isinstance(capture, CUDACaptureBinding):
+            raise TypeError("capture must be a CUDACaptureBinding returned by prepare_cuda_capture()")
+
+        if not capture.valid:
+            raise RuntimeError("Capture binding is not valid.")
+
+        if capture.structure_version != self._structure_version:
+            raise RuntimeError(
+                "CommandGraph structure changed after capture preparation. "
+                "Call prepare_cuda_capture(...) again before capture."
+            )
+
+    def prepare_cuda_capture(
+        self,
+        *,
+        instance_count: int = 1,
+        queue_index: int = -2,
+    ) -> CUDACaptureBinding:
+        if vd.get_backend() != "pycuda":
+            raise RuntimeError("prepare_cuda_capture() is currently only supported with backend='pycuda'.")
+
+        if instance_count is None:
+            instance_count = 1
+
+        instance_count = int(instance_count)
+        if instance_count <= 0:
+            raise ValueError("instance_count must be positive")
+
+        if len(self.pc_builder.element_map) > 0 and (
+            self.pc_builder.instance_count != instance_count or not self.buffers_valid
+        ):
+            self.pc_builder.prepare(instance_count)
+            for key, value in self.pc_values.items():
+                self.pc_builder[key] = value
+
+        pc_nbytes = 0
+        if len(self.pc_builder.element_map) > 0:
+            pc_nbytes = len(self.pc_builder.tobytes())
+
+        ubo_nbytes = 0
+        if len(self.uniform_builder.element_map) > 0:
+            self.uniform_builder.prepare(1)
+            for key, value in self.uniform_values.items():
+                self.uniform_builder[key] = value
+            ubo_nbytes = len(self.uniform_builder.tobytes())
+
+        native.command_list_prepare_cuda_capture(self._handle, pc_nbytes)
+        check_for_errors()
+
+        self._capture_id_counter += 1
+        return CUDACaptureBinding(
+            graph_id=self._capture_id_counter,
+            structure_version=self._structure_version,
+            instance_count=instance_count,
+            queue_index=self._resolve_queue_index_for_staging(queue_index),
+            pc_nbytes=pc_nbytes,
+            ubo_nbytes=ubo_nbytes,
+            valid=True,
+        )
+
+    def update_captured_args(
+        self,
+        capture: CUDACaptureBinding,
+        *,
+        instance_count: Optional[int] = None,
+    ) -> None:
+        if vd.get_backend() != "pycuda":
+            raise RuntimeError("update_captured_args() is currently only supported with backend='pycuda'.")
+
+        self._validate_capture_binding(capture)
+
+        if instance_count is None:
+            instance_count = capture.instance_count
+
+        instance_count = int(instance_count)
+        if instance_count != capture.instance_count:
+            raise ValueError(
+                f"instance_count ({instance_count}) must match the capture binding instance_count ({capture.instance_count})."
+            )
+
+        if len(self.uniform_builder.element_map) > 0:
+            self.uniform_builder.prepare(1)
+            for key, value in self.uniform_values.items():
+                self.uniform_builder[key] = value
+
+            uniform_bytes = self.uniform_builder.tobytes()
+            native.buffer_write_staging(
+                self.uniform_constants_buffer._handle,
+                capture.queue_index,
+                uniform_bytes,
+                len(uniform_bytes),
+            )
+            check_for_errors()
+
+        if len(self.pc_builder.element_map) > 0:
+            self.pc_builder.prepare(instance_count)
+            for key, value in self.pc_values.items():
+                self.pc_builder[key] = value
+            for key, val in self.queued_pc_values.items():
+                self.pc_builder[key] = val
+
+            pc_bytes = self.pc_builder.tobytes()
+            native.command_list_write_payload_staging(
+                self._handle,
+                pc_bytes,
+                instance_count,
+            )
+            check_for_errors()
+
+    def submit(
+        self,
+        instance_count: int = None,
+        queue_index: int = -2,
+        *,
+        cuda_stream=None,
+        capture: Optional[CUDACaptureBinding] = None,
+    ) -> None:
         """Submit the command list to the specified device with additional data to
         append to the front of the command list.
         
@@ -212,42 +354,65 @@ class CommandGraph(CommandList):
         data (bytes): The additional data to append to the front of the command list.
         """
 
-        if instance_count is None:
-            instance_count = 1
-        
-        if len(self.pc_builder.element_map) > 0 and (
-                self.pc_builder.instance_count != instance_count or not self.buffers_valid
-            ):
+        if capture is not None:
+            self._validate_capture_binding(capture)
 
-            self.pc_builder.prepare(instance_count)
+            if instance_count is None:
+                instance_count = capture.instance_count
+            elif int(instance_count) != capture.instance_count:
+                raise ValueError(
+                    f"instance_count ({instance_count}) must match the capture binding instance_count ({capture.instance_count})."
+                )
 
-            for key, value in self.pc_values.items():
-                self.pc_builder[key] = value
+            if queue_index == -2:
+                queue_index = capture.queue_index
+            elif int(queue_index) != capture.queue_index:
+                raise ValueError(
+                    f"queue_index ({queue_index}) must match the capture binding queue_index ({capture.queue_index})."
+                )
 
-        if len(self.uniform_builder.element_map) > 0 and not self.buffers_valid:
-
-            self.uniform_builder.prepare(1)
-
-            for key, value in self.uniform_values.items():
-                self.uniform_builder[key] = value
+        with self._cuda_stream_override(cuda_stream):
+            if instance_count is None:
+                instance_count = 1
             
-            for descriptor_set, offset, size in self.uniform_descriptors:
-                descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, True, write_access=False)
+            if len(self.pc_builder.element_map) > 0 and (
+                    self.pc_builder.instance_count != instance_count or not self.buffers_valid
+                ):
 
-            self.uniform_constants_buffer.write(self.uniform_builder.tobytes())
+                self.pc_builder.prepare(instance_count)
 
-        if not self.buffers_valid:
-            self.buffers_valid = True
+                for key, value in self.pc_values.items():
+                    self.pc_builder[key] = value
 
-        for key, val in self.queued_pc_values.items():
-            self.pc_builder[key] = val
-        
-        my_data = None
+            if len(self.uniform_builder.element_map) > 0 and not self.buffers_valid:
 
-        if len(self.pc_builder.element_map) > 0:
-            my_data = self.pc_builder.tobytes()
+                self.uniform_builder.prepare(1)
 
-        super().submit(data=my_data, queue_index=queue_index, instance_count=instance_count)
+                for key, value in self.uniform_values.items():
+                    self.uniform_builder[key] = value
+                
+                for descriptor_set, offset, size in self.uniform_descriptors:
+                    descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, True, write_access=False)
+
+                self.uniform_constants_buffer.write(self.uniform_builder.tobytes())
+
+            if not self.buffers_valid:
+                self.buffers_valid = True
+
+            for key, val in self.queued_pc_values.items():
+                self.pc_builder[key] = val
+            
+            my_data = None
+
+            if len(self.pc_builder.element_map) > 0:
+                my_data = self.pc_builder.tobytes()
+
+            super().submit(
+                data=my_data,
+                queue_index=queue_index,
+                instance_count=instance_count,
+                cuda_stream=None,
+            )
 
         if self._reset_on_submit:
             self.reset()

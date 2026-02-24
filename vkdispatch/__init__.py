@@ -17,6 +17,7 @@ from .base.context import make_context, select_queue_families, set_dummy_context
 from .base.context import is_context_initialized
 
 from .base.buffer import asbuffer
+from .base.buffer import from_cuda_array
 from .base.buffer import Buffer, buffer_u32, buffer_i32, buffer_f32, buffer_c64
 from .base.buffer import asrfftbuffer
 from .base.buffer import RFFTBuffer
@@ -34,7 +35,7 @@ from .base.image import Filter
 from .base.image import AddressMode
 from .base.image import BorderColor
 
-from .execution_pipeline.command_graph import CommandGraph, BufferBindInfo, ImageBindInfo
+from .execution_pipeline.command_graph import CommandGraph, BufferBindInfo, ImageBindInfo, CUDACaptureBinding
 from .execution_pipeline.command_graph import global_graph, set_global_graph, default_graph
 
 from .shader.shader_function import ShaderFunction, ShaderSource
