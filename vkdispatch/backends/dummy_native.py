@@ -7,85 +7,16 @@ Runtime GPU operations are intentionally denied so the dummy backend fails fast
 when used outside codegen-only scripts.
 """
 
-# NOTE: Keep this file dependency-light so it works under Brython.
-
-LOG_LEVEL_VERBOSE = 0
-LOG_LEVEL_INFO = 1
-LOG_LEVEL_WARNING = 2
-LOG_LEVEL_ERROR = 3
-
-# Descriptor type enum values mirrored from vkdispatch_native/stages_extern.pxd.
-DESCRIPTOR_TYPE_STORAGE_BUFFER = 1
-DESCRIPTOR_TYPE_STORAGE_IMAGE = 2
-DESCRIPTOR_TYPE_UNIFORM_BUFFER = 3
-DESCRIPTOR_TYPE_UNIFORM_IMAGE = 4
-DESCRIPTOR_TYPE_SAMPLER = 5
-
-# Image format block sizes for formats exposed in vkdispatch.base.image.image_format.
-_IMAGE_BLOCK_SIZES = {
-    13: 1,
-    14: 1,
-    20: 2,
-    21: 2,
-    27: 3,
-    28: 3,
-    41: 4,
-    42: 4,
-    74: 2,
-    75: 2,
-    76: 2,
-    81: 4,
-    82: 4,
-    83: 4,
-    88: 6,
-    89: 6,
-    90: 6,
-    95: 8,
-    96: 8,
-    97: 8,
-    98: 4,
-    99: 4,
-    100: 4,
-    101: 8,
-    102: 8,
-    103: 8,
-    104: 12,
-    105: 12,
-    106: 12,
-    107: 16,
-    108: 16,
-    109: 16,
-    110: 8,
-    111: 8,
-    112: 8,
-    113: 16,
-    114: 16,
-    115: 16,
-    116: 24,
-    117: 24,
-    118: 24,
-    119: 32,
-    120: 32,
-    121: 32,
-}
-
 # --- Runtime state ---
 
 _initialized = False
 _debug_mode = False
-_log_level = LOG_LEVEL_WARNING
+_log_level = 2
 _error_string = None
 _next_handle = 1
 
 _contexts = {}
 _signals = {}
-_buffers = {}
-_command_lists = {}
-_compute_plans = {}
-_descriptor_sets = {}
-_images = {}
-_samplers = {}
-_fft_plans = {}
 
 # Device limits exposed through get_devices(); mutable so docs UI can tune them.
 _DEFAULT_SUBGROUP_SIZE = 32
@@ -144,172 +75,7 @@ class _Context:
         self.queue_to_device = queue_to_device
         self.stopped = False
 
-
-class _Buffer:
-    __slots__ = (
-        "context_handle",
-        "size",
-        "device_data",
-        "staging_data",
-        "signal_handles",
-    )
-
-    def __init__(self, context_handle, queue_count, size):
-        self.context_handle = context_handle
-        self.size = int(size)
-
-        if queue_count <= 0:
-            queue_count = 1
-
-        self.device_data = [bytearray(self.size) for _ in range(queue_count)]
-        self.staging_data = [bytearray(self.size) for _ in range(queue_count)]
-
-        signal_handles = []
-        for _ in range(queue_count):
-            signal_handles.append(_new_handle(_signals, _Signal(done=True)))
-        self.signal_handles = signal_handles
-
-
-class _CommandList:
-    __slots__ = ("context_handle", "commands", "compute_instance_size")
-
-    def __init__(self, context_handle):
-        self.context_handle = context_handle
-        self.commands = []
-        self.compute_instance_size = 0
-
-
-class _ComputePlan:
-    __slots__ = ("context_handle", "shader_source", "bindings", "pc_size", "shader_name")
-
-    def __init__(self, context_handle, shader_source, bindings, pc_size, shader_name):
-        self.context_handle = context_handle
-        self.shader_source = shader_source
-        self.bindings = list(bindings)
-        self.pc_size = int(pc_size)
-        self.shader_name = shader_name
-
-
-class _DescriptorSet:
-    __slots__ = ("plan_handle", "buffer_bindings", "image_bindings")
-
-    def __init__(self, plan_handle):
-        self.plan_handle = plan_handle
-        self.buffer_bindings = {}
-        self.image_bindings = {}
-
-
-class _Image:
-    __slots__ = (
-        "context_handle",
-        "extent",
-        "layers",
-        "format",
-        "type",
-        "view_type",
-        "generate_mips",
-        "block_size",
-        "queue_data",
-    )
-
-    def __init__(
-        self,
-        context_handle,
-        queue_count,
-        extent,
-        layers,
-        format_,
-        image_type,
-        view_type,
-        generate_mips,
-    ):
-        self.context_handle = context_handle
-        self.extent = tuple(extent)
-        self.layers = int(layers)
-        self.format = int(format_)
-        self.type = int(image_type)
-        self.view_type = int(view_type)
-        self.generate_mips = int(generate_mips)
-
-        self.block_size = image_format_block_size(self.format)
-
-        if queue_count <= 0:
-            queue_count = 1
-
-        width = max(1, int(self.extent[0]))
-        height = max(1, int(self.extent[1]))
-        depth = max(1, int(self.extent[2]))
-        layer_count = max(1, self.layers)
-        total_bytes = width * height * depth * layer_count * self.block_size
-
-        self.queue_data = [bytearray(total_bytes) for _ in range(queue_count)]
-
-
-class _Sampler:
-    __slots__ = (
-        "context_handle",
-        "mag_filter",
-        "min_filter",
-        "mip_mode",
-        "address_mode",
-        "mip_lod_bias",
-        "min_lod",
-        "max_lod",
-        "border_color",
-    )
-
-    def __init__(
-        self,
-        context_handle,
-        mag_filter,
-        min_filter,
-        mip_mode,
-        address_mode,
-        mip_lod_bias,
-        min_lod,
-        max_lod,
-        border_color,
-    ):
-        self.context_handle = context_handle
-        self.mag_filter = int(mag_filter)
-        self.min_filter = int(min_filter)
-        self.mip_mode = int(mip_mode)
-        self.address_mode = int(address_mode)
-        self.mip_lod_bias = float(mip_lod_bias)
-        self.min_lod = float(min_lod)
-        self.max_lod = float(max_lod)
-        self.border_color = int(border_color)
-
-
-class _FFTPlan:
-    __slots__ = (
-        "context_handle",
-        "dims",
-        "axes",
-        "buffer_size",
-        "input_buffer_size",
-        "kernel_num",
-    )
-
-    def __init__(
-        self,
-        context_handle,
-        dims,
-        axes,
-        buffer_size,
-        input_buffer_size,
-        kernel_num,
-    ):
-        self.context_handle = context_handle
-        self.dims = list(dims)
-        self.axes = list(axes)
-        self.buffer_size = int(buffer_size)
-        self.input_buffer_size = int(input_buffer_size)
-        self.kernel_num = int(kernel_num)
-
-
 # --- Internal helpers ---
-
 
 def _new_handle(registry, obj):
     global _next_handle
@@ -317,47 +83,6 @@ def _new_handle(registry, obj):
     _next_handle += 1
     registry[handle] = obj
     return handle
-
-
-def _to_bytes(value):
-    if value is None:
-        return b""
-    if isinstance(value, bytes):
-        return value
-    if isinstance(value, bytearray):
-        return bytes(value)
-    if isinstance(value, memoryview):
-        return value.tobytes()
-    try:
-        return bytes(value)
-    except Exception:
-        return b""
-
-
-def _normalize_extent(extent):
-    values = list(extent)
-    if len(values) < 3:
-        values.extend([1] * (3 - len(values)))
-    return (int(values[0]), int(values[1]), int(values[2]))
-
-
-def _queue_indices(ctx, queue_index, all_on_negative=False):
-    if ctx is None or ctx.queue_count <= 0:
-        return []
-
-    if queue_index is None:
-        return [0]
-
-    queue_index = int(queue_index)
-
-    if all_on_negative and queue_index in (-1, -2):
-        return list(range(ctx.queue_count))
-
-    if 0 <= queue_index < ctx.queue_count:
-        return [queue_index]
-
-    return []
-
 
 def _set_error(message):
     global _error_string
@@ -708,7 +433,7 @@ def image_write(image, data, offset, extent, baseLayer, layerCount, device_index
 
 
 def image_format_block_size(format):
-    return int(_IMAGE_BLOCK_SIZES.get(int(format), 4))
+    _deny_runtime_native_call("image_format_block_size")
 
 
 def image_read(image, out_size, offset, extent, baseLayer, layerCount, device_index):
@@ -806,14 +531,5 @@ __all__ = [
     "stage_compute_record",
     "stage_fft_plan_create",
     "stage_fft_plan_destroy",
-    "stage_fft_record",
-    "LOG_LEVEL_VERBOSE",
-    "LOG_LEVEL_INFO",
-    "LOG_LEVEL_WARNING",
-    "LOG_LEVEL_ERROR",
-    "DESCRIPTOR_TYPE_STORAGE_BUFFER",
-    "DESCRIPTOR_TYPE_STORAGE_IMAGE",
-    "DESCRIPTOR_TYPE_UNIFORM_BUFFER",
-    "DESCRIPTOR_TYPE_UNIFORM_IMAGE",
-    "DESCRIPTOR_TYPE_SAMPLER",
+    "stage_fft_record"
 ]

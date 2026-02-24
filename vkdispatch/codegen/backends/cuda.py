@@ -368,53 +368,6 @@ def _cuda_emit_subgroup_shuffle_xor_vec_overloads(vec_keys: Set[str]) -> str:
 
     return "\n".join(lines)
 
-
-def _cuda_composite_helpers() -> str:
-    parts: List[str] = []
-
-    vector_specs = [
-        ("vkdispatch_int2", "int", 2, "int2", True, True),
-        ("vkdispatch_int3", "int", 3, "int3", True, True),
-        ("vkdispatch_int4", "int", 4, "int4", True, True),
-        ("vkdispatch_uint2", "unsigned int", 2, "uint2", False, True),
-        ("vkdispatch_uint3", "unsigned int", 3, "uint3", False, True),
-        ("vkdispatch_uint4", "unsigned int", 4, "uint4", False, True),
-        ("vkdispatch_float2", "float", 2, "float2", True, False),
-        ("vkdispatch_float3", "float", 3, "float3", True, False),
-        ("vkdispatch_float4", "float", 4, "float4", True, False),
-    ]
-
-    for vec_name, scalar_type, dim, cuda_native_type, allow_neg, enable_bitwise in vector_specs:
-        parts.append(
-            _cuda_emit_vec_type(
-                vec_name,
-                scalar_type,
-                dim,
-                cuda_native_type,
-                allow_unary_neg=allow_neg,
-                enable_bitwise=enable_bitwise,
-            )
-        )
-        parts.append(_cuda_emit_vec_helper(cuda_native_type, vec_name, scalar_type, dim))
-
-    for vec_name, scalar_type, dim, cuda_native_type, _, _ in vector_specs:
-        conversion_helpers = _cuda_emit_vec_wrapper_conversion_helpers(cuda_native_type, vec_name, scalar_type, dim)
-        if len(conversion_helpers) > 0:
-            parts.append(conversion_helpers)
-
-    matrix_specs = [
-        ("vkdispatch_mat2", "mat2", "vkdispatch_float2", "float2", 2),
-        ("vkdispatch_mat3", "mat3", "vkdispatch_float3", "float3", 3),
-        ("vkdispatch_mat4", "mat4", "vkdispatch_float4", "float4", 4),
-    ]
-
-    for mat_name, helper_suffix, vec_name, vec_helper_suffix, dim in matrix_specs:
-        parts.append(_cuda_emit_mat_type(mat_name, vec_name, dim))
-        parts.append(_cuda_emit_mat_helpers(mat_name, helper_suffix, vec_name, vec_helper_suffix, dim))
-
-    return "\n\n".join(parts)
-
-
 _CUDA_VEC_TYPE_SPECS = {
     "int2": ("vkdispatch_int2", "int", 2, "int2", True, True),
     "int3": ("vkdispatch_int3", "int", 3, "int3", True, True),
