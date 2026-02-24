@@ -207,6 +207,9 @@ class ShaderBuilder(ShaderWriter):
         return new_var
 
     def declare_variable(self, var_type: dtypes.dtype, count: int = 1, var_name: Optional[str] = None):
+        if self.backend.name == "cuda":
+            raise NotImplementedError("Push Constants are not supported for the CUDA backend")
+
         if var_name is None:
             var_name = self.new_name()
 
@@ -223,12 +226,7 @@ class ShaderBuilder(ShaderWriter):
             new_var.use_child_type = False
             new_var.can_index = True
 
-        # CUDA kernels use UBO-backed arguments for both Constant and Variable
-        # to avoid push-constant plumbing across external stream/capture paths.
-        if self.backend.name == "cuda":
-            self.uniform_struct.register_element(new_var.raw_name, var_type, count)
-        else:
-            self.pc_struct.register_element(new_var.raw_name, var_type, count)
+        self.pc_struct.register_element(new_var.raw_name, var_type, count)
         return new_var
     
     def declare_buffer(self, var_type: dtypes.dtype, var_name: Optional[str] = None):

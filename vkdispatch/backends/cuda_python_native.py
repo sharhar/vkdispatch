@@ -982,18 +982,12 @@ class _CommandRecord:
     plan_handle: int
     descriptor_set_handle: int
     blocks: Tuple[int, int, int]
-    pc_size: int
 
 
 @dataclass
 class _CommandList:
     context_handle: int
     commands: List[_CommandRecord] = field(default_factory=list)
-    compute_instance_size: int = 0
-    pc_scratch: Optional["cuda.DeviceAllocation"] = None
-    pc_scratch_size: int = 0
-    pc_host_staging: Optional[object] = None
-    pc_host_staging_size: int = 0
 
 
 @dataclass
@@ -1008,7 +1002,6 @@ class _ComputePlan:
     context_handle: int
     shader_source: bytes
     bindings: List[int]
-    pc_size: int
     shader_name: bytes
     module: SourceModule
     function: object
@@ -1027,10 +1020,7 @@ class _DescriptorSet:
 class _ResolvedLaunch:
     plan: _ComputePlan
     blocks: Tuple[int, int, int]
-    pc_offset: int
-    pc_size: int
     args: Tuple[object, ...]
-    pc_scratch: Optional["cuda.DeviceAllocation"] = None
 
 
 # --- Helper utilities ---
@@ -1231,50 +1221,6 @@ def _allocate_staging_storage(size: int):
     except Exception:
         return bytearray(int(size))
 
-
-def _ensure_command_payload_staging(command_list: _CommandList, required_size: int):
-    if required_size <= 0:
-        required_size = 1
-
-    if (
-        command_list.pc_host_staging is not None
-        and command_list.pc_host_staging_size >= required_size
-    ):
-        return command_list.pc_host_staging
-
-    command_list.pc_host_staging = _allocate_staging_storage(required_size)
-    command_list.pc_host_staging_size = required_size
-    return command_list.pc_host_staging
-
-
-def _write_command_payload_staging(
-    command_list: _CommandList,
-    payload: bytes,
-    instance_count: int,
-) -> int:
-    instance_count = int(instance_count)
-    if instance_count <= 0:
-        return 0
-
-    instance_size = int(command_list.compute_instance_size)
-    expected_size = instance_size * instance_count if instance_size > 0 else len(payload)
-
-    if instance_size > 0 and len(payload) < expected_size:
-        raise RuntimeError(
-            f"Instance payload is too small ({len(payload)} bytes) for "
-            f"{instance_count} instances of size {instance_size}"
-        )
-
-    if expected_size <= 0:
-        _ensure_command_payload_staging(command_list, 1)
-        return 0
-
-    staging = _ensure_command_payload_staging(command_list, expected_size)
-    payload_view = memoryview(payload)[:expected_size]
-    memoryview(staging)[:expected_size] = payload_view
-    return expected_size
-
-
 def _parse_local_size(source: str) -> Tuple[int, int, int]:
     x_match = _LOCAL_X_RE.search(source)
     y_match = _LOCAL_Y_RE.search(source)
@@ -1309,10 +1255,6 @@ def _parse_kernel_params(source: str) -> List[_KernelParam]:
             params.append(_KernelParam("uniform", 0, param_name))
             continue
 
-        if param_name == "vkdispatch_pc_ptr":
-            params.append(_KernelParam("push_constant", None, param_name))
-            continue
-
         binding_match = _BINDING_PARAM_RE.match(param_name)
         if binding_match is not None:
             params.append(_KernelParam("storage", int(binding_match.group(1)), param_name))
@@ -1342,73 +1284,11 @@ def _resolve_buffer_pointer(descriptor_set: _DescriptorSet, binding: int) -> int
     return _buffer_device_ptr(buffer_obj) + int(offset)
 
 
-def _ensure_pc_scratch(command_list: _CommandList, required_size: int) -> "cuda.DeviceAllocation":
-    if required_size <= 0:
-        required_size = 1
-
-    if command_list.pc_scratch is not None and command_list.pc_scratch_size >= required_size:
-        return command_list.pc_scratch
-
-    command_list.pc_scratch = cuda.mem_alloc(required_size)
-    command_list.pc_scratch_size = required_size
-    return command_list.pc_scratch
-
-
-def _build_kernel_args(
-    plan: _ComputePlan,
-    descriptor_set: Optional[_DescriptorSet],
-    command_list: _CommandList,
-    pc_data: bytes,
-    stream: "cuda.Stream",
-) -> List[object]:
-    args: List[object] = []
-
-    for param in plan.params:
-        if param.kind == "uniform":
-            if descriptor_set is None:
-                raise RuntimeError("Kernel requires a descriptor set but none was provided")
-
-            args.append(np.uintp(_resolve_buffer_pointer(descriptor_set, 0)))
-            continue
-
-        if param.kind == "storage":
-            if descriptor_set is None:
-                raise RuntimeError("Kernel requires a descriptor set but none was provided")
-
-            if param.binding is None:
-                raise RuntimeError("Storage parameter has no binding index")
-
-            args.append(np.uintp(_resolve_buffer_pointer(descriptor_set, param.binding)))
-            continue
-
-        if param.kind == "push_constant":
-            pc_scratch = _ensure_pc_scratch(command_list, len(pc_data))
-
-            if len(pc_data) > 0:
-                cuda.memcpy_htod_async(pc_scratch, pc_data, stream)
-
-            args.append(np.uintp(int(pc_scratch)))
-            continue
-
-        if param.kind == "sampler":
-            raise RuntimeError("CUDA Python backend does not support sampled image bindings yet")
-
-        raise RuntimeError(
-            f"Unsupported kernel parameter '{param.raw_name}'. "
-            "Expected vkdispatch_uniform_ptr / vkdispatch_binding_<N>_ptr / vkdispatch_pc_ptr."
-        )
-
-    return args
-
-
 def _build_kernel_args_template(
     plan: _ComputePlan,
-    descriptor_set: Optional[_DescriptorSet],
-    command_list: _CommandList,
-    pc_size: int,
-) -> Tuple[Tuple[object, ...], Optional["cuda.DeviceAllocation"]]:
+    descriptor_set: Optional[_DescriptorSet]
+) -> Tuple[object, ...]:
     args: List[object] = []
-    pc_scratch: Optional["cuda.DeviceAllocation"] = None
 
     for param in plan.params:
         if param.kind == "uniform":
@@ -1428,21 +1308,15 @@ def _build_kernel_args_template(
             args.append(np.uintp(_resolve_buffer_pointer(descriptor_set, param.binding)))
             continue
 
-        if param.kind == "push_constant":
-            if pc_scratch is None:
-                pc_scratch = _ensure_pc_scratch(command_list, int(pc_size))
-            args.append(np.uintp(int(pc_scratch)))
-            continue
-
         if param.kind == "sampler":
             raise RuntimeError("CUDA Python backend does not support sampled image bindings yet")
 
         raise RuntimeError(
             f"Unsupported kernel parameter '{param.raw_name}'. "
-            "Expected vkdispatch_uniform_ptr / vkdispatch_binding_<N>_ptr / vkdispatch_pc_ptr."
+            "Expected vkdispatch_uniform_ptr / vkdispatch_binding_<N>_ptr."
         )
 
-    return tuple(args), pc_scratch
+    return tuple(args)
 
 
 # --- API: context/init/logging ---
@@ -1986,21 +1860,9 @@ def command_list_destroy(command_list):
     if ctx is None:
         return
 
-    if obj.pc_scratch is None:
-        return
-
-    try:
-        with _activate_context(ctx):
-            obj.pc_scratch.free()
-    except Exception:
-        pass
-
 
 def command_list_get_instance_size(command_list):
-    obj = _command_lists.get(int(command_list))
-    if obj is None:
-        return 0
-    return int(obj.compute_instance_size)
+    return 0
 
 
 def command_list_reset(command_list):
@@ -2009,50 +1871,11 @@ def command_list_reset(command_list):
         return
 
     obj.commands = []
-    obj.compute_instance_size = 0
-
-
-def command_list_prepare_cuda_capture(command_list, payload_size):
-    obj = _command_lists.get(int(command_list))
-    if obj is None:
-        _set_error("Invalid command list handle for command_list_prepare_cuda_capture")
-        return
-
-    ctx = _contexts.get(obj.context_handle)
-    if ctx is None:
-        _set_error(f"Missing context for command list {command_list}")
-        return
-
-    payload_size = max(0, int(payload_size))
-
-    try:
-        _ensure_command_payload_staging(obj, max(1, payload_size))
-
-        max_pc_size = 0
-        for command in obj.commands:
-            max_pc_size = max(max_pc_size, int(command.pc_size))
-
-        if max_pc_size > 0:
-            with _activate_context(ctx):
-                _ensure_pc_scratch(obj, max_pc_size)
-    except Exception as exc:
-        _set_error(f"Failed to prepare CUDA capture resources: {exc}")
-
-
-def command_list_write_payload_staging(command_list, data, instance_count):
-    obj = _command_lists.get(int(command_list))
-    if obj is None:
-        _set_error("Invalid command list handle for command_list_write_payload_staging")
-        return
-
-    try:
-        payload = _to_bytes(data) if data is not None else b""
-        _write_command_payload_staging(obj, payload, int(instance_count))
-    except Exception as exc:
-        _set_error(f"Failed to write CUDA command payload staging: {exc}")
 
 
 def command_list_submit(command_list, data, instance_count, index):
+    assert data is None or len(data) == 0, "CUDA does not support push constant data in command_list_submit"
+
     obj = _command_lists.get(int(command_list))
     if obj is None:
         return True
@@ -2062,18 +1885,8 @@ def command_list_submit(command_list, data, instance_count, index):
         _set_error(f"Missing context for command list {command_list}")
         return True
 
-    payload = _to_bytes(data) if data is not None else b""
     instance_count = int(instance_count)
     if instance_count <= 0:
-        return True
-
-    instance_size = int(obj.compute_instance_size)
-
-    if instance_size > 0 and len(payload) < instance_size * instance_count:
-        _set_error(
-            f"Instance payload is too small ({len(payload)} bytes) for "
-            f"{instance_count} instances of size {instance_size}"
-        )
         return True
 
     queue_targets = _queue_indices(ctx, int(index), all_on_negative=True)
@@ -2081,28 +1894,10 @@ def command_list_submit(command_list, data, instance_count, index):
         queue_targets = [0]
 
     try:
-        payload_nbytes = instance_size * instance_count if instance_size > 0 else len(payload)
-        if len(payload) > 0:
-            _write_command_payload_staging(obj, payload, instance_count)
-        elif payload_nbytes > 0 and (
-            obj.pc_host_staging is None or obj.pc_host_staging_size < payload_nbytes
-        ):
-            raise RuntimeError(
-                "Command payload staging is not prepared. "
-                "Provide payload data or call command_list_prepare_cuda_capture(...) first."
-            )
-
         with _activate_context(ctx):
-            payload_view = (
-                memoryview(obj.pc_host_staging)[:payload_nbytes]
-                if payload_nbytes > 0 and obj.pc_host_staging is not None
-                else None
-            )
-
             for queue_index in queue_targets:
                 stream = _stream_for_queue(ctx, queue_index)
                 resolved_launches: List[_ResolvedLaunch] = []
-                pc_offset = 0
 
                 for command in obj.commands:
                     plan = _compute_plans.get(command.plan_handle)
@@ -2117,33 +1912,17 @@ def command_list_submit(command_list, data, instance_count, index):
                                 f"Invalid descriptor set handle {command.descriptor_set_handle}"
                             )
 
-                    pc_size = int(command.pc_size)
-                    args, pc_scratch = _build_kernel_args_template(plan, descriptor_set, obj, pc_size)
+                    args = _build_kernel_args_template(plan, descriptor_set)
                     resolved_launches.append(
                         _ResolvedLaunch(
                             plan=plan,
                             blocks=command.blocks,
-                            pc_offset=pc_offset,
-                            pc_size=pc_size,
                             args=args,
-                            pc_scratch=pc_scratch,
                         )
                     )
-                    pc_offset += pc_size
 
-                for instance in range(instance_count):
-                    instance_base = instance * instance_size
-
+                for _ in range(instance_count):
                     for launch in resolved_launches:
-                        if launch.pc_scratch is not None and launch.pc_size > 0:
-                            start = instance_base + launch.pc_offset
-                            end = start + launch.pc_size
-                            cuda.memcpy_htod_async(
-                                launch.pc_scratch,
-                                payload_view[start:end],
-                                stream,
-                            )
-
                         launch.plan.function(
                             *launch.args,
                             block=launch.plan.local_size,
@@ -2204,23 +1983,21 @@ def descriptor_set_write_image(
     read_access,
     write_access,
 ):
-    ds = _descriptor_sets.get(int(descriptor_set))
-    if ds is None:
-        _set_error("Invalid descriptor set handle for descriptor_set_write_image")
-        return
-
-    ds.image_bindings[int(binding)] = (
-        int(object),
-        int(sampler_obj),
-        int(read_access),
-        int(write_access),
-    )
+    _ = descriptor_set
+    _ = binding
+    _ = object
+    _ = sampler_obj
+    _ = read_access
+    _ = write_access
+    _set_error("CUDA Python backend does not support image objects yet")
 
 
 # --- API: compute stage ---
 
 
 def stage_compute_plan_create(context, shader_source, bindings, pc_size, shader_name):
+    assert pc_size == 0, "CUDA Python backend does not support push constant data in compute plans"
+
     ctx = _context_from_handle(int(context))
     if ctx is None:
         return 0
@@ -2252,7 +2029,6 @@ def stage_compute_plan_create(context, shader_source, bindings, pc_size, shader_
         context_handle=int(context),
         shader_source=source_bytes,
         bindings=[int(x) for x in bindings],
-        pc_size=int(pc_size),
         shader_name=shader_name_bytes,
         module=module,
         function=function,
@@ -2280,11 +2056,9 @@ def stage_compute_record(command_list, plan, descriptor_set, blocks_x, blocks_y,
         _CommandRecord(
             plan_handle=int(plan),
             descriptor_set_handle=int(descriptor_set),
-            blocks=(int(blocks_x), int(blocks_y), int(blocks_z)),
-            pc_size=int(cp.pc_size),
+            blocks=(int(blocks_x), int(blocks_y), int(blocks_z))
         )
     )
-    cl.compute_instance_size += int(cp.pc_size)
 
 
 # --- API: images/samplers (not yet implemented on CUDA Python backend) ---

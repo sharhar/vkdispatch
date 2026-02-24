@@ -377,62 +377,7 @@ class CommandGraph(CommandList):
             ubo_nbytes=ubo_nbytes,
             valid=True,
         )
-
-    def update_captured_args(
-        self,
-        capture: CUDACaptureBinding,
-        *,
-        instance_count: Optional[int] = None,
-    ) -> None:
-        if vd.get_backend() not in CUDA_RUNTIME_BACKENDS:
-            raise RuntimeError("update_captured_args() is currently only supported with CUDA backends.")
-
-        if self._is_cuda_python_backend():
-            raise RuntimeError(
-                "update_captured_args() is not supported with backend='cuda-python'. "
-                "Uniform payloads are materialized per shader invocation at record time."
-            )
-
-        self._validate_capture_binding(capture)
-
-        if instance_count is None:
-            instance_count = capture.instance_count
-
-        instance_count = int(instance_count)
-        if instance_count != capture.instance_count:
-            raise ValueError(
-                f"instance_count ({instance_count}) must match the capture binding instance_count ({capture.instance_count})."
-            )
-
-        if len(self.uniform_builder.element_map) > 0:
-            self.uniform_builder.prepare(1)
-            for key, value in self.uniform_values.items():
-                self.uniform_builder[key] = value
-
-            uniform_bytes = self.uniform_builder.tobytes()
-            native.buffer_write_staging(
-                self.uniform_constants_buffer._handle,
-                capture.queue_index,
-                uniform_bytes,
-                len(uniform_bytes),
-            )
-            check_for_errors()
-
-        if len(self.pc_builder.element_map) > 0:
-            self.pc_builder.prepare(instance_count)
-            for key, value in self.pc_values.items():
-                self.pc_builder[key] = value
-            for key, val in self.queued_pc_values.items():
-                self.pc_builder[key] = val
-
-            pc_bytes = self.pc_builder.tobytes()
-            native.command_list_write_payload_staging(
-                self._handle,
-                pc_bytes,
-                instance_count,
-            )
-            check_for_errors()
-
+    
     def submit(
         self,
         instance_count: int = None,
@@ -467,48 +412,47 @@ class CommandGraph(CommandList):
                     f"queue_index ({queue_index}) must match the capture binding queue_index ({capture.queue_index})."
                 )
 
-        with self._cuda_stream_override(cuda_stream):
-            if instance_count is None:
-                instance_count = 1
+        if instance_count is None:
+            instance_count = 1
+        
+        if len(self.pc_builder.element_map) > 0 and (
+                self.pc_builder.instance_count != instance_count or not self.buffers_valid
+            ):
+
+            self.pc_builder.prepare(instance_count)
+
+            for key, value in self.pc_values.items():
+                self.pc_builder[key] = value
+
+        if len(self.uniform_builder.element_map) > 0 and not self.buffers_valid:
+
+            self.uniform_builder.prepare(1)
+
+            for key, value in self.uniform_values.items():
+                self.uniform_builder[key] = value
             
-            if len(self.pc_builder.element_map) > 0 and (
-                    self.pc_builder.instance_count != instance_count or not self.buffers_valid
-                ):
+            for descriptor_set, offset, size in self.uniform_descriptors:
+                descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, True, write_access=False)
 
-                self.pc_builder.prepare(instance_count)
+            self.uniform_constants_buffer.write(self.uniform_builder.tobytes())
 
-                for key, value in self.pc_values.items():
-                    self.pc_builder[key] = value
+        if not self.buffers_valid:
+            self.buffers_valid = True
 
-            if len(self.uniform_builder.element_map) > 0 and not self.buffers_valid:
+        for key, val in self.queued_pc_values.items():
+            self.pc_builder[key] = val
+        
+        my_data = None
 
-                self.uniform_builder.prepare(1)
+        if len(self.pc_builder.element_map) > 0:
+            my_data = self.pc_builder.tobytes()
 
-                for key, value in self.uniform_values.items():
-                    self.uniform_builder[key] = value
-                
-                for descriptor_set, offset, size in self.uniform_descriptors:
-                    descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, True, write_access=False)
-
-                self.uniform_constants_buffer.write(self.uniform_builder.tobytes())
-
-            if not self.buffers_valid:
-                self.buffers_valid = True
-
-            for key, val in self.queued_pc_values.items():
-                self.pc_builder[key] = val
-            
-            my_data = None
-
-            if len(self.pc_builder.element_map) > 0:
-                my_data = self.pc_builder.tobytes()
-
-            super().submit(
-                data=my_data,
-                queue_index=queue_index,
-                instance_count=instance_count,
-                cuda_stream=None,
-            )
+        super().submit(
+            data=my_data,
+            queue_index=queue_index,
+            instance_count=instance_count,
+            cuda_stream=cuda_stream,
+        )
 
         if self._reset_on_submit:
             self.reset()
@@ -517,9 +461,6 @@ class CommandGraph(CommandList):
         self.submit(instance_count=instance_count, queue_index=-1)
 
 _global_graph = threading.local()
-
-#__default_graph = None
-#__custom_graph = None
 
 def _get_global_graph() -> Optional[CommandGraph]:
     return getattr(_global_graph, 'custom_graph', None)

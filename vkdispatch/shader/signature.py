@@ -139,6 +139,9 @@ class ShaderSignature:
                 value_name = shader_param.raw_name
                 arg_type = ShaderArgumentType.CONSTANT
             elif(issubclass(annotations[i].__origin__, vc.Variable)):
+                if builder.backend.name == "cuda":
+                    raise NotImplementedError(f"Var type '{shader_param.raw_name}' is not supported for the CUDA backend. Use Const instead.")
+
                 shader_param = builder.declare_variable(annotations[i].__args__[0])
                 arg_type = ShaderArgumentType.VARIABLE
                 value_name = shader_param.raw_name

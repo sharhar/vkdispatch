@@ -302,6 +302,9 @@ def do_numpy_command(out_buffer: int, in_buffer: int, program: int, config: RunC
     output_array[:total_exec_size] = temp_array
 
 def test_async_commands():
+    if vd.get_backend() == "cuda-python":
+        return
+
     for _ in range(50):
         clear_caches()
         
