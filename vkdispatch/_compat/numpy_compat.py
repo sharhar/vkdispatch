@@ -319,15 +319,23 @@ class HostDType:
     kind: str
 
 
+INT16 = HostDType("int16", 2, "h", "int")
+UINT16 = HostDType("uint16", 2, "H", "uint")
 INT32 = HostDType("int32", 4, "i", "int")
 UINT32 = HostDType("uint32", 4, "I", "uint")
+FLOAT16 = HostDType("float16", 2, "e", "float")
 FLOAT32 = HostDType("float32", 4, "f", "float")
+FLOAT64 = HostDType("float64", 8, "d", "float")
 COMPLEX64 = HostDType("complex64", 8, "ff", "complex")
 
 _HOST_DTYPES = {
+    "int16": INT16,
+    "uint16": UINT16,
     "int32": INT32,
     "uint32": UINT32,
+    "float16": FLOAT16,
     "float32": FLOAT32,
+    "float64": FLOAT64,
     "complex64": COMPLEX64,
 }
 

@@ -7,20 +7,36 @@ from .arguments import Image1D as Img1
 from .arguments import Image2D as Img2
 from .arguments import Image3D as Img3
 
+from vkdispatch.base.dtype import float16 as f16
 from vkdispatch.base.dtype import float32 as f32
-from vkdispatch.base.dtype import uint32 as u32
+from vkdispatch.base.dtype import float64 as f64
+from vkdispatch.base.dtype import int16 as i16
+from vkdispatch.base.dtype import uint16 as u16
 from vkdispatch.base.dtype import int32 as i32
+from vkdispatch.base.dtype import uint32 as u32
 from vkdispatch.base.dtype import complex64 as c64
 
+from vkdispatch.base.dtype import hvec2 as hv2
+from vkdispatch.base.dtype import hvec3 as hv3
+from vkdispatch.base.dtype import hvec4 as hv4
 from vkdispatch.base.dtype import vec2 as v2
 from vkdispatch.base.dtype import vec3 as v3
 from vkdispatch.base.dtype import vec4 as v4
-from vkdispatch.base.dtype import uvec2 as uv2
-from vkdispatch.base.dtype import uvec3 as uv3
-from vkdispatch.base.dtype import uvec4 as uv4
+from vkdispatch.base.dtype import dvec2 as dv2
+from vkdispatch.base.dtype import dvec3 as dv3
+from vkdispatch.base.dtype import dvec4 as dv4
+from vkdispatch.base.dtype import ihvec2 as ihv2
+from vkdispatch.base.dtype import ihvec3 as ihv3
+from vkdispatch.base.dtype import ihvec4 as ihv4
 from vkdispatch.base.dtype import ivec2 as iv2
 from vkdispatch.base.dtype import ivec3 as iv3
 from vkdispatch.base.dtype import ivec4 as iv4
+from vkdispatch.base.dtype import uhvec2 as uhv2
+from vkdispatch.base.dtype import uhvec3 as uhv3
+from vkdispatch.base.dtype import uhvec4 as uhv4
+from vkdispatch.base.dtype import uvec2 as uv2
+from vkdispatch.base.dtype import uvec3 as uv3
+from vkdispatch.base.dtype import uvec4 as uv4
 
 from vkdispatch.base.dtype import mat2 as m2
 from vkdispatch.base.dtype import mat4 as m4

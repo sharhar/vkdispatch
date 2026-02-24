@@ -26,11 +26,23 @@ def str_to_dtype(var_type: dtypes.dtype,
         register=register
     )
 
+def to_float16(*args):
+    return to_dtype(dtypes.float16, *args)
+
 def to_float(*args):
     return to_dtype(dtypes.float32, *args)
 
+def to_float64(*args):
+    return to_dtype(dtypes.float64, *args)
+
+def to_int16(*args):
+    return to_dtype(dtypes.int16, *args)
+
 def to_int(*args):
     return to_dtype(dtypes.int32, *args)
+
+def to_uint16(*args):
+    return to_dtype(dtypes.uint16, *args)
 
 def to_uint(*args):
     return to_dtype(dtypes.uint32, *args)
@@ -43,6 +55,15 @@ def to_complex(*args):
 
     return to_dtype(dtypes.complex64, *args)
 
+def to_hvec2(*args):
+    return to_dtype(dtypes.hvec2, *args)
+
+def to_hvec3(*args):
+    return to_dtype(dtypes.hvec3, *args)
+
+def to_hvec4(*args):
+    return to_dtype(dtypes.hvec4, *args)
+
 def to_vec2(*args):
     return to_dtype(dtypes.vec2, *args)
 
@@ -52,14 +73,23 @@ def to_vec3(*args):
 def to_vec4(*args):
     return to_dtype(dtypes.vec4, *args)
 
-def to_uvec2(*args):
-    return to_dtype(dtypes.uvec2, *args)
+def to_dvec2(*args):
+    return to_dtype(dtypes.dvec2, *args)
 
-def to_uvec3(*args):
-    return to_dtype(dtypes.uvec3, *args)
+def to_dvec3(*args):
+    return to_dtype(dtypes.dvec3, *args)
 
-def to_uvec4(*args):
-    return to_dtype(dtypes.uvec4, *args)
+def to_dvec4(*args):
+    return to_dtype(dtypes.dvec4, *args)
+
+def to_ihvec2(*args):
+    return to_dtype(dtypes.ihvec2, *args)
+
+def to_ihvec3(*args):
+    return to_dtype(dtypes.ihvec3, *args)
+
+def to_ihvec4(*args):
+    return to_dtype(dtypes.ihvec4, *args)
 
 def to_ivec2(*args):
     return to_dtype(dtypes.ivec2, *args)
@@ -69,6 +99,24 @@ def to_ivec3(*args):
 
 def to_ivec4(*args):
     return to_dtype(dtypes.ivec4, *args)
+
+def to_uhvec2(*args):
+    return to_dtype(dtypes.uhvec2, *args)
+
+def to_uhvec3(*args):
+    return to_dtype(dtypes.uhvec3, *args)
+
+def to_uhvec4(*args):
+    return to_dtype(dtypes.uhvec4, *args)
+
+def to_uvec2(*args):
+    return to_dtype(dtypes.uvec2, *args)
+
+def to_uvec3(*args):
+    return to_dtype(dtypes.uvec3, *args)
+
+def to_uvec4(*args):
+    return to_dtype(dtypes.uvec4, *args)
 
 def to_mat2(*args):
     return to_dtype(dtypes.mat2, *args)

@@ -49,8 +49,16 @@ class CodeGenBackend:
     def fma_function_name(self, var_type: dtypes.dtype) -> str:
         return "fma"
 
+    def math_func_name(self, func_name: str, var_type: dtypes.dtype) -> str:
+        """Return the backend-specific function name for a math operation.
+
+        Backends can override this to remap function names for specific types
+        (e.g. CUDA __half intrinsics).
+        """
+        return func_name
+
     def unary_math_expr(self, func_name: str, arg_type: dtypes.dtype, arg_expr: str) -> str:
-        return f"{func_name}({arg_expr})"
+        return f"{self.math_func_name(func_name, arg_type)}({arg_expr})"
 
     def binary_math_expr(
         self,
@@ -60,10 +68,12 @@ class CodeGenBackend:
         rhs_type: dtypes.dtype,
         rhs_expr: str,
     ) -> str:
+        mapped = self.math_func_name(func_name, lhs_type)
         if func_name == "atan2":
-            return f"atan({lhs_expr}, {rhs_expr})"
+            mapped_atan = self.math_func_name("atan", lhs_type)
+            return f"{mapped_atan}({lhs_expr}, {rhs_expr})"
 
-        return f"{func_name}({lhs_expr}, {rhs_expr})"
+        return f"{mapped}({lhs_expr}, {rhs_expr})"
 
     def pre_header(self, *, enable_subgroup_ops: bool, enable_printf: bool) -> str:
         raise NotImplementedError

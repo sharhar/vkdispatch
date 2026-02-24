@@ -1,14 +1,41 @@
-from typing import List, Optional
+from typing import List, Optional, Set
 
 import vkdispatch.base.dtype as dtypes
 
 from .base import CodeGenBackend
 
+# Map scalar dtypes to GLSL extension names.
+_GLSL_TYPE_EXTENSIONS = {
+    dtypes.float16: "GL_EXT_shader_explicit_arithmetic_types_float16",
+    dtypes.int16: "GL_EXT_shader_explicit_arithmetic_types_int16",
+    dtypes.uint16: "GL_EXT_shader_explicit_arithmetic_types_int16",
+    dtypes.float64: "GL_ARB_gpu_shader_fp64",
+}
+
 
 class GLSLBackend(CodeGenBackend):
     name = "glsl"
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._needed_extensions: Set[str] = set()
+
+    def reset_state(self) -> None:
+        self._needed_extensions = set()
+
+    def _track_type_extension(self, var_type: dtypes.dtype) -> None:
+        """Record the GLSL extension required by *var_type* (if any)."""
+        scalar = var_type
+        if dtypes.is_vector(var_type) or dtypes.is_matrix(var_type):
+            scalar = var_type.scalar
+        elif dtypes.is_complex(var_type):
+            scalar = var_type.child_type
+        ext = _GLSL_TYPE_EXTENSIONS.get(scalar)
+        if ext is not None:
+            self._needed_extensions.add(ext)
+
     def type_name(self, var_type: dtypes.dtype) -> str:
+        self._track_type_extension(var_type)
         return var_type.glsl_type
 
     def constructor(self, var_type: dtypes.dtype, args: List[str]) -> str:
@@ -24,10 +51,18 @@ class GLSLBackend(CodeGenBackend):
         if enable_printf:
             header += "#extension GL_EXT_debug_printf : require\n"
 
-        return header
+        # Inject type extensions right after #version / existing extensions.
+        ext_block = ""
+        for ext in sorted(self._needed_extensions):
+            ext_line = f"#extension {ext} : require\n"
+            if ext_line not in header:
+                ext_block += ext_line
+
+        return header + ext_block
 
     def make_source(self, header: str, body: str, x: int, y: int, z: int) -> str:
         layout_str = f"layout(local_size_x = {x}, local_size_y = {y}, local_size_z = {z}) in;"
+
         return f"{header}\n{layout_str}\n{body}"
 
     def constant_namespace(self) -> str:

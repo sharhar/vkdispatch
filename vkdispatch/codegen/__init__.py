@@ -30,16 +30,30 @@ from .functions.matrix import determinant, inverse
 
 from .functions.atomic_memory import atomic_add
 
-from .functions.type_casting import to_dtype, str_to_dtype, to_float, to_int, to_uint
-from .functions.type_casting import to_vec2, to_vec3, to_vec4, to_complex
-from .functions.type_casting import to_uvec2, to_uvec3, to_uvec4
+from .functions.type_casting import to_dtype, str_to_dtype
+from .functions.type_casting import to_float16, to_float, to_float64
+from .functions.type_casting import to_int16, to_int, to_uint16, to_uint
+from .functions.type_casting import to_complex
+from .functions.type_casting import to_hvec2, to_hvec3, to_hvec4
+from .functions.type_casting import to_vec2, to_vec3, to_vec4
+from .functions.type_casting import to_dvec2, to_dvec3, to_dvec4
+from .functions.type_casting import to_ihvec2, to_ihvec3, to_ihvec4
 from .functions.type_casting import to_ivec2, to_ivec3, to_ivec4
+from .functions.type_casting import to_uhvec2, to_uhvec3, to_uhvec4
+from .functions.type_casting import to_uvec2, to_uvec3, to_uvec4
 from .functions.type_casting import to_mat2, to_mat3, to_mat4
 
-from .functions.registers import new_register, new_float_register, new_int_register, new_uint_register
-from .functions.registers import new_vec2_register, new_ivec2_register, new_uvec2_register, new_complex_register
-from .functions.registers import new_vec3_register, new_ivec3_register, new_uvec3_register
-from .functions.registers import new_vec4_register, new_ivec4_register, new_uvec4_register
+from .functions.registers import new_register, new_complex_register
+from .functions.registers import new_float16_register, new_float_register, new_float64_register
+from .functions.registers import new_int16_register, new_int_register
+from .functions.registers import new_uint16_register, new_uint_register
+from .functions.registers import new_hvec2_register, new_hvec3_register, new_hvec4_register
+from .functions.registers import new_vec2_register, new_vec3_register, new_vec4_register
+from .functions.registers import new_dvec2_register, new_dvec3_register, new_dvec4_register
+from .functions.registers import new_ihvec2_register, new_ihvec3_register, new_ihvec4_register
+from .functions.registers import new_ivec2_register, new_ivec3_register, new_ivec4_register
+from .functions.registers import new_uhvec2_register, new_uhvec3_register, new_uhvec4_register
+from .functions.registers import new_uvec2_register, new_uvec3_register, new_uvec4_register
 from .functions.registers import new_mat2_register, new_mat3_register, new_mat4_register
 
 from .functions.subgroups import subgroup_add, subgroup_mul

@@ -124,7 +124,6 @@ class ShaderBuilder(ShaderWriter):
     pc_struct: StructBuilder
     uniform_struct: StructBuilder
     exec_count: Optional[ShaderVariable]
-    pre_header: str
     flags: ShaderFlags
     backend: CodeGenBackend
 
@@ -141,11 +140,6 @@ class ShaderBuilder(ShaderWriter):
         else:
             # Use the selected backend type while keeping per-builder backend state isolated.
             self.backend = get_codegen_backend().__class__()
-
-        self.pre_header = self.backend.pre_header(
-            enable_subgroup_ops=not (self.flags & ShaderFlags.NO_SUBGROUP_OPS),
-            enable_printf=not (self.flags & ShaderFlags.NO_PRINTF)
-        )
         
         self.reset()
 
@@ -324,7 +318,10 @@ class ShaderBuilder(ShaderWriter):
         return "\n".join(declerations)
 
     def build(self, name: str) -> ShaderDescription:
-        header = "" + self.pre_header
+        header = self.backend.pre_header(
+            enable_subgroup_ops=not (self.flags & ShaderFlags.NO_SUBGROUP_OPS),
+            enable_printf=not (self.flags & ShaderFlags.NO_PRINTF)
+        )
 
         for shared_buffer in self.shared_buffers:
             header += self.backend.shared_buffer_declaration(

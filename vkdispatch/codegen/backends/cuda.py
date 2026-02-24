@@ -352,7 +352,15 @@ def _cuda_emit_mat_helpers(mat_name: str, helper_suffix: str, vec_name: str, vec
 
 def _cuda_emit_subgroup_shuffle_xor_vec_overloads(vec_keys: Set[str]) -> str:
     lines: List[str] = []
-    vec_order = ["int2", "int3", "int4", "uint2", "uint3", "uint4", "float2", "float3", "float4"]
+    vec_order = [
+        "short2", "short3", "short4",
+        "ushort2", "ushort3", "ushort4",
+        "int2", "int3", "int4",
+        "uint2", "uint3", "uint4",
+        "half2", "half3", "half4",
+        "float2", "float3", "float4",
+        "double2", "double3", "double4",
+    ]
 
     for key in vec_order:
         if key not in vec_keys:
@@ -369,15 +377,27 @@ def _cuda_emit_subgroup_shuffle_xor_vec_overloads(vec_keys: Set[str]) -> str:
     return "\n".join(lines)
 
 _CUDA_VEC_TYPE_SPECS = {
+    "short2": ("vkdispatch_short2", "short", 2, "short2", True, True),
+    "short3": ("vkdispatch_short3", "short", 3, "short3", True, True),
+    "short4": ("vkdispatch_short4", "short", 4, "short4", True, True),
+    "ushort2": ("vkdispatch_ushort2", "unsigned short", 2, "ushort2", False, True),
+    "ushort3": ("vkdispatch_ushort3", "unsigned short", 3, "ushort3", False, True),
+    "ushort4": ("vkdispatch_ushort4", "unsigned short", 4, "ushort4", False, True),
     "int2": ("vkdispatch_int2", "int", 2, "int2", True, True),
     "int3": ("vkdispatch_int3", "int", 3, "int3", True, True),
     "int4": ("vkdispatch_int4", "int", 4, "int4", True, True),
     "uint2": ("vkdispatch_uint2", "unsigned int", 2, "uint2", False, True),
     "uint3": ("vkdispatch_uint3", "unsigned int", 3, "uint3", False, True),
     "uint4": ("vkdispatch_uint4", "unsigned int", 4, "uint4", False, True),
+    "half2": ("vkdispatch_half2", "__half", 2, "half2", True, False),
+    "half3": ("vkdispatch_half3", "__half", 3, "half3", True, False),
+    "half4": ("vkdispatch_half4", "__half", 4, "half4", True, False),
     "float2": ("vkdispatch_float2", "float", 2, "float2", True, False),
     "float3": ("vkdispatch_float3", "float", 3, "float3", True, False),
     "float4": ("vkdispatch_float4", "float", 4, "float4", True, False),
+    "double2": ("vkdispatch_double2", "double", 2, "double2", True, False),
+    "double3": ("vkdispatch_double3", "double", 3, "double3", True, False),
+    "double4": ("vkdispatch_double4", "double", 4, "double4", True, False),
 }
 
 _CUDA_MAT_TYPE_SPECS = {
@@ -418,16 +438,28 @@ class CUDABackend(CodeGenBackend):
         "make_mat2": "",
         "make_mat3": "",
         "make_mat4": "",
+        "make_short2": "",
+        "make_short3": "",
+        "make_short4": "",
+        "make_ushort2": "",
+        "make_ushort3": "",
+        "make_ushort4": "",
         "make_int2": "",
         "make_int3": "",
         "make_int4": "",
         "make_uint2": "",
         "make_uint3": "",
         "make_uint4": "",
+        "make_half2": "",
+        "make_half3": "",
+        "make_half4": "",
         "float2_ops": "",
         "make_float2": "",
         "make_float3": "",
         "make_float4": "",
+        "make_double2": "",
+        "make_double3": "",
+        "make_double4": "",
         "global_invocation_id": (
             "__device__ __forceinline__ vkdispatch_uint3 vkdispatch_global_invocation_id() {\n"
             "    return vkdispatch_uint3(\n"
@@ -547,20 +579,48 @@ class CUDABackend(CodeGenBackend):
             "    return value;\n"
             "}"
         ),
-        "mod": "__device__ __forceinline__ float mod(float x, float y) { return fmodf(x, y); }",
-        "fract": "__device__ __forceinline__ float fract(float x) { return x - floorf(x); }",
-        "roundEven": "__device__ __forceinline__ float roundEven(float x) { return nearbyintf(x); }",
-        "mix": "__device__ __forceinline__ float mix(float x, float y, float a) { return x + (y - x) * a; }",
-        "step": "__device__ __forceinline__ float step(float edge, float x) { return x < edge ? 0.0f : 1.0f; }",
+        "mod": (
+            "__device__ __forceinline__ float mod(float x, float y) { return fmodf(x, y); }\n"
+            "__device__ __forceinline__ double mod(double x, double y) { return fmod(x, y); }"
+        ),
+        "fract": (
+            "__device__ __forceinline__ float fract(float x) { return x - floorf(x); }\n"
+            "__device__ __forceinline__ double fract(double x) { return x - floor(x); }"
+        ),
+        "roundEven": (
+            "__device__ __forceinline__ float roundEven(float x) { return nearbyintf(x); }\n"
+            "__device__ __forceinline__ double roundEven(double x) { return nearbyint(x); }"
+        ),
+        "mix": (
+            "__device__ __forceinline__ float mix(float x, float y, float a) { return x + (y - x) * a; }\n"
+            "__device__ __forceinline__ double mix(double x, double y, double a) { return x + (y - x) * a; }"
+        ),
+        "step": (
+            "__device__ __forceinline__ float step(float edge, float x) { return x < edge ? 0.0f : 1.0f; }\n"
+            "__device__ __forceinline__ double step(double edge, double x) { return x < edge ? 0.0 : 1.0; }"
+        ),
         "smoothstep": (
             "__device__ __forceinline__ float smoothstep(float edge0, float edge1, float x) {\n"
             "    float t = fminf(fmaxf((x - edge0) / (edge1 - edge0), 0.0f), 1.0f);\n"
             "    return t * t * (3.0f - 2.0f * t);\n"
+            "}\n"
+            "__device__ __forceinline__ double smoothstep(double edge0, double edge1, double x) {\n"
+            "    double t = fmin(fmax((x - edge0) / (edge1 - edge0), 0.0), 1.0);\n"
+            "    return t * t * (3.0 - 2.0 * t);\n"
             "}"
         ),
-        "radians": "__device__ __forceinline__ float radians(float x) { return x * (3.14159265358979323846f / 180.0f); }",
-        "degrees": "__device__ __forceinline__ float degrees(float x) { return x * (180.0f / 3.14159265358979323846f); }",
-        "inversesqrt": "__device__ __forceinline__ float inversesqrt(float x) { return rsqrtf(x); }",
+        "radians": (
+            "__device__ __forceinline__ float radians(float x) { return x * (3.14159265358979323846f / 180.0f); }\n"
+            "__device__ __forceinline__ double radians(double x) { return x * (3.14159265358979323846 / 180.0); }"
+        ),
+        "degrees": (
+            "__device__ __forceinline__ float degrees(float x) { return x * (180.0f / 3.14159265358979323846f); }\n"
+            "__device__ __forceinline__ double degrees(double x) { return x * (180.0 / 3.14159265358979323846); }"
+        ),
+        "inversesqrt": (
+            "__device__ __forceinline__ float inversesqrt(float x) { return rsqrtf(x); }\n"
+            "__device__ __forceinline__ double inversesqrt(double x) { return rsqrt(x); }"
+        ),
         "floatBitsToInt": "__device__ __forceinline__ int floatBitsToInt(float x) { return __float_as_int(x); }",
         "floatBitsToUint": "__device__ __forceinline__ unsigned int floatBitsToUint(float x) { return __float_as_uint(x); }",
         "intBitsToFloat": "__device__ __forceinline__ float intBitsToFloat(int x) { return __int_as_float(x); }",
@@ -609,16 +669,28 @@ class CUDABackend(CodeGenBackend):
         "make_mat2": ["composite_types"],
         "make_mat3": ["composite_types"],
         "make_mat4": ["composite_types"],
+        "make_short2": ["composite_types"],
+        "make_short3": ["composite_types"],
+        "make_short4": ["composite_types"],
+        "make_ushort2": ["composite_types"],
+        "make_ushort3": ["composite_types"],
+        "make_ushort4": ["composite_types"],
         "make_int2": ["composite_types"],
         "make_int3": ["composite_types"],
         "make_int4": ["composite_types"],
         "make_uint2": ["composite_types"],
         "make_uint3": ["composite_types"],
         "make_uint4": ["composite_types"],
+        "make_half2": ["composite_types"],
+        "make_half3": ["composite_types"],
+        "make_half4": ["composite_types"],
         "float2_ops": ["composite_types"],
         "make_float2": ["composite_types"],
         "make_float3": ["composite_types"],
         "make_float4": ["composite_types"],
+        "make_double2": ["composite_types"],
+        "make_double3": ["composite_types"],
+        "make_double4": ["composite_types"],
         "global_invocation_id": ["composite_types"],
         "local_invocation_id": ["composite_types"],
         "workgroup_id": ["composite_types"],
@@ -648,6 +720,7 @@ class CUDABackend(CodeGenBackend):
         self._composite_vec_unary_math_usage: Dict[str, Set[str]] = {}
         self._composite_vec_binary_math_usage: Dict[str, Set[str]] = {}
         self._sample_texture_dims: Set[int] = set()
+        self._needs_cuda_fp16: bool = False
         self._feature_usage: Dict[str, bool] = {
             feature_name: False
             for feature_name in self._HELPER_SNIPPETS
@@ -657,32 +730,36 @@ class CUDABackend(CodeGenBackend):
         if feature_name in self._feature_usage:
             self._feature_usage[feature_name] = True
 
+    _DTYPE_TO_COMPOSITE_KEY = {
+        dtypes.ihvec2: "short2",
+        dtypes.ihvec3: "short3",
+        dtypes.ihvec4: "short4",
+        dtypes.uhvec2: "ushort2",
+        dtypes.uhvec3: "ushort3",
+        dtypes.uhvec4: "ushort4",
+        dtypes.ivec2: "int2",
+        dtypes.ivec3: "int3",
+        dtypes.ivec4: "int4",
+        dtypes.uvec2: "uint2",
+        dtypes.uvec3: "uint3",
+        dtypes.uvec4: "uint4",
+        dtypes.hvec2: "half2",
+        dtypes.hvec3: "half3",
+        dtypes.hvec4: "half4",
+        dtypes.complex64: "float2",
+        dtypes.vec2: "float2",
+        dtypes.vec3: "float3",
+        dtypes.vec4: "float4",
+        dtypes.dvec2: "double2",
+        dtypes.dvec3: "double3",
+        dtypes.dvec4: "double4",
+        dtypes.mat2: "mat2",
+        dtypes.mat3: "mat3",
+        dtypes.mat4: "mat4",
+    }
+
     def _composite_key_for_dtype(self, var_type: dtypes.dtype) -> Optional[str]:
-        if var_type == dtypes.complex64 or var_type == dtypes.vec2:
-            return "float2"
-        if var_type == dtypes.vec3:
-            return "float3"
-        if var_type == dtypes.vec4:
-            return "float4"
-        if var_type == dtypes.ivec2:
-            return "int2"
-        if var_type == dtypes.ivec3:
-            return "int3"
-        if var_type == dtypes.ivec4:
-            return "int4"
-        if var_type == dtypes.uvec2:
-            return "uint2"
-        if var_type == dtypes.uvec3:
-            return "uint3"
-        if var_type == dtypes.uvec4:
-            return "uint4"
-        if var_type == dtypes.mat2:
-            return "mat2"
-        if var_type == dtypes.mat3:
-            return "mat3"
-        if var_type == dtypes.mat4:
-            return "mat4"
-        return None
+        return self._DTYPE_TO_COMPOSITE_KEY.get(var_type)
 
     def _record_composite_type_key(self, key: str) -> None:
         self.mark_feature_usage("composite_types")
@@ -874,7 +951,15 @@ class CUDABackend(CodeGenBackend):
                 if key in _CUDA_VEC_TYPE_SPECS:
                     self._composite_vec_op_usage.setdefault(key, set()).add(token)
 
-        vec_order = ["int2", "int3", "int4", "uint2", "uint3", "uint4", "float2", "float3", "float4"]
+        vec_order = [
+            "short2", "short3", "short4",
+            "ushort2", "ushort3", "ushort4",
+            "int2", "int3", "int4",
+            "uint2", "uint3", "uint4",
+            "half2", "half3", "half4",
+            "float2", "float3", "float4",
+            "double2", "double3", "double4",
+        ]
         emitted_vec_keys: Set[str] = set()
         for key in vec_order:
             if key not in self._composite_type_usage:
@@ -925,6 +1010,28 @@ class CUDABackend(CodeGenBackend):
 
         return "\n\n".join(parts)
 
+    @staticmethod
+    def _cuda_scalar_unary_math_name(func_name: str, scalar_type: str) -> str:
+        """Return the CUDA device-side scalar math function for a given type."""
+        if scalar_type == "__half":
+            _HALF_MATH = {
+                "sin": "hsin", "cos": "hcos", "exp": "hexp", "exp2": "hexp2",
+                "log": "hlog", "log2": "hlog2", "sqrt": "hsqrt",
+            }
+            return _HALF_MATH.get(func_name, func_name)
+        if scalar_type == "double":
+            return func_name  # standard C math names work for double
+        # float  ->  fast intrinsics
+        return CUDABackend._cuda_fast_unary_math_name(func_name)
+
+    @staticmethod
+    def _cuda_scalar_binary_math_name(func_name: str, scalar_type: str) -> str:
+        if scalar_type == "__half":
+            return func_name
+        if scalar_type == "double":
+            return func_name
+        return CUDABackend._cuda_fast_binary_math_name(func_name)
+
     def _emit_used_vec_math_helpers(self) -> str:
         helper_sections: List[str] = []
 
@@ -950,7 +1057,7 @@ class CUDABackend(CodeGenBackend):
         binary_order = ["atan2", "pow"]
         signature_order = ["vv", "vs", "sv"]
 
-        for key in ["float2", "float3", "float4"]:
+        for key in ["half2", "half3", "half4", "float2", "float3", "float4", "double2", "double3", "double4"]:
             unary_funcs = self._composite_vec_unary_math_usage.get(key, set())
             binary_tokens = self._composite_vec_binary_math_usage.get(key, set())
             if len(unary_funcs) == 0 and len(binary_tokens) == 0:
@@ -959,21 +1066,21 @@ class CUDABackend(CodeGenBackend):
             if key not in _CUDA_VEC_TYPE_SPECS:
                 continue
 
-            vec_name, _, dim, _, _, _ = _CUDA_VEC_TYPE_SPECS[key]
+            vec_name, scalar_type, dim, _, _, _ = _CUDA_VEC_TYPE_SPECS[key]
             comps = _cuda_vec_components(dim)
             lines: List[str] = []
 
             for func_name in unary_order:
                 if func_name not in unary_funcs:
                     continue
-                scalar_func = self._cuda_fast_unary_math_name(func_name)
+                scalar_func = self._cuda_scalar_unary_math_name(func_name, scalar_type)
                 comp_args = ", ".join([f"{scalar_func}(v.v.{c})" for c in comps])
                 lines.append(
                     f"__device__ __forceinline__ {vec_name} {func_name}(const {vec_name}& v) {{ return vkdispatch_make_{key}({comp_args}); }}"
                 )
 
             for func_name in binary_order:
-                scalar_func = self._cuda_fast_binary_math_name(func_name)
+                scalar_func = self._cuda_scalar_binary_math_name(func_name, scalar_type)
                 for signature in signature_order:
                     token = f"{func_name}:{signature}"
                     if token not in binary_tokens:
@@ -987,12 +1094,12 @@ class CUDABackend(CodeGenBackend):
                     elif signature == "vs":
                         comp_args = ", ".join([f"{scalar_func}(a.v.{c}, b)" for c in comps])
                         lines.append(
-                            f"__device__ __forceinline__ {vec_name} {func_name}(const {vec_name}& a, float b) {{ return vkdispatch_make_{key}({comp_args}); }}"
+                            f"__device__ __forceinline__ {vec_name} {func_name}(const {vec_name}& a, {scalar_type} b) {{ return vkdispatch_make_{key}({comp_args}); }}"
                         )
                     elif signature == "sv":
                         comp_args = ", ".join([f"{scalar_func}(a, b.v.{c})" for c in comps])
                         lines.append(
-                            f"__device__ __forceinline__ {vec_name} {func_name}(float a, const {vec_name}& b) {{ return vkdispatch_make_{key}({comp_args}); }}"
+                            f"__device__ __forceinline__ {vec_name} {func_name}({scalar_type} a, const {vec_name}& b) {{ return vkdispatch_make_{key}({comp_args}); }}"
                         )
 
             if len(lines) > 0:
@@ -1051,63 +1158,47 @@ class CUDABackend(CodeGenBackend):
             return len(expr) > 1 and expr[1:].isdigit()
         return expr.isdigit()
 
+    _SCALAR_TYPE_NAMES = {
+        dtypes.int16: "short",
+        dtypes.uint16: "unsigned short",
+        dtypes.int32: "int",
+        dtypes.uint32: "unsigned int",
+        dtypes.float16: "__half",
+        dtypes.float32: "float",
+        dtypes.float64: "double",
+    }
+
     def type_name(self, var_type: dtypes.dtype) -> str:
-        if var_type == dtypes.int32:
-            return "int"
-        if var_type == dtypes.uint32:
-            return "unsigned int"
-        if var_type == dtypes.float32:
-            return "float"
-        if var_type == dtypes.complex64:
-            self._record_composite_type(var_type)
-            return "vkdispatch_float2"
+        scalar_name = self._SCALAR_TYPE_NAMES.get(var_type)
+        if scalar_name is not None:
+            if var_type == dtypes.float16:
+                self._needs_cuda_fp16 = True
+            return scalar_name
 
-        if var_type == dtypes.ivec2:
+        key = self._composite_key_for_dtype(var_type)
+        if key is not None:
             self._record_composite_type(var_type)
-            return "vkdispatch_int2"
-        if var_type == dtypes.ivec3:
-            self._record_composite_type(var_type)
-            return "vkdispatch_int3"
-        if var_type == dtypes.ivec4:
-            self._record_composite_type(var_type)
-            return "vkdispatch_int4"
-
-        if var_type == dtypes.uvec2:
-            self._record_composite_type(var_type)
-            return "vkdispatch_uint2"
-        if var_type == dtypes.uvec3:
-            self._record_composite_type(var_type)
-            return "vkdispatch_uint3"
-        if var_type == dtypes.uvec4:
-            self._record_composite_type(var_type)
-            return "vkdispatch_uint4"
-
-        if var_type == dtypes.vec2:
-            self._record_composite_type(var_type)
-            return "vkdispatch_float2"
-        if var_type == dtypes.vec3:
-            self._record_composite_type(var_type)
-            return "vkdispatch_float3"
-        if var_type == dtypes.vec4:
-            self._record_composite_type(var_type)
-            return "vkdispatch_float4"
-
-        if var_type == dtypes.mat2:
-            self._record_composite_type(var_type)
-            return "vkdispatch_mat2"
-        if var_type == dtypes.mat3:
-            self._record_composite_type(var_type)
-            return "vkdispatch_mat3"
-        if var_type == dtypes.mat4:
-            self._record_composite_type(var_type)
-            return "vkdispatch_mat4"
+            if key in _CUDA_VEC_TYPE_SPECS:
+                # Track fp16 header need when half vector types are used.
+                if _CUDA_VEC_TYPE_SPECS[key][1] == "__half":
+                    self._needs_cuda_fp16 = True
+                return _CUDA_VEC_TYPE_SPECS[key][0]
+            if key in _CUDA_MAT_TYPE_SPECS:
+                return _CUDA_MAT_TYPE_SPECS[key][0]
 
         raise ValueError(f"Unsupported CUDA type mapping for '{var_type.name}'")
+
+    _FLOAT_VEC_DTYPES = frozenset({
+        dtypes.complex64,
+        dtypes.hvec2, dtypes.hvec3, dtypes.hvec4,
+        dtypes.vec2, dtypes.vec3, dtypes.vec4,
+        dtypes.dvec2, dtypes.dvec3, dtypes.dvec4,
+    })
 
     def constructor(self, var_type: dtypes.dtype, args: List[str]) -> str:
         if (
             len(args) == 1
-            and var_type in (dtypes.complex64, dtypes.vec2, dtypes.vec3, dtypes.vec4)
+            and var_type in self._FLOAT_VEC_DTYPES
             and self._is_plain_integer_literal(args[0])
         ):
             args = [f"{args[0]}.0f"]
@@ -1152,6 +1243,9 @@ class CUDABackend(CodeGenBackend):
 
         subgroup_support = "1" if enable_subgroup_ops else "0"
         printf_support = "1" if enable_printf else "0"
+
+        self._enable_subgroup_ops = enable_subgroup_ops
+        self._enable_printf = enable_printf
 
         self._fixed_preamble = (
             "#include <cuda_runtime.h>\n"
@@ -1219,6 +1313,16 @@ class CUDABackend(CodeGenBackend):
             f"#define VKDISPATCH_EXPECTED_LOCAL_SIZE_Y {y}\n"
             f"#define VKDISPATCH_EXPECTED_LOCAL_SIZE_Z {z}\n"
         )
+
+        # Inject cuda_fp16.h right after the standard includes when needed.
+        if self._needs_cuda_fp16:
+            fp16_include = "#include <cuda_fp16.h>\n"
+            if fp16_include not in header:
+                header = header.replace(
+                    "#include <stdint.h>",
+                    "#include <stdint.h>\n#include <cuda_fp16.h>",
+                    1,
+                )
 
         helper_header = self._helper_header()
 
@@ -1298,9 +1402,25 @@ class CUDABackend(CodeGenBackend):
         return "uintBitsToFloat(0xFF800000u)"
 
     def fma_function_name(self, var_type: dtypes.dtype) -> str:
+        if var_type == dtypes.float16:
+            return "__hfma"
         if var_type == dtypes.float32:
             return "fmaf"
         return "fma"
+
+    def math_func_name(self, func_name: str, var_type: dtypes.dtype) -> str:
+        scalar = var_type
+        if dtypes.is_vector(var_type) or dtypes.is_matrix(var_type):
+            scalar = var_type.scalar
+        elif dtypes.is_complex(var_type):
+            scalar = var_type.child_type
+
+        if scalar == dtypes.float16:
+            return self._cuda_scalar_unary_math_name(func_name, "__half")
+        if scalar == dtypes.float32:
+            return self._cuda_fast_unary_math_name(func_name)
+        # double and integer types use standard C names
+        return func_name
 
     @staticmethod
     def _cuda_fast_unary_math_name(func_name: str) -> str:
@@ -1350,24 +1470,32 @@ class CUDABackend(CodeGenBackend):
 
         return func_name
 
+    _FLOAT_VEC_HELPER_SUFFIX_MAP = {
+        dtypes.hvec2: "half2",
+        dtypes.hvec3: "half3",
+        dtypes.hvec4: "half4",
+        dtypes.complex64: "float2",
+        dtypes.vec2: "float2",
+        dtypes.vec3: "float3",
+        dtypes.vec4: "float4",
+        dtypes.dvec2: "double2",
+        dtypes.dvec3: "double3",
+        dtypes.dvec4: "double4",
+    }
+
     @staticmethod
     def _cuda_float_vec_helper_suffix(var_type: dtypes.dtype) -> Optional[str]:
-        if var_type == dtypes.complex64 or var_type == dtypes.vec2:
-            return "float2"
-        if var_type == dtypes.vec3:
-            return "float3"
-        if var_type == dtypes.vec4:
-            return "float4"
-
-        return None
+        return CUDABackend._FLOAT_VEC_HELPER_SUFFIX_MAP.get(var_type)
 
     @staticmethod
     def _cuda_float_vec_components_for_suffix(helper_suffix: str) -> List[str]:
-        if helper_suffix == "float2":
+        # Extract the dimension from the suffix (e.g. "float3" -> 3, "half2" -> 2)
+        dim_char = helper_suffix[-1]
+        if dim_char == "2":
             return ["x", "y"]
-        if helper_suffix == "float3":
+        if dim_char == "3":
             return ["x", "y", "z"]
-        if helper_suffix == "float4":
+        if dim_char == "4":
             return ["x", "y", "z", "w"]
 
         raise ValueError(f"Unsupported CUDA float vector helper suffix '{helper_suffix}'")
@@ -1409,10 +1537,8 @@ class CUDABackend(CodeGenBackend):
         if vector_expr is not None:
             return vector_expr
 
-        if arg_type == dtypes.float32:
-            return f"{self._cuda_fast_unary_math_name(func_name)}({arg_expr})"
-
-        return super().unary_math_expr(func_name, arg_type, arg_expr)
+        mapped = self.math_func_name(func_name, arg_type)
+        return f"{mapped}({arg_expr})"
 
     def binary_math_expr(
         self,
@@ -1432,8 +1558,14 @@ class CUDABackend(CodeGenBackend):
         if vector_expr is not None:
             return vector_expr
 
+        if func_name == "atan2":
+            mapped = self.math_func_name("atan", lhs_type)
+            return f"{mapped}({lhs_expr}, {rhs_expr})"
+
         if dtypes.is_scalar(lhs_type) and dtypes.is_scalar(rhs_type):
-            return f"{self._cuda_fast_binary_math_name(func_name)}({lhs_expr}, {rhs_expr})"
+            scalar = lhs_type
+            scalar_name = self._SCALAR_TYPE_NAMES.get(scalar, "float")
+            return f"{self._cuda_scalar_binary_math_name(func_name, scalar_name)}({lhs_expr}, {rhs_expr})"
 
         return f"{func_name}({lhs_expr}, {rhs_expr})"
 

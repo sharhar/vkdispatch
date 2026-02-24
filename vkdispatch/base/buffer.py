@@ -6,7 +6,7 @@ from .dtype import dtype
 from .context import Handle, Signal
 from .errors import check_for_errors
 
-from .dtype import complex64, uint32, int32, float32
+from .dtype import complex64
 
 from .._compat import numpy_compat as npc
 from .dtype import to_numpy_dtype, from_numpy_dtype
@@ -351,22 +351,6 @@ def from_cuda_array(
     )
 
     return Buffer(shape, var_type, external_buffer=external_buffer_info)
-
-def buffer_u32(shape: Tuple[int, ...]) -> Buffer:
-    """Create a buffer of unsigned 32-bit integers with the specified shape."""
-    return Buffer(shape, uint32)
-
-def buffer_i32(shape: Tuple[int, ...]) -> Buffer:
-    """Create a buffer of signed 32-bit integers with the specified shape."""
-    return Buffer(shape, int32)
-
-def buffer_f32(shape: Tuple[int, ...]) -> Buffer:
-    """Create a buffer of 32-bit floating-point numbers with the specified shape."""
-    return Buffer(shape, float32)
-
-def buffer_c64(shape: Tuple[int, ...]) -> Buffer:
-    """Create a buffer of 64-bit complex numbers with the specified shape."""
-    return Buffer(shape, complex64)
 
 class RFFTBuffer(Buffer):
     def __init__(self, shape: Tuple[int, ...]):
