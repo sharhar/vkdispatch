@@ -229,6 +229,37 @@ class ShaderFunction:
             self.shader_description = builder.build(self.func.__module__ + "." + self.func.__name__)
             self.shader_signature = signature
 
+        # Resource bindings are declared before final shader layout is known.
+        # For some shader construction paths (e.g. from_description), signatures are
+        # pre-populated and still hold logical bindings assuming a reserved UBO at 0.
+        binding_shift = self.shader_description.resource_binding_base - 1
+        if binding_shift != 0:
+            binding_access_len = len(self.shader_description.binding_access)
+            needs_remap = False
+
+            for shader_arg in self.shader_signature.arguments:
+                if (
+                    shader_arg.binding is not None
+                    and (
+                        shader_arg.arg_type == ShaderArgumentType.BUFFER
+                        or shader_arg.arg_type == ShaderArgumentType.IMAGE
+                    )
+                    and shader_arg.binding >= binding_access_len
+                ):
+                    needs_remap = True
+                    break
+
+            if needs_remap:
+                for shader_arg in self.shader_signature.arguments:
+                    if (
+                        shader_arg.binding is not None
+                        and (
+                            shader_arg.arg_type == ShaderArgumentType.BUFFER
+                            or shader_arg.arg_type == ShaderArgumentType.IMAGE
+                        )
+                    ):
+                        shader_arg.binding += binding_shift
+
         self.bounds = ExectionBounds(self.shader_signature.get_names_and_defaults(), my_local_size, self.workgroups, self.exec_size)
 
         runtime_backend = vd.get_backend()

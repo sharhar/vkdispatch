@@ -61,7 +61,8 @@ class ShaderDescription:
     uniform_structure: List[StructElement]
     binding_type_list: List[BindingType]
     binding_access: List[Tuple[bool, bool]] # List of tuples indicating read and write access for each binding
-    exec_count_name: str
+    exec_count_name: Optional[str]
+    resource_binding_base: int
     backend: Optional[CodeGenBackend] = None
 
     def make_source(self, x: int, y: int, z: int) -> str:
@@ -159,9 +160,10 @@ class ShaderBuilder(ShaderWriter):
         self.shared_buffers = []
         self.scope_num = 1
         
-        self.exec_count = self.declare_constant(dtypes.uvec4, var_name="exec_count")
-        
+        self.exec_count = None
+
         if not (self.flags & ShaderFlags.NO_EXEC_BOUNDS):
+            self.exec_count = self.declare_constant(dtypes.uvec4, var_name="exec_count")
             self.append_contents(self.backend.exec_bounds_guard(self.exec_count.resolve()))
 
     def new_var(self,
@@ -334,22 +336,28 @@ class ShaderBuilder(ShaderWriter):
         uniform_elements = self.uniform_struct.build()
         
         uniform_decleration_contents = self.compose_struct_decleration(uniform_elements)
-        if len(uniform_decleration_contents) > 0:
+        has_uniform_buffer = len(uniform_decleration_contents) > 0
+        if has_uniform_buffer:
             header += self.backend.uniform_block_declaration(uniform_decleration_contents)
 
-        binding_type_list = [BindingType.UNIFORM_BUFFER]
-        binding_access = [(True, False)]  # UBO is read-only
+        binding_base = 1 if has_uniform_buffer else 0
+        binding_type_list = []
+        binding_access = []
+        if has_uniform_buffer:
+            binding_type_list.append(BindingType.UNIFORM_BUFFER)
+            binding_access.append((True, False))  # UBO is read-only
         
         for ii, binding in enumerate(self.binding_list):
+            emitted_binding = ii + binding_base
             if binding.binding_type == BindingType.STORAGE_BUFFER:
-                header += self.backend.storage_buffer_declaration(ii + 1, binding.dtype, binding.name)
+                header += self.backend.storage_buffer_declaration(emitted_binding, binding.dtype, binding.name)
                 binding_type_list.append(binding.binding_type)
                 binding_access.append((
                     self.binding_read_access[ii + 1],
                     self.binding_write_access[ii + 1]
                 ))
             else:
-                header += self.backend.sampler_declaration(ii + 1, binding.dimension, binding.name)
+                header += self.backend.sampler_declaration(emitted_binding, binding.dimension, binding.name)
                 binding_type_list.append(binding.binding_type)
                 binding_access.append((
                     self.binding_read_access[ii + 1],
@@ -372,6 +380,7 @@ class ShaderBuilder(ShaderWriter):
             uniform_structure=uniform_elements, 
             binding_type_list=[binding.value for binding in binding_type_list],
             binding_access=binding_access,
-            exec_count_name=self.exec_count.raw_name,
+            exec_count_name=self.exec_count.raw_name if self.exec_count is not None else None,
+            resource_binding_base=binding_base,
             backend=self.backend
         )

@@ -161,13 +161,14 @@ class CommandGraph(CommandList):
         if len(shader_description.pc_structure) != 0:
             self.pc_builder.register_struct(shader_uuid, shader_description.pc_structure)
         
-        uniform_offset, uniform_range = self.uniform_builder.register_struct(shader_uuid, shader_description.uniform_structure)
-
-        self.uniform_descriptors.append((descriptor_set, uniform_offset, uniform_range))
+        if len(shader_description.uniform_structure) > 0:
+            uniform_offset, uniform_range = self.uniform_builder.register_struct(shader_uuid, shader_description.uniform_structure)
+            self.uniform_descriptors.append((descriptor_set, uniform_offset, uniform_range))
 
         uniform_field_names = {elem.name for elem in shader_description.uniform_structure}
 
-        self.uniform_values[(shader_uuid, shader_description.exec_count_name)] = [exec_limits[0], exec_limits[1], exec_limits[2], 0]
+        if shader_description.exec_count_name is not None:
+            self.uniform_values[(shader_uuid, shader_description.exec_count_name)] = [exec_limits[0], exec_limits[1], exec_limits[2], 0]
 
         for buffer_bind_info in bound_buffers:
             descriptor_set.bind_buffer(
