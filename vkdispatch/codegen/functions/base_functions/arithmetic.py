@@ -194,17 +194,25 @@ def truediv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool 
     lhs_mark_type = return_type if not reverse else dtypes.make_floating_dtype(other.var_type)
     rhs_mark_type = dtypes.make_floating_dtype(other.var_type) if not reverse else return_type
     _mark_arith_binary(lhs_mark_type, rhs_mark_type, "/", inplace=inplace)
+
+    lhs_expr = (
+        base_utils.to_dtype_base(lhs_mark_type, var).resolve()
+        if not reverse else
+        base_utils.to_dtype_base(lhs_mark_type, other).resolve()
+    )
+    rhs_expr = (
+        base_utils.to_dtype_base(rhs_mark_type, other).resolve()
+        if not reverse else
+        base_utils.to_dtype_base(rhs_mark_type, var).resolve()
+    )
+
     if not inplace:
         return base_utils.new_base_var(
             return_type,
-            (
-                f"{base_utils.to_dtype_base(return_type, var).resolve()} / {base_utils.to_dtype_base(return_type, other).resolve()}"
-                if not reverse else
-                f"{base_utils.to_dtype_base(return_type, other).resolve()} / {base_utils.to_dtype_base(return_type, var).resolve()}"
-            ),
+            f"{lhs_expr} / {rhs_expr}",
             parents=[var, other])
     
-    base_utils.append_contents(f"{var.resolve()} /= {base_utils.to_dtype_base(return_type, other).resolve()};\n")
+    base_utils.append_contents(f"{var.resolve()} /= {rhs_expr};\n")
     return var
 
 def floordiv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = False) -> BaseVariable:

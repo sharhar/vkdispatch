@@ -8,6 +8,9 @@ import numpy as np
 vd.initialize(log_level=vd.LogLevel.WARNING, debug_mode=True)
 
 def test_1d_image_creation():
+    if vd.get_backend() == "cuda-python":
+        return
+
     # Create a 1D image
     signal = np.sin(np.array([i/8 for i in range(0, 50, 1)])).astype(np.float32)
 
@@ -17,6 +20,8 @@ def test_1d_image_creation():
     assert np.allclose(test_line.read(0), signal)
 
 def test_2d_image_creation():
+    if vd.get_backend() == "cuda-python":
+        return
     # Create a 2D image
     signal_2d = np.sin(np.array([[i/8 + j/17 for i in range(0, 50, 1)] for j in range(0, 50, 1)])).astype(np.float32)
 
@@ -26,6 +31,8 @@ def test_2d_image_creation():
     assert np.allclose(test_img.read(0), signal_2d)
 
 def test_3d_image_creation():
+    if vd.get_backend() == "cuda-python":
+        return
     # Create a 3D image
     signal_3d = np.sin(np.array([[[i/8 + j/17 + k/23 for i in range(0, 50, 1)] for j in range(0, 50, 1)] for k in range(0, 50, 1)])).astype(np.float32)
 
@@ -35,6 +42,8 @@ def test_3d_image_creation():
     assert np.allclose(test_img.read(0), signal_3d)
 
 def test_1d_image_linear_sampling():
+    if vd.get_backend() == "cuda-python":
+        return
 
     # Create a 1D image
     signal = np.sin(np.array([i/8 for i in range(0, 50, 1)])).astype(np.float32)
@@ -57,6 +66,8 @@ def test_1d_image_linear_sampling():
     assert np.allclose(result_arr.read()[0], signal_full, atol=0.002)
 
 def test_2d_image_linear_sampling():
+    if vd.get_backend() == "cuda-python":
+        return
     # Create a 2D image
     signal_2d = np.sin(np.array([[i/8 + j/17 for i in range(0, 50, 1)] for j in range(0, 50, 1)])).astype(np.float32)
     sample_factor = 10

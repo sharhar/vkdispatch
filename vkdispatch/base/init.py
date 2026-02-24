@@ -15,7 +15,7 @@ from .backend import (
     get_active_backend_name,
     get_backend_module,
     native,
-    normalize_backend_name,
+    get_environment_backend,
     set_active_backend,
 )
 
@@ -527,13 +527,9 @@ def initialize(
     """
 
     global __initilized_instance
-    env_backend = os.environ.get("VKDISPATCH_BACKEND")
-    backend_name = normalize_backend_name(
-        backend
-        if backend is not None
-        else get_active_backend_name(env_backend)
-    )
-    backend_explicitly_selected = (backend is not None) or (env_backend is not None)
+    
+    backend_name = get_active_backend_name(backend)
+    backend_explicitly_selected = (backend is not None) or (get_environment_backend() is not None)
 
     if __initilized_instance:
         if __backend_name != backend_name:

@@ -4,6 +4,8 @@ import importlib
 from types import ModuleType
 from typing import Dict, Optional
 
+import os
+
 BACKEND_VULKAN = "vulkan"
 BACKEND_PYCUDA = "pycuda"
 BACKEND_CUDA_PYTHON = "cuda-python"
@@ -59,12 +61,25 @@ def clear_active_backend() -> None:
     global _active_backend_name
     _active_backend_name = None
 
+def get_environment_backend() -> Optional[str]:
+    env_backend = os.environ.get("VKDISPATCH_BACKEND")
+    if env_backend is not None:
+        return normalize_backend_name(env_backend)
+    return None
 
-def get_active_backend_name(default: Optional[str] = BACKEND_VULKAN) -> str:
+def get_active_backend_name(default: Optional[str] = None) -> str:
     if _active_backend_name is not None:
         return _active_backend_name
+    
+    if default is not None:
+        return normalize_backend_name(default)
 
-    return normalize_backend_name(default)
+    env_backend = get_environment_backend()
+
+    if env_backend is not None:
+        return env_backend
+
+    return BACKEND_VULKAN
 
 
 def _load_backend_module(backend_name: str) -> ModuleType:
