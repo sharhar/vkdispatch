@@ -256,15 +256,16 @@ class ShaderFunction:
         )
 
         try:
-            self.plan = ComputePlan(
-                self.source, 
-                self.shader_description.binding_type_list, 
-                self.shader_description.pc_size, 
-                self.shader_description.name
-            )
+            if not vd.get_backend() == BACKEND_DUMMY:
+                self.plan = ComputePlan(
+                    self.source, 
+                    self.shader_description.binding_type_list, 
+                    self.shader_description.pc_size, 
+                    self.shader_description.name
+                )
         except Exception as e:
             print(f"Error building shader: {e}")
-            print(self.get_src())
+            print(self.get_src(build=False))
             raise e
 
         self.ready = True
@@ -272,8 +273,9 @@ class ShaderFunction:
     def __repr__(self) -> str:
         return self.get_src().__repr__()
     
-    def get_src(self, line_numbers: bool = None) -> ShaderSource:
-        self.build()
+    def get_src(self, line_numbers: bool = None, build: bool = True) -> ShaderSource:
+        if build:
+            self.build()
 
         result = ""
 
@@ -291,6 +293,8 @@ class ShaderFunction:
         print(self.get_src(line_numbers))
 
     def __call__(self, *args, **kwargs):
+        assert not vd.get_backend() == BACKEND_DUMMY, "Cannot execute shader functions with dummy backend!"
+        
         self.build()
 
         if not self.ready:

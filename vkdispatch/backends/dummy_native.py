@@ -1,8 +1,10 @@
 """Brython-friendly pure-Python shim for ``vkdispatch_native``.
 
 This module mirrors the Cython-exposed API used by ``vkdispatch`` and provides
-an in-memory fake runtime suitable for docs execution and shader-source
-compilation paths.
+dummy metadata helpers for docs/codegen flows.
+
+Runtime GPU operations are intentionally denied so the dummy backend fails fast
+when used outside codegen-only scripts.
 """
 
 # NOTE: Keep this file dependency-light so it works under Brython.
@@ -367,6 +369,16 @@ def _clear_error():
     _error_string = None
 
 
+_DUMMY_CODEGEN_ONLY_ERROR = (
+    "The 'dummy' backend is codegen-only and does not support runtime GPU "
+    "operations. Use backend='vulkan' or backend='pycuda' for execution."
+)
+
+
+def _deny_runtime_native_call(function_name):
+    raise RuntimeError(f"{_DUMMY_CODEGEN_ONLY_ERROR} (native call: {function_name})")
+
+
 def _as_positive_int(name, value):
     try:
         parsed = int(value)
@@ -573,207 +585,69 @@ def context_stop_threads(context):
 
 
 def buffer_create(context, size, per_device):
-    _ = per_device
-    ctx = _contexts.get(int(context))
-    if ctx is None:
-        _set_error("Invalid context handle for buffer_create")
-        return 0
-
-    size = int(size)
-    if size < 0:
-        size = 0
-
-    return _new_handle(_buffers, _Buffer(int(context), ctx.queue_count, size))
+    _deny_runtime_native_call("buffer_create")
 
 
 def buffer_destroy(buffer):
-    obj = _buffers.pop(int(buffer), None)
-    if obj is None:
-        return
-
-    for signal_handle in obj.signal_handles:
-        _signals.pop(signal_handle, None)
+    _deny_runtime_native_call("buffer_destroy")
 
 
 def buffer_get_queue_signal(buffer, queue_index):
-    obj = _buffers.get(int(buffer))
-    if obj is None:
-        return _new_handle(_signals, _Signal(done=True))
-
-    queue_index = int(queue_index)
-    if queue_index < 0 or queue_index >= len(obj.signal_handles):
-        queue_index = 0
-
-    return obj.signal_handles[queue_index]
+    _deny_runtime_native_call("buffer_get_queue_signal")
 
 
 def buffer_wait_staging_idle(buffer, queue_index):
-    _ = buffer
-    _ = queue_index
-    return True
+    _deny_runtime_native_call("buffer_wait_staging_idle")
 
 
 def buffer_write_staging(buffer, queue_index, data, size):
-    obj = _buffers.get(int(buffer))
-    if obj is None:
-        return
-
-    queue_index = int(queue_index)
-    if queue_index < 0 or queue_index >= len(obj.staging_data):
-        return
-
-    payload = _to_bytes(data)
-    size = min(int(size), len(payload), obj.size)
-    if size <= 0:
-        return
-
-    obj.staging_data[queue_index][:size] = payload[:size]
+    _deny_runtime_native_call("buffer_write_staging")
 
 
 def buffer_read_staging(buffer, queue_index, size):
-    obj = _buffers.get(int(buffer))
-    if obj is None:
-        return bytes(int(size))
-
-    queue_index = int(queue_index)
-    if queue_index < 0 or queue_index >= len(obj.staging_data):
-        return bytes(int(size))
-
-    size = int(size)
-    if size <= 0:
-        return b""
-
-    data = obj.staging_data[queue_index]
-    if size <= len(data):
-        return bytes(data[:size])
-
-    return bytes(data) + bytes(size - len(data))
+    _deny_runtime_native_call("buffer_read_staging")
 
 
 def buffer_write(buffer, offset, size, index):
-    obj = _buffers.get(int(buffer))
-    if obj is None:
-        return
-
-    offset = int(offset)
-    size = int(size)
-
-    if size <= 0 or offset < 0:
-        return
-
-    ctx = _contexts.get(obj.context_handle)
-    if ctx is None:
-        return
-
-    queue_indices = _queue_indices(ctx, index, all_on_negative=True)
-    if len(queue_indices) == 0:
-        return
-
-    for queue_index in queue_indices:
-        if queue_index >= len(obj.device_data) or queue_index >= len(obj.staging_data):
-            continue
-
-        end = min(offset + size, obj.size)
-        copy_size = end - offset
-        if copy_size <= 0:
-            continue
-
-        obj.device_data[queue_index][offset:end] = obj.staging_data[queue_index][:copy_size]
-
-        signal_handle = obj.signal_handles[queue_index]
-        signal_obj = _signals.get(signal_handle)
-        if signal_obj is not None:
-            signal_obj.done = True
+    _deny_runtime_native_call("buffer_write")
 
 
 def buffer_read(buffer, offset, size, index):
-    obj = _buffers.get(int(buffer))
-    if obj is None:
-        return
-
-    offset = int(offset)
-    size = int(size)
-
-    if size <= 0 or offset < 0:
-        return
-
-    queue_index = int(index)
-    if queue_index < 0 or queue_index >= len(obj.device_data):
-        return
-
-    end = min(offset + size, obj.size)
-    copy_size = end - offset
-    if copy_size <= 0:
-        return
-
-    obj.staging_data[queue_index][:copy_size] = obj.device_data[queue_index][offset:end]
-
-    signal_handle = obj.signal_handles[queue_index]
-    signal_obj = _signals.get(signal_handle)
-    if signal_obj is not None:
-        signal_obj.done = True
+    _deny_runtime_native_call("buffer_read")
 
 
 # --- API: command lists ---
 
 
 def command_list_create(context):
-    if int(context) not in _contexts:
-        _set_error("Invalid context handle for command_list_create")
-        return 0
-
-    return _new_handle(_command_lists, _CommandList(int(context)))
+    _deny_runtime_native_call("command_list_create")
 
 
 def command_list_destroy(command_list):
-    _command_lists.pop(int(command_list), None)
+    _deny_runtime_native_call("command_list_destroy")
 
 
 def command_list_get_instance_size(command_list):
-    obj = _command_lists.get(int(command_list))
-    if obj is None:
-        return 0
-
-    return int(obj.compute_instance_size)
+    _deny_runtime_native_call("command_list_get_instance_size")
 
 
 def command_list_reset(command_list):
-    obj = _command_lists.get(int(command_list))
-    if obj is None:
-        return
-
-    obj.commands = []
-    obj.compute_instance_size = 0
+    _deny_runtime_native_call("command_list_reset")
 
 
 def command_list_submit(command_list, data, instance_count, index):
-    _ = data
-    _ = instance_count
-    _ = index
-
-    obj = _command_lists.get(int(command_list))
-    if obj is None:
-        return True
-
-    # No-op fake execution path: commands are accepted but not executed.
-    # Keep the command list intact (native keeps it until reset/destroy).
-    _ = obj.commands
-    return True
+    _deny_runtime_native_call("command_list_submit")
 
 
 # --- API: descriptor sets ---
 
 
 def descriptor_set_create(plan):
-    if int(plan) not in _compute_plans:
-        _set_error("Invalid compute plan handle for descriptor_set_create")
-        return 0
-
-    return _new_handle(_descriptor_sets, _DescriptorSet(int(plan)))
+    _deny_runtime_native_call("descriptor_set_create")
 
 
 def descriptor_set_destroy(descriptor_set):
-    _descriptor_sets.pop(int(descriptor_set), None)
+    _deny_runtime_native_call("descriptor_set_destroy")
 
 
 def descriptor_set_write_buffer(
@@ -786,18 +660,7 @@ def descriptor_set_write_buffer(
     read_access,
     write_access,
 ):
-    ds = _descriptor_sets.get(int(descriptor_set))
-    if ds is None:
-        return
-
-    ds.buffer_bindings[int(binding)] = (
-        int(object),
-        int(offset),
-        int(range),
-        int(uniform),
-        int(read_access),
-        int(write_access),
-    )
+    _deny_runtime_native_call("descriptor_set_write_buffer")
 
 
 def descriptor_set_write_image(
@@ -808,44 +671,18 @@ def descriptor_set_write_image(
     read_access,
     write_access,
 ):
-    ds = _descriptor_sets.get(int(descriptor_set))
-    if ds is None:
-        return
-
-    ds.image_bindings[int(binding)] = (
-        int(object),
-        int(sampler_obj),
-        int(read_access),
-        int(write_access),
-    )
+    _deny_runtime_native_call("descriptor_set_write_image")
 
 
 # --- API: images/samplers ---
 
 
 def image_create(context, extent, layers, format, type, view_type, generate_mips):
-    ctx = _contexts.get(int(context))
-    if ctx is None:
-        _set_error("Invalid context handle for image_create")
-        return 0
-
-    norm_extent = _normalize_extent(extent)
-    obj = _Image(
-        int(context),
-        ctx.queue_count,
-        norm_extent,
-        int(layers),
-        int(format),
-        int(type),
-        int(view_type),
-        int(generate_mips),
-    )
-
-    return _new_handle(_images, obj)
+    _deny_runtime_native_call("image_create")
 
 
 def image_destroy(image):
-    _images.pop(int(image), None)
+    _deny_runtime_native_call("image_destroy")
 
 
 def image_create_sampler(
@@ -859,60 +696,15 @@ def image_create_sampler(
     max_lod,
     border_color,
 ):
-    if int(context) not in _contexts:
-        _set_error("Invalid context handle for image_create_sampler")
-        return 0
-
-    sampler = _Sampler(
-        int(context),
-        mag_filter,
-        min_filter,
-        mip_mode,
-        address_mode,
-        mip_lod_bias,
-        min_lod,
-        max_lod,
-        border_color,
-    )
-    return _new_handle(_samplers, sampler)
+    _deny_runtime_native_call("image_create_sampler")
 
 
 def image_destroy_sampler(sampler):
-    _samplers.pop(int(sampler), None)
+    _deny_runtime_native_call("image_destroy_sampler")
 
 
 def image_write(image, data, offset, extent, baseLayer, layerCount, device_index):
-    _ = offset
-    _ = baseLayer
-
-    obj = _images.get(int(image))
-    if obj is None:
-        return
-
-    payload = _to_bytes(data)
-
-    extent = _normalize_extent(extent)
-    layer_count = max(1, int(layerCount))
-    region_size = max(0, extent[0] * extent[1] * extent[2] * layer_count * obj.block_size)
-    if region_size <= 0:
-        return
-
-    copy_size = min(region_size, len(payload))
-    if copy_size <= 0:
-        return
-
-    ctx = _contexts.get(obj.context_handle)
-    if ctx is None:
-        return
-
-    queue_indices = _queue_indices(ctx, device_index, all_on_negative=True)
-    if len(queue_indices) == 0:
-        return
-
-    for queue_index in queue_indices:
-        if queue_index < 0 or queue_index >= len(obj.queue_data):
-            continue
-        obj.queue_data[queue_index][:copy_size] = payload[:copy_size]
+    _deny_runtime_native_call("image_write")
 
 
 def image_format_block_size(format):
@@ -920,63 +712,22 @@ def image_format_block_size(format):
 
 
 def image_read(image, out_size, offset, extent, baseLayer, layerCount, device_index):
-    _ = offset
-    _ = extent
-    _ = baseLayer
-    _ = layerCount
-
-    obj = _images.get(int(image))
-    out_size = max(0, int(out_size))
-
-    if obj is None:
-        return bytes(out_size)
-
-    queue_index = int(device_index)
-    if queue_index < 0 or queue_index >= len(obj.queue_data):
-        queue_index = 0
-
-    data = obj.queue_data[queue_index]
-    if out_size <= len(data):
-        return bytes(data[:out_size])
-
-    return bytes(data) + bytes(out_size - len(data))
+    _deny_runtime_native_call("image_read")
 
 
 # --- API: compute stage ---
 
 
 def stage_compute_plan_create(context, shader_source, bindings, pc_size, shader_name):
-    if int(context) not in _contexts:
-        _set_error("Invalid context handle for stage_compute_plan_create")
-        return 0
-
-    source_bytes = _to_bytes(shader_source)
-    name_bytes = _to_bytes(shader_name)
-
-    plan = _ComputePlan(int(context), source_bytes, list(bindings), int(pc_size), name_bytes)
-    return _new_handle(_compute_plans, plan)
+    _deny_runtime_native_call("stage_compute_plan_create")
 
 
 def stage_compute_plan_destroy(plan):
-    _compute_plans.pop(int(plan), None)
+    _deny_runtime_native_call("stage_compute_plan_destroy")
 
 
 def stage_compute_record(command_list, plan, descriptor_set, blocks_x, blocks_y, blocks_z):
-    cl = _command_lists.get(int(command_list))
-    cp = _compute_plans.get(int(plan))
-
-    if cl is None or cp is None:
-        return
-
-    cl.commands.append(
-        {
-            "type": "compute",
-            "plan": int(plan),
-            "descriptor_set": int(descriptor_set),
-            "blocks": (int(blocks_x), int(blocks_y), int(blocks_z)),
-        }
-    )
-    cl.compute_instance_size += max(0, int(cp.pc_size))
+    _deny_runtime_native_call("stage_compute_record")
 
 
 # --- API: FFT stage ---
@@ -1001,54 +752,15 @@ def stage_fft_plan_create(
     single_kernel_multiple_batches,
     keep_shader_code,
 ):
-    _ = do_r2c
-    _ = normalize
-    _ = pad_left
-    _ = pad_right
-    _ = frequency_zeropadding
-    _ = kernel_convolution
-    _ = conjugate_convolution
-    _ = convolution_features
-    _ = num_batches
-    _ = single_kernel_multiple_batches
-    _ = keep_shader_code
-
-    if int(context) not in _contexts:
-        _set_error("Invalid context handle for stage_fft_plan_create")
-        return 0
-
-    plan = _FFTPlan(
-        int(context),
-        list(dims),
-        list(axes),
-        int(buffer_size),
-        int(input_buffer_size),
-        int(kernel_num),
-    )
-
-    return _new_handle(_fft_plans, plan)
+    _deny_runtime_native_call("stage_fft_plan_create")
 
 
 def stage_fft_plan_destroy(plan):
-    _fft_plans.pop(int(plan), None)
+    _deny_runtime_native_call("stage_fft_plan_destroy")
 
 
 def stage_fft_record(command_list, plan, buffer, inverse, kernel, input_buffer):
-    _ = buffer
-    _ = inverse
-    _ = kernel
-    _ = input_buffer
-
-    cl = _command_lists.get(int(command_list))
-    if cl is None or int(plan) not in _fft_plans:
-        return
-
-    cl.commands.append(
-        {
-            "type": "fft",
-            "plan": int(plan),
-        }
-    )
+    _deny_runtime_native_call("stage_fft_record")
 
 
 __all__ = [

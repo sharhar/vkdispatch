@@ -2,8 +2,6 @@ import vkdispatch as vd
 import vkdispatch.codegen as vc
 import numpy as np
 
-vc.new_
-
 from typing import Tuple
 
 vd.initialize(backend="pycuda")

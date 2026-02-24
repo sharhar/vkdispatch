@@ -78,13 +78,6 @@ class GlobalWriteOp(MemoryOp):
         
         buffer[io_index // 2][io_index % 2] = register.real
 
-        # packed_value = buffer[io_index // 2]
-        # vc.if_statement((io_index % 2) == 0)
-        # packed_value.real = register.real
-        # vc.else_statement()
-        # packed_value.imag = register.real
-        # vc.end()
-
 def global_writes_iterator(
         registers: FFTRegisters,
         r2c: bool = False,
@@ -195,12 +188,6 @@ class GlobalReadOp(MemoryOp):
 
         if not self.inverse:
             register[:] = vc.to_complex(buffer[io_index // 2][io_index % 2])
-            # packed_value = buffer[io_index // 2]
-            # vc.if_statement((io_index % 2) == 0)
-            # register[:] = vc.to_complex(packed_value.real)
-            # vc.else_statement()
-            # register[:] = vc.to_complex(packed_value.imag)
-            # vc.end()
             self.signal_range_end(register)
             return
 

@@ -13,8 +13,8 @@ def add_scalar(buff: Buff[f32], bias: Const[f32]):
 
 buff = vd.buffer_f32(10)
 
-add_scalar(buff, 1.0)
+#add_scalar(buff, 1.0)
 
-print(buff.read(0))
+#print(buff.read(0))
 
 print(add_scalar)
