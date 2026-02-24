@@ -63,7 +63,7 @@ def _load_backend_module(backend_name: str) -> ModuleType:
 
     try:
         if backend_name == BACKEND_VULKAN:
-            module = importlib.import_module("vkdispatch_native")
+            module = importlib.import_module("vkdispatch_vulkan_native")
         elif backend_name == BACKEND_PYCUDA:
             module = importlib.import_module("vkdispatch.backends.pycuda_native")
         elif backend_name == BACKEND_DUMMY:

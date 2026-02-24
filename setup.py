@@ -308,7 +308,7 @@ def build_native_extension():
         )
 
     return Extension(
-        "vkdispatch_native",
+        "vkdispatch_vulkan_native",
         sources=sources,
         language="c++",
         define_macros=platform_define_macros,

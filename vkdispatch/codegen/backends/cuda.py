@@ -1649,12 +1649,12 @@ class CUDABackend(CodeGenBackend):
         return "__syncwarp();"
 
     def printf_statement(self, fmt: str, args: List[str]) -> str:
-        safe_fmt = fmt.replace("\\", "\\\\").replace('"', '\\"')
+        #safe_fmt = fmt.replace("\\", "\\\\").replace('"', '\\"')
 
         if len(args) == 0:
-            return f'printf("{safe_fmt}");'
+            return f'printf("{fmt}");'
 
-        return f'printf("{safe_fmt}", {", ".join(args)});'
+        return f'printf("{fmt}", {", ".join(args)});'
 
     def texture_size_expr(self, texture_expr: str, lod: int, dimensions: int) -> str:
         # CUDA texture objects do not expose shape directly in device code.
