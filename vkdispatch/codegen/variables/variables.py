@@ -322,11 +322,13 @@ class ScaledAndOfftsetIntVariable(ShaderVariable):
                  offset: int = 0,
                  parents: List["ShaderVariable"] = None
         ) -> None:
+        # ShaderVariable.__init__ eagerly creates vector swizzles (`x`, `y`, ...),
+        # which call resolve() during construction. Pre-seed these fields so
+        # ScaledAndOfftsetIntVariable.resolve() is safe before super().__init__ completes.
+        object.__setattr__(self, "base_name", str(name))
+        object.__setattr__(self, "scale", scale)
+        object.__setattr__(self, "offset", offset)
         super().__init__(var_type, name, parents=parents)
-
-        self.base_name = str(name)
-        self.scale = scale
-        self.offset = offset
         
     def new_from_self(self, scale: int = 1, offset: int = 0):
         child_vartype = self.var_type

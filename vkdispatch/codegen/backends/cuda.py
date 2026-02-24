@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 
 import vkdispatch.base.dtype as dtypes
 
@@ -436,6 +436,26 @@ _CUDA_MAT_TYPE_SPECS = {
 
 class CUDABackend(CodeGenBackend):
     name = "cuda"
+    _CUDA_BUILTIN_UVEC3_SENTINELS: Dict[str, Dict[str, str]] = {
+        "global_invocation_id": {
+            "sentinel": "VKDISPATCH_CUDA_GLOBAL_INVOCATION_ID_SENTINEL()",
+            "x": "(unsigned int)(blockIdx.x * blockDim.x + threadIdx.x)",
+            "y": "(unsigned int)(blockIdx.y * blockDim.y + threadIdx.y)",
+            "z": "(unsigned int)(blockIdx.z * blockDim.z + threadIdx.z)",
+        },
+        "local_invocation_id": {
+            "sentinel": "VKDISPATCH_CUDA_LOCAL_INVOCATION_ID_SENTINEL()",
+            "x": "(unsigned int)threadIdx.x",
+            "y": "(unsigned int)threadIdx.y",
+            "z": "(unsigned int)threadIdx.z",
+        },
+        "workgroup_id": {
+            "sentinel": "VKDISPATCH_CUDA_WORKGROUP_ID_SENTINEL()",
+            "x": "(unsigned int)blockIdx.x",
+            "y": "(unsigned int)blockIdx.y",
+            "z": "(unsigned int)blockIdx.z",
+        },
+    }
 
     _HELPER_SNIPPETS: Dict[str, str] = {
         "composite_types": "",
@@ -1167,6 +1187,9 @@ class CUDABackend(CodeGenBackend):
             return super().component_access_expr(expr, component, base_type)
 
         if dtypes.is_vector(base_type) or dtypes.is_complex(base_type):
+            direct_builtin_component = self._cuda_builtin_uvec3_component_expr(expr, component, base_type)
+            if direct_builtin_component is not None:
+                return direct_builtin_component
             return f"{expr}.v.{component}"
 
         return super().component_access_expr(expr, component, base_type)
@@ -1235,6 +1258,8 @@ class CUDABackend(CodeGenBackend):
         return "\n\n".join(helper_sections) + "\n\n"
 
     def make_source(self, header: str, body: str, x: int, y: int, z: int) -> str:
+        header, body = self._finalize_cuda_builtin_uvec3_sentinels(header, body)
+
         expected_size_header = (
             f"// Expected local size: ({x}, {y}, {z})\n"
             f"#define VKDISPATCH_EXPECTED_LOCAL_SIZE_X {x}\n"
@@ -1476,23 +1501,17 @@ class CUDABackend(CodeGenBackend):
         return f"uintBitsToFloat({var_expr})"
 
     def global_invocation_id_expr(self) -> str:
-        self._record_composite_type_key("uint3")
-        self.mark_feature_usage("global_invocation_id")
-        return "vkdispatch_global_invocation_id()"
+        return self._CUDA_BUILTIN_UVEC3_SENTINELS["global_invocation_id"]["sentinel"]
 
     def local_invocation_id_expr(self) -> str:
-        self._record_composite_type_key("uint3")
-        self.mark_feature_usage("local_invocation_id")
-        return "vkdispatch_local_invocation_id()"
+        return self._CUDA_BUILTIN_UVEC3_SENTINELS["local_invocation_id"]["sentinel"]
 
     def local_invocation_index_expr(self) -> str:
         self.mark_feature_usage("local_invocation_index")
         return "vkdispatch_local_invocation_index()"
 
     def workgroup_id_expr(self) -> str:
-        self._record_composite_type_key("uint3")
-        self.mark_feature_usage("workgroup_id")
-        return "vkdispatch_workgroup_id()"
+        return self._CUDA_BUILTIN_UVEC3_SENTINELS["workgroup_id"]["sentinel"]
 
     def workgroup_size_expr(self) -> str:
         self._record_composite_type_key("uint3")
@@ -1537,6 +1556,62 @@ class CUDABackend(CodeGenBackend):
 
     def group_memory_barrier_statement(self) -> str:
         return "__threadfence_block();"
+
+    @staticmethod
+    def _strip_outer_parens(expr: str) -> str:
+        stripped = expr.strip()
+        while len(stripped) >= 2 and stripped[0] == "(" and stripped[-1] == ")":
+            depth = 0
+            balanced = True
+            for idx, ch in enumerate(stripped):
+                if ch == "(":
+                    depth += 1
+                elif ch == ")":
+                    depth -= 1
+                    if depth < 0:
+                        balanced = False
+                        break
+                    if depth == 0 and idx != len(stripped) - 1:
+                        balanced = False
+                        break
+            if not balanced or depth != 0:
+                break
+            stripped = stripped[1:-1].strip()
+        return stripped
+
+    def _cuda_builtin_uvec3_component_expr(
+        self,
+        expr: str,
+        component: str,
+        base_type: dtypes.dtype,
+    ) -> Optional[str]:
+        if base_type != dtypes.uvec3 or component not in ("x", "y", "z"):
+            return None
+
+        stripped_expr = self._strip_outer_parens(expr)
+        for builtin_spec in self._CUDA_BUILTIN_UVEC3_SENTINELS.values():
+            if stripped_expr == builtin_spec["sentinel"]:
+                return builtin_spec[component]
+
+        return None
+
+    def _finalize_cuda_builtin_uvec3_sentinels(self, header: str, body: str) -> Tuple[str, str]:
+        for builtin_spec in self._CUDA_BUILTIN_UVEC3_SENTINELS.values():
+            sentinel = builtin_spec["sentinel"]
+            if sentinel not in header and sentinel not in body:
+                continue
+
+            self._record_composite_type_key("uint3")
+            self.mark_feature_usage("make_uint3")
+            replacement = (
+                "vkdispatch_make_uint3("
+                f"{builtin_spec['x']}, {builtin_spec['y']}, {builtin_spec['z']}"
+                ")"
+            )
+            header = header.replace(sentinel, replacement)
+            body = body.replace(sentinel, replacement)
+
+        return header, body
 
     def subgroup_add_expr(self, arg_expr: str) -> str:
         self.mark_feature_usage("subgroup_add")
