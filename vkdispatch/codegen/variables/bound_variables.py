@@ -27,6 +27,7 @@ class BufferVariable(BoundVariable):
                  binding: int,
                  name: str,
                  shape_var: "ShaderVariable" = None,
+                 shape_var_factory: Optional[Callable[[], "ShaderVariable"]] = None,
                  shape_name: Optional[str] = None,
                  raw_name: Optional[str] = None,
                  read_lambda: Callable[[], None] = None,
@@ -41,10 +42,19 @@ class BufferVariable(BoundVariable):
             self.read_lambda = read_lambda
             self.write_lambda = write_lambda
 
-            self.shape = shape_var
+            self._shape_var = shape_var
+            self._shape_var_factory = shape_var_factory
             self.shape_name = shape_name
             self.can_index = True
             self.use_child_type = False
+
+    @property
+    def shape(self) -> "ShaderVariable":
+        if self._shape_var is None:
+            assert self._shape_var_factory is not None, "Buffer shape variable factory is not available!"
+            self._shape_var = self._shape_var_factory()
+
+        return self._shape_var
 
     def read_callback(self):
         self.read_lambda()

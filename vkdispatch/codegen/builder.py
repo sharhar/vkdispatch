@@ -247,13 +247,16 @@ class ShaderBuilder(ShaderWriter):
 
         def write_lambda():
             self.binding_write_access[current_binding_count] = True
+
+        def shape_var_factory():
+            return self.declare_constant(dtypes.ivec4, var_name=shape_name)
         
         return BufferVariable(
             var_type,
             self.binding_count,
             f"{buffer_name}.data",
-            self.declare_constant(dtypes.ivec4, var_name=shape_name),
-            shape_name,
+            shape_var_factory=shape_var_factory,
+            shape_name=shape_name,
             read_lambda=read_lambda,
             write_lambda=write_lambda
         )
@@ -287,12 +290,15 @@ class ShaderBuilder(ShaderWriter):
         
         shape_name = f"{var_name}_shape"
 
+        def shape_var_factory():
+            return self.declare_constant(dtypes.ivec4, var_name=shape_name)
+
         new_var = BufferVariable(
             var_type,
             -1,
             var_name,
-            self.declare_constant(dtypes.ivec4, var_name=shape_name),
-            shape_name,
+            shape_var_factory=shape_var_factory,
+            shape_name=shape_name,
             read_lambda=lambda: None,
             write_lambda=lambda: None
         )

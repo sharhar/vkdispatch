@@ -165,6 +165,8 @@ class CommandGraph(CommandList):
 
         self.uniform_descriptors.append((descriptor_set, uniform_offset, uniform_range))
 
+        uniform_field_names = {elem.name for elem in shader_description.uniform_structure}
+
         self.uniform_values[(shader_uuid, shader_description.exec_count_name)] = [exec_limits[0], exec_limits[1], exec_limits[2], 0]
 
         for buffer_bind_info in bound_buffers:
@@ -175,7 +177,8 @@ class CommandGraph(CommandList):
                 write_access=buffer_bind_info.write_access,
             )
             
-            self.uniform_values[(shader_uuid, buffer_bind_info.shape_name)] = buffer_bind_info.buffer.shader_shape
+            if buffer_bind_info.shape_name in uniform_field_names:
+                self.uniform_values[(shader_uuid, buffer_bind_info.shape_name)] = buffer_bind_info.buffer.shader_shape
         
         for sampler_bind_info in bound_samplers:
             descriptor_set.bind_sampler(
