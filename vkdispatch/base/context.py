@@ -10,8 +10,8 @@ import weakref
 import os, signal
 
 from .errors import check_for_errors, set_running
-from .init import DeviceInfo, get_backend, get_devices, initialize, set_log_level, LogLevel, log_info
-from .backend import BACKEND_DUMMY, CUDA_RUNTIME_BACKENDS, native
+from .init import DeviceInfo, is_cuda, is_dummy, get_devices, initialize, log_info
+from .backend import native
 
 
 class Handle:
@@ -374,15 +374,15 @@ def make_context(
                     select_queue_families(dev_index, queue_family_count)
                 )
 
-        if get_backend() in CUDA_RUNTIME_BACKENDS:
+        if is_cuda():
             if len(device_ids) != 1:
                 raise NotImplementedError(
-                    "The CUDA backends currently support exactly one device."
+                    "The CUDA backend currently supports exactly one device."
                 )
 
             if len(queue_families) != 1 or len(queue_families[0]) != 1:
                 raise NotImplementedError(
-                    "The CUDA backends currently support exactly one queue."
+                    "The CUDA backend currently supports exactly one queue."
                 )
 
         total_devices = len(get_devices())
@@ -456,7 +456,7 @@ def set_dummy_context_params(
     """
     global __context
 
-    if get_backend() != BACKEND_DUMMY:
+    if not is_dummy():
         raise RuntimeError(
             "set_dummy_context_params() is only supported when running with backend='dummy'."
         )

@@ -20,7 +20,7 @@ def _require_runtime_context():
     except Exception as exc:
         pytest.skip(f"No runtime backend available for mixed-precision FFT tests: {exc}")
 
-    if vd.get_backend() == "dummy":
+    if vd.is_dummy():
         pytest.skip("Dummy backend is codegen-only and cannot execute FFT kernels.")
 
     return context

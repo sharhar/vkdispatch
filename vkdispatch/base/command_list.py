@@ -1,10 +1,8 @@
 from typing import Tuple
 from typing import Optional
-from contextlib import contextmanager
 
 from .backend import native
-from .backend import CUDA_RUNTIME_BACKENDS
-from .init import get_backend
+from .init import is_cuda
 
 from .context import Handle
 from .errors import check_for_errors
@@ -117,7 +115,7 @@ class CommandList(Handle):
             assert self.get_instance_size() * instance_count == len(data), "Data length must be the product of the instance size and instance count!"
 
         if cuda_stream is not None:
-            if get_backend() not in CUDA_RUNTIME_BACKENDS:
+            if not is_cuda():
                 raise RuntimeError("cuda_stream=... is currently only supported with CUDA backends.")
 
             native.cuda_stream_override_begin(cuda_stream)

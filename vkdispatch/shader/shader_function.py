@@ -12,12 +12,10 @@ from vkdispatch.base.compute_plan import ComputePlan
 from .signature import ShaderArgumentType, ShaderSignature
 
 import uuid
-import sys
 
 import dataclasses
 
 from .._compat import numpy_compat as npc
-from ..base.backend import BACKEND_DUMMY, BACKEND_VULKAN, CUDA_RUNTIME_BACKENDS
 
 class LaunchParametersHolder:
     def __init__(self, names_and_defaults, args, kwargs) -> None:
@@ -262,25 +260,24 @@ class ShaderFunction:
 
         self.bounds = ExectionBounds(self.shader_signature.get_names_and_defaults(), my_local_size, self.workgroups, self.exec_size)
 
-        runtime_backend = vd.get_backend()
         shader_backend_name = (
             self.shader_description.backend.name
             if self.shader_description.backend is not None
             else "glsl"
         )
 
-        if runtime_backend == BACKEND_DUMMY:
+        if vd.is_dummy():
             pass
-        elif runtime_backend in CUDA_RUNTIME_BACKENDS and shader_backend_name != "cuda":
+        elif vd.is_cuda() and shader_backend_name != "cuda":
             raise RuntimeError(
                 "The selected CUDA runtime backend requires CUDA codegen output. "
-                "Call vd.initialize(backend='pycuda') or vd.initialize(backend='cuda-python') "
+                "Call vd.initialize(backend='cuda') "
                 "before building shaders."
             )
-        elif runtime_backend == BACKEND_VULKAN and shader_backend_name == "cuda":
+        elif vd.is_vulkan() and shader_backend_name == "cuda":
             raise RuntimeError(
                 "Vulkan runtime backend cannot execute CUDA codegen output. "
-                "Use GLSL codegen or initialize with backend='pycuda'/'cuda-python'."
+                "Use GLSL codegen or initialize with backend='cuda'."
             )
 
         self.source = self.shader_description.make_source(
@@ -288,7 +285,7 @@ class ShaderFunction:
         )
 
         try:
-            if not vd.get_backend() == BACKEND_DUMMY:
+            if not vd.is_dummy():
                 self.plan = ComputePlan(
                     self.source, 
                     self.shader_description.binding_type_list, 
@@ -325,7 +322,7 @@ class ShaderFunction:
         print(self.get_src(line_numbers))
 
     def __call__(self, *args, **kwargs):
-        assert not vd.get_backend() == BACKEND_DUMMY, "Cannot execute shader functions with dummy backend!"
+        assert not vd.is_dummy(), "Cannot execute shader functions with dummy backend!"
         
         self.build()
 
@@ -349,7 +346,6 @@ class ShaderFunction:
         bound_samplers = []
         uniform_values = {}
         pc_values = {}
-        runtime_backend = vd.get_backend()
 
         shader_uuid = f"{self.shader_description.name}.{uuid.uuid4()}"
 
@@ -404,7 +400,7 @@ class ShaderFunction:
                     uniform_values[shader_arg.shader_name[field.name]] = getattr(arg, field.name)
 
             elif shader_arg.arg_type == ShaderArgumentType.VARIABLE:
-                if runtime_backend in CUDA_RUNTIME_BACKENDS:
+                if vd.is_cuda():
                     if callable(arg):
                         raise RuntimeError(
                             "CommandGraph.bind_var()/set_var() are disabled for CUDA backends. "

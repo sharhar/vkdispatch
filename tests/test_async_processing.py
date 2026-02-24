@@ -129,7 +129,7 @@ def get_array(index: int, config: RunConfig) -> np.ndarray:
 
 def make_source(commands: List[ProgramCommand]):
     local_size_x = vd.get_context().max_workgroup_size[0]
-    is_cuda_python = vd.get_backend() == "cuda-python"
+    is_cuda_python = vd.is_cuda()
 
     if is_cuda_python:
         header = (
@@ -302,7 +302,7 @@ def do_numpy_command(out_buffer: int, in_buffer: int, program: int, config: RunC
     output_array[:total_exec_size] = temp_array
 
 def test_async_commands():
-    if vd.get_backend() == "cuda-python":
+    if vd.is_cuda():
         return
 
     for _ in range(50):

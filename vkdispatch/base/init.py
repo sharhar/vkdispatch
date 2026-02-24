@@ -7,9 +7,9 @@ import inspect
 
 from .errors import check_for_errors
 from .backend import (
-    BACKEND_CUDA_PYTHON,
-    BACKEND_PYCUDA,
+    BACKEND_CUDA,
     BACKEND_VULKAN,
+    BACKEND_DUMMY,
     BackendUnavailableError,
     clear_active_backend,
     get_active_backend_name,
@@ -416,17 +416,14 @@ def _set_initialized_state(backend_name: str, devices: List[DeviceInfo]) -> None
 
 def _build_no_gpu_backend_error(
     vulkan_error: Exception,
-    cuda_python_error: Exception,
-    pycuda_error: Exception,
+    cuda_python_error: Exception
 ) -> RuntimeError:
     return RuntimeError(
         "vkdispatch could not find an available GPU backend.\n"
         f"Vulkan backend unavailable: {vulkan_error}\n"
         f"CUDA Python backend unavailable: {cuda_python_error}\n"
-        f"PyCUDA backend unavailable: {pycuda_error}\n"
         "Install the Vulkan backend with `pip install vkdispatch`, or install CUDA support "
-        "(`pip install cuda-python` or `pip install pycuda numpy`), or explicitly use "
-        "`vd.initialize(backend='dummy')` "
+        "(`pip install cuda-python`), or explicitly use `vd.initialize(backend='dummy')` "
         "for codegen-only workflows."
     )
 
@@ -436,8 +433,7 @@ def _build_vulkan_backend_error(vulkan_error: Exception) -> RuntimeError:
         "vkdispatch could not load the Vulkan backend.\n"
         f"Vulkan backend unavailable: {vulkan_error}\n"
         "Install the Vulkan backend with `pip install vkdispatch`, use a CUDA backend "
-        "(`pip install cuda-python` or `pip install pycuda numpy`), or explicitly use "
-        "`vd.initialize(backend='dummy')` "
+        "(`pip install cuda-python`), or explicitly use `vd.initialize(backend='dummy')` "
         "for codegen-only workflows."
     )
 
@@ -554,27 +550,17 @@ def initialize(
         except BackendUnavailableError as vulkan_error:
             try:
                 _initialize_with_backend(
-                    BACKEND_CUDA_PYTHON,
+                    BACKEND_CUDA,
                     debug_mode=debug_mode,
                     log_level=log_level,
                     loader_debug_logs=loader_debug_logs,
                 )
                 return
             except Exception as cuda_python_error:
-                try:
-                    _initialize_with_backend(
-                        BACKEND_PYCUDA,
-                        debug_mode=debug_mode,
-                        log_level=log_level,
-                        loader_debug_logs=loader_debug_logs,
-                    )
-                    return
-                except Exception as pycuda_error:
-                    raise _build_no_gpu_backend_error(
+                raise _build_no_gpu_backend_error(
                         vulkan_error,
-                        cuda_python_error,
-                        pycuda_error,
-                    ) from pycuda_error
+                        cuda_python_error
+                    ) from cuda_python_error
 
     try:
         _initialize_with_backend(
@@ -609,6 +595,36 @@ def get_backend() -> str:
         return __backend_name
 
     return get_active_backend_name()
+
+def is_vulkan() -> bool:
+    """
+    A function which checks if the active backend is the Vulkan backend.
+
+    Returns:
+        `bool`: A flag indicating whether the active backend is the Vulkan backend.
+    """
+
+    return get_backend() == BACKEND_VULKAN
+
+def is_cuda() -> bool:
+    """
+    A function which checks if the active backend is a CUDA backend.
+
+    Returns:
+        `bool`: A flag indicating whether the active backend is a CUDA backend.
+    """
+
+    return get_backend() == BACKEND_CUDA
+
+def is_dummy() -> bool:
+    """
+    A function which checks if the active backend is the dummy backend.
+
+    Returns:
+        `bool`: A flag indicating whether the active backend is the dummy backend.
+    """
+
+    return get_backend() == BACKEND_DUMMY
 
 def __log_noinit(text: str, end: str = '\n', level: LogLevel = LogLevel.ERROR, stack_offset: int = 1):
     """

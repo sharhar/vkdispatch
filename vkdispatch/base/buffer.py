@@ -3,6 +3,7 @@ from typing import List
 from typing import Union
 from typing import Optional
 
+from .init import is_cuda
 from .dtype import dtype
 from .context import Handle, Signal
 from .errors import check_for_errors
@@ -274,6 +275,9 @@ class Buffer(Handle, typing.Generic[_ArgType]):
 def asbuffer(array: typing.Any) -> Buffer:
     """Cast an array-like object to a buffer object."""
 
+    if hasattr(array, "__cuda_array_interface__"):
+        return from_cuda_array(array)
+
     if not npc.is_array_like(array):
         raise TypeError("Expected an array-like object")
 
@@ -290,11 +294,7 @@ def from_cuda_array(
     writable: typing.Optional[bool] = None,
     keepalive: bool = True,
 ) -> Buffer:
-    from .init import get_backend
-    from .backend import CUDA_RUNTIME_BACKENDS
-
-    if get_backend() not in CUDA_RUNTIME_BACKENDS:
-        raise RuntimeError("from_cuda_array() is currently only supported with CUDA backends.")
+    assert is_cuda(), "__cuda_array_interface__ is only supported with CUDA backends."
 
     if not hasattr(obj, "__cuda_array_interface__"):
         raise TypeError("Expected an object with __cuda_array_interface__")
