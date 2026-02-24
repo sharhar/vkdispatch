@@ -82,6 +82,7 @@ class CommandGraph(CommandList):
     uniform_constants_buffer: vd.Buffer
 
     uniform_descriptors: List[Tuple[DescriptorSet, int, int]]
+    _recorded_descriptor_sets: List[DescriptorSet]
 
     name_to_pc_key_dict: Dict[str, List[Tuple[str, str]]]
     queued_pc_values: Dict[Tuple[str, str], Any]
@@ -101,6 +102,7 @@ class CommandGraph(CommandList):
         self.queued_pc_values = {}
 
         self.uniform_descriptors = []
+        self._recorded_descriptor_sets = []
 
         self._reset_on_submit = reset_on_submit
         self.submit_on_record = submit_on_record
@@ -111,11 +113,23 @@ class CommandGraph(CommandList):
         self._structure_version = 0
         self._capture_id_counter = 0
 
+    def _destroy_recorded_resources(self) -> None:
+        for descriptor_set in self._recorded_descriptor_sets:
+            descriptor_set.destroy()
+
+        self._recorded_descriptor_sets.clear()
+
+        for uniform_buffer in self._cuda_graph_uniform_buffers:
+            uniform_buffer.destroy()
+
+        self._cuda_graph_uniform_buffers.clear()
+
     def reset(self) -> None:
         """Reset the command graph by clearing the push constant buffer and descriptor
         set lists.
         """
         super().reset()
+        self._destroy_recorded_resources()
 
         self.pc_builder.reset()
         self.uniform_builder.reset()
@@ -127,11 +141,16 @@ class CommandGraph(CommandList):
 
         self.uniform_descriptors = []
         self.buffers_valid = False
-        self._cuda_graph_uniform_buffers.clear()
         self._structure_version += 1
 
     def _is_cuda_python_backend(self) -> bool:
         return vd.get_backend() == BACKEND_CUDA_PYTHON
+
+    def _destroy(self) -> None:
+        # Make teardown deterministic: release command-record resources before the
+        # native command list is destroyed.
+        self.reset()
+        super()._destroy()
     
     def bind_var(self, name: str):
         if vd.get_backend() in CUDA_RUNTIME_BACKENDS:
@@ -191,6 +210,7 @@ class CommandGraph(CommandList):
         """
 
         descriptor_set = DescriptorSet(plan)
+        self._recorded_descriptor_sets.append(descriptor_set)
         invocation_uniform_buffer: Optional[vd.Buffer] = None
 
         if shader_uuid is None:
@@ -268,7 +288,6 @@ class CommandGraph(CommandList):
                     write_access=False,
                 )
                 if not self.submit_on_record:
-                    self.register_parent(invocation_uniform_buffer)
                     self._cuda_graph_uniform_buffers.append(invocation_uniform_buffer)
         else:
             if len(shader_description.uniform_structure) > 0:
@@ -285,13 +304,9 @@ class CommandGraph(CommandList):
 
         self.buffers_valid = False
         self._structure_version += 1
-
+        
         if self.submit_on_record:
             self.submit()
-            if self._reset_on_submit:
-                descriptor_set.destroy()
-                if invocation_uniform_buffer is not None:
-                    invocation_uniform_buffer.destroy()
 
     def _resolve_queue_index_for_staging(self, queue_index: int) -> int:
         if queue_index is None or queue_index < 0:
