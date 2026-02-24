@@ -4,13 +4,17 @@ from typing import Any, Union
 
 from .common_builtins import fma
 
-from .type_casting import to_complex
+from .type_casting import to_complex, to_dtype
 from . import utils
 
 from .trigonometry import cos, sin
 
 def complex_from_euler_angle(angle: ShaderVariable):
-    return to_complex(cos(angle), sin(angle))
+    if not isinstance(angle, ShaderVariable):
+        raise TypeError("complex_from_euler_angle expects a ShaderVariable angle")
+
+    target_complex_type = dtypes.complex_from_float(dtypes.make_floating_dtype(angle.var_type))
+    return to_dtype(target_complex_type, cos(angle), sin(angle))
 
 def validate_complex_number(arg1: Any) -> Union[ShaderVariable, complex]:
     if isinstance(arg1, ShaderVariable):

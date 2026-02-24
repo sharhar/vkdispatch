@@ -1207,7 +1207,16 @@ class CUDABackend(CodeGenBackend):
             and var_type in self._FLOAT_VEC_DTYPES
             and self._is_plain_integer_literal(args[0])
         ):
-            args = [f"{args[0]}.0f"]
+            scalar_type = None
+            if dtypes.is_complex(var_type):
+                scalar_type = var_type.child_type
+            elif dtypes.is_vector(var_type):
+                scalar_type = var_type.scalar
+
+            if scalar_type == dtypes.float64:
+                args = [f"{args[0]}.0"]
+            else:
+                args = [f"{args[0]}.0f"]
 
         target_type = self.type_name(var_type)
 
