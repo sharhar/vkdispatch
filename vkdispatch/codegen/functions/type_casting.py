@@ -2,6 +2,7 @@ import vkdispatch.base.dtype as dtypes
 from typing import Optional
 
 from . import utils
+from ..variables.variables import ShaderVariable
 
 def to_dtype(var_type: dtypes.dtype, *args):
     return utils.new_var(
@@ -41,19 +42,64 @@ def to_int16(*args):
 def to_int(*args):
     return to_dtype(dtypes.int32, *args)
 
+def to_int64(*args):
+    return to_dtype(dtypes.int64, *args)
+
 def to_uint16(*args):
     return to_dtype(dtypes.uint16, *args)
 
 def to_uint(*args):
     return to_dtype(dtypes.uint32, *args)
 
-def to_complex(*args):
+def to_uint64(*args):
+    return to_dtype(dtypes.uint64, *args)
+
+def _complex_from_real_arg(arg) -> dtypes.dtype:
+    if isinstance(arg, ShaderVariable):
+        if dtypes.is_complex(arg.var_type):
+            return arg.var_type
+        if dtypes.is_scalar(arg.var_type):
+            return dtypes.complex_from_float(dtypes.make_floating_dtype(arg.var_type))
+        raise TypeError(f"Unsupported variable type for complex conversion: {arg.var_type}")
+
+    if utils.is_number(arg):
+        base_type = utils.number_to_dtype(arg)
+        if dtypes.is_complex(base_type):
+            return base_type
+        return dtypes.complex_from_float(dtypes.make_floating_dtype(base_type))
+
+    raise TypeError(f"Unsupported argument type for complex conversion: {type(arg)}")
+
+def _infer_complex_dtype(*args) -> dtypes.dtype:
+    complex_type = _complex_from_real_arg(args[0])
+
+    for arg in args[1:]:
+        complex_type = dtypes.cross_type(complex_type, _complex_from_real_arg(arg))
+
+    return complex_type
+
+def _to_complex_dtype(var_type: dtypes.dtype, *args):
     assert len(args) == 1 or len(args) == 2, "Must give one of two arguments for complex init"
 
-    if len(args) == 1:
-        return to_dtype(dtypes.complex64, args[0], 0)
+    if len(args) == 1 and isinstance(args[0], ShaderVariable) and dtypes.is_complex(args[0].var_type):
+        return to_dtype(var_type, args[0])
 
-    return to_dtype(dtypes.complex64, *args)
+    if len(args) == 1:
+        return to_dtype(var_type, args[0], 0)
+
+    return to_dtype(var_type, *args)
+
+def to_complex32(*args):
+    return _to_complex_dtype(dtypes.complex32, *args)
+
+def to_complex(*args):
+    return _to_complex_dtype(_infer_complex_dtype(*args), *args)
+
+def to_complex64(*args):
+    return _to_complex_dtype(dtypes.complex64, *args)
+
+def to_complex128(*args):
+    return _to_complex_dtype(dtypes.complex128, *args)
 
 def to_hvec2(*args):
     return to_dtype(dtypes.hvec2, *args)

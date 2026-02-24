@@ -9,6 +9,8 @@ _GLSL_TYPE_EXTENSIONS = {
     dtypes.float16: "GL_EXT_shader_explicit_arithmetic_types_float16",
     dtypes.int16: "GL_EXT_shader_explicit_arithmetic_types_int16",
     dtypes.uint16: "GL_EXT_shader_explicit_arithmetic_types_int16",
+    dtypes.int64: "GL_ARB_gpu_shader_int64",
+    dtypes.uint64: "GL_ARB_gpu_shader_int64",
     dtypes.float64: "GL_ARB_gpu_shader_fp64",
 }
 

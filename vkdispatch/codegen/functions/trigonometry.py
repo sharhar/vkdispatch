@@ -6,19 +6,7 @@ from . import utils
 from ..._compat import numpy_compat as npc
 
 def dtype_to_floating(var_type: dtypes.dtype) -> dtypes.dtype:
-    if var_type == dtypes.int32 or var_type == dtypes.uint32:
-        return dtypes.float32
-
-    if var_type == dtypes.ivec2 or var_type == dtypes.uvec2:
-        return dtypes.vec2
-
-    if var_type == dtypes.ivec3 or var_type == dtypes.uvec3:
-        return dtypes.vec3
-    
-    if var_type == dtypes.ivec4 or var_type == dtypes.uvec4:
-        return dtypes.vec4
-    
-    return var_type
+    return dtypes.make_floating_dtype(var_type)
 
 def _unary_math_var(func_name: str, var: ShaderVariable) -> ShaderVariable:
     result_type = dtype_to_floating(var.var_type)
@@ -105,13 +93,14 @@ def atan2(y: Any, x: Any) -> Union[ShaderVariable, float]:
     
     if utils.is_number(x) and isinstance(y, ShaderVariable):
         result_type = dtype_to_floating(y.var_type)
+        scalar_result_type = result_type.scalar if dtypes.is_vector(result_type) else result_type
         return utils.new_var(
             result_type,
             utils.codegen_backend().binary_math_expr(
                 "atan2",
                 result_type,
                 y.resolve(),
-                dtypes.float32,
+                scalar_result_type,
                 utils.resolve_input(x),
             ),
             parents=[y]
@@ -119,11 +108,12 @@ def atan2(y: Any, x: Any) -> Union[ShaderVariable, float]:
     
     if utils.is_number(y) and isinstance(x, ShaderVariable):
         result_type = dtype_to_floating(x.var_type)
+        scalar_result_type = result_type.scalar if dtypes.is_vector(result_type) else result_type
         return utils.new_var(
             result_type,
             utils.codegen_backend().binary_math_expr(
                 "atan2",
-                dtypes.float32,
+                scalar_result_type,
                 utils.resolve_input(y),
                 result_type,
                 x.resolve(),

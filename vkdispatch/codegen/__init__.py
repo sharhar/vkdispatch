@@ -32,8 +32,8 @@ from .functions.atomic_memory import atomic_add
 
 from .functions.type_casting import to_dtype, str_to_dtype
 from .functions.type_casting import to_float16, to_float, to_float64
-from .functions.type_casting import to_int16, to_int, to_uint16, to_uint
-from .functions.type_casting import to_complex
+from .functions.type_casting import to_int16, to_int, to_int64, to_uint16, to_uint, to_uint64
+from .functions.type_casting import to_complex, to_complex32, to_complex64, to_complex128
 from .functions.type_casting import to_hvec2, to_hvec3, to_hvec4
 from .functions.type_casting import to_vec2, to_vec3, to_vec4
 from .functions.type_casting import to_dvec2, to_dvec3, to_dvec4
@@ -45,8 +45,9 @@ from .functions.type_casting import to_mat2, to_mat3, to_mat4
 
 from .functions.registers import new_register, new_complex_register
 from .functions.registers import new_float16_register, new_float_register, new_float64_register
-from .functions.registers import new_int16_register, new_int_register
-from .functions.registers import new_uint16_register, new_uint_register
+from .functions.registers import new_int16_register, new_int_register, new_int64_register
+from .functions.registers import new_uint16_register, new_uint_register, new_uint64_register
+from .functions.registers import new_complex32_register, new_complex64_register, new_complex128_register
 from .functions.registers import new_hvec2_register, new_hvec3_register, new_hvec4_register
 from .functions.registers import new_vec2_register, new_vec3_register, new_vec4_register
 from .functions.registers import new_dvec2_register, new_dvec3_register, new_dvec4_register

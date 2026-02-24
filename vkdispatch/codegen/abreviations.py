@@ -14,7 +14,11 @@ from vkdispatch.base.dtype import int16 as i16
 from vkdispatch.base.dtype import uint16 as u16
 from vkdispatch.base.dtype import int32 as i32
 from vkdispatch.base.dtype import uint32 as u32
+from vkdispatch.base.dtype import int64 as i64
+from vkdispatch.base.dtype import uint64 as u64
+from vkdispatch.base.dtype import complex32 as c32
 from vkdispatch.base.dtype import complex64 as c64
+from vkdispatch.base.dtype import complex128 as c128
 
 from vkdispatch.base.dtype import hvec2 as hv2
 from vkdispatch.base.dtype import hvec3 as hv3

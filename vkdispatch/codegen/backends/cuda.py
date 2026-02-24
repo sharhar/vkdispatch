@@ -746,7 +746,9 @@ class CUDABackend(CodeGenBackend):
         dtypes.hvec2: "half2",
         dtypes.hvec3: "half3",
         dtypes.hvec4: "half4",
+        dtypes.complex32: "half2",
         dtypes.complex64: "float2",
+        dtypes.complex128: "double2",
         dtypes.vec2: "float2",
         dtypes.vec3: "float3",
         dtypes.vec4: "float4",
@@ -1163,6 +1165,8 @@ class CUDABackend(CodeGenBackend):
         dtypes.uint16: "unsigned short",
         dtypes.int32: "int",
         dtypes.uint32: "unsigned int",
+        dtypes.int64: "long long",
+        dtypes.uint64: "unsigned long long",
         dtypes.float16: "__half",
         dtypes.float32: "float",
         dtypes.float64: "double",
@@ -1189,7 +1193,9 @@ class CUDABackend(CodeGenBackend):
         raise ValueError(f"Unsupported CUDA type mapping for '{var_type.name}'")
 
     _FLOAT_VEC_DTYPES = frozenset({
+        dtypes.complex32,
         dtypes.complex64,
+        dtypes.complex128,
         dtypes.hvec2, dtypes.hvec3, dtypes.hvec4,
         dtypes.vec2, dtypes.vec3, dtypes.vec4,
         dtypes.dvec2, dtypes.dvec3, dtypes.dvec4,
@@ -1457,7 +1463,9 @@ class CUDABackend(CodeGenBackend):
         dtypes.hvec2: "half2",
         dtypes.hvec3: "half3",
         dtypes.hvec4: "half4",
+        dtypes.complex32: "half2",
         dtypes.complex64: "float2",
+        dtypes.complex128: "double2",
         dtypes.vec2: "float2",
         dtypes.vec3: "float3",
         dtypes.vec4: "float4",

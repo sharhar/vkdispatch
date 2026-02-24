@@ -13,19 +13,7 @@ from typing import List, Union, Optional
 ENABLE_SCALED_AND_OFFSET_INT = True
 
 def var_types_to_floating(var_type: dtypes.dtype) -> dtypes.dtype:
-    if var_type == dtypes.int32 or var_type == dtypes.uint32:
-        return dtypes.float32
-
-    if var_type == dtypes.ivec2 or var_type == dtypes.uvec2:
-        return dtypes.vec2
-
-    if var_type == dtypes.ivec3 or var_type == dtypes.uvec3:
-        return dtypes.vec3
-    
-    if var_type == dtypes.ivec4 or var_type == dtypes.uvec4:
-        return dtypes.vec4
-    
-    return var_type
+    return dtypes.make_floating_dtype(var_type)
 
 class ShaderVariable(BaseVariable):
     _initilized: bool
@@ -178,10 +166,10 @@ class ShaderVariable(BaseVariable):
         self.read_callback()
 
         if base_utils.is_number(value):
-            if self.var_type == dtypes.complex64:
+            if dtypes.is_complex(self.var_type):
                 complex_value = complex(value)
                 complex_constructor = get_codegen_backend().constructor(
-                    dtypes.complex64,
+                    self.var_type,
                     [
                         base_utils.format_number_literal(complex_value.real),
                         base_utils.format_number_literal(complex_value.imag),

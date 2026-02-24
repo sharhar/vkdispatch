@@ -150,6 +150,12 @@ class BufferBuilder:
         if len(payload) != expected_size:
             raise ValueError(f"Packed value size mismatch! Expected {expected_size}, got {len(payload)}")
 
+        if npc.HAS_NUMPY:
+            np = npc.numpy_module()
+            row = self.backing_buffer[instance_index]
+            row[element_slice] = np.frombuffer(payload, dtype=np.uint8)
+            return
+
         start = instance_index * self.instance_bytes + element_slice.start
         end = start + expected_size
 
@@ -178,7 +184,7 @@ class BufferBuilder:
             return
 
         # Broadcast scalar values across all instances for scalar fields.
-        if not isinstance(value, (list, tuple)) and not isinstance(value, npc.CompatArray) and buffer_element.shape == (1,):
+        if not isinstance(value, (list, tuple)) and not npc.is_array_like(value) and buffer_element.shape == (1,):
             payload = self._pack_single_instance_value([value], key, buffer_element)
             for instance_index in range(self.instance_count):
                 self._write_payload(instance_index, buffer_element.memory_slice, payload)
@@ -186,7 +192,7 @@ class BufferBuilder:
 
         expected_element_count = npc.prod(buffer_element.shape)
 
-        if isinstance(value, npc.CompatArray):
+        if npc.is_array_like(value):
             flat_values = npc.flatten(value)
             expected_total = expected_element_count * self.instance_count
 
@@ -224,7 +230,9 @@ class BufferBuilder:
         if self.backing_buffer is None:
             raise RuntimeError("BufferBuilder.prepare(...) must be called before assigning values")
 
-        if npc.HAS_NUMPY:
+        buffer_element = self.element_map[key]
+
+        if npc.HAS_NUMPY and not npc.is_host_dtype(buffer_element.dtype):
             self._setitem_numpy(key, value)
             return
 
@@ -236,7 +244,7 @@ class BufferBuilder:
         for key, elem in self.element_map.items():
             buffer_element = self.element_map[key]
 
-            if npc.HAS_NUMPY:
+            if npc.HAS_NUMPY and not npc.is_host_dtype(buffer_element.dtype):
                 value = (self.backing_buffer[:, buffer_element.memory_slice]).view(buffer_element.dtype)
             else:
                 decoded_instances = []

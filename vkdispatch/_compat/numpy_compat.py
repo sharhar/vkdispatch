@@ -323,20 +323,28 @@ INT16 = HostDType("int16", 2, "h", "int")
 UINT16 = HostDType("uint16", 2, "H", "uint")
 INT32 = HostDType("int32", 4, "i", "int")
 UINT32 = HostDType("uint32", 4, "I", "uint")
+INT64 = HostDType("int64", 8, "q", "int")
+UINT64 = HostDType("uint64", 8, "Q", "uint")
 FLOAT16 = HostDType("float16", 2, "e", "float")
 FLOAT32 = HostDType("float32", 4, "f", "float")
 FLOAT64 = HostDType("float64", 8, "d", "float")
+COMPLEX32 = HostDType("complex32", 4, "ee", "complex")
 COMPLEX64 = HostDType("complex64", 8, "ff", "complex")
+COMPLEX128 = HostDType("complex128", 16, "dd", "complex")
 
 _HOST_DTYPES = {
     "int16": INT16,
     "uint16": UINT16,
     "int32": INT32,
     "uint32": UINT32,
+    "int64": INT64,
+    "uint64": UINT64,
     "float16": FLOAT16,
     "float32": FLOAT32,
     "float64": FLOAT64,
+    "complex32": COMPLEX32,
     "complex64": COMPLEX64,
+    "complex128": COMPLEX128,
 }
 
 
@@ -361,6 +369,16 @@ def host_dtype_name(dtype: Any) -> str:
         return str(_np.dtype(dtype).name)
 
     raise ValueError(f"Unsupported dtype ({dtype})!")
+
+
+def _numpy_dtype_or_none(dtype_name: str):
+    if not HAS_NUMPY:
+        return None
+
+    try:
+        return _np.dtype(dtype_name)
+    except TypeError:
+        return None
 
 
 def dtype_itemsize(dtype: Any) -> int:
@@ -463,7 +481,13 @@ def from_buffer(buffer: bytes, dtype: Any, shape: Tuple[int, ...]):
     dtype_name = host_dtype_name(dtype)
 
     if HAS_NUMPY:
-        return _np.frombuffer(buffer, dtype=_np.dtype(dtype_name)).reshape(shape)
+        np_dtype = _numpy_dtype_or_none(dtype_name)
+        if np_dtype is not None:
+            return _np.frombuffer(buffer, dtype=np_dtype).reshape(shape)
+
+        if dtype_name == "complex32":
+            half_pairs = _np.frombuffer(buffer, dtype=_np.float16).reshape(*shape, 2)
+            return half_pairs[..., 0].astype(_np.float32) + (1j * half_pairs[..., 1].astype(_np.float32))
 
     return CompatArray(buffer, host_dtype(dtype_name), tuple(shape))
 
@@ -524,16 +548,19 @@ def pack_values(values: Sequence[Any], dtype: Any) -> bytes:
     dtype_name = host_dtype_name(dtype)
 
     if HAS_NUMPY:
-        array = _np.asarray(values_list, dtype=_np.dtype(dtype_name))
-        return array.tobytes()
+        np_dtype = _numpy_dtype_or_none(dtype_name)
+        if np_dtype is not None:
+            array = _np.asarray(values_list, dtype=np_dtype)
+            return array.tobytes()
 
     host = host_dtype(dtype_name)
 
     if host.kind == "complex":
         output = bytearray()
+        pack_fmt = "=" + host.struct_format
         for value in values_list:
             coerced = _coerce_scalar(value, host)
-            output.extend(struct.pack("=ff", float(coerced.real), float(coerced.imag)))
+            output.extend(struct.pack(pack_fmt, float(coerced.real), float(coerced.imag)))
         return bytes(output)
 
     pack_fmt = "=" + host.struct_format
@@ -547,13 +574,16 @@ def unpack_values(data: bytes, dtype: Any) -> List[Any]:
     dtype_name = host_dtype_name(dtype)
 
     if HAS_NUMPY:
-        return _np.frombuffer(data, dtype=_np.dtype(dtype_name)).tolist()
+        np_dtype = _numpy_dtype_or_none(dtype_name)
+        if np_dtype is not None:
+            return _np.frombuffer(data, dtype=np_dtype).tolist()
 
     host = host_dtype(dtype_name)
 
     if host.kind == "complex":
         values: List[Any] = []
-        for real, imag in struct.iter_unpack("=ff", data):
+        unpack_fmt = "=" + host.struct_format
+        for real, imag in struct.iter_unpack(unpack_fmt, data):
             values.append(complex(real, imag))
         return values
 

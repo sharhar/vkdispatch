@@ -7,7 +7,8 @@ from .base.init import is_initialized
 from .base.init import log, log_error, log_warning, log_info, log_verbose, set_log_level
 
 from .base.dtype import dtype
-from .base.dtype import float16, float32, float64, int16, uint16, int32, uint32, complex64
+from .base.dtype import float16, float32, float64, int16, uint16, int32, uint32, int64, uint64
+from .base.dtype import complex32, complex64, complex128
 from .base.dtype import hvec2, hvec3, hvec4
 from .base.dtype import vec2, vec3, vec4
 from .base.dtype import dvec2, dvec3, dvec4

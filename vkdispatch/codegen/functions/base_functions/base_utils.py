@@ -12,6 +12,10 @@ from vkdispatch.codegen.global_builder import get_codegen_backend
 
 from vkdispatch.codegen.shader_writer import new_var as new_var_impl
 
+_I32_MIN = -(2 ** 31)
+_I32_MAX = 2 ** 31 - 1
+_U32_MAX = 2 ** 32 - 1
+
 def new_base_var(var_type: dtypes.dtype,
             var_name: Optional[str],
             parents: list,
@@ -46,9 +50,13 @@ def is_int_power_of_2(n: int) -> bool:
 def number_to_dtype(number: numbers.Number):
     if is_int_number(number):
         if number >= 0:
-            return dtypes.uint32
+            if number <= _U32_MAX:
+                return dtypes.uint32
+            return dtypes.uint64
 
-        return dtypes.int32
+        if number >= _I32_MIN and number <= _I32_MAX:
+            return dtypes.int32
+        return dtypes.int64
     elif is_float_number(number):
         return dtypes.float32
     elif is_complex_number(number):
@@ -63,19 +71,7 @@ def check_is_int(variable):
     return npc.is_integer_scalar(variable)
 
 def dtype_to_floating(var_type: dtypes.dtype) -> dtypes.dtype:
-    if var_type == dtypes.int32 or var_type == dtypes.uint32:
-        return dtypes.float32
-
-    if var_type == dtypes.ivec2 or var_type == dtypes.uvec2:
-        return dtypes.vec2
-
-    if var_type == dtypes.ivec3 or var_type == dtypes.uvec3:
-        return dtypes.vec3
-    
-    if var_type == dtypes.ivec4 or var_type == dtypes.uvec4:
-        return dtypes.vec4
-    
-    return var_type
+    return dtypes.make_floating_dtype(var_type)
 
 def format_number_literal(var: numbers.Number, *, force_float32: bool = False) -> str:
     if is_complex_number(var):

@@ -48,6 +48,18 @@ class _U32(_Scalar):
     glsl_type = "uint"
     format_str = "%u"
 
+class _I64(_Scalar):
+    name = "int64"
+    item_size = 8
+    glsl_type = "int64_t"
+    format_str = "%lld"
+
+class _U64(_Scalar):
+    name = "uint64"
+    item_size = 8
+    glsl_type = "uint64_t"
+    format_str = "%llu"
+
 class _F16(_Scalar):
     name = "float16"
     item_size = 2
@@ -70,6 +82,8 @@ int16 = _I16 # type: ignore
 uint16 = _U16 # type: ignore
 int32 = _I32 # type: ignore
 uint32 = _U32 # type: ignore
+int64 = _I64 # type: ignore
+uint64 = _U64 # type: ignore
 float16 = _F16 # type: ignore
 float32 = _F32 # type: ignore
 float64 = _F64 # type: ignore
@@ -77,6 +91,17 @@ float64 = _F64 # type: ignore
 class _Complex(dtype):
     dimentions = 0
     child_count = 2
+
+class _CF32(_Complex):
+    name = "complex32"
+    item_size = 4
+    glsl_type = "f16vec2"
+    format_str = "(%f, %f)"
+    child_type = float16
+    shape = (2,)
+    numpy_shape = (1,)
+    true_numpy_shape = ()
+    scalar = None
 
 class _CF64(_Complex):
     name = "complex64"
@@ -89,7 +114,20 @@ class _CF64(_Complex):
     true_numpy_shape = ()
     scalar = None
 
+class _CF128(_Complex):
+    name = "complex128"
+    item_size = 16
+    glsl_type = "dvec2"
+    format_str = "(%lf, %lf)"
+    child_type = float64
+    shape = (2,)
+    numpy_shape = (1,)
+    true_numpy_shape = ()
+    scalar = None
+
+complex32 = _CF32 # type: ignore
 complex64 = _CF64 # type: ignore
+complex128 = _CF128 # type: ignore
 
 class _Vector(dtype):
     dimentions = 1
@@ -470,18 +508,35 @@ def is_integer_dtype(dtype: dtype) -> bool:
     if not is_scalar(dtype):
         dtype = dtype.scalar
 
-    return dtype == int16 or dtype == uint16 or dtype == int32 or dtype == uint32
+    return dtype in (int16, uint16, int32, uint32, int64, uint64)
 
-# Promotion precedence: float64 > float32 > float16 > int32 > int16 > uint32 > uint16
+# Promotion precedence: float64 > float32 > float16 > int64 > int32 > int16 > uint64 > uint32 > uint16
 _SCALAR_RANK = {
     uint16: 0,
     int16: 1,
     uint32: 2,
     int32: 3,
-    float16: 4,
-    float32: 5,
-    float64: 6,
+    uint64: 4,
+    int64: 5,
+    float16: 6,
+    float32: 7,
+    float64: 8,
 }
+
+_COMPLEX_FROM_FLOAT = {
+    float16: complex32,
+    float32: complex64,
+    float64: complex128,
+}
+
+def complex_from_float(dtype: dtype) -> dtype:
+    if not is_scalar(dtype):
+        raise ValueError(f"Unsupported dtype ({dtype})!")
+
+    result = _COMPLEX_FROM_FLOAT.get(dtype)
+    if result is None:
+        raise ValueError(f"Unsupported complex base dtype ({dtype})!")
+    return result
 
 def _promote_scalar(dtype: dtype) -> dtype:
     """Return the floating-point type that matches the width of *dtype*.
@@ -493,6 +548,8 @@ def _promote_scalar(dtype: dtype) -> dtype:
         return float16
     if dtype == int32 or dtype == uint32:
         return float32
+    if dtype == int64 or dtype == uint64:
+        return float64
     return dtype
 
 def make_floating_dtype(dtype: dtype) -> dtype:
@@ -503,7 +560,7 @@ def make_floating_dtype(dtype: dtype) -> dtype:
     elif is_matrix(dtype):
         return dtype
     elif is_complex(dtype):
-        return complex64
+        return dtype
     else:
         raise ValueError(f"Unsupported dtype ({dtype})!")
 
@@ -575,9 +632,15 @@ def cross_type(dtype1: dtype, dtype2: dtype) -> dtype:
         return cross_vector(dtype2, dtype1)
 
     if is_complex(dtype1):
-        return complex64
+        if is_complex(dtype2):
+            return complex_from_float(cross_scalar_scalar(dtype1.child_type, dtype2.child_type))
+        if is_scalar(dtype2):
+            return complex_from_float(cross_scalar_scalar(dtype1.child_type, _promote_scalar(dtype2)))
+        raise ValueError("Cannot cross complex and non-scalar types!")
     elif is_complex(dtype2):
-        return complex64
+        if is_scalar(dtype1):
+            return complex_from_float(cross_scalar_scalar(dtype2.child_type, _promote_scalar(dtype1)))
+        raise ValueError("Cannot cross complex and non-scalar types!")
 
     if is_scalar(dtype1) and is_scalar(dtype2):
         return cross_scalar_scalar(dtype1, dtype2)
@@ -590,10 +653,14 @@ def from_numpy_dtype(dtype: Any) -> dtype:
         "uint16": uint16,
         "int32": int32,
         "uint32": uint32,
+        "int64": int64,
+        "uint64": uint64,
         "float16": float16,
         "float32": float32,
         "float64": float64,
+        "complex32": complex32,
         "complex64": complex64,
+        "complex128": complex128,
     }
 
     result = _NAME_MAP.get(dtype_name)
@@ -608,16 +675,20 @@ def to_numpy_dtype(shader_type: dtype) -> Any:
         uint16: "uint16",
         int32: "int32",
         uint32: "uint32",
+        int64: "int64",
+        uint64: "uint64",
         float16: "float16",
         float32: "float32",
         float64: "float64",
+        complex32: "complex32",
         complex64: "complex64",
+        complex128: "complex128",
     }
 
     name = _TYPE_MAP.get(shader_type)
     if name is None:
         raise ValueError(f"Unsupported shader_type ({shader_type})!")
 
-    if npc.HAS_NUMPY:
+    if npc.HAS_NUMPY and hasattr(npc.numpy_module(), name):
         return getattr(npc.numpy_module(), name)
     return npc.host_dtype(name)
