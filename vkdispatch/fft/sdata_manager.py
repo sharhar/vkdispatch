@@ -11,7 +11,7 @@ from .registers import FFTRegisters
 from .memory_iterators import memory_reads_iterator, memory_writes_iterator
 
 class FFTSDataManager:
-    sdata: vc.Buff[vc.c64]
+    sdata: vc.Buffer
     sdata_offset: Union[vc.Const[vc.u32], Literal[0]]
 
     sdata_row_size: int
@@ -46,7 +46,7 @@ class FFTSDataManager:
         total_inner_batches = grid.inline_batches_inner * grid.inline_batches_outer
 
         self.sdata = vc.shared_buffer(
-            vd.complex64,
+            config.compute_type,
             config.sdata_allocation * total_inner_batches,
             var_name="sdata")
         

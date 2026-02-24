@@ -32,7 +32,7 @@ class FFTRegisters:
         self.config = resources.config
         
         self.registers = [
-            vc.new_complex_register(var_name=f"{name}_reg_{i}") for i in range(count)
+            vc.new_register(self.config.compute_type, var_name=f"{name}_reg_{i}") for i in range(count)
         ]
 
         self.count = count
@@ -53,8 +53,9 @@ class FFTRegisters:
         self.registers[index][:] = value
 
     def normalize(self):
+        normalization = vc.to_dtype(self.config.compute_type.child_type, self.config.N)
         for i in range(self.count):
-            self.registers[i][:] = self.registers[i] / self.config.N
+            self.registers[i][:] = self.registers[i] / normalization
 
     def get_input_format(self, stage_index: int = 0) -> Dict[int, int]:
         in_format = {}

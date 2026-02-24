@@ -1,12 +1,14 @@
 from typing import Tuple
 from typing import List
 from typing import Union
+from typing import Optional
 
 from .dtype import dtype
 from .context import Handle, Signal
 from .errors import check_for_errors
 
 from .dtype import complex64
+from . import dtype as dtypes
 
 from .._compat import numpy_compat as npc
 from .dtype import to_numpy_dtype, from_numpy_dtype
@@ -353,45 +355,82 @@ def from_cuda_array(
     return Buffer(shape, var_type, external_buffer=external_buffer_info)
 
 class RFFTBuffer(Buffer):
-    def __init__(self, shape: Tuple[int, ...]):
-        super().__init__(tuple(shape[:-1]) + (shape[-1] // 2 + 1,), complex64)
+    real_shape: Tuple[int, ...]
+    fourier_shape: Tuple[int, ...]
+    real_type: dtype
+
+    def __init__(self, shape: Tuple[int, ...], fourier_type: dtype = complex64):
+        if not dtypes.is_complex(fourier_type):
+            raise ValueError("RFFTBuffer fourier_type must be complex32, complex64, or complex128")
+
+        if not dtypes.is_float_dtype(fourier_type.child_type):
+            raise ValueError("RFFTBuffer fourier_type must use a floating-point scalar")
+
+        super().__init__(tuple(shape[:-1]) + (shape[-1] // 2 + 1,), fourier_type)
 
         self.real_shape = shape
         self.fourier_shape = self.shape
-    
+        self.real_type = fourier_type.child_type
+
     def read_real(self, index: Union[int, None] = None):
         npc.require_numpy("RFFTBuffer.read_real")
         np = npc.numpy_module()
-        return self.read(index).view(np.float32)[..., :self.real_shape[-1]]
+
+        packed_shape = list(self.shape[:-1]) + [self.shape[-1] * 2]
+        packed_data = self._do_reads(self.real_type, packed_shape, index)
+
+        if index is None:
+            packed_data = np.array(packed_data)
+
+        return packed_data[..., :self.real_shape[-1]]
 
     def read_fourier(self, index: Union[int, None] = None):
         return self.read(index)
-    
+
     def write_real(self, data, index: int = None):
         npc.require_numpy("RFFTBuffer.write_real")
         np = npc.numpy_module()
         assert data.shape == self.real_shape, "Data shape must match real shape!"
-        assert not np.issubdtype(data.dtype, np.complexfloating) , "Data dtype must be scalar!"
+        assert not np.issubdtype(data.dtype, np.complexfloating), "Data dtype must be scalar!"
 
-        true_data = np.zeros(self.shape[:-1] + (self.shape[-1] * 2,), dtype=np.float32)
+        real_dtype = to_numpy_dtype(self.real_type)
+        true_data = np.zeros(self.shape[:-1] + (self.shape[-1] * 2,), dtype=real_dtype)
         true_data[..., :self.real_shape[-1]] = data
 
-        self.write(np.ascontiguousarray(true_data).view(np.complex64), index)
+        self.write(np.ascontiguousarray(true_data), index)
 
     def write_fourier(self, data, index: int = None):
         npc.require_numpy("RFFTBuffer.write_fourier")
         np = npc.numpy_module()
         assert data.shape == self.fourier_shape, f"Data shape {data.shape} must match fourier shape {self.fourier_shape}!"
-        assert np.issubdtype(data.dtype, np.complexfloating) , "Data dtype must be complex!"
+        assert np.issubdtype(data.dtype, np.complexfloating), "Data dtype must be complex!"
 
-        self.write(np.ascontiguousarray(data.astype(np.complex64)).view(np.float32), index)
+        target_fourier_dtype = to_numpy_dtype(self.var_type)
+        if npc.is_host_dtype(target_fourier_dtype):
+            # complex32: pack complex values into float16 real/imag pairs.
+            complex_data = np.ascontiguousarray(data.astype(np.complex64))
+            packed_pairs = np.empty(complex_data.shape + (2,), dtype=np.float16)
+            packed_pairs[..., 0] = complex_data.real.astype(np.float16)
+            packed_pairs[..., 1] = complex_data.imag.astype(np.float16)
 
-def asrfftbuffer(data) -> RFFTBuffer:
+            packed_real_shape = self.shape[:-1] + (self.shape[-1] * 2,)
+            self.write(np.ascontiguousarray(packed_pairs).reshape(packed_real_shape), index)
+            return
+
+        self.write(np.ascontiguousarray(data.astype(target_fourier_dtype)), index)
+
+
+def asrfftbuffer(data, fourier_type: Optional[dtype] = None) -> RFFTBuffer:
     npc.require_numpy("asrfftbuffer")
     np = npc.numpy_module()
     assert not np.issubdtype(data.dtype, np.complexfloating), "Data dtype must be scalar!"
 
-    buffer = RFFTBuffer(data.shape)
+    if fourier_type is None:
+        scalar_dtype = from_numpy_dtype(data.dtype)
+        scalar_dtype = dtypes.make_floating_dtype(scalar_dtype)
+        fourier_type = dtypes.complex_from_float(scalar_dtype)
+
+    buffer = RFFTBuffer(data.shape, fourier_type=fourier_type)
     buffer.write_real(data)
 
     return buffer

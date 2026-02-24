@@ -34,9 +34,16 @@ def _new_big_complex(var_type: dtypes.dtype, arg1: Any, arg2: Any):
 def mult_complex(arg1: ShaderVariable, arg2: ShaderVariable):
     a1 = validate_complex_number(arg1)
     a2 = validate_complex_number(arg2)
+
+    fallback_type = dtypes.complex64
+    for normalized_arg in (a1, a2):
+        if isinstance(normalized_arg, ShaderVariable):
+            fallback_type = normalized_arg.var_type
+            break
+
     result_type = None
     for normalized_arg in (a1, a2):
-        arg_type = normalized_arg.var_type if isinstance(normalized_arg, ShaderVariable) else dtypes.complex64
+        arg_type = normalized_arg.var_type if isinstance(normalized_arg, ShaderVariable) else fallback_type
         result_type = arg_type if result_type is None else dtypes.cross_type(result_type, arg_type)
 
     return _new_big_complex(

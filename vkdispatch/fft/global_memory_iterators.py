@@ -7,6 +7,13 @@ import dataclasses
 from .registers import FFTRegisters
 from .memory_iterators import memory_reads_iterator, memory_writes_iterator, MemoryOp
 
+
+def _cast_if_needed(value: vc.ShaderVariable, dst_type):
+    if value.var_type == dst_type:
+        return value
+
+    return vc.to_dtype(dst_type, value)
+
 def global_batch_offset(
         registers: FFTRegisters,
         r2c: bool = False,
@@ -57,7 +64,7 @@ class GlobalWriteOp(MemoryOp):
                    inverse=inverse)
 
     def write_to_buffer(self,
-                        buffer: vc.Buff[vc.c64],
+                        buffer: vc.Buffer,
                         register: Optional[vc.ShaderVariable] = None,
                         io_index: Optional[vc.ShaderVariable] = None):
         if register is None:
@@ -67,16 +74,18 @@ class GlobalWriteOp(MemoryOp):
             io_index = self.io_index
 
         if not self.r2c:
-            buffer[io_index] = register
+            buffer[io_index] = _cast_if_needed(register, buffer.var_type)
             return
 
         if not self.inverse:
             vc.if_statement(self.fft_index < (self.fft_size // 2) + 1)
-            buffer[io_index] = register
+            buffer[io_index] = _cast_if_needed(register, buffer.var_type)
             vc.end()
             return
-        
-        buffer[io_index // 2][io_index % 2] = register.real
+
+        out_scalar_type = buffer.var_type.child_type
+        out_real = _cast_if_needed(register.real, out_scalar_type)
+        buffer[io_index // 2][io_index % 2] = out_real
 
 def global_writes_iterator(
         registers: FFTRegisters,
@@ -166,11 +175,11 @@ class GlobalReadOp(MemoryOp):
             return
 
         vc.else_statement()
-        register[:] = vc.to_complex(0)
+        register[:] = vc.to_dtype(register.var_type, 0)
         vc.end()
 
     def read_from_buffer(self,
-                         buffer: vc.Buff[vc.c64],
+                         buffer: vc.Buffer,
                          register: Optional[vc.ShaderVariable] = None,
                          io_index: Optional[vc.ShaderVariable] = None):
         self.check_in_signal_range()
@@ -182,21 +191,23 @@ class GlobalReadOp(MemoryOp):
             register = self.register
 
         if not self.r2c:
-            register[:] = buffer[io_index]
+            register[:] = _cast_if_needed(buffer[io_index], register.var_type)
             self.signal_range_end(register)
             return
 
         if not self.inverse:
-            register[:] = vc.to_complex(buffer[io_index // 2][io_index % 2])
+            packed_real = buffer[io_index // 2][io_index % 2]
+            packed_complex = vc.to_complex(packed_real)
+            register[:] = _cast_if_needed(packed_complex, register.var_type)
             self.signal_range_end(register)
             return
 
         vc.if_statement(self.fft_index >= (self.fft_size // 2) + 1)
         self.io_index_2[:] = self.r2c_inverse_offset - io_index
-        register[:] = buffer[self.io_index_2]
+        register[:] = _cast_if_needed(buffer[self.io_index_2], register.var_type)
         register.imag = -register.imag
         vc.else_statement()
-        register[:] = buffer[io_index]
+        register[:] = _cast_if_needed(buffer[io_index], register.var_type)
         vc.end()
 
         self.signal_range_end(register)
@@ -292,7 +303,7 @@ class GlobalTransposedWriteOp(MemoryOp):
                 )
 
     def write_to_buffer(self,
-                        buffer: vc.Buff[vc.c64],
+                        buffer: vc.Buffer,
                         register: Optional[vc.ShaderVariable] = None,
                         io_index: Optional[vc.ShaderVariable] = None):
         if io_index is None:
@@ -301,7 +312,7 @@ class GlobalTransposedWriteOp(MemoryOp):
         if register is None:
             register = self.register
 
-        buffer[io_index] = register
+        buffer[io_index] = _cast_if_needed(register, buffer.var_type)
 
 def global_trasposed_write_iterator(registers: FFTRegisters, inner_only: bool = False):
     vc.comment("""Writing registers to global memory in transposed order.

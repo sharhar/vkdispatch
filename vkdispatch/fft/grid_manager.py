@@ -16,11 +16,12 @@ def allocation_valid(workgroup_size: int, shared_memory_size: int):
 def allocate_inline_batches(
         batch_num: int,
         batch_threads: int,
-        N: int,
+        shared_elements: int,
+        element_size: int,
         max_workgroup_size: int,
         max_total_threads: int):
     
-    shared_memory_allocation = N * vd.complex64.item_size
+    shared_memory_allocation = shared_elements * element_size
     batch_num_primes = prime_factors(batch_num)
     prime_index = 0
     workgroup_size = batch_threads
@@ -157,6 +158,7 @@ class FFTGridManager:
             config.batch_inner_count,
             config.batch_threads,
             config.sdata_allocation if make_sdata_buffer else 0,
+            config.compute_type.item_size,
             min(vd.get_context().max_workgroup_size[0], 4),
             vd.get_context().max_workgroup_invocations)
         
@@ -171,6 +173,7 @@ class FFTGridManager:
             config.batch_outer_count,
             config.batch_threads * self.inline_batches_inner,
             config.sdata_allocation * self.inline_batches_inner if make_sdata_buffer else 0,
+            config.compute_type.item_size,
             vd.get_context().max_workgroup_size[
                 1 if self.inline_batches_inner == 1 else 2
             ],

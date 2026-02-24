@@ -17,12 +17,25 @@ def make_fft_shader(
         r2c: bool = False,
         input_map: vd.MappingFunction = None,
         output_map: vd.MappingFunction = None,
+        input_type: vd.dtype = None,
+        output_type: vd.dtype = None,
+        compute_type: vd.dtype = None,
         input_signal_range: Optional[Tuple[Optional[int], Optional[int]]] = None) -> vd.ShaderFunction:
 
-    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+    if output_type is None:
+        output_type = vd.complex64
+
+    if input_type is None and input_map is None:
+        input_type = output_type
+
+    if compute_type is None:
+        compute_type = vd.complex64
+
+    with vd.fft.fft_context(buffer_shape, axis=axis, compute_type=compute_type) as ctx:
         io_manager = ctx.make_io_manager(
             input_map=input_map,
-            output_map=output_map
+            output_map=output_map,
+            output_type=output_type,
         )
 
         io_manager.read_input(
@@ -46,9 +59,10 @@ def make_fft_shader(
 @lru_cache(maxsize=None)
 def get_transposed_size(
         buffer_shape: Tuple, 
-        axis: int = None) -> vd.ShaderFunction:
+        axis: int = None,
+        compute_type: vd.dtype = vd.complex64) -> vd.ShaderFunction:
     
-    config = vd.fft.FFTConfig(buffer_shape, axis)
+    config = vd.fft.FFTConfig(buffer_shape, axis, compute_type=compute_type)
     grid = vd.fft.FFTGridManager(config, True, False)
 
     return npc.prod(grid.local_size) * npc.prod(grid.workgroup_count) * config.register_count
@@ -57,10 +71,13 @@ def get_transposed_size(
 def make_transpose_shader(
         buffer_shape: Tuple, 
         axis: int = None,
-        kernel_inner_only: bool = False) -> vd.ShaderFunction:
+        kernel_inner_only: bool = False,
+        input_type: vd.dtype = vd.complex64,
+        output_type: vd.dtype = vd.complex64,
+        compute_type: vd.dtype = vd.complex64) -> vd.ShaderFunction:
 
-    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
-        args = ctx.declare_shader_args([vc.Buffer[c64], vc.Buffer[c64]])
+    with vd.fft.fft_context(buffer_shape, axis=axis, compute_type=compute_type) as ctx:
+        args = ctx.declare_shader_args([vc.Buffer[output_type], vc.Buffer[input_type]])
 
         if kernel_inner_only:
             vc.if_statement(ctx.grid.global_outer_offset == 0)
@@ -95,23 +112,40 @@ def make_convolution_shader(
         kernel_inner_only: bool = False,
         input_map: vd.MappingFunction = None,
         output_map: vd.MappingFunction = None,
+        input_type: vd.dtype = None,
+        output_type: vd.dtype = None,
+        kernel_type: vd.dtype = None,
+        compute_type: vd.dtype = None,
         input_signal_range: Optional[Tuple[Optional[int], Optional[int]]] = None) -> vd.ShaderFunction:
 
+    if output_type is None:
+        output_type = vd.complex64
+
+    if input_type is None and input_map is None:
+        input_type = output_type
+
+    if kernel_type is None:
+        kernel_type = vd.complex64
+
+    if compute_type is None:
+        compute_type = vd.complex64
+
     if kernel_map is None:
-        def kernel_map_func(kernel_buffer: vc.Buffer[c64]):
+        def kernel_map_func(kernel_buffer: vc.Buffer[kernel_type]):
             read_op = vd.fft.read_op()
             
-            kernel_val = vc.new_complex_register()
+            kernel_val = vc.new_register(compute_type)
             read_op.read_from_buffer(kernel_buffer, register=kernel_val)
             
             read_op.register[:] = vc.mult_complex(read_op.register, kernel_val.conjugate())
 
-        kernel_map = vd.map(kernel_map_func, input_types=[vc.Buffer[c64]])
+        kernel_map = vd.map(kernel_map_func, input_types=[vc.Buffer[kernel_type]])
 
-    with vd.fft.fft_context(buffer_shape, axis=axis) as ctx:
+    with vd.fft.fft_context(buffer_shape, axis=axis, compute_type=compute_type) as ctx:
         io_manager = ctx.make_io_manager(
             input_map=input_map,
             output_map=output_map,
+            output_type=output_type,
             kernel_map=kernel_map
         )
 

@@ -46,6 +46,9 @@ def _apply_twiddle_to_register(
     if isinstance(twiddle, complex):
         if _apply_constant_twiddle(resources, register, twiddle):
             return
+
+        twiddle = vc.to_dtype(register.var_type, twiddle.real, twiddle.imag)
+
     resources.radix_registers[0][:] = vc.mult_complex(register, twiddle)
     register[:] = resources.radix_registers[0]
 
@@ -81,7 +84,8 @@ def radix_P(resources: FFTResources, inverse: bool, register_list: List[vc.Shade
                 continue
 
             omega = npc.exp_complex(1j * angle_factor * i * j / len(register_list))
-            resources.omega_register[:] = vc.mult_complex(register_list[j], omega)
+            typed_omega = vc.to_dtype(register_list[j].var_type, omega.real, omega.imag)
+            resources.omega_register[:] = vc.mult_complex(register_list[j], typed_omega)
             resources.radix_registers[i] += resources.omega_register
 
     for i in range(0, len(register_list)):
@@ -118,7 +122,9 @@ This phase-aligns each sub-FFT with its parent decomposition stage.""")
             _apply_twiddle_to_register(resources, register_list[i], omega)
             continue
 
-        resources.omega_register.real = (angle_factor * i / twiddle_N) * twiddle_index
+        angle_scale = vc.to_dtype(resources.omega_register.real.var_type, angle_factor * i / twiddle_N)
+        twiddle_scale = vc.to_dtype(resources.omega_register.real.var_type, twiddle_index)
+        resources.omega_register.real = angle_scale * twiddle_scale
         resources.omega_register[:] = vc.complex_from_euler_angle(resources.omega_register.real)
         resources.radix_registers[0][:] = vc.mult_complex(register_list[i], resources.omega_register)
         register_list[i][:] = resources.radix_registers[0]

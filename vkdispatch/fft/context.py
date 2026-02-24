@@ -1,5 +1,6 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
+import vkdispatch.base.dtype as dtypes
 
 import contextlib
 from typing import Optional, Tuple, Union, List, Dict
@@ -31,12 +32,13 @@ class FFTContext:
                 buffer_shape: Tuple,
                 axis: int = None,
                 max_register_count: int = None,
+                compute_type: dtypes.dtype = vd.complex64,
                 name: str = None):
         self.shader_context = shader_context
         self.declared_shader_args = False
         self.declarer = None
         
-        self.config = FFTConfig(buffer_shape, axis, max_register_count)
+        self.config = FFTConfig(buffer_shape, axis, max_register_count, compute_type=compute_type)
         self.grid = FFTGridManager(self.config, True, True)
         self.resources = FFTResources(self.config, self.grid)
 
@@ -63,6 +65,7 @@ class FFTContext:
 
     def make_io_manager(self,
                         output_map: Optional[vd.MappingFunction],
+                        output_type: dtypes.dtype = vd.complex64,
                         input_map: Optional[vd.MappingFunction] = None,
                         kernel_map: Optional[vd.MappingFunction] = None) -> IOManager:
         assert not self.declared_shader_args, f"Shader arguments already declared with {self.declarer}"
@@ -72,6 +75,7 @@ class FFTContext:
             default_registers=self.registers,
             shader_context=self.shader_context,
             output_map=output_map,
+            output_type=output_type,
             input_map=input_map,
             kernel_map=kernel_map
         )
@@ -166,7 +170,8 @@ Register-group coverage this stage: {self.config.N // stage.registers_used}.""")
 @contextlib.contextmanager
 def fft_context(buffer_shape: Tuple,
                 axis: Optional[int] = None,
-                max_register_count: Optional[int] = None):
+                max_register_count: Optional[int] = None,
+                compute_type: dtypes.dtype = vd.complex64):
 
     try:
         with vd.shader_context(vc.ShaderFlags.NO_EXEC_BOUNDS) as context:
@@ -174,7 +179,8 @@ def fft_context(buffer_shape: Tuple,
                 shader_context=context,
                 buffer_shape=buffer_shape,
                 axis=axis,
-                max_register_count=max_register_count
+                max_register_count=max_register_count,
+                compute_type=compute_type
             )
 
             yield fft_context

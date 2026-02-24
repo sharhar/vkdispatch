@@ -4,6 +4,7 @@ import dataclasses
 from typing import List, Tuple, Optional
 
 from .._compat import numpy_compat as npc
+import vkdispatch.base.dtype as dtypes
 from .prime_utils import prime_factors, group_primes, default_register_limit, default_max_prime
 
 @dataclasses.dataclass
@@ -39,7 +40,7 @@ class FFTRegisterStageConfig:
     sdata_width: int
     sdata_width_padded: int
 
-    def __init__(self, primes: List[int], max_register_count: int, N: int):
+    def __init__(self, primes: List[int], max_register_count: int, N: int, compute_item_size: int):
         """
         Initializes the FFTRegisterStageConfig object.
 
@@ -86,13 +87,14 @@ class FFTRegisterStageConfig:
 
         self.sdata_size = self.sdata_width_padded * int(npc.prod(threads_primes))
 
-        if self.sdata_size > vd.get_context().max_shared_memory // vd.complex64.item_size:
+        if self.sdata_size > vd.get_context().max_shared_memory // compute_item_size:
             self.sdata_width_padded = self.sdata_width
             self.sdata_size = self.sdata_width_padded * int(npc.prod(threads_primes))
 
 @dataclasses.dataclass
 class FFTConfig:
     N: int
+    compute_type: dtypes.dtype
     register_count: int
     max_prime_radix: int
     stages: Tuple[FFTRegisterStageConfig]
@@ -107,9 +109,20 @@ class FFTConfig:
     sdata_row_size: int
     sdata_row_size_padded: int
 
-    def __init__(self, buffer_shape: Tuple, axis: int = None, max_register_count: int = None):
+    def __init__(
+        self,
+        buffer_shape: Tuple,
+        axis: int = None,
+        max_register_count: int = None,
+        compute_type: dtypes.dtype = vd.complex64,
+    ):
         if axis is None:
             axis = len(buffer_shape) - 1
+
+        if not dtypes.is_complex(compute_type):
+            raise ValueError(f"compute_type must be a complex dtype, got {compute_type}")
+
+        self.compute_type = compute_type
 
         total_buffer_length = int(round(npc.prod(buffer_shape)))
 
@@ -140,7 +153,9 @@ class FFTConfig:
 
         prime_groups = group_primes(all_factors, max_register_count)        
 
-        self.stages = tuple([FFTRegisterStageConfig(group, max_register_count, N) for group in prime_groups])
+        self.stages = tuple(
+            [FFTRegisterStageConfig(group, max_register_count, N, self.compute_type.item_size) for group in prime_groups]
+        )
         register_utilizations = [stage.registers_used for stage in self.stages]
         self.register_count = max(register_utilizations)
 
