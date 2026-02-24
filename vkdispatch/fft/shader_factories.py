@@ -123,10 +123,6 @@ Then shuffle registers so lane layout matches kernel application and inverse pas
         ctx.execute(inverse=False)
         ctx.register_shuffle()
 
-        vc.comment("""Convolution pipeline phase 2/3.
-Apply one or more frequency-domain kernels to the transformed input spectrum.
-For multi-kernel runs, restore from backup registers so each kernel sees
-identical FFT-domain source values before inverse transformation.""")
         backup_registers = None
 
         if kernel_num > 1:
@@ -134,17 +130,19 @@ identical FFT-domain source values before inverse transformation.""")
             backup_registers.read_from_registers(ctx.registers)
 
         for kern_index in range(kernel_num):
-            vc.comment(f"""Convolution pipeline phase 3/3. Kernel {kern_index + 1}/{kernel_num}.
-Map this kernel onto the current spectrum.
-Run inverse FFT back to the spatial domain, optionally normalize by length,
-and write this kernel's output slice to global memory.""")
+            vc.comment(f"""Convolution pipeline phase 2/3. Kernel {kern_index + 1}/{kernel_num}.
+Map this kernel onto the current spectrum.""")
 
             if backup_registers is not None:
                 ctx.registers.read_from_registers(backup_registers)
 
             set_global_kernel_index(kern_index)
             io_manager.read_kernel(format_transposed=transposed_kernel, inner_only=kernel_inner_only)
-                        
+            
+            vc.comment(f"""Convolution pipeline phase 3/3.
+Run inverse FFT back to the spatial domain, optionally normalize by length,
+and write this kernel's output slice to global memory.""")
+
             ctx.execute(inverse=True)
 
             if normalize:

@@ -58,7 +58,7 @@ class ExectionBounds:
 
     def __init__(self, names_and_defaults, local_size, workgroups, exec_size) -> None:
         self.names_and_defaults = names_and_defaults
-        self.local_size = local_size
+        self.local_size = tuple(local_size)
         self.workgroups = workgroups
         self.exec_size = exec_size
 
@@ -134,6 +134,15 @@ class ExectionBounds:
         
         return (my_blocks, my_limits)
 
+@dataclasses.dataclass
+class ShaderSource:
+    name: str
+    code: str
+    local_size: Tuple[int, int, int]
+
+    def __repr__(self):
+        return f"// ====== Source Code for '{self.name}', workgroup_size: {self.local_size} ======\n{self.code}"
+
 class ShaderFunction:
     plan: ComputePlan
     func: Callable
@@ -141,6 +150,7 @@ class ShaderFunction:
     shader_signature: ShaderSignature
     bounds: ExectionBounds
     ready: bool
+    name: str
     source: str
     flags: vc.ShaderFlags
 
@@ -149,7 +159,8 @@ class ShaderFunction:
                  local_size=None,
                  workgroups=None,
                  exec_count=None,
-                 flags: vc.ShaderFlags = vc.ShaderFlags.NONE) -> None:
+                 flags: vc.ShaderFlags = vc.ShaderFlags.NONE,
+                 name: str = None) -> None:
         
         self.plan = None
         self.func = func
@@ -157,6 +168,7 @@ class ShaderFunction:
         self.shader_signature = None
         self.bounds = None
         self.ready = False
+        self.name = name if name is not None else func.__name__ if func is not None else None
         self.source = None
         self.local_size = local_size
         self.workgroups = workgroups
@@ -258,9 +270,9 @@ class ShaderFunction:
         self.ready = True
 
     def __repr__(self) -> str:
-        return self.get_src()
+        return self.get_src().__repr__()
     
-    def get_src(self, line_numbers: bool = None) -> str:
+    def get_src(self, line_numbers: bool = None) -> ShaderSource:
         self.build()
 
         result = ""
@@ -273,7 +285,10 @@ class ShaderFunction:
             
             result += f"{line_prefix}{line}\n"
 
-        return result
+        return ShaderSource(name=self.name, code=result, local_size=self.bounds.local_size)
+
+    def print_src(self, line_numbers: bool = None):
+        print(self.get_src(line_numbers))
 
     def __call__(self, *args, **kwargs):
         self.build()

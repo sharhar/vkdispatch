@@ -792,43 +792,69 @@ print(add_scalar)</textarea>
       });
 
     /* ── share button ── */
-    document
-      .getElementById("share-btn")
-      .addEventListener("click", function () {
-        var code = window.cmCode.getValue();
-        var encoded = btoa(unescape(encodeURIComponent(code)));
+    function buildPlaygroundHash() {
+      var code = window.cmCode.getValue();
+      var encoded = btoa(unescape(encodeURIComponent(code)));
 
-        var hashParts = ["code=" + encoded];
+      var hashParts = ["code=" + encoded];
 
-        /* Include backend in share link */
-        hashParts.push("be=" + encodeURIComponent(window.currentBackend));
+      /* Include backend in share/runtime URL */
+      hashParts.push("be=" + encodeURIComponent(window.currentBackend));
 
-        deviceFields.forEach(function (f) {
-          var val = document.getElementById(f.id).value.trim();
-          if (val !== "") {
-            hashParts.push(
-              encodeURIComponent(f.key) +
-                "=" +
-                encodeURIComponent(val)
-            );
-          }
-        });
-        toggleFields.forEach(function (f) {
-          var el = document.getElementById(f.id);
-          if (!el) return;
-          var checked = el.checked ? "1" : "0";
+      deviceFields.forEach(function (f) {
+        var val = document.getElementById(f.id).value.trim();
+        if (val !== "") {
           hashParts.push(
             encodeURIComponent(f.key) +
               "=" +
-              encodeURIComponent(checked)
+              encodeURIComponent(val)
           );
-        });
+        }
+      });
+      toggleFields.forEach(function (f) {
+        var el = document.getElementById(f.id);
+        if (!el) return;
+        var checked = el.checked ? "1" : "0";
+        hashParts.push(
+          encodeURIComponent(f.key) +
+            "=" +
+            encodeURIComponent(checked)
+        );
+      });
+
+      return hashParts.join("&");
+    }
+
+    window.updatePlaygroundUrlState = function () {
+      var hash = buildPlaygroundHash();
+      var nextUrl =
+        window.location.pathname +
+        window.location.search +
+        "#" +
+        hash;
+
+      if (window.location.hash.slice(1) !== hash) {
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState(null, "", nextUrl);
+        } else {
+          window.location.hash = hash;
+        }
+      }
+
+      return hash;
+    };
+
+    document
+      .getElementById("share-btn")
+      .addEventListener("click", function () {
+        var hash = window.updatePlaygroundUrlState();
 
         var url =
           window.location.origin +
           window.location.pathname +
+          window.location.search +
           "#" +
-          hashParts.join("&");
+          hash;
 
         copyToClipboard(url).then(function () {
           showToast("Share link copied to clipboard.");
@@ -1000,6 +1026,9 @@ def _reset_vkdispatch_runtime():
 def run_code(event):
     code = window.cmCode.getValue()
     window.cmOutput.setValue("")
+
+    if event is not None and hasattr(window, "updatePlaygroundUrlState"):
+        window.updatePlaygroundUrlState()
 
     stdout_buffer = OutputBuffer()
     stderr_buffer = OutputBuffer()

@@ -22,6 +22,15 @@ from .shader_factories import make_convolution_shader, make_transpose_shader, ge
 from .functions import fft, fft2, fft3, ifft, ifft2, ifft3
 from .functions import rfft, rfft2, rfft3, irfft, irfft2, irfft3
 
+from .src_functions import fft_src, fft2_src, fft3_src, ifft_src, ifft2_src, ifft3_src
+from .src_functions import rfft_src, rfft2_src, rfft3_src, irfft_src, irfft2_src, irfft3_src
+
+from .src_functions import fft_print_src, fft2_print_src, fft3_print_src, ifft_print_src, ifft2_print_src, ifft3_print_src
+from .src_functions import rfft_print_src, rfft2_print_src, rfft3_print_src, irfft_print_src, irfft2_print_src, irfft3_print_src
+
 from .functions import convolve, convolve2D, convolve2DR, transpose
+
+from .src_functions import convolve_src, convolve2D_src, convolve2DR_src, transpose_src
+from .src_functions import convolve_print_src, convolve2D_print_src, convolve2DR_print_src
 
 from .prime_utils import pad_dim

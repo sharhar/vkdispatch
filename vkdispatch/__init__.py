@@ -37,7 +37,7 @@ from .base.image import BorderColor
 from .execution_pipeline.command_graph import CommandGraph, BufferBindInfo, ImageBindInfo
 from .execution_pipeline.command_graph import global_graph, set_global_graph, default_graph
 
-from .shader.shader_function import ShaderFunction
+from .shader.shader_function import ShaderFunction, ShaderSource
 from .shader.context import ShaderContext, shader_context
 from .shader.map import map, MappingFunction
 from .shader.decorator import shader
