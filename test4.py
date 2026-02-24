@@ -4,7 +4,7 @@ from vkdispatch.codegen.abreviations import *
 
 vd.initialize(backend="pycuda")
 
-dtp = f32
+dtp = f64
 
 @vd.shader("buff.size")
 def add_scalar(buff: Buff[dtp], bias: Const[dtp]):
@@ -19,4 +19,4 @@ add_scalar(buff, 1.12345678901234567890)
 
 print(buff.read(0))
 
-print(add_scalar)
+#print(add_scalar)

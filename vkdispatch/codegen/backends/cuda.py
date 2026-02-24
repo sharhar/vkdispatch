@@ -1239,20 +1239,24 @@ class CUDABackend(CodeGenBackend):
         return super().component_access_expr(expr, component, base_type)
 
     def pre_header(self, *, enable_subgroup_ops: bool, enable_printf: bool) -> str:
-        self.reset_state()
-
         subgroup_support = "1" if enable_subgroup_ops else "0"
         printf_support = "1" if enable_printf else "0"
 
         self._enable_subgroup_ops = enable_subgroup_ops
         self._enable_printf = enable_printf
 
+        helper_header = self._helper_header()
+
+
+
         self._fixed_preamble = (
             "#include <cuda_runtime.h>\n"
             "#include <math.h>\n"
-            "#include <stdint.h>\n\n"
+            "#include <stdint.h>\n"
+            f"{"#include <cuda_fp16.h>\n" if self._needs_cuda_fp16 else ""}\n"
             f"#define VKDISPATCH_ENABLE_SUBGROUP_OPS {subgroup_support}\n"
             f"#define VKDISPATCH_ENABLE_PRINTF {printf_support}\n\n"
+            f"{helper_header}\n\n"
         )
 
         return self._fixed_preamble
@@ -1314,28 +1318,7 @@ class CUDABackend(CodeGenBackend):
             f"#define VKDISPATCH_EXPECTED_LOCAL_SIZE_Z {z}\n"
         )
 
-        # Inject cuda_fp16.h right after the standard includes when needed.
-        if self._needs_cuda_fp16:
-            fp16_include = "#include <cuda_fp16.h>\n"
-            if fp16_include not in header:
-                header = header.replace(
-                    "#include <stdint.h>",
-                    "#include <stdint.h>\n#include <cuda_fp16.h>",
-                    1,
-                )
-
-        helper_header = self._helper_header()
-
-        if len(helper_header) == 0:
-            return f"{expected_size_header}\n{header}\n{body}"
-
-        if len(self._fixed_preamble) > 0 and header.startswith(self._fixed_preamble):
-            header_suffix = header[len(self._fixed_preamble):]
-            finalized_header = f"{self._fixed_preamble}{helper_header}{header_suffix}"
-        else:
-            finalized_header = f"{header}\n{helper_header}"
-
-        return f"{expected_size_header}\n{finalized_header}\n{body}"
+        return f"{expected_size_header}\n{header}\n{body}"
 
     def constant_namespace(self) -> str:
         return "UBO"
