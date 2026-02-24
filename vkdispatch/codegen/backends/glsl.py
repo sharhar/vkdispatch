@@ -51,7 +51,6 @@ class GLSLBackend(CodeGenBackend):
         if enable_printf:
             header += "#extension GL_EXT_debug_printf : require\n"
 
-        # Inject type extensions right after #version / existing extensions.
         ext_block = ""
         for ext in sorted(self._needed_extensions):
             ext_line = f"#extension {ext} : require\n"

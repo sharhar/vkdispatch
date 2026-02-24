@@ -318,10 +318,7 @@ class ShaderBuilder(ShaderWriter):
         return "\n".join(declerations)
 
     def build(self, name: str) -> ShaderDescription:
-        header = self.backend.pre_header(
-            enable_subgroup_ops=not (self.flags & ShaderFlags.NO_SUBGROUP_OPS),
-            enable_printf=not (self.flags & ShaderFlags.NO_PRINTF)
-        )
+        header = ""
 
         for shared_buffer in self.shared_buffers:
             header += self.backend.shared_buffer_declaration(
@@ -368,8 +365,13 @@ class ShaderBuilder(ShaderWriter):
         if len(pc_decleration_contents) > 0:
             header += self.backend.push_constant_declaration(pc_decleration_contents)
 
+        pre_header = self.backend.pre_header(
+            enable_subgroup_ops=not (self.flags & ShaderFlags.NO_SUBGROUP_OPS),
+            enable_printf=not (self.flags & ShaderFlags.NO_PRINTF)
+        )
+
         return ShaderDescription(
-            header=header,
+            header=f"{pre_header}{header}",
             body=self.backend.entry_point(self.contents),
             name=name,
             pc_size=self.pc_struct.size, 
