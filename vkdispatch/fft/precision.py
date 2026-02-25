@@ -65,16 +65,22 @@ def ensure_supported_complex_precision(dtype, *, role: str) -> None:
 
 
 def resolve_compute_precision(io_precisions: List, compute_precision: Optional[vd.dtype]) -> vd.dtype:
-    if len(io_precisions) == 0:
-        raise ValueError("Cannot resolve compute precision without IO precision candidates")
-
-    for io_precision in io_precisions:
-        validate_complex_precision(io_precision, arg_name="io_precision")
-
     if compute_precision is not None:
         validate_complex_precision(compute_precision, arg_name="compute_type")
         ensure_supported_complex_precision(compute_precision, role="Compute")
         return compute_precision
+
+    for io_precision in io_precisions:
+        validate_complex_precision(io_precision, arg_name="io_precision")
+
+    if len(io_precisions) == 0:
+        for candidate in (vd.complex64, vd.complex32):
+            if supports_complex_precision(candidate):
+                return candidate
+
+        raise ValueError(
+            "Unable to resolve a default compute precision supported by all active devices"
+        )
 
     target = default_compute_precision(io_precisions)
     if supports_complex_precision(target):

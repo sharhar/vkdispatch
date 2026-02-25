@@ -10,19 +10,12 @@ from .precision import (
 from typing import List, Tuple, Union, Optional
 
 
-def _extract_map_buffer_precisions(map_fn: vd.MappingFunction, map_name: str) -> List[vd.dtype]:
-    precisions: List[vd.dtype] = []
-
+def _validate_map_argument_annotations(map_fn: vd.MappingFunction, map_name: str) -> None:
     for buffer_type in map_fn.buffer_types:
         if not hasattr(buffer_type, "__args__") or len(buffer_type.__args__) != 1:
-            raise ValueError(f"{map_name} contains a non-buffer annotation: {buffer_type}")
-
-        precision = buffer_type.__args__[0]
-        validate_complex_precision(precision, arg_name=f"{map_name} buffer type")
-        ensure_supported_complex_precision(precision, role=f"{map_name} buffer")
-        precisions.append(precision)
-
-    return precisions
+            raise ValueError(
+                f"{map_name} contains an annotation without exactly one type argument: {buffer_type}"
+            )
 
 
 def _resolve_output_precision(
@@ -122,13 +115,13 @@ def fft(
     if output_map is None:
         io_precisions.append(resolved_output_type)
     else:
-        io_precisions.extend(_extract_map_buffer_precisions(output_map, "output_map"))
+        _validate_map_argument_annotations(output_map, "output_map")
 
     if input_map is None:
         if resolved_input_type is not None:
             io_precisions.append(resolved_input_type)
     else:
-        io_precisions.extend(_extract_map_buffer_precisions(input_map, "input_map"))
+        _validate_map_argument_annotations(input_map, "input_map")
 
     resolved_compute_type = resolve_compute_precision(io_precisions, compute_type)
 
@@ -490,18 +483,18 @@ def convolve(
     if output_map is None:
         io_precisions.append(resolved_output_type)
     else:
-        io_precisions.extend(_extract_map_buffer_precisions(output_map, "output_map"))
+        _validate_map_argument_annotations(output_map, "output_map")
 
     if input_map is None:
         if resolved_input_type is not None:
             io_precisions.append(resolved_input_type)
     else:
-        io_precisions.extend(_extract_map_buffer_precisions(input_map, "input_map"))
+        _validate_map_argument_annotations(input_map, "input_map")
 
     if kernel_map is None:
         io_precisions.append(resolved_kernel_type)
     else:
-        io_precisions.extend(_extract_map_buffer_precisions(kernel_map, "kernel_map"))
+        _validate_map_argument_annotations(kernel_map, "kernel_map")
 
     resolved_compute_type = resolve_compute_precision(io_precisions, compute_type)
 

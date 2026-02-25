@@ -20,7 +20,8 @@ def _require_runtime_context():
     except Exception as exc:
         pytest.skip(f"No runtime backend available for mixed-precision FFT tests: {exc}")
 
-    if vd.is_dummy():
+    is_dummy = getattr(vd, "is_dummy", None)
+    if callable(is_dummy) and is_dummy():
         pytest.skip("Dummy backend is codegen-only and cannot execute FFT kernels.")
 
     return context
@@ -118,6 +119,70 @@ def test_fft_map_complex32_input_to_complex128_output_auto_compute():
     reference = np.fft.fft(quantized).astype(np.complex128)
 
     assert np.allclose(result, reference, atol=3e-1, rtol=2e-2)
+
+
+def test_fft_input_output_maps_allow_float32_buffers():
+    _require_runtime_context()
+
+    rng = np.random.default_rng(23)
+    data = rng.standard_normal(64).astype(np.float32)
+
+    input_buffer = vd.asbuffer(data)
+    output_buffer = vd.Buffer(data.shape, vd.float32)
+
+    def input_map(buffer: vc.Buffer[vd.float32]):
+        read_op = vd.fft.read_op()
+        value = vc.to_dtype(read_op.register.var_type.child_type, buffer[read_op.io_index])
+        read_op.register.real = value
+        read_op.register.imag = vc.to_dtype(read_op.register.var_type.child_type, 0)
+
+    def output_map(buffer: vc.Buffer[vd.float32]):
+        write_op = vd.fft.write_op()
+        buffer[write_op.io_index] = vc.to_dtype(buffer.var_type, write_op.register.real)
+
+    vd.fft.fft(
+        output_buffer,
+        input_buffer,
+        input_map=vd.map(input_map),
+        output_map=vd.map(output_map),
+    )
+
+    result = output_buffer.read(0).astype(np.float32)
+    reference = np.fft.fft(data.astype(np.complex64)).real.astype(np.float32)
+
+    assert np.allclose(result, reference, atol=2e-3, rtol=1e-3)
+
+
+def test_convolve_kernel_map_allows_float32_buffer():
+    _require_runtime_context()
+
+    rng = np.random.default_rng(31)
+    data = (
+        rng.standard_normal(64) + 1j * rng.standard_normal(64)
+    ).astype(np.complex64)
+    scale = np.float32(0.5)
+
+    signal_buffer = vd.asbuffer(data.copy())
+    scale_buffer = vd.asbuffer(np.full(data.shape, scale, dtype=np.float32))
+
+    def kernel_map(scale_values: vc.Buffer[vd.float32]):
+        read_op = vd.fft.read_op()
+        scale_value = vc.to_dtype(
+            read_op.register.var_type,
+            vc.to_complex(scale_values[read_op.io_index]),
+        )
+        read_op.register[:] = vc.mult_complex(read_op.register, scale_value)
+
+    vd.fft.convolve(
+        signal_buffer,
+        scale_buffer,
+        kernel_map=vd.map(kernel_map),
+    )
+
+    result = signal_buffer.read(0).astype(np.complex64)
+    reference = (data * scale).astype(np.complex64)
+
+    assert np.allclose(result, reference, atol=2e-3, rtol=1e-3)
 
 
 def test_fft_complex64_io_with_complex128_compute():
