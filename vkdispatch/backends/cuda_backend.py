@@ -407,8 +407,9 @@ def _readonly_host_ptr(view: memoryview):
 
 
 class _DeviceAllocation:
-    def __init__(self, ptr: int):
+    def __init__(self, ptr: int, async_stream_handle: Optional[int] = None):
         self.ptr = int(ptr)
+        self.async_stream_handle = None if async_stream_handle is None else int(async_stream_handle)
         self.freed = False
 
     def __int__(self):
@@ -417,6 +418,29 @@ class _DeviceAllocation:
     def free(self):
         if self.freed:
             return
+        if self.async_stream_handle is not None:
+            try:
+                _drv_check(
+                    _drv_call(
+                        ["cuMemFreeAsync", "cuMemFreeAsync_ptsz"],
+                        _as_driver_handle("CUdeviceptr", self.ptr),
+                        _as_driver_handle("CUstream", self.async_stream_handle),
+                    ),
+                    "cuMemFreeAsync",
+                )
+                _drv_check(
+                    _drv_call(
+                        "cuStreamSynchronize",
+                        _as_driver_handle("CUstream", self.async_stream_handle),
+                    ),
+                    "cuStreamSynchronize",
+                )
+                self.freed = True
+                return
+            except Exception:
+                # Fall through to legacy free path for older driver bindings.
+                pass
+
         _drv_check(
             _drv_call(
                 ["cuMemFree", "cuMemFree_v2"],
@@ -881,6 +905,19 @@ class _CudaDevice:
             "cuMemAlloc",
         )
         return _DeviceAllocation(int(_to_int(ptr)))
+
+    @staticmethod
+    def mem_alloc_async(size: int, stream_obj):
+        stream_handle = 0 if stream_obj is None else int(stream_obj)
+        ptr = _drv_check(
+            _drv_call(
+                ["cuMemAllocAsync", "cuMemAllocAsync_ptsz"],
+                int(size),
+                _as_driver_handle("CUstream", stream_handle),
+            ),
+            "cuMemAllocAsync",
+        )
+        return _DeviceAllocation(int(_to_int(ptr)), async_stream_handle=stream_handle)
 
     @staticmethod
     def memcpy_htod_async(dst_ptr, src_obj, stream_obj):
@@ -1633,7 +1670,25 @@ def buffer_create(context, size, per_device):
 
     try:
         with _activate_context(ctx):
-            allocation = cuda.mem_alloc(size)
+            try:
+                allocation = cuda.mem_alloc(size)
+            except Exception as alloc_exc:
+                alloc_error_text = str(alloc_exc).upper()
+
+                is_stream_capture_error = (
+                    "STREAM_CAPTURE" in alloc_error_text
+                    or "STREAM IS CAPTURING" in alloc_error_text
+                )
+
+                if not is_stream_capture_error:
+                    raise
+
+                # cuMemAlloc cannot execute while another stream is being captured.
+                # Fall back to stream-ordered allocation on vkdispatch's queue stream
+                # so this work stays outside the capture stream.
+                alloc_stream = ctx.streams[0]
+                allocation = cuda.mem_alloc_async(size, alloc_stream)
+                alloc_stream.synchronize()
 
         signal_handles = [
             _new_handle(_signals, _Signal(context_handle=int(context), queue_index=i, done=True))

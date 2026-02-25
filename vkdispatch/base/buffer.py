@@ -2,6 +2,7 @@ from typing import Tuple
 from typing import List
 from typing import Union
 from typing import Optional
+from contextlib import nullcontext
 
 from .init import is_cuda
 from .dtype import dtype
@@ -21,6 +22,13 @@ import typing
 _ArgType = typing.TypeVar('_ArgType', bound=dtype)
 
 import dataclasses
+
+def _suspend_cuda_capture_if_needed():
+    if not is_cuda():
+        return nullcontext()
+
+    from ..execution_pipeline.cuda_graph_capture import suspend_cuda_capture
+    return suspend_cuda_capture()
 
 @dataclasses.dataclass
 class ExternalBufferInfo:
@@ -95,17 +103,18 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         self.cuda_source = None if external_buffer is None else (external_buffer.iface if external_buffer.keepalive else None)
         self.cuda_array_stream = None if external_buffer is None else external_buffer.iface.get("stream")
 
-        if external_buffer is not None:
-            handle = native.buffer_create_external(
-                self.context._handle,
-                self.mem_size,
-                self.cuda_ptr,
-            )
-        else:
-            handle = native.buffer_create(
-                self.context._handle, self.mem_size, 0
-            )
-        check_for_errors()
+        with _suspend_cuda_capture_if_needed():
+            if external_buffer is not None:
+                handle = native.buffer_create_external(
+                    self.context._handle,
+                    self.mem_size,
+                    self.cuda_ptr,
+                )
+            else:
+                handle = native.buffer_create(
+                    self.context._handle, self.mem_size, 0
+                )
+            check_for_errors()
 
         self.signals = [
             Signal(
@@ -141,31 +150,33 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         self.destroy()
 
     def _wait_staging_idle(self, index: int):
-        is_idle = native.buffer_wait_staging_idle(self._handle, index)
-        check_for_errors()
+        with _suspend_cuda_capture_if_needed():
+            is_idle = native.buffer_wait_staging_idle(self._handle, index)
+            check_for_errors()
         return is_idle
 
     def _do_writes(self, data: bytes, index: int = None):
         indicies = [index] if index is not None else range(self.context.queue_count)
         completed_stages = [0] * len(indicies)
 
-        while not all(stage == 1 for stage in completed_stages):
-            for i in range(len(indicies)):
-                if completed_stages[i] == 1:
-                    continue
+        with _suspend_cuda_capture_if_needed():
+            while not all(stage == 1 for stage in completed_stages):
+                for i in range(len(indicies)):
+                    if completed_stages[i] == 1:
+                        continue
 
-                queue_index = indicies[i]
+                    queue_index = indicies[i]
 
-                if not self.signals[queue_index].try_wait(True, queue_index):
-                    continue
+                    if not self.signals[queue_index].try_wait(True, queue_index):
+                        continue
 
-                completed_stages[i] = 1
+                    completed_stages[i] = 1
 
-                native.buffer_write_staging(self._handle, queue_index, data, len(data))
-                check_for_errors()
+                    native.buffer_write_staging(self._handle, queue_index, data, len(data))
+                    check_for_errors()
 
-                native.buffer_write(self._handle, 0, len(data), queue_index)
-                check_for_errors()
+                    native.buffer_write(self._handle, 0, len(data), queue_index)
+                    check_for_errors()
 
     def write(self, data: Union[bytes, bytearray, memoryview, typing.Any], index: int = None) -> None:
         """
@@ -202,6 +213,17 @@ class Buffer(Handle, typing.Generic[_ArgType]):
 
         self._do_writes(true_data_object, index)
 
+        # During torch CUDA graph capture, vkdispatch buffer writes are intentionally
+        # issued on backend queue streams (not the capture stream). Make this path
+        # synchronous so subsequent captured kernels observe completed writes.
+        if is_cuda():
+            from ..execution_pipeline.cuda_graph_capture import get_cuda_capture
+
+            if get_cuda_capture() is not None:
+                queue_indices = [index] if index is not None else range(self.context.queue_count)
+                for queue_index in queue_indices:
+                    self.signals[queue_index].wait(True, queue_index)
+
     def _do_reads(self, var_type: dtype, shape: List[int], index: int = None) -> bytes:
         assert index is None or (isinstance(index, int) and index >= 0), "Index must be None or a non-negative integer!"
 
@@ -211,29 +233,30 @@ class Buffer(Handle, typing.Generic[_ArgType]):
 
         mem_size = int(npc.prod(shape)) * var_type.item_size
 
-        while not all(stage == 2 for stage in completed_stages):
-            for i in range(len(indicies)):
-                if completed_stages[i] == 2:
-                    continue
-
-                queue_index = indicies[i]
-
-                if completed_stages[i] == 0:
-                    if self.signals[queue_index].try_wait(False, queue_index):
-                        completed_stages[i] = 1
-                        native.buffer_read(self._handle, 0, mem_size, queue_index)
-                        check_for_errors()
-                    else:
+        with _suspend_cuda_capture_if_needed():
+            while not all(stage == 2 for stage in completed_stages):
+                for i in range(len(indicies)):
+                    if completed_stages[i] == 2:
                         continue
 
-                if completed_stages[i] == 1:
-                    if self.signals[queue_index].try_wait(True, queue_index):
-                        completed_stages[i] = 2
-                    else:
-                        continue
+                    queue_index = indicies[i]
 
-                bytes_list[i] = native.buffer_read_staging(self._handle, queue_index, mem_size)
-                check_for_errors()
+                    if completed_stages[i] == 0:
+                        if self.signals[queue_index].try_wait(False, queue_index):
+                            completed_stages[i] = 1
+                            native.buffer_read(self._handle, 0, mem_size, queue_index)
+                            check_for_errors()
+                        else:
+                            continue
+
+                    if completed_stages[i] == 1:
+                        if self.signals[queue_index].try_wait(True, queue_index):
+                            completed_stages[i] = 2
+                        else:
+                            continue
+
+                    bytes_list[i] = native.buffer_read_staging(self._handle, queue_index, mem_size)
+                    check_for_errors()
         
         host_arrays = []
 

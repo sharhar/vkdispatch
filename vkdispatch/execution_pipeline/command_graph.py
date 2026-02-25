@@ -93,8 +93,63 @@ class CommandGraph(CommandList):
         self._reset_on_submit = reset_on_submit
         self.submit_on_record = submit_on_record
 
-        self.uniform_constants_size = 0
+        self.uniform_constants_size = 4096
         self.uniform_constants_buffer = vd.Buffer(shape=(4096,), var_type=vd.uint32) # Create a base static constants buffer at size 4k bytes
+
+    def _ensure_uniform_constants_capacity(self, uniform_word_size: int) -> None:
+        if uniform_word_size <= self.uniform_constants_size:
+            return
+
+        # Grow exponentially to reduce reallocation churn for larger UBO layouts.
+        self.uniform_constants_size = max(uniform_word_size, self.uniform_constants_size * 2)
+        self.uniform_constants_buffer = vd.Buffer(shape=(self.uniform_constants_size,), var_type=vd.uint32)
+
+    def _prepare_submission_state(self, instance_count: int) -> None:
+        if len(self.pc_builder.element_map) > 0 and (
+                self.pc_builder.instance_count != instance_count or not self.buffers_valid
+            ):
+
+            assert _runtime_supports_push_constants(), (
+                "Push constants not supported for backends without push-constant support "
+                "(CUDA/OpenCL). Use UBO-backed variables instead."
+            )
+
+            self.pc_builder.prepare(instance_count)
+
+            for key, value in self.pc_values.items():
+                self.pc_builder[key] = value
+
+        if len(self.uniform_builder.element_map) > 0 and not self.buffers_valid:
+            self.uniform_builder.prepare(1)
+
+            for key, value in self.uniform_values.items():
+                self.uniform_builder[key] = value
+
+            uniform_word_size = (self.uniform_builder.instance_bytes + 3) // 4
+            self._ensure_uniform_constants_capacity(uniform_word_size)
+
+            for descriptor_set, offset, size in self.uniform_descriptors:
+                descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, True, write_access=False)
+
+            self.uniform_constants_buffer.write(self.uniform_builder.tobytes())
+            # Uniform writes are scheduled on backend queue streams. Ensure they
+            # complete before a potentially capture-stream kernel launch.
+            for queue_index in range(self.uniform_constants_buffer.context.queue_count):
+                self.uniform_constants_buffer.signals[queue_index].wait(True, queue_index)
+
+        if not self.buffers_valid:
+            self.buffers_valid = True
+
+    def prepare_for_cuda_graph_capture(self, instance_count: int = None) -> None:
+        """Initialize internal data uploads before torch CUDA graph capture.
+
+        This method performs one-time uniform/push-constant staging without submitting
+        the command list, so only kernel launches are captured by ``torch.cuda.graph``.
+        """
+        if instance_count is None:
+            instance_count = 1
+
+        self._prepare_submission_state(instance_count)
 
     def reset(self) -> None:
         """Reset the command graph by clearing the push constant buffer and descriptor
@@ -265,46 +320,8 @@ class CommandGraph(CommandList):
 
         if instance_count is None:
             instance_count = 1
-        
-        if len(self.pc_builder.element_map) > 0 and (
-                self.pc_builder.instance_count != instance_count or not self.buffers_valid
-            ):
 
-            assert _runtime_supports_push_constants(), (
-                "Push constants not supported for backends without push-constant support "
-                "(CUDA/OpenCL). Use UBO-backed variables instead."
-            )
-
-            self.pc_builder.prepare(instance_count)
-
-            for key, value in self.pc_values.items():
-                self.pc_builder[key] = value
-
-        if len(self.uniform_builder.element_map) > 0 and not self.buffers_valid:
-
-            self.uniform_builder.prepare(1)
-
-            for key, value in self.uniform_values.items():
-                self.uniform_builder[key] = value
-
-            if vd.get_cuda_capture() is not None:
-                uniform_word_size = (self.uniform_builder.instance_bytes + 3) // 4
-                cuda_capture_uniform_buffer = vd.Buffer(shape=(uniform_word_size,), var_type=vd.uint32)
-
-                for descriptor_set, offset, size in self.uniform_descriptors:
-                    descriptor_set.bind_buffer(cuda_capture_uniform_buffer, 0, offset, size, True, write_access=False)
-
-                cuda_capture_uniform_buffer.write(self.uniform_builder.tobytes())
-
-                vd.get_cuda_capture().add_uniform_buffer(cuda_capture_uniform_buffer)
-            else:
-                for descriptor_set, offset, size in self.uniform_descriptors:
-                    descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, True, write_access=False)
-
-                self.uniform_constants_buffer.write(self.uniform_builder.tobytes())
-
-        if not self.buffers_valid:
-            self.buffers_valid = True
+        self._prepare_submission_state(instance_count)
 
         for key, val in self.queued_pc_values.items():
             self.pc_builder[key] = val

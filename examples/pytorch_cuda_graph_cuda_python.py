@@ -49,9 +49,15 @@ def main() -> None:
     custom_shader(out=out_vd, x=x_vd, bias=bias, graph=cmd_graph)
 
     torch.cuda.synchronize()
+    # Pre-stage internal uniform uploads outside torch capture so only dispatch is captured.
+    cmd_graph.prepare_for_cuda_graph_capture()
+
     graph = torch.cuda.CUDAGraph()
     with torch.cuda.graph(graph):
-        cmd_graph.submit(cuda_stream=torch.cuda.current_stream())
+        # torch.cuda.graph(...) may switch to an internal capture stream.
+        # Bind vkdispatch to the active stream from inside that context.
+        with vd.cuda_graph_capture(torch.cuda.current_stream()):
+            cmd_graph.submit()
 
     replay_inputs = [0.0, 1.0, 2.0, 3.0]
     for i, value in enumerate(replay_inputs, start=1):

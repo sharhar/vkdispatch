@@ -35,3 +35,17 @@ def cuda_graph_capture(cuda_stream=None):
         yield cap
     finally:
         _set_capture(None)
+
+@contextmanager
+def suspend_cuda_capture():
+    """Temporarily disable vkdispatch CUDA capture state for non-captured ops."""
+    cap = get_cuda_capture()
+    if cap is None:
+        yield
+        return
+
+    _set_capture(None)
+    try:
+        yield
+    finally:
+        _set_capture(cap)
