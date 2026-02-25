@@ -85,7 +85,7 @@ def end(indent: bool = True):
     utils.append_contents("}\n")
 
 def logical_and(arg1: ShaderVariable, arg2: ShaderVariable):
-    return utils.new_var(dtypes.int32, f"({arg1} && {arg2})", [arg1, arg2])
+    return utils.new_var(dtypes.int32, f"({proc_bool(arg1)} && {proc_bool(arg2)})", [arg1, arg2])
 
 def logical_or(arg1: ShaderVariable, arg2: ShaderVariable):
-    return utils.new_var(dtypes.int32, f"({arg1} || {arg2})", [arg1, arg2])
+    return utils.new_var(dtypes.int32, f"({proc_bool(arg1)} || {proc_bool(arg2)})", [arg1, arg2])
