@@ -18,6 +18,9 @@ from .buffer_builder import BufferBuilder
 
 import dataclasses
 
+def _runtime_supports_push_constants() -> bool:
+    return not (vd.is_cuda() or vd.is_opencl())
+
 @dataclasses.dataclass
 class BufferBindInfo:
     """A dataclass to hold information about a buffer binding."""
@@ -119,10 +122,10 @@ class CommandGraph(CommandList):
         super()._destroy()
     
     def bind_var(self, name: str):
-        if vd.is_cuda():
+        if not _runtime_supports_push_constants():
             raise RuntimeError(
-                "CommandGraph.bind_var() is disabled for CUDA backend. "
-                "Pass Variable values directly at shader invocation."
+                "CommandGraph.bind_var() is disabled for backends without push-constant "
+                "support (CUDA/OpenCL). Pass Variable values directly at shader invocation."
             )
 
         def register_var(key: Tuple[str, str]):
@@ -134,10 +137,10 @@ class CommandGraph(CommandList):
         return register_var
     
     def set_var(self, name: str, value: Any):
-        if vd.is_cuda():
+        if not _runtime_supports_push_constants():
             raise RuntimeError(
-                "CommandGraph.set_var() is disabled for CUDA backend. "
-                "Pass Variable values directly at shader invocation."
+                "CommandGraph.set_var() is disabled for backends without push-constant "
+                "support (CUDA/OpenCL). Pass Variable values directly at shader invocation."
             )
 
         if name not in self.name_to_pc_key_dict.keys():
@@ -181,17 +184,18 @@ class CommandGraph(CommandList):
         if shader_uuid is None:
             shader_uuid = shader_description.name + "_" + str(uuid.uuid4())
 
-        if vd.is_cuda() and len(pc_values) > 0:
+        if (not _runtime_supports_push_constants()) and len(pc_values) > 0:
             raise RuntimeError(
-                "Push-constant Variable payloads are disabled for CUDA backends. "
+                "Push-constant Variable payloads are disabled for backends without "
+                "push-constant support (CUDA/OpenCL). "
                 "Variable values must be UBO-backed and provided at shader invocation."
             )
 
         if len(shader_description.pc_structure) != 0:
-            if vd.is_cuda():
+            if not _runtime_supports_push_constants():
                 raise RuntimeError(
-                    "CUDA kernels should not emit push-constant layouts. "
-                    "Use UBO-backed variables for CUDA backends."
+                    "Kernels should not emit push-constant layouts for backends without "
+                    "push-constant support (CUDA/OpenCL). Use UBO-backed variables."
                 )
             self.pc_builder.register_struct(shader_uuid, shader_description.pc_structure)
 
@@ -266,7 +270,10 @@ class CommandGraph(CommandList):
                 self.pc_builder.instance_count != instance_count or not self.buffers_valid
             ):
 
-            assert not vd.is_cuda(), "Push constants not supported for CUDA backends. Use UBO-backed variables instead."
+            assert _runtime_supports_push_constants(), (
+                "Push constants not supported for backends without push-constant support "
+                "(CUDA/OpenCL). Use UBO-backed variables instead."
+            )
 
             self.pc_builder.prepare(instance_count)
 

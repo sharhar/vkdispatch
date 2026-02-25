@@ -8,9 +8,10 @@ import os
 
 BACKEND_VULKAN = "vulkan"
 BACKEND_CUDA = "cuda"
+BACKEND_OPENCL = "opencl"
 BACKEND_DUMMY = "dummy"
 
-_VALID_BACKENDS = {BACKEND_VULKAN, BACKEND_CUDA, BACKEND_DUMMY}
+_VALID_BACKENDS = {BACKEND_VULKAN, BACKEND_CUDA, BACKEND_OPENCL, BACKEND_DUMMY}
 _active_backend_name: Optional[str] = None
 _backend_modules: Dict[str, ModuleType] = {}
 
@@ -81,6 +82,8 @@ def _load_backend_module(backend_name: str) -> ModuleType:
             module = importlib.import_module("vkdispatch_vulkan_native")
         elif backend_name == BACKEND_CUDA:
             module = importlib.import_module("vkdispatch.backends.cuda_backend")
+        elif backend_name == BACKEND_OPENCL:
+            module = importlib.import_module("vkdispatch.backends.opencl_backend")
         elif backend_name == BACKEND_DUMMY:
             module = importlib.import_module("vkdispatch.backends.dummy_backend")
         else:
@@ -98,6 +101,13 @@ def _load_backend_module(backend_name: str) -> ModuleType:
                 backend_name,
                 "CUDA Python backend is unavailable because the "
                 "'vkdispatch.backends.cuda_backend' module could not be imported "
+                f"({exc}).",
+            ) from exc
+        if backend_name == BACKEND_OPENCL:
+            raise BackendUnavailableError(
+                backend_name,
+                "OpenCL backend is unavailable because the "
+                "'vkdispatch.backends.opencl_backend' module could not be imported "
                 f"({exc}).",
             ) from exc
         raise

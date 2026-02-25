@@ -267,21 +267,27 @@ class ShaderFunction:
 
         if vd.is_dummy():
             pass
-        elif shader_backend_name == "opencl":
-            raise RuntimeError(
-                "OpenCL codegen output is currently dummy-only. "
-                "Call vd.initialize(backend='dummy') for source inspection."
-            )
         elif vd.is_cuda() and shader_backend_name != "cuda":
             raise RuntimeError(
                 "The selected CUDA runtime backend requires CUDA codegen output. "
                 "Call vd.initialize(backend='cuda') "
                 "before building shaders."
             )
+        elif vd.is_opencl() and shader_backend_name != "opencl":
+            raise RuntimeError(
+                "The selected OpenCL runtime backend requires OpenCL codegen output. "
+                "Call vd.initialize(backend='opencl') "
+                "before building shaders."
+            )
         elif vd.is_vulkan() and shader_backend_name == "cuda":
             raise RuntimeError(
                 "Vulkan runtime backend cannot execute CUDA codegen output. "
                 "Use GLSL codegen or initialize with backend='cuda'."
+            )
+        elif vd.is_vulkan() and shader_backend_name == "opencl":
+            raise RuntimeError(
+                "Vulkan runtime backend cannot execute OpenCL codegen output. "
+                "Use GLSL codegen or initialize with backend='opencl'."
             )
 
         self.source = self.shader_description.make_source(
@@ -404,10 +410,11 @@ class ShaderFunction:
                     uniform_values[shader_arg.shader_name[field.name]] = getattr(arg, field.name)
 
             elif shader_arg.arg_type == ShaderArgumentType.VARIABLE:
-                if vd.is_cuda():
+                if vd.is_cuda() or vd.is_opencl():
                     if callable(arg):
                         raise RuntimeError(
-                            "CommandGraph.bind_var()/set_var() are disabled for CUDA backends. "
+                            "CommandGraph.bind_var()/set_var() are disabled for backends "
+                            "without push-constant support (CUDA/OpenCL). "
                             "Pass Variable values directly at shader invocation."
                         )
                     uniform_values[shader_arg.shader_name] = arg

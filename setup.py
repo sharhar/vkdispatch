@@ -75,6 +75,7 @@ COMMON_PROJECT_URLS = {
 
 COMMON_EXTRAS = {
     "cuda": ["cuda-python"],
+    "opencl": ["pyopencl", "numpy"],
     "pycuda": ["pycuda"],
     "numpy": ["numpy"],
 }

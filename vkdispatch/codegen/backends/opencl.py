@@ -95,6 +95,12 @@ class OpenCLBackend(CodeGenBackend):
         )
 
     def make_source(self, header: str, body: str, x: int, y: int, z: int) -> str:
+        expected_size_header = (
+            f"// Expected local size: ({x}, {y}, {z})\n"
+            f"#define VKDISPATCH_EXPECTED_LOCAL_SIZE_X {x}\n"
+            f"#define VKDISPATCH_EXPECTED_LOCAL_SIZE_Y {y}\n"
+            f"#define VKDISPATCH_EXPECTED_LOCAL_SIZE_Z {z}\n"
+        )
         workgroup_attribute = f"__attribute__((reqd_work_group_size({x}, {y}, {z})))"
         if "__kernel void vkdispatch_main" in body:
             body = body.replace(
@@ -105,7 +111,7 @@ class OpenCLBackend(CodeGenBackend):
         else:
             body = f"{workgroup_attribute}\n{body}"
 
-        return f"{header}\n{body}"
+        return f"{expected_size_header}\n{header}\n{body}"
 
     def constant_namespace(self) -> str:
         return "UBO"

@@ -17,6 +17,15 @@ import enum
 from .variables.variables import BaseVariable, ShaderVariable, ScaledAndOfftsetIntVariable
 from .variables.bound_variables import BufferVariable, ImageVariable
 
+_PUSH_CONSTANT_UNSUPPORTED_BACKENDS = {"cuda", "opencl"}
+
+
+def _push_constant_not_supported_error(backend_name: str) -> str:
+    return (
+        f"Push Constants are not supported for the {backend_name.upper()} backend. "
+        "Use Const instead."
+    )
+
 @dataclasses.dataclass
 class SharedBuffer:
     """
@@ -207,10 +216,8 @@ class ShaderBuilder(ShaderWriter):
         return new_var
 
     def declare_variable(self, var_type: dtypes.dtype, count: int = 1, var_name: Optional[str] = None):
-        if self.backend.name == "cuda":
-            raise NotImplementedError("Push Constants are not supported for the CUDA backend")
-        if self.backend.name == "opencl":
-            raise NotImplementedError("push constants unsupported for OpenCL backend")
+        if self.backend.name in _PUSH_CONSTANT_UNSUPPORTED_BACKENDS:
+            raise NotImplementedError(_push_constant_not_supported_error(self.backend.name))
 
         if var_name is None:
             var_name = self.new_name()
@@ -368,10 +375,8 @@ class ShaderBuilder(ShaderWriter):
         pc_decleration_contents = self.compose_struct_decleration(pc_elements)
         
         if len(pc_decleration_contents) > 0:
-            assert self.backend.name not in ("cuda", "opencl"), (
-                "push constants unsupported for OpenCL backend"
-                if self.backend.name == "opencl"
-                else "Push Constants are not supported for the CUDA backend"
+            assert self.backend.name not in _PUSH_CONSTANT_UNSUPPORTED_BACKENDS, (
+                _push_constant_not_supported_error(self.backend.name)
             )
             header += self.backend.push_constant_declaration(pc_decleration_contents)
 

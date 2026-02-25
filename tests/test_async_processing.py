@@ -302,7 +302,7 @@ def do_numpy_command(out_buffer: int, in_buffer: int, program: int, config: RunC
     output_array[:total_exec_size] = temp_array
 
 def test_async_commands():
-    if vd.is_cuda():
+    if not vd.is_vulkan():
         return
 
     for _ in range(50):

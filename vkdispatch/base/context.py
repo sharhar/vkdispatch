@@ -10,7 +10,7 @@ import weakref
 import os, signal
 
 from .errors import check_for_errors, set_running
-from .init import DeviceInfo, is_cuda, is_dummy, get_devices, initialize, log_info
+from .init import DeviceInfo, is_cuda, is_opencl, is_dummy, get_devices, initialize, log_info
 from .backend import native
 
 
@@ -375,15 +375,16 @@ def make_context(
                     select_queue_families(dev_index, queue_family_count)
                 )
 
-        if is_cuda():
+        if is_cuda() or is_opencl():
+            backend_name = "CUDA" if is_cuda() else "OpenCL"
             if len(device_ids) != 1:
                 raise NotImplementedError(
-                    "The CUDA backend currently supports exactly one device."
+                    f"The {backend_name} backend currently supports exactly one device."
                 )
 
             if len(queue_families) != 1 or len(queue_families[0]) != 1:
                 raise NotImplementedError(
-                    "The CUDA backend currently supports exactly one queue."
+                    f"The {backend_name} backend currently supports exactly one queue."
                 )
 
         total_devices = len(get_devices())

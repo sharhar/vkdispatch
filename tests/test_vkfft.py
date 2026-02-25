@@ -20,7 +20,7 @@ def check_fft_dims(fft_dims: List[int], max_fft_size: int):
     return all([dim <= max_fft_size for dim in fft_dims]) and np.prod(fft_dims) * vd.complex64.item_size < 2 ** 20
 
 def test_fft_1d():
-    if vd.is_cuda():
+    if not vd.is_vulkan():
         return
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
@@ -46,7 +46,7 @@ def test_fft_1d():
     vd.vkfft.clear_plan_cache()
 
 def test_fft_2d():
-    if vd.is_cuda():
+    if not vd.is_vulkan():
         return
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
@@ -71,7 +71,7 @@ def test_fft_2d():
     vd.vkfft.clear_plan_cache()
 
 def test_fft_3d():
-    if vd.is_cuda():
+    if not vd.is_vulkan():
         return
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
@@ -96,7 +96,7 @@ def test_fft_3d():
     vd.vkfft.clear_plan_cache()
 
 def test_ifft_1d():
-    if vd.is_cuda():
+    if not vd.is_vulkan():
         return
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
@@ -122,7 +122,7 @@ def test_ifft_1d():
     vd.vkfft.clear_plan_cache()
 
 def test_ifft_2d():
-    if vd.is_cuda():
+    if not vd.is_vulkan():
         return
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
@@ -147,7 +147,7 @@ def test_ifft_2d():
     vd.vkfft.clear_plan_cache()
 
 def test_ifft_3d():
-    if vd.is_cuda():
+    if not vd.is_vulkan():
         return
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
@@ -172,7 +172,7 @@ def test_ifft_3d():
     vd.vkfft.clear_plan_cache()
 
 def test_rfft_1d():
-    if vd.is_cuda():
+    if not vd.is_vulkan():
         return
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
@@ -197,7 +197,7 @@ def test_rfft_1d():
     vd.vkfft.clear_plan_cache()
 
 def test_rfft_2d():
-    if vd.is_cuda():
+    if not vd.is_vulkan():
         return
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
@@ -222,7 +222,7 @@ def test_rfft_2d():
     vd.vkfft.clear_plan_cache()
 
 def test_rfft_3d():
-    if vd.is_cuda():
+    if not vd.is_vulkan():
         return
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
@@ -247,7 +247,7 @@ def test_rfft_3d():
     vd.vkfft.clear_plan_cache()
 
 def test_irfft_1d():
-    if vd.is_cuda():
+    if not vd.is_vulkan():
         return
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
@@ -272,7 +272,7 @@ def test_irfft_1d():
     vd.vkfft.clear_plan_cache()
 
 def test_irfft_2d():
-    if vd.is_cuda():
+    if not vd.is_vulkan():
         return
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
@@ -297,7 +297,7 @@ def test_irfft_2d():
     vd.vkfft.clear_plan_cache()
 
 def test_irfft_3d():
-    if vd.is_cuda():
+    if not vd.is_vulkan():
         return
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 

@@ -19,6 +19,16 @@ import inspect
 
 import enum
 
+_PUSH_CONSTANT_UNSUPPORTED_BACKENDS = {"cuda", "opencl"}
+
+
+def _push_constant_not_supported_error(backend_name: str) -> str:
+    return (
+        f"Push Constants are not supported for the {backend_name.upper()} backend. "
+        "Use Const instead."
+    )
+
+
 class ShaderArgumentType(enum.Enum):
     BUFFER = 0
     IMAGE = 1
@@ -139,10 +149,8 @@ class ShaderSignature:
                 value_name = shader_param.raw_name
                 arg_type = ShaderArgumentType.CONSTANT
             elif(issubclass(annotations[i].__origin__, vc.Variable)):
-                if builder.backend.name == "cuda":
-                    raise NotImplementedError("Push Constants are not supported for the CUDA backend. Use Const instead.")
-                if builder.backend.name == "opencl":
-                    raise NotImplementedError("push constants unsupported for OpenCL backend")
+                if builder.backend.name in _PUSH_CONSTANT_UNSUPPORTED_BACKENDS:
+                    raise NotImplementedError(_push_constant_not_supported_error(builder.backend.name))
 
                 shader_param = builder.declare_variable(annotations[i].__args__[0])
                 arg_type = ShaderArgumentType.VARIABLE

@@ -2,7 +2,7 @@ import threading
 import vkdispatch.base.dtype as dtypes
 from .shader_writer import set_shader_writer
 from .backends import CodeGenBackend, GLSLBackend, CUDABackend, OpenCLBackend
-from vkdispatch.base.init import is_cuda
+from vkdispatch.base.init import is_cuda, is_opencl
 from typing import Optional, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
@@ -15,6 +15,9 @@ _codegen_backend = threading.local()
 def _make_runtime_default_codegen_backend() -> CodeGenBackend:
     if is_cuda():
         return CUDABackend()
+
+    if is_opencl():
+        return OpenCLBackend()
 
     return GLSLBackend()
 

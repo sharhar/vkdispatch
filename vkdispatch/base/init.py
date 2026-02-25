@@ -8,6 +8,7 @@ import inspect
 from .errors import check_for_errors
 from .backend import (
     BACKEND_CUDA,
+    BACKEND_OPENCL,
     BACKEND_VULKAN,
     BACKEND_DUMMY,
     BackendUnavailableError,
@@ -266,7 +267,19 @@ class DeviceInfo:
 
         result = f"Device {self.sorted_index}: {self.device_name}\n"
 
-        result += f"\tVulkan Version: {self.version_major}.{self.version_minor}.{self.version_patch}\n"
+        backend_type = "Vulkan"
+        version_number = f"{self.version_major}.{self.version_minor}.{self.version_patch}"
+
+        if is_cuda():
+            backend_type = "CUDA Compute Capability"
+            version_number = f"{self.version_major}.{self.version_minor}"
+        elif is_opencl():
+            backend_type = "OpenCL"
+            version_number = f"{self.version_major}.{self.version_minor}"
+        elif is_dummy():
+            backend_type = "Dummy"
+
+        result += f"\t{backend_type} Version: {version_number}\n"
         result += f"\tDevice Type: {device_type_id_to_str_dict[self.device_type]}\n"
 
         if self.version_variant != 0:
@@ -416,14 +429,17 @@ def _set_initialized_state(backend_name: str, devices: List[DeviceInfo]) -> None
 
 def _build_no_gpu_backend_error(
     vulkan_error: Exception,
-    cuda_python_error: Exception
+    cuda_python_error: Exception,
+    opencl_error: Exception,
 ) -> RuntimeError:
     return RuntimeError(
         "vkdispatch could not find an available GPU backend.\n"
         f"Vulkan backend unavailable: {vulkan_error}\n"
         f"CUDA Python backend unavailable: {cuda_python_error}\n"
+        f"OpenCL backend unavailable: {opencl_error}\n"
         "Install the Vulkan backend with `pip install vkdispatch`, or install CUDA support "
-        "(`pip install cuda-python`), or explicitly use `vd.initialize(backend='dummy')` "
+        "(`pip install cuda-python`), or install OpenCL support (`pip install pyopencl`), "
+        "or explicitly use `vd.initialize(backend='dummy')` "
         "for codegen-only workflows."
     )
 
@@ -433,7 +449,8 @@ def _build_vulkan_backend_error(vulkan_error: Exception) -> RuntimeError:
         "vkdispatch could not load the Vulkan backend.\n"
         f"Vulkan backend unavailable: {vulkan_error}\n"
         "Install the Vulkan backend with `pip install vkdispatch`, use a CUDA backend "
-        "(`pip install cuda-python`), or explicitly use `vd.initialize(backend='dummy')` "
+        "(`pip install cuda-python`), use an OpenCL backend (`pip install pyopencl`), "
+        "or explicitly use `vd.initialize(backend='dummy')` "
         "for codegen-only workflows."
     )
 
@@ -517,7 +534,7 @@ def initialize(
             LogLevel.ERROR
         loader_debug_logs (bool): A flag to enable vulkan loader debug logs.
         backend (`Optional[str]`): Runtime backend to use. Supported values are
-            "vulkan", "pycuda", "cuda-python", and "dummy". If omitted, the currently selected backend is
+            "vulkan", "cuda", "opencl", and "dummy". If omitted, the currently selected backend is
             reused. If no backend was selected yet, `VKDISPATCH_BACKEND` is used
             when set, otherwise "vulkan" is used.
     """
@@ -557,10 +574,20 @@ def initialize(
                 )
                 return
             except Exception as cuda_python_error:
-                raise _build_no_gpu_backend_error(
+                try:
+                    _initialize_with_backend(
+                        BACKEND_OPENCL,
+                        debug_mode=debug_mode,
+                        log_level=log_level,
+                        loader_debug_logs=loader_debug_logs,
+                    )
+                    return
+                except Exception as opencl_error:
+                    raise _build_no_gpu_backend_error(
                         vulkan_error,
-                        cuda_python_error
-                    ) from cuda_python_error
+                        cuda_python_error,
+                        opencl_error,
+                    ) from opencl_error
 
     try:
         _initialize_with_backend(
@@ -615,6 +642,16 @@ def is_cuda() -> bool:
     """
 
     return get_backend() == BACKEND_CUDA
+
+def is_opencl() -> bool:
+    """
+    A function which checks if the active backend is the OpenCL backend.
+
+    Returns:
+        `bool`: A flag indicating whether the active backend is the OpenCL backend.
+    """
+
+    return get_backend() == BACKEND_OPENCL
 
 def is_dummy() -> bool:
     """
