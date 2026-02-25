@@ -2,10 +2,10 @@ import vkdispatch.base.dtype as dtypes
 from  vkdispatch.codegen.variables.base_variable import BaseVariable
 from typing import Any
 
-from ...._compat import numpy_compat as npc
+from .. import scalar_eval as se
 
 def my_log2_int(x: int) -> int:
-    return int(npc.round(npc.log2(x)))
+    return int(se.round(se.log2(x)))
 
 
 from . import base_utils

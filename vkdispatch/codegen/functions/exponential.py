@@ -3,7 +3,7 @@ from ..variables.variables import ShaderVariable
 from typing import Any, Union
 
 from . import utils
-from ..._compat import numpy_compat as npc
+from . import scalar_eval as se
 
 def _unary_math_var(func_name: str, var: ShaderVariable) -> ShaderVariable:
     result_type = utils.dtype_to_floating(var.var_type)
@@ -16,7 +16,7 @@ def _unary_math_var(func_name: str, var: ShaderVariable) -> ShaderVariable:
 
 def pow(x: Any, y: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(y) and utils.is_number(x):
-        return npc.power(x, y)
+        return se.power(x, y)
     
     if utils.is_number(x) and isinstance(y, ShaderVariable):
         result_type = utils.dtype_to_floating(y.var_type)
@@ -65,42 +65,42 @@ def pow(x: Any, y: Any) -> Union[ShaderVariable, float]:
 
 def exp(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.exp(var)
+        return se.exp(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     return _unary_math_var("exp", var)
 
 def exp2(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.exp2(var)
+        return se.exp2(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     return _unary_math_var("exp2", var)
 
 def log(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.log(var)
+        return se.log(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     return _unary_math_var("log", var)
 
 def log2(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.log2(var)
+        return se.log2(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     return _unary_math_var("log2", var)
 
 def sqrt(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.sqrt(var)
+        return se.sqrt(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     return _unary_math_var("sqrt", var)
 
 def inversesqrt(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(1.0 / npc.sqrt(var))
+        return float(1.0 / se.sqrt(var))
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     utils.mark_backend_feature("inversesqrt")

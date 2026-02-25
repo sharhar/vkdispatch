@@ -3,11 +3,11 @@ from ..variables.variables import ShaderVariable
 from typing import Any, Union
 
 from . import utils
-from ..._compat import numpy_compat as npc
+from . import scalar_eval as se
 
 def length(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.abs_value(var)
+        return se.abs_value(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -20,7 +20,7 @@ def length(var: Any) -> Union[ShaderVariable, float]:
 
 def distance(x: Any, y: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(y) and utils.is_number(x):
-        return npc.abs_value(y - x)
+        return se.abs_value(y - x)
     
     base_var = None
 
@@ -40,7 +40,7 @@ def distance(x: Any, y: Any) -> Union[ShaderVariable, float]:
 
 def dot(x: Any, y: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(y) and utils.is_number(x):
-        return npc.dot(x, y)
+        return se.dot(x, y)
     
     base_var = None
 

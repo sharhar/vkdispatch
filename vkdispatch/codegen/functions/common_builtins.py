@@ -3,7 +3,7 @@ from ..variables.variables import ShaderVariable
 from typing import Any, Union, Tuple
 
 from . import utils
-from ..._compat import numpy_compat as npc
+from . import scalar_eval as se
 
 def comment(comment: str, preceding_new_line: bool = True) -> None:
     comment_text = str(comment).replace("\r\n", "\n").replace("\r", "\n")
@@ -45,7 +45,7 @@ def abs(var: Any) -> Union[ShaderVariable, float]:
 
 def sign(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.sign(var)
+        return se.sign(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -58,7 +58,7 @@ def sign(var: Any) -> Union[ShaderVariable, float]:
 
 def floor(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.floor(var)
+        return se.floor(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -71,7 +71,7 @@ def floor(var: Any) -> Union[ShaderVariable, float]:
 
 def ceil(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.ceil(var)
+        return se.ceil(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -84,7 +84,7 @@ def ceil(var: Any) -> Union[ShaderVariable, float]:
 
 def trunc(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.trunc(var)
+        return se.trunc(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -97,7 +97,7 @@ def trunc(var: Any) -> Union[ShaderVariable, float]:
 
 def round(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.round(var)
+        return se.round(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -110,7 +110,7 @@ def round(var: Any) -> Union[ShaderVariable, float]:
 
 def round_even(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.round(var)
+        return se.round(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     utils.mark_backend_feature("roundEven")
@@ -124,7 +124,7 @@ def round_even(var: Any) -> Union[ShaderVariable, float]:
 
 def fract(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return float(var - npc.floor(var))
+        return float(var - se.floor(var))
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     utils.mark_backend_feature("fract")
@@ -138,7 +138,7 @@ def fract(var: Any) -> Union[ShaderVariable, float]:
 
 def mod(x: Any, y: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(y) and utils.is_number(x):
-        return npc.mod(x, y)
+        return se.mod(x, y)
     
     base_var = None
 
@@ -160,7 +160,7 @@ def mod(x: Any, y: Any) -> Union[ShaderVariable, float]:
 
 def modf(x: Any, y: Any) -> Tuple[ShaderVariable, ShaderVariable]:
     if utils.is_number(y) and utils.is_number(x):
-        a, b = npc.modf(x, y)
+        a, b = se.modf(x, y)
         return float(a), float(b)
     
     if utils.is_number(x) and isinstance(y, ShaderVariable):
@@ -192,7 +192,7 @@ def modf(x: Any, y: Any) -> Tuple[ShaderVariable, ShaderVariable]:
 
 def min(x: Any, y: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(y) and utils.is_number(x):
-        return npc.minimum(x, y)
+        return se.minimum(x, y)
     
     base_var = None
 
@@ -212,7 +212,7 @@ def min(x: Any, y: Any) -> Union[ShaderVariable, float]:
 
 def max(x: Any, y: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(y) and utils.is_number(x):
-        return npc.maximum(x, y)
+        return se.maximum(x, y)
     
     base_var = None
 
@@ -232,7 +232,7 @@ def max(x: Any, y: Any) -> Union[ShaderVariable, float]:
 
 def clip(x: Any, min_val: Any, max_val: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(x) and utils.is_number(min_val) and utils.is_number(max_val):
-        return npc.clip(x, min_val, max_val)
+        return se.clip(x, min_val, max_val)
     
     base_var = None
 
@@ -257,7 +257,7 @@ def clamp(x: Any, min_val: Any, max_val: Any) -> Union[ShaderVariable, float]:
 
 def mix(x: Any, y: Any, a: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(y) and utils.is_number(x) and utils.is_number(a):
-        return npc.interp(a, [0, 1], [x, y])
+        return se.interp(a, [0, 1], [x, y])
     
     base_var = None
 
@@ -303,7 +303,7 @@ def step(edge: Any, x: Any) -> Union[ShaderVariable, float]:
     
 def smoothstep(edge0: Any, edge1: Any, x: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(edge0) and utils.is_number(edge1) and utils.is_number(x):
-        t = npc.clip((x - edge0) / (edge1 - edge0), 0.0, 1.0)
+        t = se.clip((x - edge0) / (edge1 - edge0), 0.0, 1.0)
         return float(t * t * (3.0 - 2.0 * t))
     
     base_var = None
@@ -328,7 +328,7 @@ def smoothstep(edge0: Any, edge1: Any, x: Any) -> Union[ShaderVariable, float]:
 
 def isnan(var: Any) -> Union[ShaderVariable, bool]:
     if utils.is_number(var):
-        return npc.isnan(var)
+        return se.isnan(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -341,7 +341,7 @@ def isnan(var: Any) -> Union[ShaderVariable, bool]:
 
 def isinf(var: Any) -> Union[ShaderVariable, bool]:
     if utils.is_number(var):
-        return npc.isinf(var)
+        return se.isinf(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -354,7 +354,7 @@ def isinf(var: Any) -> Union[ShaderVariable, bool]:
 
 def float_bits_to_int(var: Any) -> Union[ShaderVariable, int]:
     if utils.is_number(var):
-        return npc.float_bits_to_int(var)
+        return se.float_bits_to_int(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -367,7 +367,7 @@ def float_bits_to_int(var: Any) -> Union[ShaderVariable, int]:
 
 def float_bits_to_uint(var: Any) -> Union[ShaderVariable, int]:
     if utils.is_number(var):
-        return npc.float_bits_to_uint(var)
+        return se.float_bits_to_uint(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -380,7 +380,7 @@ def float_bits_to_uint(var: Any) -> Union[ShaderVariable, int]:
 
 def int_bits_to_float(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.int_bits_to_float(var)
+        return se.int_bits_to_float(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 
@@ -393,7 +393,7 @@ def int_bits_to_float(var: Any) -> Union[ShaderVariable, float]:
 
 def uint_bits_to_float(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.uint_bits_to_float(var)
+        return se.uint_bits_to_float(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
 

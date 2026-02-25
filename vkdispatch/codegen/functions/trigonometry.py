@@ -3,7 +3,7 @@ from ..variables.variables import ShaderVariable
 from typing import Any, List, Union
 
 from . import utils
-from ..._compat import numpy_compat as npc
+from . import scalar_eval as se
 
 def dtype_to_floating(var_type: dtypes.dtype) -> dtypes.dtype:
     return dtypes.make_floating_dtype(var_type)
@@ -122,49 +122,49 @@ def degrees(var: Any) -> Union[ShaderVariable, float]:
 
 def sin(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.sin(var)
+        return se.sin(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     return _unary_math_var("sin", var)
 
 def cos(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.cos(var)
+        return se.cos(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     return _unary_math_var("cos", var)
 
 def tan(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.tan(var)
+        return se.tan(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     return _unary_math_var("tan", var)
 
 def asin(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.arcsin(var)
+        return se.arcsin(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     return _unary_math_var("asin", var)
 
 def acos(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.arccos(var)
+        return se.arccos(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     return _unary_math_var("acos", var)
 
 def atan(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.arctan(var)
+        return se.arctan(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     return _unary_math_var("atan", var)
 
 def atan2(y: Any, x: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(y) and utils.is_number(x):
-        return npc.arctan2(y, x)
+        return se.arctan2(y, x)
     
     if utils.is_number(x) and isinstance(y, ShaderVariable):
         result_type = dtype_to_floating(y.var_type)
@@ -209,42 +209,42 @@ def atan2(y: Any, x: Any) -> Union[ShaderVariable, float]:
 
 def sinh(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.sinh(var)
+        return se.sinh(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     return _unary_math_var("sinh", var)
 
 def cosh(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.cosh(var)
+        return se.cosh(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     return _unary_math_var("cosh", var)
 
 def tanh(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.tanh(var)
+        return se.tanh(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     return _unary_math_var("tanh", var)
 
 def asinh(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.arcsinh(var)
+        return se.arcsinh(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     return _unary_math_var("asinh", var)
 
 def acosh(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.arccosh(var)
+        return se.arccosh(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     return _unary_math_var("acosh", var)
 
 def atanh(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
-        return npc.arctanh(var)
+        return se.arctanh(var)
 
     assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
     return _unary_math_var("atanh", var)
