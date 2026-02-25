@@ -37,7 +37,6 @@ from .base.buffer_allocators import buffer_i16, buffer_ihv2, buffer_ihv3, buffer
 from .base.buffer_allocators import buffer_f16, buffer_hv2, buffer_hv3, buffer_hv4
 from .base.buffer_allocators import buffer_f64, buffer_dv2, buffer_dv3, buffer_dv4
 
-
 from .base.image import image_format
 from .base.image import image_type
 from .base.image import image_view_type
@@ -53,6 +52,7 @@ from .base.image import BorderColor
 
 from .execution_pipeline.command_graph import CommandGraph, BufferBindInfo, ImageBindInfo
 from .execution_pipeline.command_graph import global_graph, set_global_graph, default_graph
+from .execution_pipeline.cuda_graph_capture import cuda_graph_capture, get_cuda_capture, CUDAGraphCapture
 
 from .shader.shader_function import ShaderFunction, ShaderSource
 from .shader.context import ShaderContext, shader_context

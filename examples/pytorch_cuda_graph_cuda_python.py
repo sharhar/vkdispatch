@@ -48,12 +48,10 @@ def main() -> None:
     # For backend="cuda-python", Const/Var payloads are fixed at record time.
     custom_shader(out=out_vd, x=x_vd, bias=bias, graph=cmd_graph)
 
-    #capture = cmd_graph.prepare_cuda_capture(instance_count=1)
-
     torch.cuda.synchronize()
     graph = torch.cuda.CUDAGraph()
     with torch.cuda.graph(graph):
-        cmd_graph.submit(cuda_stream=torch.cuda.current_stream()) #, capture=capture)
+        cmd_graph.submit(cuda_stream=torch.cuda.current_stream())
 
     replay_inputs = [0.0, 1.0, 2.0, 3.0]
     for i, value in enumerate(replay_inputs, start=1):

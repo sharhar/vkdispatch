@@ -7,6 +7,8 @@ from .init import is_cuda
 from .context import Handle
 from .errors import check_for_errors
 
+from ..execution_pipeline.cuda_graph_capture import get_cuda_capture
+
 from .compute_plan import ComputePlan
 from .descriptor_set import DescriptorSet
 
@@ -82,8 +84,7 @@ class CommandList(Handle):
         data: Optional[bytes] = None,
         queue_index: int = -2,
         instance_count: Optional[int] = None,
-        *,
-        cuda_stream=None,
+        cuda_stream=None
     ) -> None:
         """
         Submits the recorded command list to the GPU queue for execution.
@@ -113,6 +114,9 @@ class CommandList(Handle):
         
         if self.get_instance_size() != 0:
             assert self.get_instance_size() * instance_count == len(data), "Data length must be the product of the instance size and instance count!"
+
+        if cuda_stream is None and get_cuda_capture() is not None:
+            cuda_stream = get_cuda_capture().cuda_stream
 
         if cuda_stream is not None:
             if not is_cuda():

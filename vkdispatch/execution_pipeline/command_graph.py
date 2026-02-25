@@ -12,11 +12,6 @@ import vkdispatch.codegen as vc
 from vkdispatch.base.command_list import CommandList
 from vkdispatch.base.compute_plan import ComputePlan
 from vkdispatch.base.descriptor_set import DescriptorSet
-from vkdispatch.base.backend import (
-    BACKEND_CUDA,
-    native,
-)
-from vkdispatch.base.errors import check_for_errors
 
 from .buffer_builder import BufferUsage
 from .buffer_builder import BufferBuilder
@@ -71,11 +66,10 @@ class CommandGraph(CommandList):
     uniform_constants_buffer: vd.Buffer
 
     uniform_descriptors: List[Tuple[DescriptorSet, int, int]]
-    _recorded_descriptor_sets: List[DescriptorSet]
+    recorded_descriptor_sets: List[DescriptorSet]
 
     name_to_pc_key_dict: Dict[str, List[Tuple[str, str]]]
     queued_pc_values: Dict[Tuple[str, str], Any]
-    _cuda_graph_uniform_buffers: List[vd.Buffer]
 
     def __init__(self, reset_on_submit: bool = False, submit_on_record: bool = False) -> None:
         super().__init__()
@@ -91,46 +85,34 @@ class CommandGraph(CommandList):
         self.queued_pc_values = {}
 
         self.uniform_descriptors = []
-        self._recorded_descriptor_sets = []
+        self.recorded_descriptor_sets = []
 
         self._reset_on_submit = reset_on_submit
         self.submit_on_record = submit_on_record
 
         self.uniform_constants_size = 0
         self.uniform_constants_buffer = vd.Buffer(shape=(4096,), var_type=vd.uint32) # Create a base static constants buffer at size 4k bytes
-        self._cuda_graph_uniform_buffers = []
-        self._structure_version = 0
-        self._capture_id_counter = 0
-
-    def _destroy_recorded_resources(self) -> None:
-        for descriptor_set in self._recorded_descriptor_sets:
-            descriptor_set.destroy()
-
-        self._recorded_descriptor_sets.clear()
-
-        for uniform_buffer in self._cuda_graph_uniform_buffers:
-            uniform_buffer.destroy()
-
-        self._cuda_graph_uniform_buffers.clear()
 
     def reset(self) -> None:
         """Reset the command graph by clearing the push constant buffer and descriptor
         set lists.
         """
         super().reset()
-        self._destroy_recorded_resources()
 
         self.pc_builder.reset()
         self.uniform_builder.reset()
 
-        self.pc_values = {}
-        self.uniform_values = {}
-        self.name_to_pc_key_dict = {}
-        self.queued_pc_values = {}
+        for descriptor_set in self.recorded_descriptor_sets:
+            descriptor_set.destroy()
+        
+        self.pc_values.clear()
+        self.uniform_values.clear()
+        self.name_to_pc_key_dict.clear()
+        self.queued_pc_values.clear()
+        self.uniform_descriptors.clear()
+        self.recorded_descriptor_sets.clear()
 
-        self.uniform_descriptors = []
         self.buffers_valid = False
-        self._structure_version += 1
 
     def _destroy(self) -> None:
         self.reset()
@@ -194,8 +176,7 @@ class CommandGraph(CommandList):
         """
 
         descriptor_set = DescriptorSet(plan)
-        self._recorded_descriptor_sets.append(descriptor_set)
-        invocation_uniform_buffer: Optional[vd.Buffer] = None
+        self.recorded_descriptor_sets.append(descriptor_set)
 
         if shader_uuid is None:
             shader_uuid = shader_description.name + "_" + str(uuid.uuid4())
@@ -247,39 +228,12 @@ class CommandGraph(CommandList):
         for key, value in uniform_values.items():
             resolved_uniform_values[(shader_uuid, key)] = value
 
-        if vd.is_cuda():
-            if len(shader_description.uniform_structure) > 0:
-                invocation_uniform_builder = BufferBuilder(usage=BufferUsage.UNIFORM_BUFFER)
-                _uniform_offset, uniform_range = invocation_uniform_builder.register_struct(
-                    shader_uuid,
-                    shader_description.uniform_structure,
-                )
-                invocation_uniform_builder.prepare(1)
+        if len(shader_description.uniform_structure) > 0:
+            uniform_offset, uniform_range = self.uniform_builder.register_struct(shader_uuid, shader_description.uniform_structure)
+            self.uniform_descriptors.append((descriptor_set, uniform_offset, uniform_range))
 
-                for key, value in resolved_uniform_values.items():
-                    invocation_uniform_builder[key] = value
-
-                uniform_bytes = invocation_uniform_builder.tobytes()
-                uniform_u32_len = max(1, (len(uniform_bytes) + 3) // 4)
-                invocation_uniform_buffer = vd.Buffer(shape=(uniform_u32_len,), var_type=vd.uint32)
-                invocation_uniform_buffer.write(uniform_bytes)
-                descriptor_set.bind_buffer(
-                    invocation_uniform_buffer,
-                    0,
-                    0,
-                    uniform_range,
-                    True,
-                    write_access=False,
-                )
-                if not self.submit_on_record:
-                    self._cuda_graph_uniform_buffers.append(invocation_uniform_buffer)
-        else:
-            if len(shader_description.uniform_structure) > 0:
-                uniform_offset, uniform_range = self.uniform_builder.register_struct(shader_uuid, shader_description.uniform_structure)
-                self.uniform_descriptors.append((descriptor_set, uniform_offset, uniform_range))
-
-            for key, value in resolved_uniform_values.items():
-                self.uniform_values[key] = value
+        for key, value in resolved_uniform_values.items():
+            self.uniform_values[key] = value
         
         for key, value in pc_values.items():
             self.pc_values[(shader_uuid, key)] = value
@@ -287,7 +241,6 @@ class CommandGraph(CommandList):
         super().record_compute_plan(plan, descriptor_set, blocks)
 
         self.buffers_valid = False
-        self._structure_version += 1
         
         if self.submit_on_record:
             self.submit()
@@ -295,9 +248,7 @@ class CommandGraph(CommandList):
     def submit(
         self,
         instance_count: int = None,
-        queue_index: int = -2,
-        *,
-        cuda_stream=None
+        queue_index: int = -2
     ) -> None:
         """Submit the command list to the specified device with additional data to
         append to the front of the command list.
@@ -315,6 +266,8 @@ class CommandGraph(CommandList):
                 self.pc_builder.instance_count != instance_count or not self.buffers_valid
             ):
 
+            assert not vd.is_cuda(), "Push constants not supported for CUDA backends. Use UBO-backed variables instead."
+
             self.pc_builder.prepare(instance_count)
 
             for key, value in self.pc_values.items():
@@ -326,11 +279,22 @@ class CommandGraph(CommandList):
 
             for key, value in self.uniform_values.items():
                 self.uniform_builder[key] = value
-            
-            for descriptor_set, offset, size in self.uniform_descriptors:
-                descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, True, write_access=False)
 
-            self.uniform_constants_buffer.write(self.uniform_builder.tobytes())
+            if vd.get_cuda_capture() is not None:
+                uniform_word_size = (self.uniform_builder.instance_bytes + 3) // 4
+                cuda_capture_uniform_buffer = vd.Buffer(shape=(uniform_word_size,), var_type=vd.uint32)
+
+                for descriptor_set, offset, size in self.uniform_descriptors:
+                    descriptor_set.bind_buffer(cuda_capture_uniform_buffer, 0, offset, size, True, write_access=False)
+
+                cuda_capture_uniform_buffer.write(self.uniform_builder.tobytes())
+
+                vd.get_cuda_capture().add_uniform_buffer(cuda_capture_uniform_buffer)
+            else:
+                for descriptor_set, offset, size in self.uniform_descriptors:
+                    descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, True, write_access=False)
+
+                self.uniform_constants_buffer.write(self.uniform_builder.tobytes())
 
         if not self.buffers_valid:
             self.buffers_valid = True
@@ -347,7 +311,7 @@ class CommandGraph(CommandList):
             data=my_data,
             queue_index=queue_index,
             instance_count=instance_count,
-            cuda_stream=cuda_stream,
+            cuda_stream=None,
         )
 
         if self._reset_on_submit:
