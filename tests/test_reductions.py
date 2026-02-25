@@ -161,3 +161,62 @@ def test_batched_mapped_reductions():
 
     # Check that the data is the same
     assert np.allclose([np.sin(data).sum(axis=1)], [read_data])
+
+def test_mapped_reductions_min():
+    # Create a buffer
+    buf = vd.Buffer((1024,), vd.float32)
+
+    # Create a numpy array
+    data = np.random.randn(1024).astype(np.float32)
+
+    # Write the data to the buffer
+    buf.write(data)
+
+    @vd.reduce.map_reduce(vd.reduce.SubgroupMin)
+    def min_map(buffer: Buff[f32]) -> f32:
+        return buffer[vd.reduce.mapped_io_index()]
+
+    res_buf = min_map(buf)
+
+    # Read the data from the buffer
+    read_data = res_buf.read(0)
+
+    # Check that the data is the same
+    assert np.allclose([data.min()], [read_data[0]])
+
+def test_mapped_reductions_max():
+    # Create a buffer
+    buf = vd.Buffer((1024,), vd.float32)
+
+    # Create a numpy array
+    data = np.random.randn(1024).astype(np.float32)
+
+    # Write the data to the buffer
+    buf.write(data)
+
+    @vd.reduce.map_reduce(vd.reduce.SubgroupMax)
+    def max_map(buffer: Buff[f32]) -> f32:
+        return buffer[vd.reduce.mapped_io_index()]
+
+    res_buf = max_map(buf)
+
+    # Read the data from the buffer
+    read_data = res_buf.read(0)
+
+    # Check that the data is the same
+    assert np.allclose([data.max()], [read_data[0]])
+
+def test_min_max_codegen_stage_creation():
+    @vd.reduce.map_reduce(vd.reduce.SubgroupMin)
+    def min_map(buffer: Buff[f32]) -> f32:
+        return buffer[vd.reduce.mapped_io_index()]
+
+    @vd.reduce.map_reduce(vd.reduce.SubgroupMax)
+    def max_map(buffer: Buff[f32]) -> f32:
+        return buffer[vd.reduce.mapped_io_index()]
+
+    min_src_stage1, min_src_stage2 = min_map.get_src()
+    max_src_stage1, max_src_stage2 = max_map.get_src()
+
+    assert min_src_stage1 and min_src_stage2
+    assert max_src_stage1 and max_src_stage2

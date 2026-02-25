@@ -8,16 +8,16 @@ import dataclasses
 
 @dataclasses.dataclass
 class ReductionParams:
-    input_offset: vd.int32
-    input_size: vd.int32
-    input_stride: vd.int32
-    input_y_batch_stride: vd.int32
-    input_z_batch_stride: vd.int32
+    input_offset: vd.uint32
+    input_size: vd.uint32
+    input_stride: vd.uint32
+    input_y_batch_stride: vd.uint32
+    input_z_batch_stride: vd.uint32
 
-    output_offset: vd.int32
-    output_stride: vd.int32
-    output_y_batch_stride: vd.int32
-    output_z_batch_stride: vd.int32
+    output_offset: vd.uint32
+    output_stride: vd.uint32
+    output_y_batch_stride: vd.uint32
+    output_z_batch_stride: vd.uint32
 
 __static_global_io_index: vc.ShaderVariable = None
 
