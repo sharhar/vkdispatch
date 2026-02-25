@@ -645,6 +645,32 @@ def cross_type(dtype1: dtype, dtype2: dtype) -> dtype:
     if is_scalar(dtype1) and is_scalar(dtype2):
         return cross_scalar_scalar(dtype1, dtype2)
 
+def cross_multiply_type(dtype1: dtype, dtype2: dtype) -> dtype:
+    """Resolve result type for multiplication.
+
+    Unlike ``cross_type``, multiplication is order-sensitive for matrix/vector
+    combinations and supports ``matN * vecN`` and ``vecN * matN``.
+    """
+    if is_matrix(dtype1) and is_vector(dtype2):
+        if dtype1.child_count != dtype2.child_count:
+            raise ValueError(
+                f"Cannot multiply matrix '{dtype1.name}' and vector '{dtype2.name}' with incompatible dimensions!"
+            )
+        if dtype1.scalar != float32 or dtype2.scalar != float32:
+            raise ValueError("Matrix/vector multiplication only supports float32 matrix and vector types.")
+        return dtype2
+
+    if is_vector(dtype1) and is_matrix(dtype2):
+        if dtype1.child_count != dtype2.child_count:
+            raise ValueError(
+                f"Cannot multiply vector '{dtype1.name}' and matrix '{dtype2.name}' with incompatible dimensions!"
+            )
+        if dtype1.scalar != float32 or dtype2.scalar != float32:
+            raise ValueError("Matrix/vector multiplication only supports float32 matrix and vector types.")
+        return dtype1
+
+    return cross_type(dtype1, dtype2)
+
 def from_numpy_dtype(dtype: Any) -> dtype:
     dtype_name = npc.host_dtype_name(dtype)
 

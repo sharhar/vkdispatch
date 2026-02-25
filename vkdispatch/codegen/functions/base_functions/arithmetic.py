@@ -1,6 +1,6 @@
 import vkdispatch.base.dtype as dtypes
 from  vkdispatch.codegen.variables.base_variable import BaseVariable
-from typing import Any
+from typing import Any, Tuple
 
 from .. import scalar_eval as se
 
@@ -17,6 +17,26 @@ def _mark_arith_unary(var: BaseVariable, op: str) -> None:
 
 def _mark_arith_binary(lhs_type: dtypes.dtype, rhs_type: dtypes.dtype, op: str, *, inplace: bool = False) -> None:
     base_utils.get_codegen_backend().mark_composite_binary_op(lhs_type, rhs_type, op, inplace=inplace)
+
+def _resolve_arithmetic_binary_expr(
+    op: str,
+    lhs_type: dtypes.dtype,
+    lhs_expr: str,
+    rhs_type: dtypes.dtype,
+    rhs_expr: str,
+) -> Tuple[str, bool]:
+    override_expr = base_utils.get_codegen_backend().arithmetic_binary_expr(
+        op, lhs_type, lhs_expr, rhs_type, rhs_expr
+    )
+    if override_expr is not None:
+        return override_expr, True
+    return f"{lhs_expr} {op} {rhs_expr}", False
+
+def _resolve_arithmetic_unary_expr(op: str, var_type: dtypes.dtype, var_expr: str) -> Tuple[str, bool]:
+    override_expr = base_utils.get_codegen_backend().arithmetic_unary_expr(op, var_type, var_expr)
+    if override_expr is not None:
+        return override_expr, True
+    return f"{op}{var_expr}", False
 
 def arithmetic_op_common(var: BaseVariable,
                          other: Any,
@@ -54,27 +74,55 @@ def add(var: BaseVariable, other: Any, inplace: bool = False) -> BaseVariable:
     return_type = arithmetic_op_common(var, other, inplace=inplace)
 
     if base_utils.is_scalar_number(other):
-        _mark_arith_binary(var.var_type, base_utils.number_to_dtype(other), "+", inplace=inplace)
+        scalar_type = base_utils.number_to_dtype(other)
+        scalar_expr = base_utils.format_number_literal(other)
+        _mark_arith_binary(var.var_type, scalar_type, "+", inplace=inplace)
+        expr, use_assignment = _resolve_arithmetic_binary_expr(
+            "+",
+            var.var_type,
+            var.resolve(),
+            scalar_type,
+            scalar_expr,
+        )
         if not inplace:
+            if use_assignment:
+                return base_utils.new_base_var(
+                    return_type,
+                    expr,
+                    parents=[var],
+                )
             return base_utils.new_scaled_var(
                 return_type,
                 var.resolve(),
                 offset=other,
                 parents=[var])
 
-        base_utils.append_contents(f"{var.resolve()} += {base_utils.format_number_literal(other)};\n")
+        if use_assignment:
+            base_utils.append_contents(f"{var.resolve()} = {expr};\n")
+        else:
+            base_utils.append_contents(f"{var.resolve()} += {scalar_expr};\n")
         return var
 
     assert isinstance(other, BaseVariable)
     _mark_arith_binary(var.var_type, other.var_type, "+", inplace=inplace)
+    expr, use_assignment = _resolve_arithmetic_binary_expr(
+        "+",
+        var.var_type,
+        var.resolve(),
+        other.var_type,
+        other.resolve(),
+    )
 
     if not inplace:
         return base_utils.new_base_var(
             return_type,
-            f"{var.resolve()} + {other.resolve()}",
+            expr,
             parents=[var, other])
     
-    base_utils.append_contents(f"{var.resolve()} += {other.resolve()};\n")
+    if use_assignment:
+        base_utils.append_contents(f"{var.resolve()} = {expr};\n")
+    else:
+        base_utils.append_contents(f"{var.resolve()} += {other.resolve()};\n")
     return var
 
 def sub(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = False) -> BaseVariable:
@@ -82,60 +130,103 @@ def sub(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
 
     if base_utils.is_scalar_number(other):
         scalar_type = base_utils.number_to_dtype(other)
+        scalar_expr = base_utils.format_number_literal(other)
         if reverse and not inplace:
             _mark_arith_unary(var, "-")
             _mark_arith_binary(var.var_type, scalar_type, "+", inplace=False)
         else:
             # Non-reverse scalar subtraction is emitted as `+ (-scalar)` via scaled-var optimization.
             _mark_arith_binary(var.var_type, scalar_type, "+" if not inplace else "-", inplace=inplace)
+        expr, use_assignment = _resolve_arithmetic_binary_expr(
+            "-",
+            scalar_type if reverse else var.var_type,
+            scalar_expr if reverse else var.resolve(),
+            var.var_type if reverse else scalar_type,
+            var.resolve() if reverse else scalar_expr,
+        )
         if not inplace:
+            if use_assignment:
+                return base_utils.new_base_var(
+                    return_type,
+                    expr,
+                    parents=[var],
+                )
             return base_utils.new_scaled_var(
                 return_type,
                 f"(-{var.resolve()})" if reverse else var.resolve(),
                 offset=other,
                 parents=[var])
 
-        base_utils.append_contents(f"{var.resolve()} -= {base_utils.format_number_literal(other)};\n")
+        if use_assignment:
+            base_utils.append_contents(f"{var.resolve()} = {expr};\n")
+        else:
+            base_utils.append_contents(f"{var.resolve()} -= {scalar_expr};\n")
         return var
 
     assert isinstance(other, BaseVariable)
-    _mark_arith_binary(var.var_type if not reverse else other.var_type, other.var_type if not reverse else var.var_type, "-", inplace=inplace)
+    lhs_type = var.var_type if not reverse else other.var_type
+    rhs_type = other.var_type if not reverse else var.var_type
+    _mark_arith_binary(lhs_type, rhs_type, "-", inplace=inplace)
+    expr, use_assignment = _resolve_arithmetic_binary_expr(
+        "-",
+        lhs_type,
+        var.resolve() if not reverse else other.resolve(),
+        rhs_type,
+        other.resolve() if not reverse else var.resolve(),
+    )
 
     if not inplace:
         return base_utils.new_base_var(
             return_type,
-            (
-                f"{var.resolve()} - {other.resolve()}"
-                if not reverse else
-                f"{other.resolve()} - {var.resolve()}"
-            ),
+            expr,
             parents=[var, other])
     
-    base_utils.append_contents(f"{var.resolve()} -= {other.resolve()};\n")
+    if use_assignment:
+        base_utils.append_contents(f"{var.resolve()} = {expr};\n")
+    else:
+        base_utils.append_contents(f"{var.resolve()} -= {other.resolve()};\n")
     return var
 
 def mul(var: BaseVariable, other: Any, inplace: bool = False) -> BaseVariable:
-    return_type = arithmetic_op_common(var, other, inplace=inplace)
-
     if base_utils.is_scalar_number(other):
+        return_type = arithmetic_op_common(var, other, inplace=inplace)
+        scalar_type = base_utils.number_to_dtype(other)
+        scalar_expr = base_utils.format_number_literal(other)
+        expr, use_assignment = _resolve_arithmetic_binary_expr(
+            "*",
+            var.var_type,
+            var.resolve(),
+            scalar_type,
+            scalar_expr,
+        )
         if not inplace:
             if other == 1:
                 return var
 
-            if dtypes.is_integer_dtype(var.var_type) and base_utils.is_int_number(other) and base_utils.is_int_power_of_2(other):
+            if (
+                not use_assignment
+                and dtypes.is_integer_dtype(var.var_type)
+                and base_utils.is_int_number(other)
+                and base_utils.is_int_power_of_2(other)
+            ):
                 power = my_log2_int(other)
-                _mark_arith_binary(var.var_type, base_utils.number_to_dtype(other), "<<", inplace=False)
+                _mark_arith_binary(var.var_type, scalar_type, "<<", inplace=False)
                 return base_utils.new_base_var(var.var_type, f"{var.resolve()} << {power}", [var])
 
-            _mark_arith_binary(var.var_type, base_utils.number_to_dtype(other), "*", inplace=False)
-            return base_utils.new_scaled_var(
-                return_type,
-                var.resolve(),
-                scale=other,
-                parents=[var])
+            _mark_arith_binary(var.var_type, scalar_type, "*", inplace=False)
+            if use_assignment:
+                return base_utils.new_base_var(
+                    return_type,
+                    expr,
+                    parents=[var],
+                )
+            return base_utils.new_scaled_var(return_type, var.resolve(), scale=other, parents=[var])
 
-        _mark_arith_binary(var.var_type, base_utils.number_to_dtype(other), "*", inplace=True)
-        base_utils.append_contents(f"{var.resolve()} *= {base_utils.format_number_literal(other)};\n")
+        _mark_arith_binary(var.var_type, scalar_type, "*", inplace=True)
+        if use_assignment:
+            base_utils.append_contents(f"{var.resolve()} = {expr};\n")
+        else:
+            base_utils.append_contents(f"{var.resolve()} *= {scalar_expr};\n")
         return var
 
     assert isinstance(other, BaseVariable)
@@ -146,14 +237,32 @@ def mul(var: BaseVariable, other: Any, inplace: bool = False) -> BaseVariable:
     if dtypes.is_matrix(var.var_type) and dtypes.is_matrix(other.var_type):
         raise ValueError("Matrix multiplication is not supported via the `*` operator. Use `@` operator instead.")
 
+    return_type = dtypes.cross_multiply_type(var.var_type, other.var_type)
+    if inplace:
+        assert var.is_setable(), "Inplace arithmetic requires the variable to be settable."
+        var.read_callback()
+        var.write_callback()
+        other.read_callback()
+        assert return_type == var.var_type, "Inplace arithmetic requires the result type to match the variable type."
+
     _mark_arith_binary(var.var_type, other.var_type, "*", inplace=inplace)
+    expr, use_assignment = _resolve_arithmetic_binary_expr(
+        "*",
+        var.var_type,
+        var.resolve(),
+        other.var_type,
+        other.resolve(),
+    )
     if not inplace:
         return base_utils.new_base_var(
-            var.var_type,
-            f"{var.resolve()} * {other.resolve()}",
+            return_type,
+            expr,
             parents=[var, other])
     
-    base_utils.append_contents(f"{var.resolve()} *= {other.resolve()};\n")
+    if use_assignment:
+        base_utils.append_contents(f"{var.resolve()} = {expr};\n")
+    else:
+        base_utils.append_contents(f"{var.resolve()} *= {other.resolve()};\n")
     return var
 
 def truediv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = False) -> BaseVariable:
@@ -170,17 +279,34 @@ def truediv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool 
             _mark_arith_binary(return_type, scalar_f_type, "/", inplace=inplace)
         else:
             _mark_arith_binary(scalar_f_type, return_type, "/", inplace=inplace)
+        lhs_expr = base_utils.to_dtype_base(return_type, var).resolve() if not reverse else other_expr
+        rhs_expr = other_expr if not reverse else base_utils.to_dtype_base(return_type, var).resolve()
+        lhs_type = return_type if not reverse else scalar_f_type
+        rhs_type = scalar_f_type if not reverse else return_type
+        expr, use_assignment = _resolve_arithmetic_binary_expr(
+            "/",
+            lhs_type,
+            lhs_expr,
+            rhs_type,
+            rhs_expr,
+        )
         if not inplace:
             return base_utils.new_base_var(
                 return_type,
-                (
-                    f"{base_utils.to_dtype_base(return_type, var).resolve()} / {other_expr}"
-                    if not reverse else
-                    f"{other_expr} / {base_utils.to_dtype_base(return_type, var).resolve()}"
-                ),
+                expr,
                 parents=[var])
 
-        base_utils.append_contents(f"{var.resolve()} /= {other_expr};\n")
+        if use_assignment:
+            inplace_expr, _ = _resolve_arithmetic_binary_expr(
+                "/",
+                var.var_type,
+                var.resolve(),
+                scalar_f_type,
+                other_expr,
+            )
+            base_utils.append_contents(f"{var.resolve()} = {inplace_expr};\n")
+        else:
+            base_utils.append_contents(f"{var.resolve()} /= {other_expr};\n")
         return var
 
     assert isinstance(other, BaseVariable)
@@ -205,14 +331,31 @@ def truediv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool 
         if not reverse else
         base_utils.to_dtype_base(rhs_mark_type, var).resolve()
     )
+    expr, use_assignment = _resolve_arithmetic_binary_expr(
+        "/",
+        lhs_mark_type,
+        lhs_expr,
+        rhs_mark_type,
+        rhs_expr,
+    )
 
     if not inplace:
         return base_utils.new_base_var(
             return_type,
-            f"{lhs_expr} / {rhs_expr}",
+            expr,
             parents=[var, other])
     
-    base_utils.append_contents(f"{var.resolve()} /= {rhs_expr};\n")
+    if use_assignment:
+        inplace_expr, _ = _resolve_arithmetic_binary_expr(
+            "/",
+            var.var_type,
+            var.resolve(),
+            rhs_mark_type,
+            rhs_expr,
+        )
+        base_utils.append_contents(f"{var.resolve()} = {inplace_expr};\n")
+    else:
+        base_utils.append_contents(f"{var.resolve()} /= {rhs_expr};\n")
     return var
 
 def floordiv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = False) -> BaseVariable:
@@ -335,9 +478,10 @@ def pow(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
 
 def neg(var: BaseVariable) -> BaseVariable:
     _mark_arith_unary(var, "-")
+    expr, _ = _resolve_arithmetic_unary_expr("-", var.var_type, var.resolve())
     return base_utils.new_base_var(
         var.var_type,
-        f"-{var.resolve()}",
+        expr,
         parents=[var])
 
 def absolute(var: BaseVariable) -> BaseVariable:

@@ -75,6 +75,23 @@ class CodeGenBackend:
 
         return f"{mapped}({lhs_expr}, {rhs_expr})"
 
+    def arithmetic_unary_expr(self, op: str, var_type: dtypes.dtype, var_expr: str) -> Optional[str]:
+        """Optional backend override for unary arithmetic expressions."""
+        _ = (op, var_type, var_expr)
+        return None
+
+    def arithmetic_binary_expr(
+        self,
+        op: str,
+        lhs_type: dtypes.dtype,
+        lhs_expr: str,
+        rhs_type: dtypes.dtype,
+        rhs_expr: str,
+    ) -> Optional[str]:
+        """Optional backend override for binary arithmetic expressions."""
+        _ = (op, lhs_type, lhs_expr, rhs_type, rhs_expr)
+        return None
+
     def pre_header(self, *, enable_subgroup_ops: bool, enable_printf: bool) -> str:
         raise NotImplementedError
 
