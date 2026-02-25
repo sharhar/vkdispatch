@@ -214,9 +214,8 @@ class ShaderFunction:
             )
             old_builder = vc.set_builder(builder)
 
-            signature = ShaderSignature.from_inspectable_function(builder, self.func)
-            
             try:
+                signature = ShaderSignature.from_inspectable_function(builder, self.func)
                 self.func(*signature.get_variables())
             except Exception as e:
                 print(f"Error during shader inspection: {e}")
@@ -268,6 +267,11 @@ class ShaderFunction:
 
         if vd.is_dummy():
             pass
+        elif shader_backend_name == "opencl":
+            raise RuntimeError(
+                "OpenCL codegen output is currently dummy-only. "
+                "Call vd.initialize(backend='dummy') for source inspection."
+            )
         elif vd.is_cuda() and shader_backend_name != "cuda":
             raise RuntimeError(
                 "The selected CUDA runtime backend requires CUDA codegen output. "

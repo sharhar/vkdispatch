@@ -209,6 +209,8 @@ class ShaderBuilder(ShaderWriter):
     def declare_variable(self, var_type: dtypes.dtype, count: int = 1, var_name: Optional[str] = None):
         if self.backend.name == "cuda":
             raise NotImplementedError("Push Constants are not supported for the CUDA backend")
+        if self.backend.name == "opencl":
+            raise NotImplementedError("push constants unsupported for OpenCL backend")
 
         if var_name is None:
             var_name = self.new_name()
@@ -366,7 +368,11 @@ class ShaderBuilder(ShaderWriter):
         pc_decleration_contents = self.compose_struct_decleration(pc_elements)
         
         if len(pc_decleration_contents) > 0:
-            assert self.backend.name != "cuda", "Push Constants are not supported for the CUDA backend"
+            assert self.backend.name not in ("cuda", "opencl"), (
+                "push constants unsupported for OpenCL backend"
+                if self.backend.name == "opencl"
+                else "Push Constants are not supported for the CUDA backend"
+            )
             header += self.backend.push_constant_declaration(pc_decleration_contents)
 
         pre_header = self.backend.pre_header(

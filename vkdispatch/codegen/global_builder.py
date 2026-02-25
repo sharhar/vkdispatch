@@ -1,7 +1,7 @@
 import threading
 import vkdispatch.base.dtype as dtypes
 from .shader_writer import set_shader_writer
-from .backends import CodeGenBackend, GLSLBackend, CUDABackend
+from .backends import CodeGenBackend, GLSLBackend, CUDABackend, OpenCLBackend
 from vkdispatch.base.init import is_cuda
 from typing import Optional, TYPE_CHECKING, Union
 
@@ -44,6 +44,10 @@ def set_codegen_backend(backend: Optional[Union[CodeGenBackend, str]]):
 
         if backend_name == "cuda":
             _codegen_backend.active_backend = CUDABackend()
+            return
+
+        if backend_name == "opencl":
+            _codegen_backend.active_backend = OpenCLBackend()
             return
 
         raise ValueError(f"Unknown codegen backend '{backend}'")

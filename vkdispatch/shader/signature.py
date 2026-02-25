@@ -140,7 +140,9 @@ class ShaderSignature:
                 arg_type = ShaderArgumentType.CONSTANT
             elif(issubclass(annotations[i].__origin__, vc.Variable)):
                 if builder.backend.name == "cuda":
-                    raise NotImplementedError(f"Var type '{shader_param.raw_name}' is not supported for the CUDA backend. Use Const instead.")
+                    raise NotImplementedError("Push Constants are not supported for the CUDA backend. Use Const instead.")
+                if builder.backend.name == "opencl":
+                    raise NotImplementedError("push constants unsupported for OpenCL backend")
 
                 shader_param = builder.declare_variable(annotations[i].__args__[0])
                 arg_type = ShaderArgumentType.VARIABLE
