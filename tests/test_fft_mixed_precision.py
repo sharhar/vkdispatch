@@ -1,8 +1,10 @@
 import numpy as np
 import pytest
+from types import SimpleNamespace
 
 import vkdispatch as vd
 import vkdispatch.codegen as vc
+import vkdispatch.fft.functions as fft_functions
 
 
 @pytest.fixture(autouse=True)
@@ -185,6 +187,66 @@ def test_convolve_kernel_map_allows_float32_buffer():
     assert np.allclose(result, reference, atol=2e-3, rtol=1e-3)
 
 
+def test_fft_output_map_without_input_map_uses_explicit_input_buffer():
+    _require_runtime_context()
+
+    rng = np.random.default_rng(37)
+    data = (
+        rng.standard_normal(64) + 1j * rng.standard_normal(64)
+    ).astype(np.complex64)
+
+    input_buffer = vd.asbuffer(data.copy())
+    output_buffer = vd.Buffer(data.shape, vd.complex64)
+
+    @vd.map
+    def output_map(buffer: vc.Buffer[vd.complex64]):
+        vd.fft.write_op().write_to_buffer(buffer)
+
+    vd.fft.fft(
+        output_buffer,
+        input_buffer,
+        output_map=output_map,
+    )
+
+    result = output_buffer.read(0).astype(np.complex64)
+    reference = np.fft.fft(data).astype(np.complex64)
+
+    assert np.allclose(result, reference, atol=2e-3, rtol=1e-3)
+
+
+def test_convolve_output_map_without_input_map_uses_explicit_input_buffer():
+    _require_runtime_context()
+
+    rng = np.random.default_rng(41)
+    data = (
+        rng.standard_normal(64) + 1j * rng.standard_normal(64)
+    ).astype(np.complex64)
+
+    input_buffer = vd.asbuffer(data.copy())
+    output_buffer = vd.Buffer(data.shape, vd.complex64)
+
+    @vd.map
+    def kernel_map():
+        # Identity map: keep spectrum unchanged.
+        return
+
+    @vd.map
+    def output_map(buffer: vc.Buffer[vd.complex64]):
+        vd.fft.write_op().write_to_buffer(buffer)
+
+    vd.fft.convolve(
+        output_buffer,
+        input_buffer,
+        kernel_map=kernel_map,
+        output_map=output_map,
+    )
+
+    result = output_buffer.read(0).astype(np.complex64)
+    reference = data.astype(np.complex64)
+
+    assert np.allclose(result, reference, atol=2e-3, rtol=1e-3)
+
+
 def test_fft_complex64_io_with_complex128_compute():
     context = _require_runtime_context()
     _require_complex128_support(context)
@@ -201,3 +263,56 @@ def test_fft_complex64_io_with_complex128_compute():
     reference = np.fft.fft(data).astype(np.complex64)
 
     assert np.allclose(result, reference, atol=2e-3, rtol=1e-3)
+
+
+def test_resolve_input_precision_output_map_infers_input_from_post_map_argument(monkeypatch):
+    monkeypatch.setattr(
+        fft_functions,
+        "ensure_supported_complex_precision",
+        lambda dtype, role: None,
+    )
+
+    class _FakeBuffer:
+        def __init__(self, var_type):
+            self.var_type = var_type
+
+    output_map = SimpleNamespace(
+        buffer_types=[vc.Buffer[vd.complex64], vc.Buffer[vd.float32]],
+    )
+
+    resolved = fft_functions._resolve_input_precision(
+        (
+            _FakeBuffer(vd.complex64),
+            _FakeBuffer(vd.float32),
+            _FakeBuffer(vd.complex128),
+        ),
+        input_map=None,
+        output_map=output_map,
+        input_type=None,
+        output_precision=None,
+    )
+
+    assert resolved is vd.complex128
+
+
+def test_resolve_input_precision_output_map_requires_input_buffer_after_map_args(monkeypatch):
+    monkeypatch.setattr(
+        fft_functions,
+        "ensure_supported_complex_precision",
+        lambda dtype, role: None,
+    )
+
+    class _FakeBuffer:
+        def __init__(self, var_type):
+            self.var_type = var_type
+
+    output_map = SimpleNamespace(buffer_types=[vc.Buffer[vd.complex64]])
+
+    with pytest.raises(ValueError, match="input buffer argument must be provided"):
+        fft_functions._resolve_input_precision(
+            (_FakeBuffer(vd.complex64),),
+            input_map=None,
+            output_map=output_map,
+            input_type=None,
+            output_precision=None,
+        )

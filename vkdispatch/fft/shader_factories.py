@@ -36,6 +36,7 @@ def make_fft_shader(
             input_map=input_map,
             output_map=output_map,
             output_type=output_type,
+            input_type=input_type,
         )
 
         io_manager.read_input(
@@ -146,6 +147,7 @@ def make_convolution_shader(
             input_map=input_map,
             output_map=output_map,
             output_type=output_type,
+            input_type=input_type,
             kernel_map=kernel_map
         )
 

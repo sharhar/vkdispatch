@@ -66,6 +66,7 @@ class FFTContext:
     def make_io_manager(self,
                         output_map: Optional[vd.MappingFunction],
                         output_type: dtypes.dtype = vd.complex64,
+                        input_type: Optional[dtypes.dtype] = None,
                         input_map: Optional[vd.MappingFunction] = None,
                         kernel_map: Optional[vd.MappingFunction] = None) -> IOManager:
         assert not self.declared_shader_args, f"Shader arguments already declared with {self.declarer}"
@@ -76,6 +77,7 @@ class FFTContext:
             shader_context=self.shader_context,
             output_map=output_map,
             output_type=output_type,
+            input_type=input_type,
             input_map=input_map,
             kernel_map=kernel_map
         )

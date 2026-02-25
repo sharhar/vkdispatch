@@ -35,6 +35,7 @@ def _resolve_output_precision(
 
 
 def _resolve_input_precision(
+    buffers: Tuple,
     input_map: Optional[vd.MappingFunction],
     output_map: Optional[vd.MappingFunction],
     input_type: Optional[vd.dtype],
@@ -46,9 +47,26 @@ def _resolve_input_precision(
         return None
 
     if output_map is not None:
-        if input_type is not None:
-            raise ValueError("input_type cannot be provided when output_map is used without input_map")
-        return None
+        output_arg_count = len(output_map.buffer_types)
+        if len(buffers) <= output_arg_count:
+            raise ValueError(
+                "When output_map is used without input_map, an input buffer argument must be provided "
+                "after output_map arguments"
+            )
+
+        resolved_input = input_type
+        if resolved_input is None:
+            inferred_input = buffers[output_arg_count]
+            if not hasattr(inferred_input, "var_type"):
+                raise ValueError(
+                    "When output_map is used without input_map, the argument after output_map arguments "
+                    "must be a buffer"
+                )
+            resolved_input = inferred_input.var_type
+
+        validate_complex_precision(resolved_input, arg_name="input_type")
+        ensure_supported_complex_precision(resolved_input, role="Input")
+        return resolved_input
 
     if output_precision is None:
         raise ValueError("output_precision must be provided when output_map is not used")
@@ -109,7 +127,7 @@ def fft(
         buffer_shape = buffers[0].shape
 
     resolved_output_type = _resolve_output_precision(buffers, output_map, output_type)
-    resolved_input_type = _resolve_input_precision(input_map, output_map, input_type, resolved_output_type)
+    resolved_input_type = _resolve_input_precision(buffers, input_map, output_map, input_type, resolved_output_type)
 
     io_precisions: List[vd.dtype] = []
     if output_map is None:
@@ -475,7 +493,7 @@ def convolve(
         buffer_shape = buffers[0].shape
 
     resolved_output_type = _resolve_output_precision(buffers, output_map, output_type)
-    resolved_input_type = _resolve_input_precision(input_map, output_map, input_type, resolved_output_type)
+    resolved_input_type = _resolve_input_precision(buffers, input_map, output_map, input_type, resolved_output_type)
     resolved_kernel_type = _resolve_kernel_precision(buffers, kernel_map, kernel_type)
 
     io_precisions: List[vd.dtype] = []
