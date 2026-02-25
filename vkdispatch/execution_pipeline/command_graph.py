@@ -66,7 +66,7 @@ class CommandGraph(CommandList):
     uniform_bindings: Any
 
     uniform_constants_size: int
-    uniform_constants_buffer: vd.Buffer
+    uniform_constants_buffer: Optional[vd.Buffer]
 
     uniform_descriptors: List[Tuple[DescriptorSet, int, int]]
     recorded_descriptor_sets: List[DescriptorSet]
@@ -93,15 +93,19 @@ class CommandGraph(CommandList):
         self._reset_on_submit = reset_on_submit
         self.submit_on_record = submit_on_record
 
-        self.uniform_constants_size = 4096
-        self.uniform_constants_buffer = vd.Buffer(shape=(4096,), var_type=vd.uint32) # Create a base static constants buffer at size 4k bytes
+        # Lazily allocate host-uploaded UBO backing only when needed by non-CUDA backends.
+        self.uniform_constants_size = 0
+        self.uniform_constants_buffer = None
 
     def _ensure_uniform_constants_capacity(self, uniform_word_size: int) -> None:
-        if uniform_word_size <= self.uniform_constants_size:
+        if self.uniform_constants_buffer is not None and uniform_word_size <= self.uniform_constants_size:
             return
 
         # Grow exponentially to reduce reallocation churn for larger UBO layouts.
-        self.uniform_constants_size = max(uniform_word_size, self.uniform_constants_size * 2)
+        if self.uniform_constants_size == 0:
+            self.uniform_constants_size = max(4096, uniform_word_size)
+        else:
+            self.uniform_constants_size = max(uniform_word_size, self.uniform_constants_size * 2)
         self.uniform_constants_buffer = vd.Buffer(shape=(self.uniform_constants_size,), var_type=vd.uint32)
 
     def _prepare_submission_state(self, instance_count: int) -> None:
@@ -126,22 +130,19 @@ class CommandGraph(CommandList):
                 self.uniform_builder[key] = value
 
             uniform_word_size = (self.uniform_builder.instance_bytes + 3) // 4
-            
-            uniform_buffer = None
+            uniform_payload = self.uniform_builder.tobytes()
 
-            if vd.get_cuda_capture() is not None:
-                uniform_buffer = vd.Buffer(shape=(uniform_word_size,), var_type=vd.uint32)
+            if vd.is_cuda():
+                for descriptor_set, offset, size in self.uniform_descriptors:
+                    descriptor_set.set_inline_uniform_payload(uniform_payload[offset:offset + size])
             else:
                 self._ensure_uniform_constants_capacity(uniform_word_size)
-                uniform_buffer = self.uniform_constants_buffer
+                assert self.uniform_constants_buffer is not None
 
-            for descriptor_set, offset, size in self.uniform_descriptors:
-                descriptor_set.bind_buffer(uniform_buffer, 0, offset, size, True, write_access=False)
+                for descriptor_set, offset, size in self.uniform_descriptors:
+                    descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, True, write_access=False)
 
-            uniform_buffer.write(self.uniform_builder.tobytes())
-
-            if vd.get_cuda_capture() is not None:
-                vd.get_cuda_capture().add_uniform_buffer(uniform_buffer)
+                self.uniform_constants_buffer.write(uniform_payload)
 
         if not self.buffers_valid:
             self.buffers_valid = True
