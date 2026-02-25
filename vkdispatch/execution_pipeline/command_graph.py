@@ -126,16 +126,22 @@ class CommandGraph(CommandList):
                 self.uniform_builder[key] = value
 
             uniform_word_size = (self.uniform_builder.instance_bytes + 3) // 4
-            self._ensure_uniform_constants_capacity(uniform_word_size)
+            
+            uniform_buffer = None
+
+            if vd.get_cuda_capture() is not None:
+                uniform_buffer = vd.Buffer(shape=(uniform_word_size,), var_type=vd.uint32)
+            else:
+                self._ensure_uniform_constants_capacity(uniform_word_size)
+                uniform_buffer = self.uniform_constants_buffer
 
             for descriptor_set, offset, size in self.uniform_descriptors:
-                descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, True, write_access=False)
+                descriptor_set.bind_buffer(uniform_buffer, 0, offset, size, True, write_access=False)
 
-            self.uniform_constants_buffer.write(self.uniform_builder.tobytes())
-            # Uniform writes are scheduled on backend queue streams. Ensure they
-            # complete before a potentially capture-stream kernel launch.
-            for queue_index in range(self.uniform_constants_buffer.context.queue_count):
-                self.uniform_constants_buffer.signals[queue_index].wait(True, queue_index)
+            uniform_buffer.write(self.uniform_builder.tobytes())
+
+            if vd.get_cuda_capture() is not None:
+                vd.get_cuda_capture().add_uniform_buffer(uniform_buffer)
 
         if not self.buffers_valid:
             self.buffers_valid = True
