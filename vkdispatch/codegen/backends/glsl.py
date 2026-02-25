@@ -202,3 +202,9 @@ class GLSLBackend(CodeGenBackend):
             return f"texture({texture_expr}, {coord_expr})"
 
         return f"texture({texture_expr}, {coord_expr}, {lod_expr})"
+
+    def atomic_add_expr(self, mem_expr: str, value_expr: str, var_type: dtypes.dtype) -> str:
+        if var_type not in (dtypes.int32, dtypes.uint32):
+            raise NotImplementedError(f"GLSL atomic_add only supports int32/uint32, got '{var_type.name}'")
+
+        return f"atomicAdd({mem_expr}, {value_expr})"

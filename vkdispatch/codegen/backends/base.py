@@ -212,3 +212,8 @@ class CodeGenBackend:
 
     def mark_texture_sample_dimension(self, dimensions: int) -> None:
         return
+
+    def atomic_add_expr(self, mem_expr: str, value_expr: str, var_type: dtypes.dtype) -> str:
+        raise NotImplementedError(
+            f"atomic_add is not supported for backend '{self.name}' and type '{var_type.name}'"
+        )
