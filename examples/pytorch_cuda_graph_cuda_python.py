@@ -2,7 +2,7 @@
 """Capture and replay a vkdispatch CUDA kernel inside a PyTorch CUDA Graph.
 
 This example uses:
-  - vkdispatch runtime backend: "cuda-python"
+  - vkdispatch runtime backend: "cuda"
   - a custom vkdispatch shader recorded into CommandGraph
   - torch.cuda.CUDAGraph capture + replay
   - zero-copy tensor sharing via __cuda_array_interface__
@@ -28,7 +28,7 @@ def main() -> None:
     torch.cuda.set_device(0)
     torch.manual_seed(0)
 
-    vd.initialize(backend="cuda-python")
+    vd.initialize(backend="cuda")
     vd.make_context(device_ids=torch.cuda.current_device())
 
     n = 16
@@ -48,12 +48,12 @@ def main() -> None:
     # For backend="cuda-python", Const/Var payloads are fixed at record time.
     custom_shader(out=out_vd, x=x_vd, bias=bias, graph=cmd_graph)
 
-    capture = cmd_graph.prepare_cuda_capture(instance_count=1)
+    #capture = cmd_graph.prepare_cuda_capture(instance_count=1)
 
     torch.cuda.synchronize()
     graph = torch.cuda.CUDAGraph()
     with torch.cuda.graph(graph):
-        cmd_graph.submit(cuda_stream=torch.cuda.current_stream(), capture=capture)
+        cmd_graph.submit(cuda_stream=torch.cuda.current_stream()) #, capture=capture)
 
     replay_inputs = [0.0, 1.0, 2.0, 3.0]
     for i, value in enumerate(replay_inputs, start=1):

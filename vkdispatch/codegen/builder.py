@@ -366,6 +366,7 @@ class ShaderBuilder(ShaderWriter):
         pc_decleration_contents = self.compose_struct_decleration(pc_elements)
         
         if len(pc_decleration_contents) > 0:
+            assert self.backend.name != "cuda", "Push Constants are not supported for the CUDA backend"
             header += self.backend.push_constant_declaration(pc_decleration_contents)
 
         pre_header = self.backend.pre_header(

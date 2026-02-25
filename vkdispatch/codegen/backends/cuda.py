@@ -1372,9 +1372,7 @@ class CUDABackend(CodeGenBackend):
         return f"// sampler binding {binding}, dimensions={dimensions}\n"
 
     def push_constant_declaration(self, contents: str) -> str:
-        self._register_kernel_param("const PushConstant* vkdispatch_pc_ptr")
-        self._register_alias_line("const PushConstant& PC = *vkdispatch_pc_ptr;")
-        return f"\nstruct PushConstant {{\n{contents}\n}};\n"
+        raise NotImplementedError("Push constants are not supported in the CUDA backend.")
 
     def entry_point(self, body_contents: str) -> str:
         params = ", ".join(self._kernel_params)

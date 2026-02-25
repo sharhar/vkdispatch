@@ -2,6 +2,7 @@ import threading
 import vkdispatch.base.dtype as dtypes
 from .shader_writer import set_shader_writer
 from .backends import CodeGenBackend, GLSLBackend, CUDABackend
+from vkdispatch.base.init import is_cuda
 from typing import Optional, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
@@ -11,16 +12,9 @@ _builder_context = threading.local()
 _shader_print_line_numbers = threading.local()
 _codegen_backend = threading.local()
 
-
 def _make_runtime_default_codegen_backend() -> CodeGenBackend:
-    try:
-        from vkdispatch.base.backend import CUDA_RUNTIME_BACKENDS, get_active_backend_name
-
-        if get_active_backend_name() in CUDA_RUNTIME_BACKENDS:
-            return CUDABackend()
-    except Exception:
-        # If runtime backend metadata is unavailable, fall back to GLSL.
-        pass
+    if is_cuda():
+        return CUDABackend()
 
     return GLSLBackend()
 

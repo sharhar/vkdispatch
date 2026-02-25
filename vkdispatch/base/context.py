@@ -84,7 +84,10 @@ class Handle:
         Destroys the context handle and cleans up resources.
         """
         if self.destroyed:
-            return
+            return        
+
+        self.destroyed = True
+        self.clear_parents()
 
         child_keys = list(self.children_dict.keys())
 
@@ -101,13 +104,11 @@ class Handle:
             check_for_errors()
 
         self.canary = True
-                
-        self.clear_parents()
 
         if self._handle in self.context.handles_dict.keys():
             self.context.handles_dict.pop(self._handle)
         
-        self.destroyed = True
+        
 
 class Signal:
     ptr_addr: int
