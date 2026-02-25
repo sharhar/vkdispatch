@@ -1354,8 +1354,8 @@ class CUDABackend(CodeGenBackend):
         return f"__shared__ {self.type_name(var_type)} {name}[{size}];"
 
     def uniform_block_declaration(self, contents: str) -> str:
-        self._register_kernel_param("const UniformObjectBuffer* vkdispatch_uniform_ptr")
-        self._register_alias_line("const UniformObjectBuffer& UBO = *vkdispatch_uniform_ptr;")
+        self._register_kernel_param("const UniformObjectBuffer vkdispatch_uniform_value")
+        self._register_alias_line("const UniformObjectBuffer& UBO = vkdispatch_uniform_value;")
         return f"\nstruct UniformObjectBuffer {{\n{contents}\n}};\n"
 
     def storage_buffer_declaration(self, binding: int, var_type: dtypes.dtype, name: str) -> str:

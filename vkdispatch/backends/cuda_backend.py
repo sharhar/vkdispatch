@@ -407,9 +407,8 @@ def _readonly_host_ptr(view: memoryview):
 
 
 class _DeviceAllocation:
-    def __init__(self, ptr: int, async_stream_handle: Optional[int] = None):
+    def __init__(self, ptr: int):
         self.ptr = int(ptr)
-        self.async_stream_handle = None if async_stream_handle is None else int(async_stream_handle)
         self.freed = False
 
     def __int__(self):
@@ -418,28 +417,6 @@ class _DeviceAllocation:
     def free(self):
         if self.freed:
             return
-        if self.async_stream_handle is not None:
-            try:
-                _drv_check(
-                    _drv_call(
-                        ["cuMemFreeAsync", "cuMemFreeAsync_ptsz"],
-                        _as_driver_handle("CUdeviceptr", self.ptr),
-                        _as_driver_handle("CUstream", self.async_stream_handle),
-                    ),
-                    "cuMemFreeAsync",
-                )
-                _drv_check(
-                    _drv_call(
-                        "cuStreamSynchronize",
-                        _as_driver_handle("CUstream", self.async_stream_handle),
-                    ),
-                    "cuStreamSynchronize",
-                )
-                self.freed = True
-                return
-            except Exception:
-                # Fall through to legacy free path for older driver bindings.
-                pass
 
         _drv_check(
             _drv_call(
@@ -562,7 +539,7 @@ class _KernelFunction:
         self.function_raw = function_raw
 
     def __call__(self, *args, block, grid, stream=None):
-        arg_values = [ctypes.c_uint64(int(arg)) for arg in args]
+        arg_values = []
 
         def _dedupe(values):
             out = []
@@ -575,7 +552,22 @@ class _KernelFunction:
                 out.append(value)
             return out
 
-        arg_ptr_values = [ctypes.addressof(arg_val) for arg_val in arg_values]
+        arg_ptr_values = []
+        for arg in args:
+            if isinstance(arg, _ByValueKernelArg):
+                payload = arg.payload
+                if len(payload) == 0:
+                    payload = b"\x00"
+
+                payload_storage = (ctypes.c_ubyte * len(payload)).from_buffer_copy(payload)
+                arg_values.append(payload_storage)
+                arg_ptr_values.append(ctypes.addressof(payload_storage))
+                continue
+
+            scalar_storage = ctypes.c_uint64(int(arg))
+            arg_values.append(scalar_storage)
+            arg_ptr_values.append(ctypes.addressof(scalar_storage))
+
         arg_ptr_array = None
         if len(arg_ptr_values) > 0:
             arg_ptr_array = (ctypes.c_void_p * len(arg_ptr_values))(
@@ -593,10 +585,6 @@ class _KernelFunction:
                     ctypes.cast(array_ptr, ctypes.c_void_p).value,
                     tuple(arg_ptr_values),
                     list(arg_ptr_values),
-                    tuple(int(arg_val.value) for arg_val in arg_values),
-                    [int(arg_val.value) for arg_val in arg_values],
-                    tuple(arg_values),
-                    list(arg_values),
                 ]
             )
 
@@ -907,19 +895,6 @@ class _CudaDevice:
         return _DeviceAllocation(int(_to_int(ptr)))
 
     @staticmethod
-    def mem_alloc_async(size: int, stream_obj):
-        stream_handle = 0 if stream_obj is None else int(stream_obj)
-        ptr = _drv_check(
-            _drv_call(
-                ["cuMemAllocAsync", "cuMemAllocAsync_ptsz"],
-                int(size),
-                _as_driver_handle("CUstream", stream_handle),
-            ),
-            "cuMemAllocAsync",
-        )
-        return _DeviceAllocation(int(_to_int(ptr)), async_stream_handle=stream_handle)
-
-    @staticmethod
     def memcpy_htod_async(dst_ptr, src_obj, stream_obj):
         src_view = memoryview(src_obj).cast("B")
         host_ptr, _keepalive = _readonly_host_ptr(src_view)
@@ -999,6 +974,7 @@ class _Context:
     streams: List["cuda.Stream"]
     queue_count: int
     queue_to_device: List[int]
+    max_kernel_param_size: int
     uses_primary_context: bool = False
     stopped: bool = False
 
@@ -1035,6 +1011,12 @@ class _KernelParam:
 
 
 @dataclass
+class _ByValueKernelArg:
+    payload: bytes
+    raw_name: str
+
+
+@dataclass
 class _ComputePlan:
     context_handle: int
     shader_source: bytes
@@ -1051,6 +1033,7 @@ class _DescriptorSet:
     plan_handle: int
     buffer_bindings: Dict[int, Tuple[int, int, int, int, int, int]] = field(default_factory=dict)
     image_bindings: Dict[int, Tuple[int, int, int, int]] = field(default_factory=dict)
+    inline_uniform_payload: bytes = b""
 
 
 @dataclass
@@ -1258,6 +1241,43 @@ def _allocate_staging_storage(size: int):
     except Exception:
         return bytearray(int(size))
 
+
+def _fallback_max_kernel_param_size(compute_capability_major: int) -> int:
+    # CUDA kernels support at least 4 KiB of launch parameters on legacy devices.
+    # Volta+ devices commonly expose a larger 32 KiB-ish argument space.
+    return 32764 if int(compute_capability_major) >= 7 else 4096
+
+
+def _query_max_kernel_param_size(device_raw, compute_capability_major: int) -> int:
+    attr_names = (
+        "CU_DEVICE_ATTRIBUTE_MAX_PARAMETER_SIZE",
+        "CU_DEVICE_ATTRIBUTE_MAX_PARAMETER_SIZE_SUPPORTED",
+        "CU_DEVICE_ATTRIBUTE_MAX_KERNEL_PARAMETER_SIZE",
+    )
+
+    attr_enum_container = getattr(driver, "CUdevice_attribute", None)
+    if attr_enum_container is not None:
+        for attr_name in attr_names:
+            attr_enum = getattr(attr_enum_container, attr_name, None)
+            if attr_enum is None:
+                continue
+
+            try:
+                queried_value = _drv_check(
+                    _drv_call("cuDeviceGetAttribute", attr_enum, device_raw),
+                    "cuDeviceGetAttribute",
+                )
+                queried_size = int(_to_int(queried_value))
+                if queried_size > 0:
+                    return queried_size
+            except Exception:
+                continue
+
+    print("Warning: Unable to query max kernel parameter size from CUDA driver. Falling back to a conservative default.", file=sys.stderr)
+
+    return _fallback_max_kernel_param_size(compute_capability_major)
+
+
 def _parse_local_size(source: str) -> Tuple[int, int, int]:
     x_match = _LOCAL_X_RE.search(source)
     y_match = _LOCAL_Y_RE.search(source)
@@ -1290,6 +1310,10 @@ def _parse_kernel_params(source: str) -> List[_KernelParam]:
 
         if param_name == "vkdispatch_uniform_ptr":
             params.append(_KernelParam("uniform", 0, param_name))
+            continue
+
+        if param_name == "vkdispatch_uniform_value":
+            params.append(_KernelParam("uniform_value", None, param_name))
             continue
 
         binding_match = _BINDING_PARAM_RE.match(param_name)
@@ -1335,6 +1359,19 @@ def _build_kernel_args_template(
             args.append(np.uintp(_resolve_buffer_pointer(descriptor_set, 0)))
             continue
 
+        if param.kind == "uniform_value":
+            if descriptor_set is None:
+                raise RuntimeError("Kernel requires a descriptor set but none was provided")
+
+            if len(descriptor_set.inline_uniform_payload) == 0:
+                raise RuntimeError(
+                    "Missing inline uniform payload for CUDA by-value uniform parameter "
+                    f"'{param.raw_name}'."
+                )
+
+            args.append(_ByValueKernelArg(descriptor_set.inline_uniform_payload, param.raw_name))
+            continue
+
         if param.kind == "storage":
             if descriptor_set is None:
                 raise RuntimeError("Kernel requires a descriptor set but none was provided")
@@ -1350,10 +1387,34 @@ def _build_kernel_args_template(
 
         raise RuntimeError(
             f"Unsupported kernel parameter '{param.raw_name}'. "
-            "Expected vkdispatch_uniform_ptr / vkdispatch_binding_<N>_ptr."
+            "Expected vkdispatch_uniform_ptr / vkdispatch_uniform_value / vkdispatch_binding_<N>_ptr."
         )
 
     return tuple(args)
+
+
+def _align_up(value: int, alignment: int) -> int:
+    if alignment <= 1:
+        return value
+    return ((value + alignment - 1) // alignment) * alignment
+
+
+def _estimate_kernel_param_size_bytes(args: Tuple[object, ...]) -> int:
+    total_bytes = 0
+
+    for arg in args:
+        if isinstance(arg, _ByValueKernelArg):
+            payload_size = len(arg.payload)
+            # Kernel params are aligned by argument type. Use a conservative
+            # 16-byte alignment for by-value structs.
+            total_bytes = _align_up(total_bytes, 16)
+            total_bytes += payload_size
+            continue
+
+        total_bytes = _align_up(total_bytes, 8)
+        total_bytes += 8
+
+    return total_bytes
 
 
 # --- API: context/init/logging ---
@@ -1506,6 +1567,8 @@ def context_create(device_indicies, queue_families):
             return 0
 
         dev = cuda.Device(device_index)
+        cc_major, _cc_minor = dev.compute_capability()
+        max_kernel_param_size = _query_max_kernel_param_size(dev.device_raw, cc_major)
         uses_primary_context = False
 
         if hasattr(dev, "retain_primary_context"):
@@ -1523,6 +1586,7 @@ def context_create(device_indicies, queue_families):
             streams=[stream],
             queue_count=1,
             queue_to_device=[0],
+            max_kernel_param_size=int(max_kernel_param_size),
             uses_primary_context=uses_primary_context,
             stopped=False,
         )
@@ -1670,25 +1734,7 @@ def buffer_create(context, size, per_device):
 
     try:
         with _activate_context(ctx):
-            try:
-                allocation = cuda.mem_alloc(size)
-            except Exception as alloc_exc:
-                alloc_error_text = str(alloc_exc).upper()
-
-                is_stream_capture_error = (
-                    "STREAM_CAPTURE" in alloc_error_text
-                    or "STREAM IS CAPTURING" in alloc_error_text
-                )
-
-                if not is_stream_capture_error:
-                    raise
-
-                # cuMemAlloc cannot execute while another stream is being captured.
-                # Fall back to stream-ordered allocation on vkdispatch's queue stream
-                # so this work stays outside the capture stream.
-                alloc_stream = ctx.streams[0]
-                allocation = cuda.mem_alloc_async(size, alloc_stream)
-                alloc_stream.synchronize()
+            allocation = cuda.mem_alloc(size)
 
         signal_handles = [
             _new_handle(_signals, _Signal(context_handle=int(context), queue_index=i, done=True))
@@ -1968,6 +2014,16 @@ def command_list_submit(command_list, data, instance_count, index):
                             )
 
                     args = _build_kernel_args_template(plan, descriptor_set)
+                    estimated_param_size = _estimate_kernel_param_size_bytes(args)
+                    if estimated_param_size > int(ctx.max_kernel_param_size):
+                        shader_name = plan.shader_name.decode("utf-8", errors="replace")
+                        raise RuntimeError(
+                            f"Kernel '{shader_name}' launch parameters require "
+                            f"{estimated_param_size} bytes, exceeding device limit "
+                            f"{ctx.max_kernel_param_size} bytes. "
+                            "Reduce by-value uniform payload size or switch large "
+                            "uniform data to buffer-backed arguments."
+                        )
                     resolved_launches.append(
                         _ResolvedLaunch(
                             plan=plan,
@@ -2045,6 +2101,18 @@ def descriptor_set_write_image(
     _ = read_access
     _ = write_access
     _set_error("CUDA Python backend does not support image objects yet")
+
+
+def descriptor_set_write_inline_uniform(descriptor_set, payload):
+    ds = _descriptor_sets.get(int(descriptor_set))
+    if ds is None:
+        _set_error("Invalid descriptor set handle for descriptor_set_write_inline_uniform")
+        return
+
+    try:
+        ds.inline_uniform_payload = _to_bytes(payload)
+    except Exception as exc:
+        _set_error(f"Failed to store inline uniform payload: {exc}")
 
 
 # --- API: compute stage ---
@@ -2284,6 +2352,7 @@ __all__ = [
     "descriptor_set_destroy",
     "descriptor_set_write_buffer",
     "descriptor_set_write_image",
+    "descriptor_set_write_inline_uniform",
     "image_create",
     "image_destroy",
     "image_create_sampler",

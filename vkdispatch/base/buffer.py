@@ -213,17 +213,6 @@ class Buffer(Handle, typing.Generic[_ArgType]):
 
         self._do_writes(true_data_object, index)
 
-        # During torch CUDA graph capture, vkdispatch buffer writes are intentionally
-        # issued on backend queue streams (not the capture stream). Make this path
-        # synchronous so subsequent captured kernels observe completed writes.
-        if is_cuda():
-            from ..execution_pipeline.cuda_graph_capture import get_cuda_capture
-
-            if get_cuda_capture() is not None:
-                queue_indices = [index] if index is not None else range(self.context.queue_count)
-                for queue_index in queue_indices:
-                    self.signals[queue_index].wait(True, queue_index)
-
     def _do_reads(self, var_type: dtype, shape: List[int], index: int = None) -> bytes:
         assert index is None or (isinstance(index, int) and index >= 0), "Index must be None or a non-negative integer!"
 

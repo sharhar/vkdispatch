@@ -50,14 +50,16 @@ def main() -> None:
 
     torch.cuda.synchronize()
     # Pre-stage internal uniform uploads outside torch capture so only dispatch is captured.
-    cmd_graph.prepare_for_cuda_graph_capture()
+    #cmd_graph.prepare_for_cuda_graph_capture()
 
     graph = torch.cuda.CUDAGraph()
     with torch.cuda.graph(graph):
         # torch.cuda.graph(...) may switch to an internal capture stream.
         # Bind vkdispatch to the active stream from inside that context.
         with vd.cuda_graph_capture(torch.cuda.current_stream()):
+            print("Submitting vkdispatch CommandGraph to CUDA Graph...")
             cmd_graph.submit()
+            print("Done recording.")
 
     replay_inputs = [0.0, 1.0, 2.0, 3.0]
     for i, value in enumerate(replay_inputs, start=1):
