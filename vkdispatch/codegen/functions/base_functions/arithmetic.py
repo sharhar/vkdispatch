@@ -154,7 +154,7 @@ def sub(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
             return base_utils.new_scaled_var(
                 return_type,
                 f"(-{var.resolve()})" if reverse else var.resolve(),
-                offset=other,
+                offset=other if reverse else -other,
                 parents=[var])
 
         if use_assignment:
