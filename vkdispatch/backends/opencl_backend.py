@@ -621,18 +621,7 @@ def get_devices():
     entries = _enumerate_opencl_devices()
     devices = []
 
-    print(f"Found {len(entries)} OpenCL devices:")
-    print("Index | Vendor | Device Name | Type | OpenCL Version | Driver Version")
-
     for entry in entries:
-        print(
-            f"{entry.logical_index}: "
-            f"{_device_attr(entry.platform, 'vendor', 'Unknown Vendor')} - "
-            f"{_device_attr(entry.device, 'name', 'Unknown Device')} - "
-            f"{_device_type_to_vkdispatch(_coerce_int(_device_attr(entry.device, 'type', 0), 0))} - "
-            f"{_device_attr(entry.device, 'version', 'Unknown Version')} - "
-            f"{_device_attr(entry.device, 'driver_version', 'Unknown Driver')}"
-        )
         device = entry.device
         opencl_version = _device_attr(device, "version", "")
         version_major, version_minor = _opencl_version_components(opencl_version)
