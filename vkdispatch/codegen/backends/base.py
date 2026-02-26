@@ -197,25 +197,32 @@ class CodeGenBackend:
     def group_memory_barrier_statement(self) -> str:
         raise NotImplementedError
 
-    def subgroup_add_expr(self, arg_expr: str) -> str:
+    def subgroup_add_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         raise NotImplementedError
 
-    def subgroup_mul_expr(self, arg_expr: str) -> str:
+    def subgroup_mul_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         raise NotImplementedError
 
-    def subgroup_min_expr(self, arg_expr: str) -> str:
+    def subgroup_min_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         raise NotImplementedError
 
-    def subgroup_max_expr(self, arg_expr: str) -> str:
+    def subgroup_max_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         raise NotImplementedError
 
-    def subgroup_and_expr(self, arg_expr: str) -> str:
+    def subgroup_and_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         raise NotImplementedError
 
-    def subgroup_or_expr(self, arg_expr: str) -> str:
+    def subgroup_or_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         raise NotImplementedError
 
-    def subgroup_xor_expr(self, arg_expr: str) -> str:
+    def subgroup_xor_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         raise NotImplementedError
 
     def subgroup_elect_expr(self) -> str:

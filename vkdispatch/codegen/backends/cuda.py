@@ -1702,31 +1702,38 @@ class CUDABackend(CodeGenBackend):
 
         return header, body
 
-    def subgroup_add_expr(self, arg_expr: str) -> str:
+    def subgroup_add_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         self.mark_feature_usage("subgroup_add")
         return f"vkdispatch_subgroup_add({arg_expr})"
 
-    def subgroup_mul_expr(self, arg_expr: str) -> str:
+    def subgroup_mul_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         self.mark_feature_usage("subgroup_mul")
         return f"vkdispatch_subgroup_mul({arg_expr})"
 
-    def subgroup_min_expr(self, arg_expr: str) -> str:
+    def subgroup_min_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         self.mark_feature_usage("subgroup_min")
         return f"vkdispatch_subgroup_min({arg_expr})"
 
-    def subgroup_max_expr(self, arg_expr: str) -> str:
+    def subgroup_max_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         self.mark_feature_usage("subgroup_max")
         return f"vkdispatch_subgroup_max({arg_expr})"
 
-    def subgroup_and_expr(self, arg_expr: str) -> str:
+    def subgroup_and_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         self.mark_feature_usage("subgroup_and")
         return f"vkdispatch_subgroup_and({arg_expr})"
 
-    def subgroup_or_expr(self, arg_expr: str) -> str:
+    def subgroup_or_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         self.mark_feature_usage("subgroup_or")
         return f"vkdispatch_subgroup_or({arg_expr})"
 
-    def subgroup_xor_expr(self, arg_expr: str) -> str:
+    def subgroup_xor_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         self.mark_feature_usage("subgroup_xor")
         return f"vkdispatch_subgroup_xor({arg_expr})"
 

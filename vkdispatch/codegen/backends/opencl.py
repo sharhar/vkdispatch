@@ -479,7 +479,7 @@ class OpenCLBackend(CodeGenBackend):
 
     def sampler_declaration(self, binding: int, dimensions: int, name: str) -> str:
         _ = (binding, dimensions, name)
-        raise NotImplementedError("image/sampler unsupported in OpenCL MVP")
+        raise NotImplementedError("image/sampler unsupported in OpenCL backend")
 
     def push_constant_declaration(self, contents: str) -> str:
         _ = contents
@@ -542,16 +542,16 @@ class OpenCLBackend(CodeGenBackend):
         return "((uint3)((uint)get_num_groups(0), (uint)get_num_groups(1), (uint)get_num_groups(2)))"
 
     def num_subgroups_expr(self) -> str:
-        raise NotImplementedError("subgroup operations unsupported in OpenCL MVP")
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
 
     def subgroup_id_expr(self) -> str:
-        raise NotImplementedError("subgroup operations unsupported in OpenCL MVP")
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
 
     def subgroup_size_expr(self) -> str:
-        raise NotImplementedError("subgroup operations unsupported in OpenCL MVP")
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
 
     def subgroup_invocation_id_expr(self) -> str:
-        raise NotImplementedError("subgroup operations unsupported in OpenCL MVP")
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
 
     def barrier_statement(self) -> str:
         return "barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);"
@@ -566,44 +566,44 @@ class OpenCLBackend(CodeGenBackend):
         return "mem_fence(CLK_LOCAL_MEM_FENCE);"
 
     def memory_barrier_image_statement(self) -> str:
-        raise NotImplementedError("image/sampler unsupported in OpenCL MVP")
+        raise NotImplementedError("image/sampler unsupported in OpenCL backend")
 
     def group_memory_barrier_statement(self) -> str:
         return "mem_fence(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);"
 
     def subgroup_add_expr(self, arg_expr: str) -> str:
         _ = arg_expr
-        raise NotImplementedError("subgroup operations unsupported in OpenCL MVP")
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
 
     def subgroup_mul_expr(self, arg_expr: str) -> str:
         _ = arg_expr
-        raise NotImplementedError("subgroup operations unsupported in OpenCL MVP")
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
 
     def subgroup_min_expr(self, arg_expr: str) -> str:
         _ = arg_expr
-        raise NotImplementedError("subgroup operations unsupported in OpenCL MVP")
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
 
     def subgroup_max_expr(self, arg_expr: str) -> str:
         _ = arg_expr
-        raise NotImplementedError("subgroup operations unsupported in OpenCL MVP")
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
 
     def subgroup_and_expr(self, arg_expr: str) -> str:
         _ = arg_expr
-        raise NotImplementedError("subgroup operations unsupported in OpenCL MVP")
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
 
     def subgroup_or_expr(self, arg_expr: str) -> str:
         _ = arg_expr
-        raise NotImplementedError("subgroup operations unsupported in OpenCL MVP")
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
 
     def subgroup_xor_expr(self, arg_expr: str) -> str:
         _ = arg_expr
-        raise NotImplementedError("subgroup operations unsupported in OpenCL MVP")
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
 
     def subgroup_elect_expr(self) -> str:
-        raise NotImplementedError("subgroup operations unsupported in OpenCL MVP")
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
 
     def subgroup_barrier_statement(self) -> str:
-        raise NotImplementedError("subgroup operations unsupported in OpenCL MVP")
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
 
     def printf_statement(self, fmt: str, args: List[str]) -> str:
         if len(args) == 0:
@@ -612,15 +612,15 @@ class OpenCLBackend(CodeGenBackend):
 
     def texture_size_expr(self, texture_expr: str, lod: int, dimensions: int) -> str:
         _ = (texture_expr, lod, dimensions)
-        raise NotImplementedError("image/sampler unsupported in OpenCL MVP")
+        raise NotImplementedError("image/sampler unsupported in OpenCL backend")
 
     def sample_texture_expr(self, texture_expr: str, coord_expr: str, lod_expr: Optional[str] = None) -> str:
         _ = (texture_expr, coord_expr, lod_expr)
-        raise NotImplementedError("image/sampler unsupported in OpenCL MVP")
+        raise NotImplementedError("image/sampler unsupported in OpenCL backend")
 
     def mark_texture_sample_dimension(self, dimensions: int) -> None:
         _ = dimensions
-        raise NotImplementedError("image/sampler unsupported in OpenCL MVP")
+        raise NotImplementedError("image/sampler unsupported in OpenCL backend")
 
     def atomic_add_expr(self, mem_expr: str, value_expr: str, var_type: dtypes.dtype) -> str:
         if var_type not in (dtypes.int32, dtypes.uint32):

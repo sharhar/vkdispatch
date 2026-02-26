@@ -165,25 +165,32 @@ class GLSLBackend(CodeGenBackend):
     def group_memory_barrier_statement(self) -> str:
         return "groupMemoryBarrier();"
 
-    def subgroup_add_expr(self, arg_expr: str) -> str:
+    def subgroup_add_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         return f"subgroupAdd({arg_expr})"
 
-    def subgroup_mul_expr(self, arg_expr: str) -> str:
+    def subgroup_mul_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         return f"subgroupMul({arg_expr})"
 
-    def subgroup_min_expr(self, arg_expr: str) -> str:
+    def subgroup_min_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         return f"subgroupMin({arg_expr})"
 
-    def subgroup_max_expr(self, arg_expr: str) -> str:
+    def subgroup_max_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         return f"subgroupMax({arg_expr})"
 
-    def subgroup_and_expr(self, arg_expr: str) -> str:
+    def subgroup_and_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         return f"subgroupAnd({arg_expr})"
 
-    def subgroup_or_expr(self, arg_expr: str) -> str:
+    def subgroup_or_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         return f"subgroupOr({arg_expr})"
 
-    def subgroup_xor_expr(self, arg_expr: str) -> str:
+    def subgroup_xor_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         return f"subgroupXor({arg_expr})"
 
     def subgroup_elect_expr(self) -> str:
