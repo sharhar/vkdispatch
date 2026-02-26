@@ -75,11 +75,12 @@ def _cuda_emit_vec_type(
     ctor_init = "{" + ", ".join([f"{c}_" for c in comps]) + "}"
     splat_init = "{" + ", ".join(["s" for _ in comps]) + "}"
     cast_init = "{" + ", ".join([f"({scalar_type}){native_comp('src', c)}" for c in comps]) + "}"
+    member_guard = ", ".join([f"(void)(((const TVec*)0)->{c})" for c in comps])
     lines.append(f"    __device__ __forceinline__ {vec_name}() = default;")
     lines.append(f"    __device__ __forceinline__ {vec_name}({ctor_args}) : v{ctor_init} {{}}")
     lines.append(f"    __device__ __forceinline__ explicit {vec_name}({scalar_type} s) : v{splat_init} {{}}")
     lines.append(f"    __device__ __forceinline__ explicit {vec_name}(const {cuda_native_type}& native) : v(native) {{}}")
-    lines.append("    template <typename TVec>")
+    lines.append(f"    template <typename TVec, typename = decltype({member_guard})>")
     lines.append(f"    __device__ __forceinline__ explicit {vec_name}(const TVec& src) : v{cast_init} {{}}")
     lines.append(f"    __device__ __forceinline__ {scalar_type}& operator[](int i) {{ {index_op_body()} }}")
     lines.append(f"    __device__ __forceinline__ const {scalar_type}& operator[](int i) const {{ {index_op_body()} }}")
@@ -173,12 +174,14 @@ def _cuda_emit_vec_helper(helper_suffix: str, vec_name: str, scalar_type: str, d
     comps = _cuda_vec_components(dim)
     args = ", ".join([f"{scalar_type} {c}" for c in comps])
     ctor_args = ", ".join(comps)
+    member_guard = ", ".join([f"(void)(((const TVec*)0)->{c})" for c in comps])
     return "\n".join(
         [
             f"__device__ __forceinline__ {vec_name} vkdispatch_make_{helper_suffix}({args}) {{ return {vec_name}({ctor_args}); }}",
             f"__device__ __forceinline__ {vec_name} vkdispatch_make_{helper_suffix}({scalar_type} x) {{ return {vec_name}(x); }}",
-            "template <typename TVec>",
-            f"__device__ __forceinline__ {vec_name} vkdispatch_make_{helper_suffix}(TVec v) {{ return {vec_name}(v); }}",
+            f"__device__ __forceinline__ {vec_name} vkdispatch_make_{helper_suffix}(const {vec_name}& v) {{ return v; }}",
+            f"template <typename TVec, typename = decltype({member_guard})>",
+            f"__device__ __forceinline__ {vec_name} vkdispatch_make_{helper_suffix}(const TVec& v) {{ return {vec_name}(v); }}",
         ]
     )
 
@@ -1554,10 +1557,6 @@ class CUDABackend(CodeGenBackend):
         )
         if vector_expr is not None:
             return vector_expr
-
-        if func_name == "atan2":
-            mapped = self.math_func_name("atan", lhs_type)
-            return f"{mapped}({lhs_expr}, {rhs_expr})"
 
         if dtypes.is_scalar(lhs_type) and dtypes.is_scalar(rhs_type):
             scalar = lhs_type
