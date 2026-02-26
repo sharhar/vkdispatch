@@ -212,6 +212,9 @@ class ShaderVariable(BaseVariable):
                 self.imag.set_value(value)
             
             return
+
+        if dtypes.is_complex(self.var_type) and (name == "x" or name == "y"):
+            raise ValueError(f"Cannot set attribute '{name}' of complex variable '{self.resolve()}', use 'real' and 'imag' instead!")
         
         if dtypes.is_vector(self.var_type) and (name == "x" or name == "y" or name == "z" or name == "w"):
             if name == "x":
