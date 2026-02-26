@@ -151,6 +151,9 @@ class ShaderFunction:
     name: str
     source: str
     flags: vc.ShaderFlags
+    local_size: Union[Tuple[int, int, int], Callable, None]
+    workgroups: Union[Tuple[int, int, int], Callable, None]
+    exec_size: Union[Tuple[int, int, int], Callable, None]
 
     def __init__(self,
                  func: Callable,

@@ -77,9 +77,15 @@ class ShaderDescription:
     def make_source(self, x: int, y: int, z: int) -> str:
         if self.backend is None:
             layout_str = f"layout(local_size_x = {x}, local_size_y = {y}, local_size_z = {z}) in;"
-            return f"{self.header}\n{layout_str}\n{self.body}"
+            shader_source = f"{self.header}\n{layout_str}\n{self.body}"
+        else:
+            shader_source = self.backend.make_source(self.header, self.body, x, y, z)
 
-        return self.backend.make_source(self.header, self.body, x, y, z)
+        # ff = open(f"sources/{self.name}.comp", "w")
+        # ff.write(shader_source)
+        # ff.close()
+
+        return shader_source
     
     def __repr__(self):
         description_string = ""

@@ -133,7 +133,8 @@ class FFTContext:
     def compile_shader(self):
         self.fft_callable = self.shader_context.get_function(
             local_size=self.grid.local_size,
-            exec_count=self.grid.exec_size
+            exec_count=self.grid.exec_size,
+            name=self.name
         )
 
     def get_callable(self) -> vd.ShaderFunction:
@@ -173,7 +174,8 @@ Register-group coverage this stage: {self.config.N // stage.registers_used}.""")
 def fft_context(buffer_shape: Tuple,
                 axis: Optional[int] = None,
                 max_register_count: Optional[int] = None,
-                compute_type: dtypes.dtype = vd.complex64):
+                compute_type: dtypes.dtype = vd.complex64,
+                name: Optional[str] = None):
 
     try:
         with vd.shader_context(vc.ShaderFlags.NO_EXEC_BOUNDS) as context:
@@ -182,7 +184,8 @@ def fft_context(buffer_shape: Tuple,
                 buffer_shape=buffer_shape,
                 axis=axis,
                 max_register_count=max_register_count,
-                compute_type=compute_type
+                compute_type=compute_type,
+                name=name
             )
 
             yield fft_context

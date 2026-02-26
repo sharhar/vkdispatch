@@ -3,7 +3,7 @@ import vkdispatch.codegen as vc
 
 from .signature import ShaderSignature
 
-from typing import List
+from typing import List, Optional
 
 import contextlib
 
@@ -19,9 +19,10 @@ class ShaderContext:
     def get_function(self,
                      local_size=None,
                       workgroups=None,
-                      exec_count=None) -> vd.ShaderFunction:
+                      exec_count=None,
+                      name: Optional[str] = None) -> vd.ShaderFunction:
         return vd.ShaderFunction.from_description(
-            self.builder.build("shader"),
+            self.builder.build("shader" if name is None else name),
             self.signature,
             local_size=local_size,
             workgroups=workgroups,

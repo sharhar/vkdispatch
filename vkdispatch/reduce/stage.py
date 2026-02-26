@@ -84,7 +84,12 @@ def workgroup_reduce(
         if current_size // 2 > vd.get_context().subgroup_size:
             vc.end()
         else:
-            vc.else_if_statement(tid < 2*vd.get_context().subgroup_size)
+            tid_limit = 2
+
+            if vd.get_context().subgroup_size != 1:
+                tid_limit = 2*vc.subgroup_size()
+
+            vc.else_if_statement(tid < tid_limit)
             sdata[tid] = vc.new_register(out_type, 0)
             vc.end()
         
@@ -137,6 +142,8 @@ def make_reduction_stage(
         output_is_input: bool,
         map_func: Optional[vd.MappingFunction] = None,
         input_types: List = None) -> vd.ShaderFunction:
+
+    name = f"reduction_stage_{reduction.name}_{out_type.name}_{input_types}_{group_size}"
     
     with vd.shader_context() as context:
         signature_type_array = []
@@ -165,4 +172,4 @@ def make_reduction_stage(
         input_variables[0][batch_offset + output_offset + params.output_offset] = local_var
         vc.end()
 
-        return context.get_function(local_size=(group_size, 1, 1))
+        return context.get_function(local_size=(group_size, 1, 1), name=name)

@@ -31,7 +31,9 @@ def make_fft_shader(
     if compute_type is None:
         compute_type = vd.complex64
 
-    with vd.fft.fft_context(buffer_shape, axis=axis, compute_type=compute_type) as ctx:
+    name = f"fft_shader_{buffer_shape}_{axis}_{inverse}_{normalize_inverse}_{r2c}"
+
+    with vd.fft.fft_context(buffer_shape, axis=axis, compute_type=compute_type, name=name) as ctx:
         io_manager = ctx.make_io_manager(
             input_map=input_map,
             output_map=output_map,
@@ -142,7 +144,9 @@ def make_convolution_shader(
 
         kernel_map = vd.map(kernel_map_func, input_types=[vc.Buffer[kernel_type]])
 
-    with vd.fft.fft_context(buffer_shape, axis=axis, compute_type=compute_type) as ctx:
+    name = f"convolution_shader_{buffer_shape}_{axis}"
+
+    with vd.fft.fft_context(buffer_shape, axis=axis, compute_type=compute_type, name=name) as ctx:
         io_manager = ctx.make_io_manager(
             input_map=input_map,
             output_map=output_map,
