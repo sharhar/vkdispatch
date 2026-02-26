@@ -19,7 +19,7 @@ import inspect
 
 import enum
 
-_PUSH_CONSTANT_UNSUPPORTED_BACKENDS = {"cuda", "opencl"}
+_PUSH_CONSTANT_UNSUPPORTED_BACKENDS = {"opencl"}
 
 
 def _push_constant_not_supported_error(backend_name: str) -> str:

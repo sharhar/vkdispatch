@@ -410,11 +410,11 @@ class ShaderFunction:
                     uniform_values[shader_arg.shader_name[field.name]] = getattr(arg, field.name)
 
             elif shader_arg.arg_type == ShaderArgumentType.VARIABLE:
-                if vd.is_cuda() or vd.is_opencl():
+                if vd.is_opencl():
                     if callable(arg):
                         raise RuntimeError(
                             "CommandGraph.bind_var()/set_var() are disabled for backends "
-                            "without push-constant support (CUDA/OpenCL). "
+                            "without push-constant support (OpenCL). "
                             "Pass Variable values directly at shader invocation."
                         )
                     uniform_values[shader_arg.shader_name] = arg

@@ -1341,7 +1341,7 @@ class CUDABackend(CodeGenBackend):
         return "UBO"
 
     def variable_namespace(self) -> str:
-        return "UBO"
+        return "PC"
 
     def exec_bounds_guard(self, exec_count_expr: str) -> str:
         gid = self.global_invocation_id_expr()
@@ -1375,7 +1375,9 @@ class CUDABackend(CodeGenBackend):
         return f"// sampler binding {binding}, dimensions={dimensions}\n"
 
     def push_constant_declaration(self, contents: str) -> str:
-        raise NotImplementedError("Push constants are not supported in the CUDA backend.")
+        self._register_kernel_param("const PushConstant vkdispatch_pc_value")
+        self._register_alias_line("const PushConstant& PC = vkdispatch_pc_value;")
+        return f"\nstruct PushConstant {{\n{contents}\n}};\n"
 
     def entry_point(self, body_contents: str) -> str:
         params = ", ".join(self._kernel_params)

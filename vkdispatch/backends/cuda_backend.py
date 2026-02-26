@@ -995,6 +995,7 @@ class _CommandRecord:
     plan_handle: int
     descriptor_set_handle: int
     blocks: Tuple[int, int, int]
+    pc_size: int
 
 
 @dataclass
@@ -1026,6 +1027,7 @@ class _ComputePlan:
     function: object
     local_size: Tuple[int, int, int]
     params: List[_KernelParam]
+    pc_size: int
 
 
 @dataclass
@@ -1040,7 +1042,10 @@ class _DescriptorSet:
 class _ResolvedLaunch:
     plan: _ComputePlan
     blocks: Tuple[int, int, int]
-    args: Tuple[object, ...]
+    descriptor_set: Optional[_DescriptorSet]
+    pc_size: int
+    pc_offset: int
+    static_args: Optional[Tuple[object, ...]] = None
 
 
 # --- Helper utilities ---
@@ -1316,6 +1321,10 @@ def _parse_kernel_params(source: str) -> List[_KernelParam]:
             params.append(_KernelParam("uniform_value", None, param_name))
             continue
 
+        if param_name == "vkdispatch_pc_value":
+            params.append(_KernelParam("push_constant_value", None, param_name))
+            continue
+
         binding_match = _BINDING_PARAM_RE.match(param_name)
         if binding_match is not None:
             params.append(_KernelParam("storage", int(binding_match.group(1)), param_name))
@@ -1347,7 +1356,8 @@ def _resolve_buffer_pointer(descriptor_set: _DescriptorSet, binding: int) -> int
 
 def _build_kernel_args_template(
     plan: _ComputePlan,
-    descriptor_set: Optional[_DescriptorSet]
+    descriptor_set: Optional[_DescriptorSet],
+    push_constant_payload: bytes = b"",
 ) -> Tuple[object, ...]:
     args: List[object] = []
 
@@ -1372,6 +1382,27 @@ def _build_kernel_args_template(
             args.append(_ByValueKernelArg(descriptor_set.inline_uniform_payload, param.raw_name))
             continue
 
+        if param.kind == "push_constant_value":
+            if plan.pc_size <= 0:
+                raise RuntimeError(
+                    f"Kernel parameter '{param.raw_name}' expects push-constant data, but this compute plan has pc_size={plan.pc_size}."
+                )
+
+            if len(push_constant_payload) == 0:
+                raise RuntimeError(
+                    "Missing push-constant payload for CUDA by-value push-constant parameter "
+                    f"'{param.raw_name}'."
+                )
+
+            if len(push_constant_payload) != int(plan.pc_size):
+                raise RuntimeError(
+                    f"Push-constant payload size mismatch for parameter '{param.raw_name}'. "
+                    f"Expected {plan.pc_size} bytes but got {len(push_constant_payload)} bytes."
+                )
+
+            args.append(_ByValueKernelArg(push_constant_payload, param.raw_name))
+            continue
+
         if param.kind == "storage":
             if descriptor_set is None:
                 raise RuntimeError("Kernel requires a descriptor set but none was provided")
@@ -1387,7 +1418,7 @@ def _build_kernel_args_template(
 
         raise RuntimeError(
             f"Unsupported kernel parameter '{param.raw_name}'. "
-            "Expected vkdispatch_uniform_ptr / vkdispatch_uniform_value / vkdispatch_binding_<N>_ptr."
+            "Expected vkdispatch_uniform_ptr / vkdispatch_uniform_value / vkdispatch_pc_value / vkdispatch_binding_<N>_ptr."
         )
 
     return tuple(args)
@@ -1963,7 +1994,11 @@ def command_list_destroy(command_list):
 
 
 def command_list_get_instance_size(command_list):
-    return 0
+    obj = _command_lists.get(int(command_list))
+    if obj is None:
+        return 0
+
+    return int(sum(int(command.pc_size) for command in obj.commands))
 
 
 def command_list_reset(command_list):
@@ -1975,8 +2010,6 @@ def command_list_reset(command_list):
 
 
 def command_list_submit(command_list, data, instance_count, index):
-    assert data is None or len(data) == 0, "CUDA does not support push constant data in command_list_submit"
-
     obj = _command_lists.get(int(command_list))
     if obj is None:
         return True
@@ -1990,6 +2023,24 @@ def command_list_submit(command_list, data, instance_count, index):
     if instance_count <= 0:
         return True
 
+    instance_size = command_list_get_instance_size(command_list)
+    payload = _to_bytes(data)
+    expected_payload_size = int(instance_size) * int(instance_count)
+
+    if expected_payload_size == 0:
+        if len(payload) != 0:
+            _set_error(
+                f"Unexpected push-constant data for command list with instance_size=0 "
+                f"(got {len(payload)} bytes)."
+            )
+            return True
+    elif len(payload) != expected_payload_size:
+        _set_error(
+            f"Push-constant data size mismatch. Expected {expected_payload_size} bytes "
+            f"(instance_size={instance_size}, instance_count={instance_count}) but got {len(payload)} bytes."
+        )
+        return True
+
     queue_targets = _queue_indices(ctx, int(index), all_on_negative=True)
     if len(queue_targets) == 0:
         queue_targets = [0]
@@ -1999,6 +2050,7 @@ def command_list_submit(command_list, data, instance_count, index):
             for queue_index in queue_targets:
                 stream = _stream_for_queue(ctx, queue_index)
                 resolved_launches: List[_ResolvedLaunch] = []
+                per_instance_offset = 0
 
                 for command in obj.commands:
                     plan = _compute_plans.get(command.plan_handle)
@@ -2013,29 +2065,67 @@ def command_list_submit(command_list, data, instance_count, index):
                                 f"Invalid descriptor set handle {command.descriptor_set_handle}"
                             )
 
-                    args = _build_kernel_args_template(plan, descriptor_set)
-                    estimated_param_size = _estimate_kernel_param_size_bytes(args)
+                    command_pc_size = int(command.pc_size)
+                    first_instance_payload = b""
+                    if command_pc_size > 0 and len(payload) > 0:
+                        first_instance_payload = payload[per_instance_offset: per_instance_offset + command_pc_size]
+
+                    static_args = None
+                    if command_pc_size == 0:
+                        static_args = _build_kernel_args_template(plan, descriptor_set, b"")
+                        size_check_args = static_args
+                    else:
+                        size_check_args = _build_kernel_args_template(
+                            plan,
+                            descriptor_set,
+                            first_instance_payload,
+                        )
+
+                    estimated_param_size = _estimate_kernel_param_size_bytes(size_check_args)
                     if estimated_param_size > int(ctx.max_kernel_param_size):
                         shader_name = plan.shader_name.decode("utf-8", errors="replace")
                         raise RuntimeError(
                             f"Kernel '{shader_name}' launch parameters require "
                             f"{estimated_param_size} bytes, exceeding device limit "
                             f"{ctx.max_kernel_param_size} bytes. "
-                            "Reduce by-value uniform payload size or switch large "
+                            "Reduce by-value uniform/push-constant payload size or switch large "
                             "uniform data to buffer-backed arguments."
                         )
                     resolved_launches.append(
                         _ResolvedLaunch(
                             plan=plan,
                             blocks=command.blocks,
-                            args=args,
+                            descriptor_set=descriptor_set,
+                            pc_size=command_pc_size,
+                            pc_offset=per_instance_offset,
+                            static_args=static_args,
                         )
                     )
+                    per_instance_offset += command_pc_size
 
-                for _ in range(instance_count):
+                if per_instance_offset != instance_size:
+                    raise RuntimeError(
+                        f"Internal command list size mismatch: computed {per_instance_offset} bytes, "
+                        f"expected {instance_size} bytes."
+                    )
+
+                for instance_index in range(instance_count):
+                    instance_base_offset = instance_index * instance_size
                     for launch in resolved_launches:
+                        if launch.static_args is not None:
+                            args = launch.static_args
+                        else:
+                            pc_start = instance_base_offset + launch.pc_offset
+                            pc_end = pc_start + launch.pc_size
+                            pc_payload = payload[pc_start:pc_end]
+                            args = _build_kernel_args_template(
+                                launch.plan,
+                                launch.descriptor_set,
+                                pc_payload,
+                            )
+
                         launch.plan.function(
-                            *launch.args,
+                            *args,
                             block=launch.plan.local_size,
                             grid=launch.blocks,
                             stream=stream,
@@ -2119,8 +2209,6 @@ def descriptor_set_write_inline_uniform(descriptor_set, payload):
 
 
 def stage_compute_plan_create(context, shader_source, bindings, pc_size, shader_name):
-    assert pc_size == 0, "CUDA Python backend does not support push constant data in compute plans"
-
     ctx = _context_from_handle(int(context))
     if ctx is None:
         return 0
@@ -2157,6 +2245,7 @@ def stage_compute_plan_create(context, shader_source, bindings, pc_size, shader_
         function=function,
         local_size=local_size,
         params=params,
+        pc_size=int(pc_size),
     )
 
     return _new_handle(_compute_plans, plan)
@@ -2179,7 +2268,8 @@ def stage_compute_record(command_list, plan, descriptor_set, blocks_x, blocks_y,
         _CommandRecord(
             plan_handle=int(plan),
             descriptor_set_handle=int(descriptor_set),
-            blocks=(int(blocks_x), int(blocks_y), int(blocks_z))
+            blocks=(int(blocks_x), int(blocks_y), int(blocks_z)),
+            pc_size=int(cp.pc_size),
         )
     )
 
