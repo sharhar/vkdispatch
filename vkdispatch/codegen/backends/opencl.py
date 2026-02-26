@@ -32,6 +32,7 @@ class OpenCLBackend(CodeGenBackend):
     def reset_state(self) -> None:
         self._kernel_params: List[str] = []
         self._entry_alias_lines: List[str] = []
+        self._shared_buffer_lines: List[str] = []
         self._matrix_type_usage: Set[int] = set()
 
     def _register_kernel_param(self, param_decl: str) -> None:
@@ -49,6 +50,25 @@ class OpenCLBackend(CodeGenBackend):
     def _record_matrix_type(self, var_type: dtypes.dtype) -> None:
         if dtypes.is_matrix(var_type):
             self._record_matrix_dim(var_type.child_count)
+
+    @staticmethod
+    def _matrix_helper_name(dim: int, constructor_kind: str) -> str:
+        return f"vkdispatch_make_mat{dim}_{constructor_kind}"
+
+    def _is_matrix_copy_constructor_arg(self, arg_expr: str, dim: int) -> bool:
+        stripped = arg_expr.strip()
+        mat_type = self._matrix_struct_name(dim)
+
+        if stripped.startswith(f"({mat_type})") or stripped.startswith(f"(({mat_type})"):
+            return True
+
+        if f"vkdispatch_make_mat{dim}_" in stripped:
+            return True
+
+        if f"vkdispatch_mat{dim}_" in stripped:
+            return True
+
+        return False
 
     @classmethod
     def _scalar_type_name(cls, scalar_type: dtypes.dtype) -> str:
@@ -88,9 +108,20 @@ class OpenCLBackend(CodeGenBackend):
             assert len(args) in (1, dim, dim * dim), (
                 f"Constructor for matrix type '{var_type.name}' needs 1, {dim}, or {dim * dim} arguments."
             )
-            return f"vkdispatch_make_mat{dim}({', '.join(args)})"
+            if len(args) == 1:
+                single_arg = args[0]
+                helper_name = self._matrix_helper_name(
+                    dim,
+                    "copy" if self._is_matrix_copy_constructor_arg(single_arg, dim) else "scalar",
+                )
+                return f"{helper_name}({single_arg})"
 
-        return f"{target_type}({', '.join(args)})"
+            if len(args) == dim:
+                return f"{self._matrix_helper_name(dim, 'cols')}({', '.join(args)})"
+
+            return f"{self._matrix_helper_name(dim, 'flat')}({', '.join(args)})"
+
+        return f"(({target_type})({', '.join(args)}))"
 
     def component_access_expr(self, expr: str, component: str, base_type: dtypes.dtype) -> str:
         if dtypes.is_scalar(base_type) and component == "x":
@@ -181,6 +212,10 @@ class OpenCLBackend(CodeGenBackend):
         mat_type = self._matrix_struct_name(dim)
         vec_type = self._vector_type_name(dim)
         comps = self._vector_components(dim)
+        scalar_helper_name = self._matrix_helper_name(dim, "scalar")
+        copy_helper_name = self._matrix_helper_name(dim, "copy")
+        cols_helper_name = self._matrix_helper_name(dim, "cols")
+        flat_helper_name = self._matrix_helper_name(dim, "flat")
 
         lines: List[str] = []
 
@@ -197,7 +232,7 @@ class OpenCLBackend(CodeGenBackend):
             lines.append(f"typedef struct {mat_type} {{\n{cols}\n}} {mat_type};")
 
         # Constructors.
-        lines.append(f"static inline {mat_type} vkdispatch_make_mat{dim}(float s) {{")
+        lines.append(f"static inline {mat_type} {scalar_helper_name}(float s) {{")
         lines.append(f"    {mat_type} out;")
         for col_idx in range(dim):
             diag_values = [("s" if row_idx == col_idx else "0.0f") for row_idx in range(dim)]
@@ -206,10 +241,10 @@ class OpenCLBackend(CodeGenBackend):
         lines.append("    return out;")
         lines.append("}")
 
-        lines.append(f"static inline {mat_type} vkdispatch_make_mat{dim}({mat_type} m) {{ return m; }}")
+        lines.append(f"static inline {mat_type} {copy_helper_name}({mat_type} m) {{ return m; }}")
 
         col_args = ", ".join([f"{vec_type} c{i}" for i in range(dim)])
-        lines.append(f"static inline {mat_type} vkdispatch_make_mat{dim}({col_args}) {{")
+        lines.append(f"static inline {mat_type} {cols_helper_name}({col_args}) {{")
         lines.append(f"    {mat_type} out;")
         for col_idx in range(dim):
             lines.append(f"    {self._matrix_col_assign_stmt('out', col_idx, f'c{col_idx}', dim)}")
@@ -218,8 +253,8 @@ class OpenCLBackend(CodeGenBackend):
 
         flat_names = [f"m{col}{row}" for col in range(dim) for row in range(dim)]
         flat_args = ", ".join([f"float {name}" for name in flat_names])
-        lines.append(f"static inline {mat_type} vkdispatch_make_mat{dim}({flat_args}) {{")
-        lines.append(f"    return vkdispatch_make_mat{dim}(")
+        lines.append(f"static inline {mat_type} {flat_helper_name}({flat_args}) {{")
+        lines.append(f"    return {cols_helper_name}(")
         for col_idx in range(dim):
             values = [f"m{col_idx}{row_idx}" for row_idx in range(dim)]
             suffix = "," if col_idx < dim - 1 else ""
@@ -407,7 +442,9 @@ class OpenCLBackend(CodeGenBackend):
         )
 
     def shared_buffer_declaration(self, var_type: dtypes.dtype, name: str, size: int) -> str:
-        return f"__local {self.type_name(var_type)} {name}[{size}];"
+        self._shared_buffer_lines.append(f"__local {self.type_name(var_type)} {name}[{size}];")
+        # OpenCL requires __local storage declarations at kernel/function scope.
+        return ""
 
     def uniform_block_declaration(self, contents: str) -> str:
         self._register_kernel_param("__global const UniformObjectBuffer* vkdispatch_uniform_ptr")
@@ -433,11 +470,15 @@ class OpenCLBackend(CodeGenBackend):
     def entry_point(self, body_contents: str) -> str:
         params = ", ".join(self._kernel_params)
         alias_block = ""
+        shared_block = ""
+        for line in self._shared_buffer_lines:
+            shared_block += f"    {line}\n"
         for line in self._entry_alias_lines:
             alias_block += f"    {line}\n"
 
         return (
             f"__kernel void vkdispatch_main({params}) {{\n"
+            f"{shared_block}"
             f"{alias_block}"
             f"{body_contents}"
             f"}}\n"
