@@ -1204,7 +1204,13 @@ class CUDABackend(CodeGenBackend):
         dtypes.dvec2, dtypes.dvec3, dtypes.dvec4,
     })
 
-    def constructor(self, var_type: dtypes.dtype, args: List[str]) -> str:
+    def constructor(
+        self,
+        var_type: dtypes.dtype,
+        args: List[str],
+        arg_types: Optional[List[Optional[dtypes.dtype]]] = None,
+    ) -> str:
+        _ = arg_types
         if (
             len(args) == 1
             and var_type in self._FLOAT_VEC_DTYPES

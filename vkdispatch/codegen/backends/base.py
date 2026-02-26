@@ -40,7 +40,13 @@ class CodeGenBackend:
     def type_name(self, var_type: dtypes.dtype) -> str:
         raise NotImplementedError
 
-    def constructor(self, var_type: dtypes.dtype, args: List[str]) -> str:
+    def constructor(
+        self,
+        var_type: dtypes.dtype,
+        args: List[str],
+        arg_types: Optional[List[Optional[dtypes.dtype]]] = None,
+    ) -> str:
+        _ = arg_types
         raise NotImplementedError
 
     def component_access_expr(self, expr: str, component: str, base_type: dtypes.dtype) -> str:

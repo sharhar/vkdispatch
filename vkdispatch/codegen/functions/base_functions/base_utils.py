@@ -104,10 +104,20 @@ def resolve_input(var: Any) -> str:
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
     return var.resolve()
 
+def resolve_input_type(var: Any) -> Optional[dtypes.dtype]:
+    if is_number(var):
+        return number_to_dtype(var)
+
+    if isinstance(var, BaseVariable):
+        return var.var_type
+
+    return None
+
 def backend_constructor(var_type: dtypes.dtype, *args) -> str:
     return get_codegen_backend().constructor(
         var_type,
-        [resolve_input(elem) for elem in args]
+        [resolve_input(elem) for elem in args],
+        arg_types=[resolve_input_type(elem) for elem in args],
     )
 
 def to_dtype_base(var_type: dtypes.dtype, *args):

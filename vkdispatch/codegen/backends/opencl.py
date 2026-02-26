@@ -96,7 +96,12 @@ class OpenCLBackend(CodeGenBackend):
 
         raise ValueError(f"Unsupported OpenCL type mapping for '{var_type.name}'")
 
-    def constructor(self, var_type: dtypes.dtype, args: List[str]) -> str:
+    def constructor(
+        self,
+        var_type: dtypes.dtype,
+        args: List[str],
+        arg_types: Optional[List[Optional[dtypes.dtype]]] = None,
+    ) -> str:
         target_type = self.type_name(var_type)
 
         if dtypes.is_scalar(var_type):
@@ -120,6 +125,19 @@ class OpenCLBackend(CodeGenBackend):
                 return f"{self._matrix_helper_name(dim, 'cols')}({', '.join(args)})"
 
             return f"{self._matrix_helper_name(dim, 'flat')}({', '.join(args)})"
+
+        # NVIDIA's OpenCL frontend rejects direct vector casts between different
+        # vector base types (e.g. uint2 -> float2). Use convert_* builtins when
+        # we know this is a vector/complex-to-vector/complex conversion.
+        if (
+            len(args) == 1
+            and arg_types is not None
+            and len(arg_types) == 1
+            and arg_types[0] is not None
+            and (dtypes.is_vector(var_type) or dtypes.is_complex(var_type))
+            and (dtypes.is_vector(arg_types[0]) or dtypes.is_complex(arg_types[0]))
+        ):
+            return f"convert_{target_type}({args[0]})"
 
         return f"(({target_type})({', '.join(args)}))"
 

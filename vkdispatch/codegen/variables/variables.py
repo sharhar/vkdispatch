@@ -251,7 +251,7 @@ class ShaderVariable(BaseVariable):
     def to_dtype(self, var_type: dtypes.dtype) -> "ShaderVariable":
         return base_utils.new_base_var(
             var_type,
-            get_codegen_backend().constructor(var_type, [self.resolve()]),
+            get_codegen_backend().constructor(var_type, [self.resolve()], arg_types=[self.var_type]),
             [self],
             lexical_unit=True
         )

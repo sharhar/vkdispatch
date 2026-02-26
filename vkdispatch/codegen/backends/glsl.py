@@ -40,7 +40,13 @@ class GLSLBackend(CodeGenBackend):
         self._track_type_extension(var_type)
         return var_type.glsl_type
 
-    def constructor(self, var_type: dtypes.dtype, args: List[str]) -> str:
+    def constructor(
+        self,
+        var_type: dtypes.dtype,
+        args: List[str],
+        arg_types: Optional[List[Optional[dtypes.dtype]]] = None,
+    ) -> str:
+        _ = arg_types
         return f"{self.type_name(var_type)}({', '.join(args)})"
 
     def pre_header(self, *, enable_subgroup_ops: bool, enable_printf: bool) -> str:
