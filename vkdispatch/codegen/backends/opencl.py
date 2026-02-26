@@ -146,6 +146,16 @@ class OpenCLBackend(CodeGenBackend):
             return expr
         return super().component_access_expr(expr, component, base_type)
 
+    def _cast_math_arg(self, arg_type: dtypes.dtype, arg_expr: str) -> str:
+        if dtypes.is_scalar(arg_type) or dtypes.is_vector(arg_type) or dtypes.is_complex(arg_type):
+            return self.constructor(arg_type, [arg_expr], arg_types=[arg_type])
+
+        return arg_expr
+
+    def unary_math_expr(self, func_name: str, arg_type: dtypes.dtype, arg_expr: str) -> str:
+        mapped = self.math_func_name(func_name, arg_type)
+        return f"{mapped}({self._cast_math_arg(arg_type, arg_expr)})"
+
     def binary_math_expr(
         self,
         func_name: str,
@@ -155,7 +165,9 @@ class OpenCLBackend(CodeGenBackend):
         rhs_expr: str,
     ) -> str:
         mapped = self.math_func_name(func_name, lhs_type)
-        return f"{mapped}({lhs_expr}, {rhs_expr})"
+        lhs_cast_expr = self._cast_math_arg(lhs_type, lhs_expr)
+        rhs_cast_expr = self._cast_math_arg(rhs_type, rhs_expr)
+        return f"{mapped}({lhs_cast_expr}, {rhs_cast_expr})"
 
     def pre_header(self, *, enable_subgroup_ops: bool, enable_printf: bool) -> str:
         _ = enable_subgroup_ops
