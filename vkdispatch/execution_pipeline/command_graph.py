@@ -19,7 +19,7 @@ from .buffer_builder import BufferBuilder
 import dataclasses
 
 def _runtime_supports_push_constants() -> bool:
-    return not vd.is_opencl()
+    return True
 
 @dataclasses.dataclass
 class BufferBindInfo:

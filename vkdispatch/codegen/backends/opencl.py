@@ -448,7 +448,7 @@ class OpenCLBackend(CodeGenBackend):
         return "UBO"
 
     def variable_namespace(self) -> str:
-        return "UBO"
+        return "PC"
 
     def exec_bounds_guard(self, exec_count_expr: str) -> str:
         gid_expr = f"({self.global_invocation_id_expr()})"
@@ -482,8 +482,9 @@ class OpenCLBackend(CodeGenBackend):
         raise NotImplementedError("image/sampler unsupported in OpenCL backend")
 
     def push_constant_declaration(self, contents: str) -> str:
-        _ = contents
-        raise NotImplementedError("push constants unsupported for OpenCL backend")
+        self._register_kernel_param("const PushConstant vkdispatch_pc_value")
+        self._register_alias_line("const PushConstant PC = vkdispatch_pc_value;")
+        return f"\ntypedef struct PushConstant {{\n{contents}\n}} PushConstant;\n"
 
     def entry_point(self, body_contents: str) -> str:
         params = ", ".join(self._kernel_params)

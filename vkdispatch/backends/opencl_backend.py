@@ -170,6 +170,7 @@ class _CommandRecord:
     plan_handle: int
     descriptor_set_handle: int
     blocks: Tuple[int, int, int]
+    pc_size: int
 
 
 @dataclass
@@ -195,6 +196,7 @@ class _ComputePlan:
     kernel: object
     local_size: Tuple[int, int, int]
     params: List[_KernelParam]
+    pc_size: int
 
 
 @dataclass
@@ -454,6 +456,10 @@ def _parse_kernel_params(source: str) -> List[_KernelParam]:
             params.append(_KernelParam("uniform", 0, param_name))
             continue
 
+        if param_name == "vkdispatch_pc_value":
+            params.append(_KernelParam("push_constant_value", None, param_name))
+            continue
+
         binding_match = _BINDING_PARAM_RE.match(param_name)
         if binding_match is not None:
             params.append(_KernelParam("storage", _coerce_int(binding_match.group(1), 0), param_name))
@@ -537,6 +543,7 @@ def _build_kernel_args(
     plan: _ComputePlan,
     descriptor_set: Optional[_DescriptorSet],
     ctx: _Context,
+    push_constant_payload: bytes = b"",
 ) -> Tuple[List[object], List[object]]:
     args: List[object] = []
     keepalive: List[object] = []
@@ -556,12 +563,33 @@ def _build_kernel_args(
             args.append(_resolve_descriptor_buffer(descriptor_set, int(param.binding), ctx, keepalive))
             continue
 
+        if param.kind == "push_constant_value":
+            if int(plan.pc_size) <= 0:
+                raise RuntimeError(
+                    f"Kernel parameter '{param.raw_name}' expects push-constant data, but this compute plan has pc_size={plan.pc_size}."
+                )
+
+            if len(push_constant_payload) == 0:
+                raise RuntimeError(
+                    "Missing push-constant payload for OpenCL by-value push-constant parameter "
+                    f"'{param.raw_name}'."
+                )
+
+            if len(push_constant_payload) != int(plan.pc_size):
+                raise RuntimeError(
+                    f"Push-constant payload size mismatch for parameter '{param.raw_name}'. "
+                    f"Expected {plan.pc_size} bytes but got {len(push_constant_payload)} bytes."
+                )
+
+            args.append(push_constant_payload)
+            continue
+
         if param.kind == "sampler":
             raise RuntimeError("OpenCL backend does not support image/sampler bindings")
 
         raise RuntimeError(
             f"Unsupported kernel parameter '{param.raw_name}'. "
-            "Expected vkdispatch_uniform_ptr / vkdispatch_binding_<N>_ptr."
+            "Expected vkdispatch_uniform_ptr / vkdispatch_pc_value / vkdispatch_binding_<N>_ptr."
         )
 
     return args, keepalive
@@ -677,6 +705,7 @@ def get_devices():
             1,
             _coerce_int(_device_attr(device, "mem_base_addr_align", 8), 8) // 8,
         )
+        max_push_constant_size = max(0, _coerce_int(_device_attr(device, "max_parameter_size", 0), 0))
 
         # subgroup_size = max(
         #     1,
@@ -715,7 +744,7 @@ def get_devices():
                 int(max_workgroup_invocations),
                 max_workgroup_count,
                 8,  # max descriptor sets (virtualized for parity)
-                0,  # max push constant size
+                int(max_push_constant_size),
                 int(max_storage_buffer_range),
                 int(max_uniform_buffer_range),
                 int(uniform_alignment),
@@ -1110,8 +1139,11 @@ def command_list_destroy(command_list):
 
 
 def command_list_get_instance_size(command_list):
-    _ = command_list
-    return 0
+    obj = _command_lists.get(int(command_list))
+    if obj is None:
+        return 0
+
+    return int(sum(int(command.pc_size) for command in obj.commands))
 
 
 def command_list_reset(command_list):
@@ -1123,11 +1155,6 @@ def command_list_reset(command_list):
 
 
 def command_list_submit(command_list, data, instance_count, index):
-    payload = _to_bytes(data)
-    if len(payload) > 0:
-        _set_error("OpenCL backend does not support push constant data in command_list_submit")
-        return True
-
     obj = _command_lists.get(int(command_list))
     if obj is None:
         return True
@@ -1141,6 +1168,24 @@ def command_list_submit(command_list, data, instance_count, index):
     if instance_count <= 0:
         return True
 
+    instance_size = command_list_get_instance_size(command_list)
+    payload = _to_bytes(data)
+    expected_payload_size = int(instance_size) * int(instance_count)
+
+    if expected_payload_size == 0:
+        if len(payload) != 0:
+            _set_error(
+                f"Unexpected push-constant data for command list with instance_size=0 "
+                f"(got {len(payload)} bytes)."
+            )
+            return True
+    elif len(payload) != expected_payload_size:
+        _set_error(
+            f"Push-constant data size mismatch. Expected {expected_payload_size} bytes "
+            f"(instance_size={instance_size}, instance_count={instance_count}) but got {len(payload)} bytes."
+        )
+        return True
+
     queue_targets = _queue_indices(ctx, int(index), all_on_negative=True)
     if len(queue_targets) == 0:
         queue_targets = [0]
@@ -1148,8 +1193,9 @@ def command_list_submit(command_list, data, instance_count, index):
     try:
         for queue_index in queue_targets:
             queue = ctx.queues[queue_index]
-
-            for _ in range(instance_count):
+            for instance_index in range(instance_count):
+                instance_base_offset = instance_index * instance_size
+                per_instance_offset = 0
                 for command in obj.commands:
                     plan = _compute_plans.get(command.plan_handle)
                     if plan is None:
@@ -1163,7 +1209,19 @@ def command_list_submit(command_list, data, instance_count, index):
                                 f"Invalid descriptor set handle {command.descriptor_set_handle}"
                             )
 
-                    args, _keepalive = _build_kernel_args(plan, descriptor_set, ctx)
+                    command_pc_size = int(command.pc_size)
+                    pc_payload = b""
+                    if command_pc_size > 0 and len(payload) > 0:
+                        pc_start = instance_base_offset + per_instance_offset
+                        pc_end = pc_start + command_pc_size
+                        pc_payload = payload[pc_start:pc_end]
+
+                    args, _keepalive = _build_kernel_args(
+                        plan,
+                        descriptor_set,
+                        ctx,
+                        pc_payload,
+                    )
 
                     for arg_index, arg_value in enumerate(args):
                         plan.kernel.set_arg(arg_index, arg_value)
@@ -1187,6 +1245,14 @@ def command_list_submit(command_list, data, instance_count, index):
                         plan.kernel,
                         global_size,
                         (local_x, local_y, local_z),
+                    )
+
+                    per_instance_offset += command_pc_size
+
+                if per_instance_offset != instance_size:
+                    raise RuntimeError(
+                        f"Internal command list size mismatch: computed {per_instance_offset} bytes, "
+                        f"expected {instance_size} bytes."
                     )
     except Exception as exc:
         _set_error(f"Failed to submit OpenCL command list: {exc}")
@@ -1255,10 +1321,6 @@ def descriptor_set_write_image(
 
 
 def stage_compute_plan_create(context, shader_source, bindings, pc_size, shader_name):
-    if int(pc_size) != 0:
-        _set_error("OpenCL backend does not support push constant data in compute plans")
-        return 0
-
     ctx = _context_from_handle(int(context))
     if ctx is None:
         return 0
@@ -1291,6 +1353,7 @@ def stage_compute_plan_create(context, shader_source, bindings, pc_size, shader_
         kernel=kernel,
         local_size=local_size,
         params=params,
+        pc_size=int(pc_size),
     )
 
     return _new_handle(_compute_plans, plan)
@@ -1324,6 +1387,7 @@ def stage_compute_record(command_list, plan, descriptor_set, blocks_x, blocks_y,
             plan_handle=int(plan),
             descriptor_set_handle=int(descriptor_set),
             blocks=(int(blocks_x), int(blocks_y), int(blocks_z)),
+            pc_size=int(cp_obj.pc_size),
         )
     )
 
