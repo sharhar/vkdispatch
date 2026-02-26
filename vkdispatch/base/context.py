@@ -13,6 +13,9 @@ from .errors import check_for_errors, set_running
 from .init import DeviceInfo, is_cuda, is_opencl, is_dummy, get_devices, initialize, log_info
 from .backend import native
 
+VK_SHADER_STAGE_COMPUTE_BIT = 0x00000020
+
+VK_SUBGROUP_FEATURE_ARITHMETIC_BIT = 0x00000004
 
 class Handle:
     context: "Context"
@@ -160,6 +163,8 @@ class Context:
     queue_families: List[List[int]]
     queue_count: int
     subgroup_size: int
+    subgroup_enabled: bool
+    subgroup_arithmetic: bool
     max_workgroup_size: Tuple[int]
     max_workgroup_invocations: int
     max_workgroup_count: Tuple[int, int, int]
@@ -195,6 +200,9 @@ class Context:
         uniform_buffer_alignments = []
         max_shared_memory = []
 
+        subgroup_enabled = True
+        subgroup_arithmetic = True
+
         for device in self.device_infos:
             subgroup_sizes.append(device.sub_group_size)
             
@@ -212,7 +220,15 @@ class Context:
 
             max_shared_memory.append(device.max_compute_shared_memory_size)
 
-        self.subgroup_size = min(subgroup_sizes)
+            if not device.supported_stages & VK_SHADER_STAGE_COMPUTE_BIT:
+                subgroup_enabled = False
+
+            if not device.supported_operations & VK_SUBGROUP_FEATURE_ARITHMETIC_BIT:
+                subgroup_arithmetic = False
+
+        self.subgroup_enabled = subgroup_enabled
+        self.subgroup_arithmetic = subgroup_arithmetic
+        self.subgroup_size = min(subgroup_sizes) if self.subgroup_enabled else 1
         self.max_workgroup_size = (
             min(max_workgroup_sizes_x),
             min(max_workgroup_sizes_y),

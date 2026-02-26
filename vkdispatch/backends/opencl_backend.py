@@ -678,10 +678,10 @@ def get_devices():
             _coerce_int(_device_attr(device, "mem_base_addr_align", 8), 8) // 8,
         )
 
-        subgroup_size = max(
-            1,
-            _coerce_int(_device_attr(device, "preferred_work_group_size_multiple", 1), 1),
-        )
+        # subgroup_size = max(
+        #     1,
+        #     _coerce_int(_device_attr(device, "preferred_work_group_size_multiple", 1), 1),
+        # )
 
         max_compute_shared_memory_size = max(
             1,
@@ -719,7 +719,7 @@ def get_devices():
                 int(max_storage_buffer_range),
                 int(max_uniform_buffer_range),
                 int(uniform_alignment),
-                int(subgroup_size),
+                0,  # subgroup size
                 0,  # subgroup stages
                 0,  # subgroup operations
                 0,  # quad operations in all stages

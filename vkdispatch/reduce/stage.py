@@ -84,7 +84,7 @@ def workgroup_reduce(
         if current_size // 2 > vd.get_context().subgroup_size:
             vc.end()
         else:
-            vc.else_if_statement(tid < 2*vc.subgroup_size())
+            vc.else_if_statement(tid < 2*vd.get_context().subgroup_size)
             sdata[tid] = vc.new_register(out_type, 0)
             vc.end()
         
@@ -102,11 +102,14 @@ def subgroup_reduce(
     subgroup_size = vd.get_context().subgroup_size
 
     if group_size > subgroup_size:
-        vc.if_all(tid < subgroup_size)
+        vc.if_statement(tid < subgroup_size)
         sdata[tid] = reduction.reduction(sdata[tid], sdata[tid + subgroup_size])
         vc.end()
+
+        if subgroup_size == 1:
+            return sdata[tid].to_register("local_var")
+
         vc.subgroup_barrier()
-    
     
     if reduction.subgroup_reduction is not None:
         local_var = sdata[tid].to_register("local_var")
