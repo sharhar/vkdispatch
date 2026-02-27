@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from . import _state as state
-from ._helpers import _new_handle, _set_error, _to_bytes
-from ._state import _DescriptorSet
+from . import state as state
+from .helpers import _new_handle, _set_error, _to_bytes
+from .state import _DescriptorSet
 
 
 def descriptor_set_create(plan):

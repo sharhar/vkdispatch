@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import hashlib
 
-from . import _state as state
-from ._cuda_primitives import cuda
-from ._helpers import (
+from . import state as state
+from .cuda_primitives import cuda
+from .helpers import (
     _activate_context,
     _clear_error,
     _coerce_stream_handle,
@@ -13,7 +13,7 @@ from ._helpers import (
     _set_error,
     _stream_override_stack,
 )
-from ._state import _Context
+from .state import _Context
 
 
 def init(debug, log_level):

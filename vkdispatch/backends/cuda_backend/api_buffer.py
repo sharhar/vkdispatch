@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from . import _state as state
-from ._cuda_primitives import cuda
-from ._helpers import (
+from . import state as state
+from .cuda_primitives import cuda
+from .helpers import (
     _activate_context,
     _allocate_staging_storage,
     _buffer_device_ptr,
@@ -15,7 +15,7 @@ from ._helpers import (
     _stream_for_queue,
     _to_bytes,
 )
-from ._state import _Buffer, _Signal
+from .state import _Buffer, _Signal
 
 
 def buffer_create(context, size, per_device):

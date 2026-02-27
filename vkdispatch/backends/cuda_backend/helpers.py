@@ -5,9 +5,9 @@ import re
 import sys
 from typing import Dict, List, Optional, Tuple
 
-from . import _state as state
-from ._bindings import driver, np, _drv_call, _drv_check, _to_int
-from ._constants import (
+from . import state as state
+from .bindings import driver, np, _drv_call, _drv_check, _to_int
+from .constants import (
     _BINDING_PARAM_RE,
     _KERNEL_SIGNATURE_RE,
     _LOCAL_X_RE,
@@ -15,8 +15,8 @@ from ._constants import (
     _LOCAL_Z_RE,
     _SAMPLER_PARAM_RE,
 )
-from ._cuda_primitives import _ByValueKernelArg, cuda
-from ._state import _Buffer, _ComputePlan, _Context, _DescriptorSet, _KernelParam, _Signal
+from .cuda_primitives import _ByValueKernelArg, cuda
+from .state import _Buffer, _ComputePlan, _Context, _DescriptorSet, _KernelParam, _Signal
 
 
 def _new_handle(registry: Dict[int, object], obj: object) -> int:

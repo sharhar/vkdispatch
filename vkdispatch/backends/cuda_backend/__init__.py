@@ -6,18 +6,6 @@ extension so existing Python runtime objects can call into either backend.
 
 from __future__ import annotations
 
-from ._constants import (
-    DESCRIPTOR_TYPE_SAMPLER,
-    DESCRIPTOR_TYPE_STORAGE_BUFFER,
-    DESCRIPTOR_TYPE_STORAGE_IMAGE,
-    DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    DESCRIPTOR_TYPE_UNIFORM_IMAGE,
-    LOG_LEVEL_ERROR,
-    LOG_LEVEL_INFO,
-    LOG_LEVEL_VERBOSE,
-    LOG_LEVEL_WARNING,
-)
-from ._cuda_primitives import SourceModule, cuda
 from .api_buffer import (
     buffer_create,
     buffer_create_external,
@@ -74,17 +62,7 @@ from .api_image_fft import (
 )
 from .api_signal import signal_destroy, signal_insert, signal_wait
 
-
 __all__ = [
-    "LOG_LEVEL_VERBOSE",
-    "LOG_LEVEL_INFO",
-    "LOG_LEVEL_WARNING",
-    "LOG_LEVEL_ERROR",
-    "DESCRIPTOR_TYPE_STORAGE_BUFFER",
-    "DESCRIPTOR_TYPE_STORAGE_IMAGE",
-    "DESCRIPTOR_TYPE_UNIFORM_BUFFER",
-    "DESCRIPTOR_TYPE_UNIFORM_IMAGE",
-    "DESCRIPTOR_TYPE_SAMPLER",
     "init",
     "log",
     "set_log_level",
@@ -96,7 +74,10 @@ __all__ = [
     "context_destroy",
     "get_error_string",
     "context_stop_threads",
+    "cuda_stream_override_begin",
+    "cuda_stream_override_end",
     "buffer_create",
+    "buffer_create_external",
     "buffer_destroy",
     "buffer_get_queue_signal",
     "buffer_wait_staging_idle",

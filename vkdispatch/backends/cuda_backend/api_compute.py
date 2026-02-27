@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from . import _state as state
-from ._cuda_primitives import SourceModule
-from ._helpers import (
+from . import state as state
+from .cuda_primitives import SourceModule
+from .helpers import (
     _activate_context,
     _context_from_handle,
     _new_handle,
@@ -11,7 +11,7 @@ from ._helpers import (
     _set_error,
     _to_bytes,
 )
-from ._state import _CommandRecord, _ComputePlan
+from .state import _CommandRecord, _ComputePlan
 
 
 def stage_compute_plan_create(context, shader_source, bindings, pc_size, shader_name):

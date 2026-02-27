@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from . import _state as state
-from ._constants import _IMAGE_BLOCK_SIZES
-from ._helpers import _set_error
+from . import state as state
+from .helpers import _set_error
 
 
 def image_create(context, extent, layers, format, type, view_type, generate_mips):
@@ -61,7 +60,8 @@ def image_write(image, data, offset, extent, baseLayer, layerCount, device_index
 
 
 def image_format_block_size(format):
-    return int(_IMAGE_BLOCK_SIZES.get(int(format), 4))
+    _ = format
+    _set_error("CUDA Python backend does not support image format block size queries yet")
 
 
 def image_read(image, out_size, offset, extent, baseLayer, layerCount, device_index):

@@ -4,7 +4,7 @@ import ctypes
 from dataclasses import dataclass
 from typing import List, Optional
 
-from ._bindings import (
+from .bindings import (
     np,
     driver,
     _as_driver_handle,

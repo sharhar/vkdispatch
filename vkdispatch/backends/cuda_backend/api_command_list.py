@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import List
 
-from . import _state as state
-from ._helpers import (
+from . import state as state
+from .helpers import (
     _activate_context,
     _build_kernel_args_template,
     _estimate_kernel_param_size_bytes,
@@ -13,7 +13,7 @@ from ._helpers import (
     _stream_for_queue,
     _to_bytes,
 )
-from ._state import _CommandList, _ResolvedLaunch
+from .state import _CommandList, _ResolvedLaunch
 
 
 def command_list_create(context):

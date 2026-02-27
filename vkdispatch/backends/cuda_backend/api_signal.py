@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from . import _state as state
-from ._helpers import (
+from . import state as state
+from .helpers import (
     _activate_context,
     _context_from_handle,
     _new_handle,
@@ -11,7 +11,7 @@ from ._helpers import (
     _set_error,
     _stream_for_queue,
 )
-from ._state import _Signal
+from .state import _Signal
 
 
 def signal_wait(signal_ptr, wait_for_timestamp, queue_index):

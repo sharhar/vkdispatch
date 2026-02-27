@@ -4,8 +4,8 @@ from dataclasses import dataclass, field
 import threading
 from typing import Dict, List, Optional, Tuple
 
-from ._constants import LOG_LEVEL_WARNING
-from ._cuda_primitives import SourceModule, cuda
+from .constants import LOG_LEVEL_WARNING
+from .cuda_primitives import SourceModule, cuda
 
 
 # --- Runtime state ---
