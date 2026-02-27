@@ -105,6 +105,18 @@ class GLSLBackend(CodeGenBackend):
     def ninf_f32_expr(self) -> str:
         return "uintBitsToFloat(0xFF800000)"
 
+    def inf_f64_expr(self) -> str:
+        return "packDouble2x32(uvec2(0x00000000u, 0x7FF00000u))"
+
+    def ninf_f64_expr(self) -> str:
+        return "packDouble2x32(uvec2(0x00000000u, 0xFFF00000u))"
+
+    def inf_f16_expr(self) -> str:
+        return "float16_t(uintBitsToFloat(0x7F800000))"
+
+    def ninf_f16_expr(self) -> str:
+        return "float16_t(uintBitsToFloat(0xFF800000))"
+
     def float_bits_to_int_expr(self, var_expr: str) -> str:
         return f"floatBitsToInt({var_expr})"
 

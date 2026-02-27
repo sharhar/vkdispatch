@@ -521,6 +521,18 @@ class OpenCLBackend(CodeGenBackend):
     def ninf_f32_expr(self) -> str:
         return "as_float((uint)0xFF800000u)"
 
+    def inf_f64_expr(self) -> str:
+        return "as_double((ulong)0x7FF0000000000000UL)"
+
+    def ninf_f64_expr(self) -> str:
+        return "as_double((ulong)0xFFF0000000000000UL)"
+
+    def inf_f16_expr(self) -> str:
+        return "as_half((ushort)0x7C00u)"
+
+    def ninf_f16_expr(self) -> str:
+        return "as_half((ushort)0xFC00u)"
+
     def float_bits_to_int_expr(self, var_expr: str) -> str:
         return f"as_int({var_expr})"
 

@@ -137,6 +137,18 @@ class CodeGenBackend:
     def ninf_f32_expr(self) -> str:
         raise NotImplementedError
 
+    def inf_f64_expr(self) -> str:
+        raise NotImplementedError
+
+    def ninf_f64_expr(self) -> str:
+        raise NotImplementedError
+
+    def inf_f16_expr(self) -> str:
+        raise NotImplementedError
+
+    def ninf_f16_expr(self) -> str:
+        raise NotImplementedError
+
     def float_bits_to_int_expr(self, var_expr: str) -> str:
         raise NotImplementedError
 

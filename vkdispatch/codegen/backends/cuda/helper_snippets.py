@@ -196,6 +196,8 @@ _HELPER_SNIPPETS: Dict[str, str] = {
     "floatBitsToUint": "__device__ __forceinline__ unsigned int floatBitsToUint(float x) { return __float_as_uint(x); }",
     "intBitsToFloat": "__device__ __forceinline__ float intBitsToFloat(int x) { return __int_as_float(x); }",
     "uintBitsToFloat": "__device__ __forceinline__ float uintBitsToFloat(unsigned int x) { return __uint_as_float(x); }",
+    "longlong_as_double": "__device__ __forceinline__ double longlong_as_double(long long x) { return __longlong_as_double(x); }",
+    "ushort_as_half": "__device__ __forceinline__ __half ushort_as_half(unsigned short x) { __half h; *reinterpret_cast<unsigned short*>(&h) = x; return h; }",
     "sample_texture": "",
 }
 
@@ -230,6 +232,8 @@ _HELPER_ORDER: List[str] = [
     "floatBitsToUint",
     "intBitsToFloat",
     "uintBitsToFloat",
+    "longlong_as_double",
+    "ushort_as_half",
     "sample_texture",
 ]
 

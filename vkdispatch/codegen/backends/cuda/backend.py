@@ -569,6 +569,22 @@ class CUDABackend(CodeGenBackend):
         self.mark_feature_usage("uintBitsToFloat")
         return "uintBitsToFloat(0xFF800000u)"
 
+    def inf_f64_expr(self) -> str:
+        self.mark_feature_usage("longlong_as_double")
+        return "__longlong_as_double(0x7FF0000000000000LL)"
+
+    def ninf_f64_expr(self) -> str:
+        self.mark_feature_usage("longlong_as_double")
+        return "__longlong_as_double(0xFFF0000000000000LL)"
+
+    def inf_f16_expr(self) -> str:
+        self.mark_feature_usage("ushort_as_half")
+        return "__ushort_as_half(0x7C00u)"
+
+    def ninf_f16_expr(self) -> str:
+        self.mark_feature_usage("ushort_as_half")
+        return "__ushort_as_half(0xFC00u)"
+
     def fma_function_name(self, var_type: dtypes.dtype) -> str:
         if var_type == dtypes.float16:
             return "__hfma"

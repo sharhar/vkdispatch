@@ -73,7 +73,15 @@ def check_is_int(variable):
 def dtype_to_floating(var_type: dtypes.dtype) -> dtypes.dtype:
     return dtypes.make_floating_dtype(var_type)
 
-def format_number_literal(var: numbers.Number, *, force_float32: bool = False) -> str:
+def _inf_scalar_type(var_type: dtypes.dtype) -> dtypes.dtype:
+    """Extract the scalar float type from any dtype."""
+    if dtypes.is_complex(var_type):
+        return var_type.child_type
+    if dtypes.is_vector(var_type) or dtypes.is_matrix(var_type):
+        return var_type.scalar
+    return var_type
+
+def format_number_literal(var: numbers.Number, *, force_float32: bool = False, dtype: Optional[dtypes.dtype] = None) -> str:
     if is_complex_number(var):
         return str(var)
 
@@ -81,9 +89,13 @@ def format_number_literal(var: numbers.Number, *, force_float32: bool = False) -
         value = float(var)
 
         if math.isinf(value):
-            if value > 0:
-                return get_codegen_backend().inf_f32_expr()
-            return get_codegen_backend().ninf_f32_expr()
+            backend = get_codegen_backend()
+            scalar = _inf_scalar_type(dtype) if dtype is not None else dtypes.float32
+            if scalar is dtypes.float64:
+                return backend.inf_f64_expr() if value > 0 else backend.ninf_f64_expr()
+            if scalar is dtypes.float16:
+                return backend.inf_f16_expr() if value > 0 else backend.ninf_f16_expr()
+            return backend.inf_f32_expr() if value > 0 else backend.ninf_f32_expr()
 
         if math.isnan(value):
             return "(0.0f / 0.0f)"
@@ -95,12 +107,12 @@ def format_number_literal(var: numbers.Number, *, force_float32: bool = False) -
 
     return str(var)
 
-def resolve_input(var: Any) -> str:
+def resolve_input(var: Any, dtype: Optional[dtypes.dtype] = None) -> str:
     #print("Resolving input:", var)
 
     if is_number(var):
-        return format_number_literal(var)
-    
+        return format_number_literal(var, dtype=dtype)
+
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
     return var.resolve()
 
@@ -116,7 +128,7 @@ def resolve_input_type(var: Any) -> Optional[dtypes.dtype]:
 def backend_constructor(var_type: dtypes.dtype, *args) -> str:
     return get_codegen_backend().constructor(
         var_type,
-        [resolve_input(elem) for elem in args],
+        [resolve_input(elem, dtype=var_type) for elem in args],
         arg_types=[resolve_input_type(elem) for elem in args],
     )
 

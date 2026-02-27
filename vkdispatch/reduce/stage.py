@@ -36,7 +36,14 @@ def global_reduce(
         map_func: Optional[vd.MappingFunction] = None):
     
     ind = (vc.global_invocation_id().x * params.input_stride).to_register("ind")
-    reduction_aggregate = vc.new_register(out_type, reduction.identity, var_name="reduction_aggregate")
+
+    reduction_identity = reduction.identity
+    if reduction_identity == "inf":
+        reduction_identity = vc.inf_f32() if out_type == vd.float32 else vc.inf_f64()
+    elif reduction_identity == "-inf":
+        reduction_identity = vc.ninf_f32 if out_type == vd.float32 else vc.ninf_f64()
+
+    reduction_aggregate = vc.new_register(out_type, reduction_identity, var_name="reduction_aggregate")
 
     batch_offset = vc.workgroup_id().y * params.input_y_batch_stride
     inside_batch_offset = vc.workgroup_id().z * params.input_z_batch_stride

@@ -71,7 +71,7 @@ from .functions.complex_numbers import mult_complex, complex_from_euler_angle
 
 from .functions.builtin_constants import global_invocation_id, local_invocation_id, workgroup_id, local_invocation_index
 from .functions.builtin_constants import workgroup_size, num_workgroups, num_subgroups, subgroup_id
-from .functions.builtin_constants import subgroup_size, subgroup_invocation_id, inf_f32, ninf_f32
+from .functions.builtin_constants import subgroup_size, subgroup_invocation_id, inf_f32, ninf_f32, inf_f64, ninf_f64, inf_f16, ninf_f16
 
 from .functions.index_raveling import ravel_index, unravel_index
 
