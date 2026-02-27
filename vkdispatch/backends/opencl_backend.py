@@ -99,6 +99,16 @@ _REQD_LOCAL_RE = re.compile(r"reqd_work_group_size\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(
 _KERNEL_SIGNATURE_RE = re.compile(r"vkdispatch_main\s*\(([^)]*)\)", re.S)
 _BINDING_PARAM_RE = re.compile(r"vkdispatch_binding_(\d+)_ptr$")
 _SAMPLER_PARAM_RE = re.compile(r"vkdispatch_sampler_(\d+)$")
+_PUSH_CONSTANT_STRUCT_RE = re.compile(
+    r"typedef\s+struct\s+PushConstant\s*\{(?P<body>.*?)\}\s*PushConstant\s*;",
+    re.S,
+)
+_PUSH_CONSTANT_FIELD_RE = re.compile(
+    r"(?P<type>[A-Za-z_][A-Za-z0-9_]*)\s+"
+    r"(?P<name>[A-Za-z_][A-Za-z0-9_]*)"
+    r"(?:\s*\[\s*(?P<count>\d+)\s*\])?$"
+)
+_VECTOR_TYPE_RE = re.compile(r"([A-Za-z_][A-Za-z0-9_]*?)([2-4])$")
 _OPENCL_VERSION_RE = re.compile(r"OpenCL\s+(\d+)\.(\d+)")
 _DIGIT_RE = re.compile(r"(\d+)")
 
@@ -186,6 +196,40 @@ class _KernelParam:
     raw_name: str
 
 
+@dataclass(frozen=True)
+class _PushConstantTypeLayout:
+    host_elem_size: int
+    opencl_elem_size: int
+    opencl_align: int
+
+
+@dataclass(frozen=True)
+class _PushConstantFieldDecl:
+    type_name: str
+    field_name: str
+    count: int
+
+
+@dataclass(frozen=True)
+class _PushConstantFieldLayout:
+    type_name: str
+    field_name: str
+    count: int
+    host_offset: int
+    opencl_offset: int
+    host_elem_size: int
+    opencl_elem_size: int
+
+
+@dataclass(frozen=True)
+class _PushConstantLayout:
+    fields: Tuple[_PushConstantFieldLayout, ...]
+    host_size: int
+    opencl_size: int
+    opencl_alignment: int
+    needs_repack: bool
+
+
 @dataclass
 class _ComputePlan:
     context_handle: int
@@ -197,6 +241,7 @@ class _ComputePlan:
     local_size: Tuple[int, int, int]
     params: List[_KernelParam]
     pc_size: int
+    pc_layout: Optional[_PushConstantLayout] = None
 
 
 @dataclass
@@ -283,6 +328,12 @@ def _coerce_int(value, fallback: int = 0) -> int:
         return int(value)
     except Exception:
         return int(fallback)
+
+
+def _align_up(value: int, alignment: int) -> int:
+    if alignment <= 1:
+        return int(value)
+    return ((int(value) + alignment - 1) // alignment) * alignment
 
 
 def _opencl_version_components(version_text: str) -> Tuple[int, int]:
@@ -434,6 +485,202 @@ def _parse_local_size(source: str) -> Tuple[int, int, int]:
     return (1, 1, 1)
 
 
+_PUSH_CONSTANT_SCALAR_LAYOUTS: Dict[str, Tuple[int, int]] = {
+    "char": (1, 1),
+    "uchar": (1, 1),
+    "short": (2, 2),
+    "ushort": (2, 2),
+    "int": (4, 4),
+    "uint": (4, 4),
+    "long": (8, 8),
+    "ulong": (8, 8),
+    "half": (2, 2),
+    "float": (4, 4),
+    "double": (8, 8),
+}
+
+_PUSH_CONSTANT_MATRIX_LAYOUTS: Dict[str, _PushConstantTypeLayout] = {
+    "vkdispatch_mat2": _PushConstantTypeLayout(host_elem_size=16, opencl_elem_size=16, opencl_align=8),
+    "vkdispatch_mat3": _PushConstantTypeLayout(host_elem_size=36, opencl_elem_size=36, opencl_align=1),
+    "vkdispatch_mat4": _PushConstantTypeLayout(host_elem_size=64, opencl_elem_size=64, opencl_align=16),
+    "vkdispatch_packed_float3": _PushConstantTypeLayout(host_elem_size=12, opencl_elem_size=12, opencl_align=1),
+}
+
+
+def _extract_push_constant_struct_body(source: str) -> Optional[str]:
+    struct_match = _PUSH_CONSTANT_STRUCT_RE.search(source)
+    if struct_match is None:
+        return None
+    return struct_match.group("body")
+
+
+def _parse_push_constant_struct_fields(body: str) -> List[_PushConstantFieldDecl]:
+    fields: List[_PushConstantFieldDecl] = []
+
+    for raw_decl in body.split(";"):
+        decl = " ".join(raw_decl.strip().split())
+        if len(decl) == 0:
+            continue
+
+        field_match = _PUSH_CONSTANT_FIELD_RE.fullmatch(decl)
+        if field_match is None:
+            raise RuntimeError(f"Unable to parse PushConstant field declaration '{decl}'")
+
+        type_name = field_match.group("type")
+        field_name = field_match.group("name")
+        count_token = field_match.group("count")
+        count = 1 if count_token is None else _coerce_int(count_token, 0)
+
+        if count <= 0:
+            raise RuntimeError(f"Invalid PushConstant array size for field '{field_name}'")
+
+        fields.append(_PushConstantFieldDecl(type_name=type_name, field_name=field_name, count=count))
+
+    return fields
+
+
+def _push_constant_type_layout(type_name: str) -> _PushConstantTypeLayout:
+    matrix_layout = _PUSH_CONSTANT_MATRIX_LAYOUTS.get(type_name)
+    if matrix_layout is not None:
+        return matrix_layout
+
+    scalar_layout = _PUSH_CONSTANT_SCALAR_LAYOUTS.get(type_name)
+    if scalar_layout is not None:
+        size, align = scalar_layout
+        return _PushConstantTypeLayout(host_elem_size=size, opencl_elem_size=size, opencl_align=align)
+
+    vector_match = _VECTOR_TYPE_RE.fullmatch(type_name)
+    if vector_match is not None:
+        scalar_name = vector_match.group(1)
+        lane_count = _coerce_int(vector_match.group(2), 0)
+        scalar_info = _PUSH_CONSTANT_SCALAR_LAYOUTS.get(scalar_name)
+        if scalar_info is None:
+            raise RuntimeError(f"Unsupported PushConstant vector scalar type '{scalar_name}'")
+
+        scalar_size, _scalar_align = scalar_info
+        host_elem_size = scalar_size * lane_count
+
+        if lane_count == 3:
+            opencl_elem_size = scalar_size * 4
+            opencl_align = scalar_size * 4
+        else:
+            opencl_elem_size = host_elem_size
+            opencl_align = opencl_elem_size
+
+        return _PushConstantTypeLayout(
+            host_elem_size=host_elem_size,
+            opencl_elem_size=opencl_elem_size,
+            opencl_align=opencl_align,
+        )
+
+    raise RuntimeError(f"Unsupported PushConstant field type '{type_name}'")
+
+
+def _compute_push_constant_layout(field_decls: List[_PushConstantFieldDecl]) -> _PushConstantLayout:
+    host_offset = 0
+    opencl_offset = 0
+    max_opencl_align = 1
+    needs_repack = False
+    field_layouts: List[_PushConstantFieldLayout] = []
+
+    for field_decl in field_decls:
+        type_layout = _push_constant_type_layout(field_decl.type_name)
+
+        opencl_offset = _align_up(opencl_offset, type_layout.opencl_align)
+
+        if type_layout.opencl_align > max_opencl_align:
+            max_opencl_align = type_layout.opencl_align
+
+        if host_offset != opencl_offset:
+            needs_repack = True
+        if type_layout.host_elem_size != type_layout.opencl_elem_size:
+            needs_repack = True
+
+        field_layouts.append(
+            _PushConstantFieldLayout(
+                type_name=field_decl.type_name,
+                field_name=field_decl.field_name,
+                count=field_decl.count,
+                host_offset=host_offset,
+                opencl_offset=opencl_offset,
+                host_elem_size=type_layout.host_elem_size,
+                opencl_elem_size=type_layout.opencl_elem_size,
+            )
+        )
+
+        host_offset += type_layout.host_elem_size * field_decl.count
+        opencl_offset += type_layout.opencl_elem_size * field_decl.count
+
+    opencl_size = _align_up(opencl_offset, max_opencl_align)
+    if opencl_size != host_offset:
+        needs_repack = True
+
+    return _PushConstantLayout(
+        fields=tuple(field_layouts),
+        host_size=host_offset,
+        opencl_size=opencl_size,
+        opencl_alignment=max_opencl_align,
+        needs_repack=needs_repack,
+    )
+
+
+def _build_push_constant_layout(source: str, expected_host_size: int) -> Optional[_PushConstantLayout]:
+    expected_host_size = int(expected_host_size)
+    if expected_host_size <= 0:
+        return None
+
+    body = _extract_push_constant_struct_body(source)
+    if body is None:
+        raise RuntimeError("Could not find PushConstant struct declaration in OpenCL source")
+
+    field_decls = _parse_push_constant_struct_fields(body)
+    if len(field_decls) == 0:
+        raise RuntimeError("PushConstant struct declaration is empty")
+
+    layout = _compute_push_constant_layout(field_decls)
+    if layout.host_size != expected_host_size:
+        raise RuntimeError(
+            f"PushConstant host layout mismatch. Expected {expected_host_size} bytes "
+            f"but parsed {layout.host_size} bytes from OpenCL source."
+        )
+
+    return layout
+
+
+def _repack_push_constant_payload(
+    push_constant_payload: bytes,
+    layout: Optional[_PushConstantLayout],
+) -> bytes:
+    payload = _to_bytes(push_constant_payload)
+
+    if layout is None or not layout.needs_repack:
+        return payload
+
+    if len(payload) != int(layout.host_size):
+        raise RuntimeError(
+            f"PushConstant payload length mismatch for repack. "
+            f"Expected {layout.host_size} bytes but got {len(payload)} bytes."
+        )
+
+    out = bytearray(int(layout.opencl_size))
+
+    for field in layout.fields:
+        if field.host_elem_size > field.opencl_elem_size:
+            raise RuntimeError(
+                f"PushConstant field '{field.field_name}' host element size ({field.host_elem_size}) "
+                f"exceeds OpenCL ABI element size ({field.opencl_elem_size})."
+            )
+
+        for element_index in range(int(field.count)):
+            host_start = field.host_offset + (element_index * field.host_elem_size)
+            host_end = host_start + field.host_elem_size
+            opencl_start = field.opencl_offset + (element_index * field.opencl_elem_size)
+            opencl_end = opencl_start + field.host_elem_size
+            out[opencl_start:opencl_end] = payload[host_start:host_end]
+
+    return bytes(out)
+
+
 def _parse_kernel_params(source: str) -> List[_KernelParam]:
     signature_match = _KERNEL_SIGNATURE_RE.search(source)
     if signature_match is None:
@@ -581,7 +828,7 @@ def _build_kernel_args(
                     f"Expected {plan.pc_size} bytes but got {len(push_constant_payload)} bytes."
                 )
 
-            args.append(push_constant_payload)
+            args.append(_repack_push_constant_payload(push_constant_payload, plan.pc_layout))
             continue
 
         if param.kind == "sampler":
@@ -1328,6 +1575,7 @@ def stage_compute_plan_create(context, shader_source, bindings, pc_size, shader_
     source_bytes = _to_bytes(shader_source)
     shader_name_bytes = _to_bytes(shader_name)
     source_text = source_bytes.decode("utf-8", errors="replace")
+    pc_size = int(pc_size)
 
     try:
         program = cl.Program(ctx.cl_context, source_text).build()
@@ -1340,6 +1588,7 @@ def stage_compute_plan_create(context, shader_source, bindings, pc_size, shader_
     try:
         params = _parse_kernel_params(source_text)
         local_size = _parse_local_size(source_text)
+        pc_layout = _build_push_constant_layout(source_text, pc_size)
     except Exception as exc:
         _set_error(f"Failed to parse OpenCL kernel metadata: {exc}")
         return 0
@@ -1353,7 +1602,8 @@ def stage_compute_plan_create(context, shader_source, bindings, pc_size, shader_
         kernel=kernel,
         local_size=local_size,
         params=params,
-        pc_size=int(pc_size),
+        pc_size=pc_size,
+        pc_layout=pc_layout,
     )
 
     return _new_handle(_compute_plans, plan)
