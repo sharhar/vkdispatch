@@ -307,7 +307,7 @@ class ShaderFunction:
                 )
         except Exception as e:
             print(f"Error building shader: {e}")
-            print(self.get_src(build=False))
+            print(self.get_src(build=False, line_numbers=True))
             raise e
 
         self.ready = True

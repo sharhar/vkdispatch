@@ -248,15 +248,6 @@ class CUDABackend(CodeGenBackend):
             self._record_mat_op(rhs_key, token)
             self._propagate_matrix_vec_dependencies(rhs_key, token)
 
-    def mark_texture_sample_dimension(self, dimensions: int) -> None:
-        self._sample_texture_dims.add(dimensions)
-        self.mark_feature_usage("sample_texture")
-        self._record_composite_type_key("float4")
-        if dimensions == 2:
-            self._record_composite_type_key("float2")
-        elif dimensions == 3:
-            self._record_composite_type_key("float3")
-
     def _emit_used_composite_helpers(self) -> str:
         if len(self._composite_type_usage) == 0:
             return ""
@@ -341,41 +332,6 @@ class CUDABackend(CodeGenBackend):
             self._composite_vec_unary_math_usage,
             self._composite_vec_binary_math_usage,
         )
-
-    def _emit_sample_texture_helpers(self) -> str:
-        dims = set(self._sample_texture_dims)
-        if len(dims) == 0:
-            dims = {1, 2, 3}
-
-        lines: List[str] = []
-        if 1 in dims:
-            lines.append(
-                "__device__ __forceinline__ vkdispatch_float4 vkdispatch_sample_texture(cudaTextureObject_t tex, float coord) { return vkdispatch_make_float4(tex1D<float4>(tex, coord)); }"
-            )
-            lines.append(
-                "__device__ __forceinline__ vkdispatch_float4 vkdispatch_sample_texture(cudaTextureObject_t tex, float coord, float lod) { return vkdispatch_make_float4(tex1DLod<float4>(tex, coord, lod)); }"
-            )
-            self._record_composite_type_key("float4")
-        if 2 in dims:
-            lines.append(
-                "__device__ __forceinline__ vkdispatch_float4 vkdispatch_sample_texture(cudaTextureObject_t tex, vkdispatch_float2 coord) { return vkdispatch_make_float4(tex2D<float4>(tex, coord.v.x, coord.v.y)); }"
-            )
-            lines.append(
-                "__device__ __forceinline__ vkdispatch_float4 vkdispatch_sample_texture(cudaTextureObject_t tex, vkdispatch_float2 coord, float lod) { return vkdispatch_make_float4(tex2DLod<float4>(tex, coord.v.x, coord.v.y, lod)); }"
-            )
-            self._record_composite_type_key("float2")
-            self._record_composite_type_key("float4")
-        if 3 in dims:
-            lines.append(
-                "__device__ __forceinline__ vkdispatch_float4 vkdispatch_sample_texture(cudaTextureObject_t tex, vkdispatch_float3 coord) { return vkdispatch_make_float4(tex3D<float4>(tex, coord.v.x, coord.v.y, coord.v.z)); }"
-            )
-            lines.append(
-                "__device__ __forceinline__ vkdispatch_float4 vkdispatch_sample_texture(cudaTextureObject_t tex, vkdispatch_float3 coord, float lod) { return vkdispatch_make_float4(tex3DLod<float4>(tex, coord.v.x, coord.v.y, coord.v.z, lod)); }"
-            )
-            self._record_composite_type_key("float3")
-            self._record_composite_type_key("float4")
-
-        return "\n".join(lines)
 
     def _register_kernel_param(self, param_decl: str) -> None:
         if param_decl not in self._kernel_params:
@@ -485,8 +441,6 @@ class CUDABackend(CodeGenBackend):
         helper_header = self._helper_header()
         fp16_include = "#include <cuda_fp16.h>\n" if self._needs_cuda_fp16 else ""
 
-
-
         self._fixed_preamble = (
             "#include <cuda_runtime.h>\n"
             f"{fp16_include}\n"
@@ -531,11 +485,6 @@ class CUDABackend(CodeGenBackend):
                     composite_helpers = self._emit_used_composite_helpers()
                     if len(composite_helpers) > 0:
                         helper_sections.append(composite_helpers)
-                    continue
-                if helper_name == "sample_texture":
-                    texture_helpers = self._emit_sample_texture_helpers()
-                    if len(texture_helpers) > 0:
-                        helper_sections.append(texture_helpers)
                     continue
 
                 snippet = self._HELPER_SNIPPETS[helper_name]
@@ -918,11 +867,7 @@ class CUDABackend(CodeGenBackend):
         raise ValueError(f"Unsupported texture dimensions '{dimensions}'")
 
     def sample_texture_expr(self, texture_expr: str, coord_expr: str, lod_expr: Optional[str] = None) -> str:
-        self.mark_feature_usage("sample_texture")
-        if lod_expr is None:
-            return f"vkdispatch_sample_texture({texture_expr}, {coord_expr})"
-
-        return f"vkdispatch_sample_texture({texture_expr}, {coord_expr}, {lod_expr})"
+        raise NotImplementedError("Direct texture sampling is not supported in CUDA backend. Use vkdispatch_sample_texture helper functions instead.")
 
     def atomic_add_expr(self, mem_expr: str, value_expr: str, var_type: dtypes.dtype) -> str:
         if var_type not in (dtypes.int32, dtypes.uint32):

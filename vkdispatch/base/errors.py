@@ -26,7 +26,8 @@ def check_for_errors():
         raise RuntimeError(error)
     else:
         raise RuntimeError("Unknown error occurred")
-    
+
+
 def check_for_compute_stage_errors():
     """
     Check for errors in the shader compilation stage of the vkdispatch_native library and raise a RuntimeError if found.
