@@ -3,59 +3,59 @@ from __future__ import annotations
 from . import state as state
 from .cuda_primitives import cuda
 from .helpers import (
-    _activate_context,
-    _allocate_staging_storage,
-    _buffer_device_ptr,
-    _context_from_handle,
-    _new_handle,
-    _query_signal,
-    _queue_indices,
-    _record_signal,
-    _set_error,
-    _stream_for_queue,
-    _to_bytes,
+    activate_context,
+    allocate_staging_storage,
+    buffer_device_ptr,
+    context_from_handle,
+    new_handle,
+    query_signal,
+    queue_indices,
+    record_signal,
+    set_error,
+    stream_for_queue,
+    to_bytes,
 )
-from .state import _Buffer, _Signal
+from .state import CUDABuffer, CUDASignal
 
 
 def buffer_create(context, size, per_device):
     _ = per_device
 
-    ctx = _context_from_handle(int(context))
+    ctx = context_from_handle(int(context))
     if ctx is None:
         return 0
 
     size = int(size)
     if size <= 0:
-        _set_error("Buffer size must be greater than zero")
+        set_error("Buffer size must be greater than zero")
         return 0
 
     try:
-        with _activate_context(ctx):
+        with activate_context(ctx):
             allocation = cuda.mem_alloc(size)
 
         signal_handles = [
-            _new_handle(state._signals, _Signal(context_handle=int(context), queue_index=i, done=True))
+            new_handle(state.signals, CUDASignal(context_handle=int(context), queue_index=i, done=True))
             for i in range(ctx.queue_count)
         ]
 
-        obj = _Buffer(
+        obj = CUDABuffer(
             context_handle=int(context),
             size=size,
             device_ptr=int(allocation),
             device_allocation=allocation,
             owns_allocation=True,
-            staging_data=[_allocate_staging_storage(size) for _ in range(ctx.queue_count)],
+            staging_data=[allocate_staging_storage(size) for _ in range(ctx.queue_count)],
             signal_handles=signal_handles,
         )
-        return _new_handle(state._buffers, obj)
+        return new_handle(state.buffers, obj)
     except Exception as exc:
-        _set_error(f"Failed to create CUDA buffer: {exc}")
+        set_error(f"Failed to create CUDA buffer: {exc}")
         return 0
 
 
 def buffer_create_external(context, size, device_ptr):
-    ctx = _context_from_handle(int(context))
+    ctx = context_from_handle(int(context))
     if ctx is None:
         return 0
 
@@ -63,57 +63,57 @@ def buffer_create_external(context, size, device_ptr):
     device_ptr = int(device_ptr)
 
     if size <= 0:
-        _set_error("External buffer size must be greater than zero")
+        set_error("External buffer size must be greater than zero")
         return 0
 
     if device_ptr == 0:
-        _set_error("External buffer device pointer must be non-zero")
+        set_error("External buffer device pointer must be non-zero")
         return 0
 
     try:
         signal_handles = [
-            _new_handle(state._signals, _Signal(context_handle=int(context), queue_index=i, done=True))
+            new_handle(state.signals, CUDASignal(context_handle=int(context), queue_index=i, done=True))
             for i in range(ctx.queue_count)
         ]
 
-        obj = _Buffer(
+        obj = CUDABuffer(
             context_handle=int(context),
             size=size,
             device_ptr=device_ptr,
             device_allocation=None,
             owns_allocation=False,
-            staging_data=[_allocate_staging_storage(size) for _ in range(ctx.queue_count)],
+            staging_data=[allocate_staging_storage(size) for _ in range(ctx.queue_count)],
             signal_handles=signal_handles,
         )
-        return _new_handle(state._buffers, obj)
+        return new_handle(state.buffers, obj)
     except Exception as exc:
-        _set_error(f"Failed to create external CUDA buffer alias: {exc}")
+        set_error(f"Failed to create external CUDA buffer alias: {exc}")
         return 0
 
 
 def buffer_destroy(buffer):
-    obj = state._buffers.pop(int(buffer), None)
+    obj = state.buffers.pop(int(buffer), None)
     if obj is None:
         return
 
     for signal_handle in obj.signal_handles:
-        state._signals.pop(signal_handle, None)
+        state.signals.pop(signal_handle, None)
 
-    ctx = state._contexts.get(obj.context_handle)
+    ctx = state.contexts.get(obj.context_handle)
     if ctx is None or not obj.owns_allocation or obj.device_allocation is None:
         return
 
     try:
-        with _activate_context(ctx):
+        with activate_context(ctx):
             obj.device_allocation.free()
     except Exception:
         pass
 
 
 def buffer_get_queue_signal(buffer, queue_index):
-    obj = state._buffers.get(int(buffer))
+    obj = state.buffers.get(int(buffer))
     if obj is None:
-        return _new_handle(state._signals, _Signal(context_handle=0, queue_index=0, done=True))
+        return new_handle(state.signals, CUDASignal(context_handle=0, queue_index=0, done=True))
 
     queue_index = int(queue_index)
     if queue_index < 0 or queue_index >= len(obj.signal_handles):
@@ -124,14 +124,14 @@ def buffer_get_queue_signal(buffer, queue_index):
 
 def buffer_wait_staging_idle(buffer, queue_index):
     signal_handle = buffer_get_queue_signal(buffer, queue_index)
-    signal_obj = state._signals.get(int(signal_handle))
+    signal_obj = state.signals.get(int(signal_handle))
     if signal_obj is None:
         return True
-    return _query_signal(signal_obj)
+    return query_signal(signal_obj)
 
 
 def buffer_write_staging(buffer, queue_index, data, size):
-    obj = state._buffers.get(int(buffer))
+    obj = state.buffers.get(int(buffer))
     if obj is None:
         return
 
@@ -139,7 +139,7 @@ def buffer_write_staging(buffer, queue_index, data, size):
     if queue_index < 0 or queue_index >= len(obj.staging_data):
         return
 
-    payload = _to_bytes(data)
+    payload = to_bytes(data)
     size = min(int(size), len(payload), obj.size)
     if size <= 0:
         return
@@ -150,7 +150,7 @@ def buffer_write_staging(buffer, queue_index, data, size):
 
 
 def buffer_read_staging(buffer, queue_index, size):
-    obj = state._buffers.get(int(buffer))
+    obj = state.buffers.get(int(buffer))
     if obj is None:
         return bytes(int(size))
 
@@ -168,13 +168,13 @@ def buffer_read_staging(buffer, queue_index, size):
 
 
 def buffer_write(buffer, offset, size, index):
-    obj = state._buffers.get(int(buffer))
+    obj = state.buffers.get(int(buffer))
     if obj is None:
         return
 
-    ctx = state._contexts.get(obj.context_handle)
+    ctx = state.contexts.get(obj.context_handle)
     if ctx is None:
-        _set_error(f"Missing context for buffer handle {buffer}")
+        set_error(f"Missing context for buffer handle {buffer}")
         return
 
     offset = int(offset)
@@ -183,37 +183,37 @@ def buffer_write(buffer, offset, size, index):
         return
 
     try:
-        with _activate_context(ctx):
-            for queue_index in _queue_indices(ctx, int(index), all_on_negative=True):
-                stream = _stream_for_queue(ctx, queue_index)
+        with activate_context(ctx):
+            for queue_index in queue_indices(ctx, int(index), all_on_negative=True):
+                stream = stream_for_queue(ctx, queue_index)
                 end = min(offset + size, obj.size)
                 copy_size = end - offset
                 if copy_size <= 0:
                     continue
 
                 src_view = memoryview(obj.staging_data[queue_index])[:copy_size]
-                cuda.memcpy_htod_async(_buffer_device_ptr(obj) + offset, src_view, stream)
+                cuda.memcpy_htod_async(buffer_device_ptr(obj) + offset, src_view, stream)
 
-                signal = state._signals.get(obj.signal_handles[queue_index])
+                signal = state.signals.get(obj.signal_handles[queue_index])
                 if signal is not None:
-                    _record_signal(signal, stream)
+                    record_signal(signal, stream)
     except Exception as exc:
-        _set_error(f"Failed to write CUDA buffer: {exc}")
+        set_error(f"Failed to write CUDA buffer: {exc}")
 
 
 def buffer_read(buffer, offset, size, index):
-    obj = state._buffers.get(int(buffer))
+    obj = state.buffers.get(int(buffer))
     if obj is None:
         return
 
-    ctx = state._contexts.get(obj.context_handle)
+    ctx = state.contexts.get(obj.context_handle)
     if ctx is None:
-        _set_error(f"Missing context for buffer handle {buffer}")
+        set_error(f"Missing context for buffer handle {buffer}")
         return
 
     queue_index = int(index)
     if queue_index < 0 or queue_index >= ctx.queue_count:
-        _set_error(f"Invalid queue index {queue_index} for buffer read")
+        set_error(f"Invalid queue index {queue_index} for buffer read")
         return
 
     offset = int(offset)
@@ -222,18 +222,18 @@ def buffer_read(buffer, offset, size, index):
         return
 
     try:
-        with _activate_context(ctx):
-            stream = _stream_for_queue(ctx, queue_index)
+        with activate_context(ctx):
+            stream = stream_for_queue(ctx, queue_index)
             end = min(offset + size, obj.size)
             copy_size = end - offset
             if copy_size <= 0:
                 return
 
             dst_view = memoryview(obj.staging_data[queue_index])[:copy_size]
-            cuda.memcpy_dtoh_async(dst_view, _buffer_device_ptr(obj) + offset, stream)
+            cuda.memcpy_dtoh_async(dst_view, buffer_device_ptr(obj) + offset, stream)
 
-            signal = state._signals.get(obj.signal_handles[queue_index])
+            signal = state.signals.get(obj.signal_handles[queue_index])
             if signal is not None:
-                _record_signal(signal, stream)
+                record_signal(signal, stream)
     except Exception as exc:
-        _set_error(f"Failed to read CUDA buffer: {exc}")
+        set_error(f"Failed to read CUDA buffer: {exc}")

@@ -7,18 +7,18 @@ from typing import List, Optional
 from .bindings import (
     np,
     driver,
-    _as_driver_handle,
-    _discover_cuda_include_dirs,
-    _drv_call,
-    _drv_check,
-    _nvrtc_call,
-    _nvrtc_check,
-    _nvrtc_read_bytes,
-    _prepare_nvrtc_options,
-    _readonly_host_ptr,
-    _status_success,
-    _to_int,
-    _writable_host_ptr,
+    as_driver_handle,
+    discover_cuda_include_dirs,
+    drv_call,
+    drv_check,
+    nvrtc_call,
+    nvrtc_check,
+    nvrtc_read_bytes,
+    prepare_nvrtc_options,
+    readonly_host_ptr,
+    status_success,
+    to_int,
+    writable_host_ptr,
 )
 
 
@@ -40,10 +40,10 @@ class _DeviceAllocation:
         if self.freed:
             return
 
-        _drv_check(
-            _drv_call(
+        drv_check(
+            drv_call(
                 ["cuMemFree", "cuMemFree_v2"],
-                _as_driver_handle("CUdeviceptr", self.ptr),
+                as_driver_handle("CUdeviceptr", self.ptr),
             ),
             "cuMemFree",
         )
@@ -58,10 +58,10 @@ class _ContextHandle:
         self._detached = False
 
     def push(self):
-        _drv_check(
-            _drv_call(
+        drv_check(
+            drv_call(
                 "cuCtxPushCurrent",
-                _as_driver_handle("CUcontext", self.context_raw),
+                as_driver_handle("CUcontext", self.context_raw),
             ),
             "cuCtxPushCurrent",
         )
@@ -71,13 +71,13 @@ class _ContextHandle:
             return
 
         if self.uses_primary_context:
-            dev = _drv_check(_drv_call("cuDeviceGet", int(self.device_index)), "cuDeviceGet")
-            _drv_check(_drv_call("cuDevicePrimaryCtxRelease", dev), "cuDevicePrimaryCtxRelease")
+            dev = drv_check(drv_call("cuDeviceGet", int(self.device_index)), "cuDeviceGet")
+            drv_check(drv_call("cuDevicePrimaryCtxRelease", dev), "cuDevicePrimaryCtxRelease")
         else:
-            _drv_check(
-                _drv_call(
+            drv_check(
+                drv_call(
                     ["cuCtxDestroy", "cuCtxDestroy_v2"],
-                    _as_driver_handle("CUcontext", self.context_raw),
+                    as_driver_handle("CUcontext", self.context_raw),
                 ),
                 "cuCtxDestroy",
             )
@@ -93,18 +93,18 @@ class _StreamHandle:
             handle = int(ptr)
 
         if handle is None:
-            stream_raw = _drv_check(_drv_call("cuStreamCreate", 0), "cuStreamCreate")
-            self.handle = int(_to_int(stream_raw))
+            stream_raw = drv_check(drv_call("cuStreamCreate", 0), "cuStreamCreate")
+            self.handle = int(to_int(stream_raw))
             self.owned = True
         else:
             self.handle = int(handle)
             self.owned = False
 
     def synchronize(self):
-        _drv_check(
-            _drv_call(
+        drv_check(
+            drv_call(
                 "cuStreamSynchronize",
-                _as_driver_handle("CUstream", self.handle),
+                as_driver_handle("CUstream", self.handle),
             ),
             "cuStreamSynchronize",
         )
@@ -123,37 +123,37 @@ class _StreamHandle:
 
 class _EventHandle:
     def __init__(self):
-        self.event_raw = _drv_check(_drv_call("cuEventCreate", 0), "cuEventCreate")
+        self.event_raw = drv_check(drv_call("cuEventCreate", 0), "cuEventCreate")
 
     def record(self, stream_obj: Optional["_StreamHandle"]):
         stream_handle = 0 if stream_obj is None else int(stream_obj)
-        _drv_check(
-            _drv_call(
+        drv_check(
+            drv_call(
                 "cuEventRecord",
                 self.event_raw,
-                _as_driver_handle("CUstream", stream_handle),
+                as_driver_handle("CUstream", stream_handle),
             ),
             "cuEventRecord",
         )
 
     def query(self) -> bool:
-        res = _drv_call("cuEventQuery", self.event_raw)
+        res = drv_call("cuEventQuery", self.event_raw)
         status = res[0] if isinstance(res, tuple) else res
 
-        if _status_success(status):
+        if status_success(status):
             return True
 
         status_text = str(status)
         if "NOT_READY" in status_text:
             return False
 
-        if _to_int(status) != 0:
+        if to_int(status) != 0:
             return False
 
         return True
 
     def synchronize(self):
-        _drv_check(_drv_call("cuEventSynchronize", self.event_raw), "cuEventSynchronize")
+        drv_check(drv_call("cuEventSynchronize", self.event_raw), "cuEventSynchronize")
 
 
 class _KernelFunction:
@@ -214,16 +214,16 @@ class _KernelFunction:
         stream_variants = _dedupe(
             [
                 stream_handle,
-                _as_driver_handle("CUstream", stream_handle),
+                as_driver_handle("CUstream", stream_handle),
             ]
         )
 
         function_candidates = [
             self.function_raw,
-            _as_driver_handle("CUfunction", self.function_raw),
+            as_driver_handle("CUfunction", self.function_raw),
         ]
         try:
-            function_candidates.append(_to_int(self.function_raw))
+            function_candidates.append(to_int(self.function_raw))
         except Exception:
             pass
         function_variants = _dedupe(function_candidates)
@@ -236,8 +236,8 @@ class _KernelFunction:
                 for kernel_params in kernel_param_variants:
                     for extra in extra_variants:
                         try:
-                            _drv_check(
-                                _drv_call(
+                            drv_check(
+                                drv_call(
                                     "cuLaunchKernel",
                                     function_handle,
                                     int(grid[0]),
@@ -258,8 +258,8 @@ class _KernelFunction:
                             last_error = exc
 
                         try:
-                            _drv_check(
-                                _drv_call(
+                            drv_check(
+                                drv_call(
                                     "cuLaunchKernel",
                                     function_handle,
                                     int(grid[0]),
@@ -292,8 +292,8 @@ class SourceModule:
 
         program_name = b"vkdispatch.cu"
         source_bytes = source.encode("utf-8")
-        program = _nvrtc_check(
-            _nvrtc_call(
+        program = nvrtc_check(
+            nvrtc_call(
                 "nvrtcCreateProgram",
                 source_bytes,
                 program_name,
@@ -309,15 +309,15 @@ class SourceModule:
 
         try:
             encoded_options = [opt.encode("utf-8") if isinstance(opt, str) else bytes(opt) for opt in options]
-            encoded_options = _prepare_nvrtc_options(encoded_options)
-            compile_result = _nvrtc_call("nvrtcCompileProgram", program, len(encoded_options), encoded_options)
+            encoded_options = prepare_nvrtc_options(encoded_options)
+            compile_result = nvrtc_call("nvrtcCompileProgram", program, len(encoded_options), encoded_options)
             compile_status = compile_result[0] if isinstance(compile_result, tuple) else compile_result
 
-            build_log = _nvrtc_read_bytes(program, "nvrtcGetProgramLogSize", "nvrtcGetProgramLog")
-            if not _status_success(compile_status):
+            build_log = nvrtc_read_bytes(program, "nvrtcGetProgramLogSize", "nvrtcGetProgramLog")
+            if not status_success(compile_status):
                 clean_build_log = build_log.rstrip(b"\x00").decode("utf-8", errors="replace")
                 if 'could not open source file "cuda_runtime.h"' in clean_build_log:
-                    discovered = _discover_cuda_include_dirs()
+                    discovered = discover_cuda_include_dirs()
                     hint = (
                         " NVRTC could not find CUDA headers. "
                         f"Discovered include dirs: {discovered if len(discovered) > 0 else 'none'}. "
@@ -329,10 +329,10 @@ class SourceModule:
                     f"NVRTC compilation failed: {clean_build_log}{hint}"
                 )
 
-            ptx = _nvrtc_read_bytes(program, "nvrtcGetPTXSize", "nvrtcGetPTX")
+            ptx = nvrtc_read_bytes(program, "nvrtcGetPTXSize", "nvrtcGetPTX")
         finally:
             try:
-                _nvrtc_check(_nvrtc_call("nvrtcDestroyProgram", program), "nvrtcDestroyProgram")
+                nvrtc_check(nvrtc_call("nvrtcDestroyProgram", program), "nvrtcDestroyProgram")
             except Exception:
                 pass
 
@@ -341,14 +341,14 @@ class SourceModule:
         if not ptx.endswith(b"\x00"):
             ptx += b"\x00"
 
-        self.module_raw = _drv_check(
-            _drv_call(["cuModuleLoadDataEx", "cuModuleLoadData"], ptx),
+        self.module_raw = drv_check(
+            drv_call(["cuModuleLoadDataEx", "cuModuleLoadData"], ptx),
             "cuModuleLoadData",
         )
 
     def get_function(self, name: str):
-        func_raw = _drv_check(
-            _drv_call("cuModuleGetFunction", self.module_raw, name.encode("utf-8")),
+        func_raw = drv_check(
+            drv_call("cuModuleGetFunction", self.module_raw, name.encode("utf-8")),
             "cuModuleGetFunction",
         )
         return _KernelFunction(func_raw)
@@ -405,11 +405,11 @@ class _CudaDevice:
     class Device:
         def __init__(self, index: int):
             self.index = int(index)
-            self.device_raw = _drv_check(_drv_call("cuDeviceGet", self.index), "cuDeviceGet")
+            self.device_raw = drv_check(drv_call("cuDeviceGet", self.index), "cuDeviceGet")
 
         @staticmethod
         def count():
-            return int(_drv_check(_drv_call("cuDeviceGetCount"), "cuDeviceGetCount"))
+            return int(drv_check(drv_call("cuDeviceGetCount"), "cuDeviceGetCount"))
 
         def get_attributes(self):
             attrs = {}
@@ -426,8 +426,8 @@ class _CudaDevice:
             ):
                 attr_enum = getattr(_CudaDevice.device_attribute, attr_name)
                 try:
-                    val = _drv_check(
-                        _drv_call("cuDeviceGetAttribute", attr_enum, self.device_raw),
+                    val = drv_check(
+                        drv_call("cuDeviceGetAttribute", attr_enum, self.device_raw),
                         "cuDeviceGetAttribute",
                     )
                     attrs[attr_enum] = int(val)
@@ -446,16 +446,16 @@ class _CudaDevice:
                 "CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR",
                 0,
             )
-            major = _drv_check(_drv_call("cuDeviceGetAttribute", major_enum, self.device_raw), "cuDeviceGetAttribute")
-            minor = _drv_check(_drv_call("cuDeviceGetAttribute", minor_enum, self.device_raw), "cuDeviceGetAttribute")
+            major = drv_check(drv_call("cuDeviceGetAttribute", major_enum, self.device_raw), "cuDeviceGetAttribute")
+            minor = drv_check(drv_call("cuDeviceGetAttribute", minor_enum, self.device_raw), "cuDeviceGetAttribute")
             return int(major), int(minor)
 
         def total_memory(self):
-            return int(_drv_check(_drv_call(["cuDeviceTotalMem", "cuDeviceTotalMem_v2"], self.device_raw), "cuDeviceTotalMem"))
+            return int(drv_check(drv_call(["cuDeviceTotalMem", "cuDeviceTotalMem_v2"], self.device_raw), "cuDeviceTotalMem"))
 
         def pci_bus_id(self):
             try:
-                bus_id = _drv_check(_drv_call("cuDeviceGetPCIBusId", 64, self.device_raw), "cuDeviceGetPCIBusId")
+                bus_id = drv_check(drv_call("cuDeviceGetPCIBusId", 64, self.device_raw), "cuDeviceGetPCIBusId")
                 if isinstance(bus_id, (bytes, bytearray)):
                     return bus_id.decode("utf-8", errors="replace").rstrip("\x00")
                 return str(bus_id)
@@ -464,7 +464,7 @@ class _CudaDevice:
 
         def name(self):
             try:
-                name = _drv_check(_drv_call("cuDeviceGetName", 128, self.device_raw), "cuDeviceGetName")
+                name = drv_check(drv_call("cuDeviceGetName", 128, self.device_raw), "cuDeviceGetName")
                 if isinstance(name, (bytes, bytearray)):
                     return name.decode("utf-8", errors="replace").rstrip("\x00")
                 return str(name)
@@ -472,12 +472,12 @@ class _CudaDevice:
                 return f"CUDA Device {self.index}"
 
         def retain_primary_context(self):
-            ctx_raw = _drv_check(_drv_call("cuDevicePrimaryCtxRetain", self.device_raw), "cuDevicePrimaryCtxRetain")
+            ctx_raw = drv_check(drv_call("cuDevicePrimaryCtxRetain", self.device_raw), "cuDevicePrimaryCtxRetain")
             return _ContextHandle(ctx_raw, self.index, True)
 
         def make_context(self):
-            ctx_raw = _drv_check(
-                _drv_call(["cuCtxCreate", "cuCtxCreate_v2"], 0, self.device_raw),
+            ctx_raw = drv_check(
+                drv_call(["cuCtxCreate", "cuCtxCreate_v2"], 0, self.device_raw),
                 "cuCtxCreate",
             )
             return _ContextHandle(ctx_raw, self.index, False)
@@ -486,13 +486,13 @@ class _CudaDevice:
         @staticmethod
         def pop():
             try:
-                _drv_check(_drv_call("cuCtxPopCurrent"), "cuCtxPopCurrent")
+                drv_check(drv_call("cuCtxPopCurrent"), "cuCtxPopCurrent")
                 return
             except Exception:
                 pass
 
             popped = ctypes.c_void_p()
-            _drv_check(_drv_call("cuCtxPopCurrent", popped), "cuCtxPopCurrent")
+            drv_check(drv_call("cuCtxPopCurrent", popped), "cuCtxPopCurrent")
 
     Stream = _StreamHandle
     ExternalStream = _StreamHandle
@@ -502,32 +502,32 @@ class _CudaDevice:
 
     @staticmethod
     def init():
-        _drv_check(_drv_call("cuInit", 0), "cuInit")
+        drv_check(drv_call("cuInit", 0), "cuInit")
 
     @staticmethod
     def get_driver_version():
-        return int(_drv_check(_drv_call("cuDriverGetVersion"), "cuDriverGetVersion"))
+        return int(drv_check(drv_call("cuDriverGetVersion"), "cuDriverGetVersion"))
 
     @staticmethod
     def mem_alloc(size: int):
-        ptr = _drv_check(
-            _drv_call(["cuMemAlloc", "cuMemAlloc_v2"], int(size)),
+        ptr = drv_check(
+            drv_call(["cuMemAlloc", "cuMemAlloc_v2"], int(size)),
             "cuMemAlloc",
         )
-        return _DeviceAllocation(int(_to_int(ptr)))
+        return _DeviceAllocation(int(to_int(ptr)))
 
     @staticmethod
     def memcpy_htod_async(dst_ptr, src_obj, stream_obj):
         src_view = memoryview(src_obj).cast("B")
-        host_ptr, _keepalive = _readonly_host_ptr(src_view)
+        host_ptr, _keepalive = readonly_host_ptr(src_view)
         stream_handle = 0 if stream_obj is None else int(stream_obj)
-        _drv_check(
-            _drv_call(
+        drv_check(
+            drv_call(
                 ["cuMemcpyHtoDAsync", "cuMemcpyHtoDAsync_v2"],
-                _as_driver_handle("CUdeviceptr", int(dst_ptr)),
+                as_driver_handle("CUdeviceptr", int(dst_ptr)),
                 host_ptr,
                 len(src_view),
-                _as_driver_handle("CUstream", stream_handle),
+                as_driver_handle("CUstream", stream_handle),
             ),
             "cuMemcpyHtoDAsync",
         )
@@ -535,15 +535,15 @@ class _CudaDevice:
     @staticmethod
     def memcpy_dtoh_async(dst_obj, src_ptr, stream_obj):
         dst_view = memoryview(dst_obj).cast("B")
-        host_ptr, _keepalive = _writable_host_ptr(dst_view)
+        host_ptr, _keepalive = writable_host_ptr(dst_view)
         stream_handle = 0 if stream_obj is None else int(stream_obj)
-        _drv_check(
-            _drv_call(
+        drv_check(
+            drv_call(
                 ["cuMemcpyDtoHAsync", "cuMemcpyDtoHAsync_v2"],
                 host_ptr,
-                _as_driver_handle("CUdeviceptr", int(src_ptr)),
+                as_driver_handle("CUdeviceptr", int(src_ptr)),
                 len(dst_view),
-                _as_driver_handle("CUstream", stream_handle),
+                as_driver_handle("CUstream", stream_handle),
             ),
             "cuMemcpyDtoHAsync",
         )

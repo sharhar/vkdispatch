@@ -15,9 +15,9 @@ DESCRIPTOR_TYPE_UNIFORM_BUFFER = 3
 DESCRIPTOR_TYPE_UNIFORM_IMAGE = 4
 DESCRIPTOR_TYPE_SAMPLER = 5
 
-_LOCAL_X_RE = re.compile(r"#define\s+VKDISPATCH_EXPECTED_LOCAL_SIZE_X\s+(\d+)")
-_LOCAL_Y_RE = re.compile(r"#define\s+VKDISPATCH_EXPECTED_LOCAL_SIZE_Y\s+(\d+)")
-_LOCAL_Z_RE = re.compile(r"#define\s+VKDISPATCH_EXPECTED_LOCAL_SIZE_Z\s+(\d+)")
-_KERNEL_SIGNATURE_RE = re.compile(r"vkdispatch_main\s*\(([^)]*)\)", re.S)
-_BINDING_PARAM_RE = re.compile(r"vkdispatch_binding_(\d+)_ptr$")
-_SAMPLER_PARAM_RE = re.compile(r"vkdispatch_sampler_(\d+)$")
+LOCAL_X_RE = re.compile(r"#define\s+VKDISPATCH_EXPECTED_LOCAL_SIZE_X\s+(\d+)")
+LOCAL_Y_RE = re.compile(r"#define\s+VKDISPATCH_EXPECTED_LOCAL_SIZE_Y\s+(\d+)")
+LOCAL_Z_RE = re.compile(r"#define\s+VKDISPATCH_EXPECTED_LOCAL_SIZE_Z\s+(\d+)")
+KERNEL_SIGNATURE_RE = re.compile(r"vkdispatch_main\s*\(([^)]*)\)", re.S)
+BINDING_PARAM_RE = re.compile(r"vkdispatch_binding_(\d+)_ptr$")
+SAMPLER_PARAM_RE = re.compile(r"vkdispatch_sampler_(\d+)$")

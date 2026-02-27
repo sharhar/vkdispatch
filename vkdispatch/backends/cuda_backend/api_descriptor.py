@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 from . import state as state
-from .helpers import _new_handle, _set_error, _to_bytes
-from .state import _DescriptorSet
+from .helpers import new_handle, set_error, to_bytes
+from .state import CUDADescriptorSet
 
 
 def descriptor_set_create(plan):
-    if int(plan) not in state._compute_plans:
-        _set_error("Invalid compute plan handle for descriptor_set_create")
+    if int(plan) not in state.compute_plans:
+        set_error("Invalid compute plan handle for descriptor_set_create")
         return 0
 
-    return _new_handle(state._descriptor_sets, _DescriptorSet(plan_handle=int(plan)))
+    return new_handle(state.descriptor_sets, CUDADescriptorSet(plan_handle=int(plan)))
 
 
 def descriptor_set_destroy(descriptor_set):
-    state._descriptor_sets.pop(int(descriptor_set), None)
+    state.descriptor_sets.pop(int(descriptor_set), None)
 
 
 def descriptor_set_write_buffer(
@@ -27,9 +27,9 @@ def descriptor_set_write_buffer(
     read_access,
     write_access,
 ):
-    ds = state._descriptor_sets.get(int(descriptor_set))
+    ds = state.descriptor_sets.get(int(descriptor_set))
     if ds is None:
-        _set_error("Invalid descriptor set handle for descriptor_set_write_buffer")
+        set_error("Invalid descriptor set handle for descriptor_set_write_buffer")
         return
 
     ds.buffer_bindings[int(binding)] = (
@@ -56,16 +56,16 @@ def descriptor_set_write_image(
     _ = sampler_obj
     _ = read_access
     _ = write_access
-    _set_error("CUDA Python backend does not support image objects yet")
+    set_error("CUDA Python backend does not support image objects yet")
 
 
 def descriptor_set_write_inline_uniform(descriptor_set, payload):
-    ds = state._descriptor_sets.get(int(descriptor_set))
+    ds = state.descriptor_sets.get(int(descriptor_set))
     if ds is None:
-        _set_error("Invalid descriptor set handle for descriptor_set_write_inline_uniform")
+        set_error("Invalid descriptor set handle for descriptor_set_write_inline_uniform")
         return
 
     try:
-        ds.inline_uniform_payload = _to_bytes(payload)
+        ds.inline_uniform_payload = to_bytes(payload)
     except Exception as exc:
-        _set_error(f"Failed to store inline uniform payload: {exc}")
+        set_error(f"Failed to store inline uniform payload: {exc}")

@@ -6,27 +6,27 @@ import sys
 from typing import Dict, List, Optional, Tuple
 
 from . import state as state
-from .bindings import driver, np, _drv_call, _drv_check, _to_int
+from .bindings import driver, np, drv_call, drv_check, to_int
 from .constants import (
-    _BINDING_PARAM_RE,
-    _KERNEL_SIGNATURE_RE,
-    _LOCAL_X_RE,
-    _LOCAL_Y_RE,
-    _LOCAL_Z_RE,
-    _SAMPLER_PARAM_RE,
+    BINDING_PARAM_RE,
+    KERNEL_SIGNATURE_RE,
+    LOCAL_X_RE,
+    LOCAL_Y_RE,
+    LOCAL_Z_RE,
+    SAMPLER_PARAM_RE,
 )
 from .cuda_primitives import _ByValueKernelArg, cuda
-from .state import _Buffer, _ComputePlan, _Context, _DescriptorSet, _KernelParam, _Signal
+from .state import CUDABuffer, CUDAComputePlan, CUDAContext, CUDADescriptorSet, CUDAKernelParam, CUDASignal
 
 
-def _new_handle(registry: Dict[int, object], obj: object) -> int:
-    handle = state._next_handle
-    state._next_handle += 1
+def new_handle(registry: Dict[int, object], obj: object) -> int:
+    handle = state.next_handle
+    state.next_handle += 1
     registry[handle] = obj
     return handle
 
 
-def _to_bytes(value) -> bytes:
+def to_bytes(value) -> bytes:
     if value is None:
         return b""
     if isinstance(value, bytes):
@@ -38,15 +38,15 @@ def _to_bytes(value) -> bytes:
     return bytes(value)
 
 
-def _set_error(message: str) -> None:
-    state._error_string = str(message)
+def set_error(message: str) -> None:
+    state.error_string = str(message)
 
 
-def _clear_error() -> None:
-    state._error_string = None
+def clear_error() -> None:
+    state.error_string = None
 
 
-def _coerce_stream_handle(stream_obj) -> Optional[int]:
+def coerce_stream_handle(stream_obj) -> Optional[int]:
     if stream_obj is None:
         return None
 
@@ -73,7 +73,7 @@ def _coerce_stream_handle(stream_obj) -> Optional[int]:
     nested = getattr(stream_obj, "stream", None)
     if nested is not None and nested is not stream_obj:
         try:
-            return _coerce_stream_handle(nested)
+            return coerce_stream_handle(nested)
         except Exception:
             pass
 
@@ -86,26 +86,26 @@ def _coerce_stream_handle(stream_obj) -> Optional[int]:
         ) from exc
 
 
-def _stream_override_stack() -> List[Optional[int]]:
-    stack = getattr(state._stream_override, "stack", None)
+def stream_override_stack() -> List[Optional[int]]:
+    stack = getattr(state.stream_override, "stack", None)
     if stack is None:
         stack = []
-        state._stream_override.stack = stack
+        state.stream_override.stack = stack
     return stack
 
 
-def _get_stream_override_handle() -> Optional[int]:
-    stack = getattr(state._stream_override, "stack", None)
+def get_stream_override_handle() -> Optional[int]:
+    stack = getattr(state.stream_override, "stack", None)
     if not stack:
         return None
     return stack[-1]
 
 
-def _wrap_external_stream(handle: int):
+def wrap_external_stream(handle: int):
     handle = int(handle)
 
-    if handle in state._external_stream_cache:
-        return state._external_stream_cache[handle]
+    if handle in state.external_stream_cache:
+        return state.external_stream_cache[handle]
 
     if handle == 0:
         return None
@@ -124,7 +124,7 @@ def _wrap_external_stream(handle: int):
     for ctor in ctor_attempts:
         try:
             stream_obj = ctor()
-            state._external_stream_cache[handle] = stream_obj
+            state.external_stream_cache[handle] = stream_obj
             return stream_obj
         except Exception as exc:  # pragma: no cover - depends on cuda-python version
             last_error = exc
@@ -135,18 +135,18 @@ def _wrap_external_stream(handle: int):
     ) from last_error
 
 
-def _stream_for_queue(ctx: _Context, queue_index: int):
-    override_handle = _get_stream_override_handle()
+def stream_for_queue(ctx: CUDAContext, queue_index: int):
+    override_handle = get_stream_override_handle()
     if override_handle is None:
         return ctx.streams[queue_index]
-    return _wrap_external_stream(int(override_handle))
+    return wrap_external_stream(int(override_handle))
 
 
-def _buffer_device_ptr(buffer_obj: _Buffer) -> int:
+def buffer_device_ptr(buffer_obj: CUDABuffer) -> int:
     return int(buffer_obj.device_ptr)
 
 
-def _queue_indices(ctx: _Context, queue_index: int, *, all_on_negative: bool = False) -> List[int]:
+def queue_indices(ctx: CUDAContext, queue_index: int, *, all_on_negative: bool = False) -> List[int]:
     if ctx.queue_count <= 0:
         return []
 
@@ -167,15 +167,15 @@ def _queue_indices(ctx: _Context, queue_index: int, *, all_on_negative: bool = F
     return []
 
 
-def _context_from_handle(context_handle: int) -> Optional[_Context]:
-    ctx = state._contexts.get(int(context_handle))
+def context_from_handle(context_handle: int) -> Optional[CUDAContext]:
+    ctx = state.contexts.get(int(context_handle))
     if ctx is None:
-        _set_error(f"Invalid context handle {context_handle}")
+        set_error(f"Invalid context handle {context_handle}")
     return ctx
 
 
 @contextmanager
-def _activate_context(ctx: _Context):
+def activate_context(ctx: CUDAContext):
     ctx.cuda_context.push()
     try:
         yield
@@ -183,7 +183,7 @@ def _activate_context(ctx: _Context):
         cuda.Context.pop()
 
 
-def _record_signal(signal: _Signal, stream: "cuda.Stream") -> None:
+def record_signal(signal: CUDASignal, stream: "cuda.Stream") -> None:
     signal.submitted = True
     signal.done = False
     if signal.event is None:
@@ -191,7 +191,7 @@ def _record_signal(signal: _Signal, stream: "cuda.Stream") -> None:
     signal.event.record(stream)
 
 
-def _query_signal(signal: _Signal) -> bool:
+def query_signal(signal: CUDASignal) -> bool:
     if signal.event is None:
         return bool(signal.done)
 
@@ -204,7 +204,7 @@ def _query_signal(signal: _Signal) -> bool:
     return signal.done
 
 
-def _allocate_staging_storage(size: int):
+def allocate_staging_storage(size: int):
     try:
         # Pagelocked host memory improves async HtoD/DtoH throughput and overlap.
         return cuda.pagelocked_empty(int(size), np.uint8)
@@ -212,13 +212,13 @@ def _allocate_staging_storage(size: int):
         return bytearray(int(size))
 
 
-def _fallback_max_kernel_param_size(compute_capability_major: int) -> int:
+def fallback_max_kernel_param_size(compute_capability_major: int) -> int:
     # CUDA kernels support at least 4 KiB of launch parameters on legacy devices.
     # Volta+ devices commonly expose a larger 32 KiB-ish argument space.
     return 32764 if int(compute_capability_major) >= 7 else 4096
 
 
-def _query_max_kernel_param_size(device_raw, compute_capability_major: int) -> int:
+def query_max_kernel_param_size(device_raw, compute_capability_major: int) -> int:
     attr_names = (
         "CU_DEVICE_ATTRIBUTE_MAX_PARAMETER_SIZE",
         "CU_DEVICE_ATTRIBUTE_MAX_PARAMETER_SIZE_SUPPORTED",
@@ -233,11 +233,11 @@ def _query_max_kernel_param_size(device_raw, compute_capability_major: int) -> i
                 continue
 
             try:
-                queried_value = _drv_check(
-                    _drv_call("cuDeviceGetAttribute", attr_enum, device_raw),
+                queried_value = drv_check(
+                    drv_call("cuDeviceGetAttribute", attr_enum, device_raw),
                     "cuDeviceGetAttribute",
                 )
-                queried_size = int(_to_int(queried_value))
+                queried_size = int(to_int(queried_value))
                 if queried_size > 0:
                     return queried_size
             except Exception:
@@ -248,13 +248,13 @@ def _query_max_kernel_param_size(device_raw, compute_capability_major: int) -> i
         file=sys.stderr,
     )
 
-    return _fallback_max_kernel_param_size(compute_capability_major)
+    return fallback_max_kernel_param_size(compute_capability_major)
 
 
-def _parse_local_size(source: str) -> Tuple[int, int, int]:
-    x_match = _LOCAL_X_RE.search(source)
-    y_match = _LOCAL_Y_RE.search(source)
-    z_match = _LOCAL_Z_RE.search(source)
+def parse_local_size(source: str) -> Tuple[int, int, int]:
+    x_match = LOCAL_X_RE.search(source)
+    y_match = LOCAL_Y_RE.search(source)
+    z_match = LOCAL_Z_RE.search(source)
 
     x = int(x_match.group(1)) if x_match else 1
     y = int(y_match.group(1)) if y_match else 1
@@ -263,8 +263,8 @@ def _parse_local_size(source: str) -> Tuple[int, int, int]:
     return (x, y, z)
 
 
-def _parse_kernel_params(source: str) -> List[_KernelParam]:
-    signature_match = _KERNEL_SIGNATURE_RE.search(source)
+def parse_kernel_params(source: str) -> List[CUDAKernelParam]:
+    signature_match = KERNEL_SIGNATURE_RE.search(source)
     if signature_match is None:
         raise RuntimeError("Could not find vkdispatch_main kernel signature in CUDA source")
 
@@ -272,7 +272,7 @@ def _parse_kernel_params(source: str) -> List[_KernelParam]:
     if len(signature_blob) == 0:
         return []
 
-    params: List[_KernelParam] = []
+    params: List[CUDAKernelParam] = []
 
     for raw_decl in [part.strip() for part in signature_blob.split(",") if len(part.strip()) > 0]:
         name_match = re.search(r"([A-Za-z_][A-Za-z0-9_]*)\s*$", raw_decl)
@@ -282,49 +282,49 @@ def _parse_kernel_params(source: str) -> List[_KernelParam]:
         param_name = name_match.group(1)
 
         if param_name == "vkdispatch_uniform_ptr":
-            params.append(_KernelParam("uniform", 0, param_name))
+            params.append(CUDAKernelParam("uniform", 0, param_name))
             continue
 
         if param_name == "vkdispatch_uniform_value":
-            params.append(_KernelParam("uniform_value", None, param_name))
+            params.append(CUDAKernelParam("uniform_value", None, param_name))
             continue
 
         if param_name == "vkdispatch_pc_value":
-            params.append(_KernelParam("push_constant_value", None, param_name))
+            params.append(CUDAKernelParam("push_constant_value", None, param_name))
             continue
 
-        binding_match = _BINDING_PARAM_RE.match(param_name)
+        binding_match = BINDING_PARAM_RE.match(param_name)
         if binding_match is not None:
-            params.append(_KernelParam("storage", int(binding_match.group(1)), param_name))
+            params.append(CUDAKernelParam("storage", int(binding_match.group(1)), param_name))
             continue
 
-        sampler_match = _SAMPLER_PARAM_RE.match(param_name)
+        sampler_match = SAMPLER_PARAM_RE.match(param_name)
         if sampler_match is not None:
-            params.append(_KernelParam("sampler", int(sampler_match.group(1)), param_name))
+            params.append(CUDAKernelParam("sampler", int(sampler_match.group(1)), param_name))
             continue
 
-        params.append(_KernelParam("unknown", None, param_name))
+        params.append(CUDAKernelParam("unknown", None, param_name))
 
     return params
 
 
-def _resolve_buffer_pointer(descriptor_set: _DescriptorSet, binding: int) -> int:
+def resolve_buffer_pointer(descriptor_set: CUDADescriptorSet, binding: int) -> int:
     binding_info = descriptor_set.buffer_bindings.get(binding)
     if binding_info is None:
         raise RuntimeError(f"Missing descriptor buffer binding {binding}")
 
     buffer_handle, offset, _range, _uniform, _read_access, _write_access = binding_info
 
-    buffer_obj = state._buffers.get(int(buffer_handle))
+    buffer_obj = state.buffers.get(int(buffer_handle))
     if buffer_obj is None:
         raise RuntimeError(f"Invalid buffer handle {buffer_handle} for binding {binding}")
 
-    return _buffer_device_ptr(buffer_obj) + int(offset)
+    return buffer_device_ptr(buffer_obj) + int(offset)
 
 
-def _build_kernel_args_template(
-    plan: _ComputePlan,
-    descriptor_set: Optional[_DescriptorSet],
+def build_kernel_args_template(
+    plan: CUDAComputePlan,
+    descriptor_set: Optional[CUDADescriptorSet],
     push_constant_payload: bytes = b"",
 ) -> Tuple[object, ...]:
     args: List[object] = []
@@ -334,7 +334,7 @@ def _build_kernel_args_template(
             if descriptor_set is None:
                 raise RuntimeError("Kernel requires a descriptor set but none was provided")
 
-            args.append(np.uintp(_resolve_buffer_pointer(descriptor_set, 0)))
+            args.append(np.uintp(resolve_buffer_pointer(descriptor_set, 0)))
             continue
 
         if param.kind == "uniform_value":
@@ -378,7 +378,7 @@ def _build_kernel_args_template(
             if param.binding is None:
                 raise RuntimeError("Storage parameter has no binding index")
 
-            args.append(np.uintp(_resolve_buffer_pointer(descriptor_set, param.binding)))
+            args.append(np.uintp(resolve_buffer_pointer(descriptor_set, param.binding)))
             continue
 
         if param.kind == "sampler":
@@ -392,13 +392,13 @@ def _build_kernel_args_template(
     return tuple(args)
 
 
-def _align_up(value: int, alignment: int) -> int:
+def align_up(value: int, alignment: int) -> int:
     if alignment <= 1:
         return value
     return ((value + alignment - 1) // alignment) * alignment
 
 
-def _estimate_kernel_param_size_bytes(args: Tuple[object, ...]) -> int:
+def estimate_kernel_param_size_bytes(args: Tuple[object, ...]) -> int:
     total_bytes = 0
 
     for arg in args:
@@ -406,11 +406,11 @@ def _estimate_kernel_param_size_bytes(args: Tuple[object, ...]) -> int:
             payload_size = len(arg.payload)
             # Kernel params are aligned by argument type. Use a conservative
             # 16-byte alignment for by-value structs.
-            total_bytes = _align_up(total_bytes, 16)
+            total_bytes = align_up(total_bytes, 16)
             total_bytes += payload_size
             continue
 
-        total_bytes = _align_up(total_bytes, 8)
+        total_bytes = align_up(total_bytes, 8)
         total_bytes += 8
 
     return total_bytes

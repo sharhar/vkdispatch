@@ -28,7 +28,7 @@ except Exception:
         ) from exc
 
 
-def _to_int(value) -> int:
+def to_int(value) -> int:
     if isinstance(value, int):
         return int(value)
 
@@ -41,7 +41,7 @@ def _to_int(value) -> int:
     return int(value)
 
 
-def _drv_call(names, *args):
+def drv_call(names, *args):
     if isinstance(names, str):
         names = [names]
 
@@ -60,7 +60,7 @@ def _drv_call(names, *args):
     raise RuntimeError(f"CUDA Driver symbol not found: {names}")
 
 
-def _nvrtc_call(names, *args):
+def nvrtc_call(names, *args):
     if isinstance(names, str):
         names = [names]
 
@@ -79,20 +79,20 @@ def _nvrtc_call(names, *args):
     raise RuntimeError(f"NVRTC symbol not found: {names}")
 
 
-def _status_success(status) -> bool:
+def status_success(status) -> bool:
     try:
-        return _to_int(status) == 0
+        return to_int(status) == 0
     except Exception:
         return str(status).endswith("CUDA_SUCCESS") or str(status).endswith("NVRTC_SUCCESS")
 
 
-def _drv_error_string(status) -> str:
+def drv_error_string(status) -> str:
     try:
-        name_res = _drv_call("cuGetErrorName", status)
-        string_res = _drv_call("cuGetErrorString", status)
+        name_res = drv_call("cuGetErrorName", status)
+        string_res = drv_call("cuGetErrorString", status)
         _name_status = name_res[0] if isinstance(name_res, tuple) else 1
         _string_status = string_res[0] if isinstance(string_res, tuple) else 1
-        if _status_success(_name_status) and _status_success(_string_status):
+        if status_success(_name_status) and status_success(_string_status):
             name = name_res[1] if isinstance(name_res, tuple) and len(name_res) > 1 else name_res
             text = string_res[1] if isinstance(string_res, tuple) and len(string_res) > 1 else string_res
             if isinstance(name, (bytes, bytearray)):
@@ -106,7 +106,7 @@ def _drv_error_string(status) -> str:
     return str(status)
 
 
-def _drv_check(result, op_name: str):
+def drv_check(result, op_name: str):
     if isinstance(result, tuple):
         status = result[0]
         payload = result[1:]
@@ -114,8 +114,8 @@ def _drv_check(result, op_name: str):
         status = result
         payload = ()
 
-    if not _status_success(status):
-        raise RuntimeError(f"{op_name} failed ({_drv_error_string(status)})")
+    if not status_success(status):
+        raise RuntimeError(f"{op_name} failed ({drv_error_string(status)})")
 
     if len(payload) == 0:
         return None
@@ -126,7 +126,7 @@ def _drv_check(result, op_name: str):
     return payload
 
 
-def _nvrtc_check(result, op_name: str):
+def nvrtc_check(result, op_name: str):
     if isinstance(result, tuple):
         status = result[0]
         payload = result[1:]
@@ -134,7 +134,7 @@ def _nvrtc_check(result, op_name: str):
         status = result
         payload = ()
 
-    if not _status_success(status):
+    if not status_success(status):
         raise RuntimeError(f"{op_name} failed ({status})")
 
     if len(payload) == 0:
@@ -146,9 +146,9 @@ def _nvrtc_check(result, op_name: str):
     return payload
 
 
-def _nvrtc_read_bytes(program, size_api: str, read_api: str) -> bytes:
-    raw_size = _nvrtc_check(_nvrtc_call(size_api, program), size_api)
-    size = int(_to_int(raw_size))
+def nvrtc_read_bytes(program, size_api: str, read_api: str) -> bytes:
+    raw_size = nvrtc_check(nvrtc_call(size_api, program), size_api)
+    size = int(to_int(raw_size))
     if size <= 0:
         return b""
 
@@ -176,7 +176,7 @@ def _nvrtc_read_bytes(program, size_api: str, read_api: str) -> bytes:
         return None
 
     try:
-        direct_data = _nvrtc_check(_nvrtc_call(read_api, program), read_api)
+        direct_data = nvrtc_check(nvrtc_call(read_api, program), read_api)
         normalized = _normalize_output(direct_data)
         if normalized is not None:
             return normalized
@@ -189,7 +189,7 @@ def _nvrtc_read_bytes(program, size_api: str, read_api: str) -> bytes:
 
     for out_candidate in (out_bytes, out_bytearray, out_c):
         try:
-            call_result = _nvrtc_check(_nvrtc_call(read_api, program, out_candidate), read_api)
+            call_result = nvrtc_check(nvrtc_call(read_api, program, out_candidate), read_api)
             normalized_result = _normalize_output(call_result)
             if normalized_result is not None:
                 return normalized_result
@@ -205,7 +205,7 @@ def _nvrtc_read_bytes(program, size_api: str, read_api: str) -> bytes:
     return bytes(out_c.raw)
 
 
-def _discover_cuda_include_dirs() -> List[str]:
+def discover_cuda_include_dirs() -> List[str]:
     include_dirs: List[str] = []
     seen = set()
 
@@ -272,7 +272,7 @@ def _discover_cuda_include_dirs() -> List[str]:
     return include_dirs
 
 
-def _prepare_nvrtc_options(options: List[bytes]) -> List[bytes]:
+def prepare_nvrtc_options(options: List[bytes]) -> List[bytes]:
     normalized: List[bytes] = []
     has_include_path = False
 
@@ -283,13 +283,13 @@ def _prepare_nvrtc_options(options: List[bytes]) -> List[bytes]:
         normalized.append(opt)
 
     if not has_include_path:
-        for include_dir in _discover_cuda_include_dirs():
+        for include_dir in discover_cuda_include_dirs():
             normalized.append(f"--include-path={include_dir}".encode("utf-8"))
 
     return normalized
 
 
-def _as_driver_handle(type_name: str, value):
+def as_driver_handle(type_name: str, value):
     handle_type = getattr(driver, type_name, None)
     if handle_type is None:
         return value
@@ -301,12 +301,12 @@ def _as_driver_handle(type_name: str, value):
         pass
 
     try:
-        return handle_type(_to_int(value))
+        return handle_type(to_int(value))
     except Exception:
         return value
 
 
-def _writable_host_ptr(view: memoryview):
+def writable_host_ptr(view: memoryview):
     byte_view = view.cast("B")
     try:
         c_buffer = (ctypes.c_ubyte * len(byte_view)).from_buffer(byte_view)
@@ -316,7 +316,7 @@ def _writable_host_ptr(view: memoryview):
         return ctypes.addressof(copied), copied
 
 
-def _readonly_host_ptr(view: memoryview):
+def readonly_host_ptr(view: memoryview):
     byte_view = view.cast("B")
     try:
         c_buffer = (ctypes.c_ubyte * len(byte_view)).from_buffer(byte_view)

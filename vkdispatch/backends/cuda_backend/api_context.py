@@ -5,27 +5,27 @@ import hashlib
 from . import state as state
 from .cuda_primitives import cuda
 from .helpers import (
-    _activate_context,
-    _clear_error,
-    _coerce_stream_handle,
-    _new_handle,
-    _query_max_kernel_param_size,
-    _set_error,
-    _stream_override_stack,
+    activate_context,
+    clear_error,
+    coerce_stream_handle,
+    new_handle,
+    query_max_kernel_param_size,
+    set_error,
+    stream_override_stack,
 )
-from .state import _Context
+from .state import CUDAContext
 
 
 def init(debug, log_level):
-    state._debug_mode = bool(debug)
-    state._log_level = int(log_level)
-    _clear_error()
+    state.debug_mode = bool(debug)
+    state.log_level = int(log_level)
+    clear_error()
 
-    if state._initialized:
+    if state.initialized:
         return
 
     cuda.init()
-    state._initialized = True
+    state.initialized = True
 
 
 def log(log_level, text, file_str, line_str):
@@ -36,17 +36,17 @@ def log(log_level, text, file_str, line_str):
 
 
 def set_log_level(log_level):
-    state._log_level = int(log_level)
+    state.log_level = int(log_level)
 
 
 def get_devices():
-    if not state._initialized:
-        init(False, state._log_level)
+    if not state.initialized:
+        init(False, state.log_level)
 
     try:
         device_count = cuda.Device.count()
     except Exception as exc:
-        _set_error(f"Failed to enumerate CUDA devices: {exc}")
+        set_error(f"Failed to enumerate CUDA devices: {exc}")
         return []
 
     driver_version = 0
@@ -132,21 +132,21 @@ def get_devices():
 
 
 def context_create(device_indicies, queue_families):
-    if not state._initialized:
-        init(False, state._log_level)
+    if not state.initialized:
+        init(False, state.log_level)
 
     try:
         device_ids = [int(x) for x in device_indicies]
     except Exception:
-        _set_error("context_create expected a list of integer device indices")
+        set_error("context_create expected a list of integer device indices")
         return 0
 
     if len(device_ids) != 1:
-        _set_error("CUDA Python backend currently supports exactly one device")
+        set_error("CUDA Python backend currently supports exactly one device")
         return 0
 
     if len(queue_families) != 1 or len(queue_families[0]) != 1:
-        _set_error("CUDA Python backend currently supports exactly one queue")
+        set_error("CUDA Python backend currently supports exactly one queue")
         return 0
 
     device_index = device_ids[0]
@@ -156,12 +156,12 @@ def context_create(device_indicies, queue_families):
 
     try:
         if device_index < 0 or device_index >= cuda.Device.count():
-            _set_error(f"Invalid CUDA device index {device_index}")
+            set_error(f"Invalid CUDA device index {device_index}")
             return 0
 
         dev = cuda.Device(device_index)
         cc_major, _cc_minor = dev.compute_capability()
-        max_kernel_param_size = _query_max_kernel_param_size(dev.device_raw, cc_major)
+        max_kernel_param_size = query_max_kernel_param_size(dev.device_raw, cc_major)
         uses_primary_context = False
 
         if hasattr(dev, "retain_primary_context"):
@@ -173,7 +173,7 @@ def context_create(device_indicies, queue_families):
         context_pushed = True
         stream = cuda.Stream()
 
-        ctx = _Context(
+        ctx = CUDAContext(
             device_index=device_index,
             cuda_context=cuda_context,
             streams=[stream],
@@ -183,7 +183,7 @@ def context_create(device_indicies, queue_families):
             uses_primary_context=uses_primary_context,
             stopped=False,
         )
-        handle = _new_handle(state._contexts, ctx)
+        handle = new_handle(state.contexts, ctx)
 
         # Leave no context current after creation.
         cuda.Context.pop()
@@ -202,17 +202,17 @@ def context_create(device_indicies, queue_families):
             except Exception:
                 pass
 
-        _set_error(f"Failed to create CUDA Python context: {exc}")
+        set_error(f"Failed to create CUDA Python context: {exc}")
         return 0
 
 
 def context_destroy(context):
-    ctx = state._contexts.pop(int(context), None)
+    ctx = state.contexts.pop(int(context), None)
     if ctx is None:
         return
 
     try:
-        with _activate_context(ctx):
+        with activate_context(ctx):
             for stream in ctx.streams:
                 stream.synchronize()
     except Exception:
@@ -225,26 +225,26 @@ def context_destroy(context):
 
 
 def context_stop_threads(context):
-    ctx = state._contexts.get(int(context))
+    ctx = state.contexts.get(int(context))
     if ctx is not None:
         ctx.stopped = True
 
 
 def get_error_string():
-    if state._error_string is None:
+    if state.error_string is None:
         return 0
-    return state._error_string
+    return state.error_string
 
 
 def cuda_stream_override_begin(stream_obj):
     try:
-        stack = _stream_override_stack()
-        stack.append(_coerce_stream_handle(stream_obj))
+        stack = stream_override_stack()
+        stack.append(coerce_stream_handle(stream_obj))
     except Exception as exc:
-        _set_error(f"Failed to activate external CUDA stream override: {exc}")
+        set_error(f"Failed to activate external CUDA stream override: {exc}")
 
 
 def cuda_stream_override_end():
-    stack = _stream_override_stack()
+    stack = stream_override_stack()
     if len(stack) > 0:
         stack.pop()

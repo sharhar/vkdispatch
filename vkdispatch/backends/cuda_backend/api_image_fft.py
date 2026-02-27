@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from . import state as state
-from .helpers import _set_error
+from .helpers import set_error
 
 
 def image_create(context, extent, layers, format, type, view_type, generate_mips):
@@ -12,12 +12,13 @@ def image_create(context, extent, layers, format, type, view_type, generate_mips
     _ = type
     _ = view_type
     _ = generate_mips
-    _set_error("CUDA Python backend does not support image objects yet")
+    set_error("CUDA Python backend does not support image objects yet")
     return 0
 
 
 def image_destroy(image):
-    state._images.pop(int(image), None)
+    _ = image
+    set_error("CUDA Python backend does not support image objects yet")
 
 
 def image_create_sampler(
@@ -40,12 +41,13 @@ def image_create_sampler(
     _ = min_lod
     _ = max_lod
     _ = border_color
-    _set_error("CUDA Python backend does not support image samplers yet")
+    set_error("CUDA Python backend does not support image samplers yet")
     return 0
 
 
 def image_destroy_sampler(sampler):
-    state._samplers.pop(int(sampler), None)
+    _ = sampler
+    set_error("CUDA Python backend does not support image samplers yet")
 
 
 def image_write(image, data, offset, extent, baseLayer, layerCount, device_index):
@@ -56,12 +58,12 @@ def image_write(image, data, offset, extent, baseLayer, layerCount, device_index
     _ = baseLayer
     _ = layerCount
     _ = device_index
-    _set_error("CUDA Python backend does not support image writes yet")
+    set_error("CUDA Python backend does not support image writes yet")
 
 
 def image_format_block_size(format):
     _ = format
-    _set_error("CUDA Python backend does not support image format block size queries yet")
+    set_error("CUDA Python backend does not support image format block size queries yet")
 
 
 def image_read(image, out_size, offset, extent, baseLayer, layerCount, device_index):
@@ -71,7 +73,7 @@ def image_read(image, out_size, offset, extent, baseLayer, layerCount, device_in
     _ = baseLayer
     _ = layerCount
     _ = device_index
-    _set_error("CUDA Python backend does not support image reads yet")
+    set_error("CUDA Python backend does not support image reads yet")
     return bytes(max(0, int(out_size)))
 
 
@@ -111,12 +113,13 @@ def stage_fft_plan_create(
     _ = num_batches
     _ = single_kernel_multiple_batches
     _ = keep_shader_code
-    _set_error("CUDA Python backend does not support FFT plans yet")
+    set_error("CUDA Python backend does not support FFT plans yet")
     return 0
 
 
 def stage_fft_plan_destroy(plan):
-    state._fft_plans.pop(int(plan), None)
+    _ = plan
+    set_error("CUDA Python backend does not support FFT plans yet")
 
 
 def stage_fft_record(command_list, plan, buffer, inverse, kernel, input_buffer):
@@ -126,4 +129,4 @@ def stage_fft_record(command_list, plan, buffer, inverse, kernel, input_buffer):
     _ = inverse
     _ = kernel
     _ = input_buffer
-    _set_error("CUDA Python backend does not support FFT stages yet")
+    set_error("CUDA Python backend does not support FFT stages yet")

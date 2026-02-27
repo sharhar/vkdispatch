@@ -10,30 +10,27 @@ from .cuda_primitives import SourceModule, cuda
 
 # --- Runtime state ---
 
-_initialized = False
-_debug_mode = False
-_log_level = LOG_LEVEL_WARNING
-_error_string: Optional[str] = None
-_next_handle = 1
+initialized = False
+debug_mode = False
+log_level = LOG_LEVEL_WARNING
+error_string: Optional[str] = None
+next_handle = 1
 
-_contexts: Dict[int, "_Context"] = {}
-_signals: Dict[int, "_Signal"] = {}
-_buffers: Dict[int, "_Buffer"] = {}
-_command_lists: Dict[int, "_CommandList"] = {}
-_compute_plans: Dict[int, "_ComputePlan"] = {}
-_descriptor_sets: Dict[int, "_DescriptorSet"] = {}
-_images: Dict[int, object] = {}
-_samplers: Dict[int, object] = {}
-_fft_plans: Dict[int, object] = {}
-_external_stream_cache: Dict[int, object] = {}
-_stream_override = threading.local()
+contexts: Dict[int, "CUDAContext"] = {}
+signals: Dict[int, "CUDASignal"] = {}
+buffers: Dict[int, "CUDABuffer"] = {}
+command_lists: Dict[int, "CUDACommandList"] = {}
+compute_plans: Dict[int, "CUDAComputePlan"] = {}
+descriptor_sets: Dict[int, "CUDADescriptorSet"] = {}
+external_stream_cache: Dict[int, object] = {}
+stream_override = threading.local()
 
 
 # --- Internal objects ---
 
 
 @dataclass
-class _Signal:
+class CUDASignal:
     context_handle: int
     queue_index: int
     event: Optional["cuda.Event"] = None
@@ -42,7 +39,7 @@ class _Signal:
 
 
 @dataclass
-class _Context:
+class CUDAContext:
     device_index: int
     cuda_context: "cuda.Context"
     streams: List["cuda.Stream"]
@@ -54,7 +51,7 @@ class _Context:
 
 
 @dataclass
-class _Buffer:
+class CUDABuffer:
     context_handle: int
     size: int
     device_ptr: int
@@ -65,7 +62,7 @@ class _Buffer:
 
 
 @dataclass
-class _CommandRecord:
+class CUDACommandRecord:
     plan_handle: int
     descriptor_set_handle: int
     blocks: Tuple[int, int, int]
@@ -73,20 +70,20 @@ class _CommandRecord:
 
 
 @dataclass
-class _CommandList:
+class CUDACommandList:
     context_handle: int
-    commands: List[_CommandRecord] = field(default_factory=list)
+    commands: List[CUDACommandRecord] = field(default_factory=list)
 
 
 @dataclass
-class _KernelParam:
+class CUDAKernelParam:
     kind: str
     binding: Optional[int]
     raw_name: str
 
 
 @dataclass
-class _ComputePlan:
+class CUDAComputePlan:
     context_handle: int
     shader_source: bytes
     bindings: List[int]
@@ -94,12 +91,12 @@ class _ComputePlan:
     module: SourceModule
     function: object
     local_size: Tuple[int, int, int]
-    params: List[_KernelParam]
+    params: List[CUDAKernelParam]
     pc_size: int
 
 
 @dataclass
-class _DescriptorSet:
+class CUDADescriptorSet:
     plan_handle: int
     buffer_bindings: Dict[int, Tuple[int, int, int, int, int, int]] = field(default_factory=dict)
     image_bindings: Dict[int, Tuple[int, int, int, int]] = field(default_factory=dict)
@@ -107,10 +104,10 @@ class _DescriptorSet:
 
 
 @dataclass
-class _ResolvedLaunch:
-    plan: _ComputePlan
+class CUDAResolvedLaunch:
+    plan: CUDAComputePlan
     blocks: Tuple[int, int, int]
-    descriptor_set: Optional[_DescriptorSet]
+    descriptor_set: Optional[CUDADescriptorSet]
     pc_size: int
     pc_offset: int
     static_args: Optional[Tuple[object, ...]] = None
