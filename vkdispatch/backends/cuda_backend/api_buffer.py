@@ -8,15 +8,14 @@ from .helpers import (
     buffer_device_ptr,
     context_from_handle,
     new_handle,
-    query_signal,
     queue_indices,
-    record_signal,
     set_error,
     stream_for_queue,
     to_bytes,
 )
-from .state import CUDABuffer, CUDASignal
+from .state import CUDABuffer
 
+from .signal import CUDASignal
 
 def buffer_create(context, size, per_device):
     _ = per_device
@@ -35,7 +34,7 @@ def buffer_create(context, size, per_device):
             allocation = cuda.mem_alloc(size)
 
         signal_handles = [
-            new_handle(state.signals, CUDASignal(context_handle=int(context), queue_index=i, done=True))
+            CUDASignal(context_handle=int(context), queue_index=i, done=True).handle
             for i in range(ctx.queue_count)
         ]
 
@@ -72,7 +71,7 @@ def buffer_create_external(context, size, device_ptr):
 
     try:
         signal_handles = [
-            new_handle(state.signals, CUDASignal(context_handle=int(context), queue_index=i, done=True))
+            CUDASignal(context_handle=int(context), queue_index=i, done=True).handle
             for i in range(ctx.queue_count)
         ]
 
@@ -113,7 +112,7 @@ def buffer_destroy(buffer):
 def buffer_get_queue_signal(buffer, queue_index):
     obj = state.buffers.get(int(buffer))
     if obj is None:
-        return new_handle(state.signals, CUDASignal(context_handle=0, queue_index=0, done=True))
+        return CUDASignal(context_handle=0, queue_index=0, done=True).handle
 
     queue_index = int(queue_index)
     if queue_index < 0 or queue_index >= len(obj.signal_handles):
@@ -124,10 +123,10 @@ def buffer_get_queue_signal(buffer, queue_index):
 
 def buffer_wait_staging_idle(buffer, queue_index):
     signal_handle = buffer_get_queue_signal(buffer, queue_index)
-    signal_obj = state.signals.get(int(signal_handle))
+    signal_obj = CUDASignal.from_handle(signal_handle)
     if signal_obj is None:
         return True
-    return query_signal(signal_obj)
+    return signal_obj.query()
 
 
 def buffer_write_staging(buffer, queue_index, data, size):
@@ -194,9 +193,9 @@ def buffer_write(buffer, offset, size, index):
                 src_view = memoryview(obj.staging_data[queue_index])[:copy_size]
                 cuda.memcpy_htod_async(buffer_device_ptr(obj) + offset, src_view, stream)
 
-                signal = state.signals.get(obj.signal_handles[queue_index])
+                signal = CUDASignal.from_handle(obj.signal_handles[queue_index])
                 if signal is not None:
-                    record_signal(signal, stream)
+                    signal.record(stream)
     except Exception as exc:
         set_error(f"Failed to write CUDA buffer: {exc}")
 
@@ -232,8 +231,8 @@ def buffer_read(buffer, offset, size, index):
             dst_view = memoryview(obj.staging_data[queue_index])[:copy_size]
             cuda.memcpy_dtoh_async(dst_view, buffer_device_ptr(obj) + offset, stream)
 
-            signal = state.signals.get(obj.signal_handles[queue_index])
+            signal = CUDASignal.from_handle(obj.signal_handles[queue_index])
             if signal is not None:
-                record_signal(signal, stream)
+                signal.record(stream)
     except Exception as exc:
         set_error(f"Failed to read CUDA buffer: {exc}")

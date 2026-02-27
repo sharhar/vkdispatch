@@ -60,7 +60,7 @@ from .api_image_fft import (
     stage_fft_plan_destroy,
     stage_fft_record,
 )
-from .api_signal import signal_destroy, signal_insert, signal_wait
+from .signal import signal_destroy, signal_insert, signal_wait
 
 __all__ = [
     "init",

@@ -17,7 +17,6 @@ error_string: Optional[str] = None
 next_handle = 1
 
 contexts: Dict[int, "CUDAContext"] = {}
-signals: Dict[int, "CUDASignal"] = {}
 buffers: Dict[int, "CUDABuffer"] = {}
 command_lists: Dict[int, "CUDACommandList"] = {}
 compute_plans: Dict[int, "CUDAComputePlan"] = {}
@@ -27,16 +26,6 @@ stream_override = threading.local()
 
 
 # --- Internal objects ---
-
-
-@dataclass
-class CUDASignal:
-    context_handle: int
-    queue_index: int
-    event: Optional["cuda.Event"] = None
-    submitted: bool = True
-    done: bool = True
-
 
 @dataclass
 class CUDAContext:

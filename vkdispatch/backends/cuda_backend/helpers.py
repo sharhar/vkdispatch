@@ -16,7 +16,7 @@ from .constants import (
     SAMPLER_PARAM_RE,
 )
 from .cuda_primitives import _ByValueKernelArg, cuda
-from .state import CUDABuffer, CUDAComputePlan, CUDAContext, CUDADescriptorSet, CUDAKernelParam, CUDASignal
+from .state import CUDABuffer, CUDAComputePlan, CUDAContext, CUDADescriptorSet, CUDAKernelParam
 
 
 def new_handle(registry: Dict[int, object], obj: object) -> int:
@@ -181,28 +181,6 @@ def activate_context(ctx: CUDAContext):
         yield
     finally:
         cuda.Context.pop()
-
-
-def record_signal(signal: CUDASignal, stream: "cuda.Stream") -> None:
-    signal.submitted = True
-    signal.done = False
-    if signal.event is None:
-        signal.event = cuda.Event()
-    signal.event.record(stream)
-
-
-def query_signal(signal: CUDASignal) -> bool:
-    if signal.event is None:
-        return bool(signal.done)
-
-    try:
-        done = signal.event.query()
-    except Exception:
-        return False
-
-    signal.done = bool(done)
-    return signal.done
-
 
 def allocate_staging_storage(size: int):
     try:
