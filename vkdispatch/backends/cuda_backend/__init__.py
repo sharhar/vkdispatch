@@ -48,7 +48,7 @@ from .api_descriptor import (
     descriptor_set_write_image,
     descriptor_set_write_inline_uniform,
 )
-from .api_image_fft import (
+from .image_fft_stubs import (
     image_create,
     image_create_sampler,
     image_destroy,

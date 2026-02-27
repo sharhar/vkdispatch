@@ -15,7 +15,7 @@ from .helpers import (
 )
 from .state import CUDABuffer
 
-from .signal import CUDASignal
+from .signal import CUDASignal, signal_destroy
 
 def buffer_create(context, size, per_device):
     _ = per_device
@@ -96,7 +96,7 @@ def buffer_destroy(buffer):
         return
 
     for signal_handle in obj.signal_handles:
-        state.signals.pop(signal_handle, None)
+        signal_destroy(signal_handle)
 
     ctx = state.contexts.get(obj.context_handle)
     if ctx is None or not obj.owns_allocation or obj.device_allocation is None:

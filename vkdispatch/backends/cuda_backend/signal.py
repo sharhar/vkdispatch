@@ -10,17 +10,14 @@ from .helpers import (
     stream_for_queue,
 )
 
-import dataclasses
-
 from typing import Optional, Dict
 
 from .cuda_primitives import cuda
+from .handle import CUDAHandle, HandleRegistry
 
-_signals: Dict[int, "CUDASignal"] = {}
+_signals: HandleRegistry = HandleRegistry()
 
-@dataclasses.dataclass
-class CUDASignal:
-    handle: int
+class CUDASignal(CUDAHandle):
     context_handle: int
     queue_index: int
     event: Optional["cuda.Event"] = None
@@ -33,17 +30,17 @@ class CUDASignal:
                 event: Optional["cuda.Event"] = None,
                 submitted: bool = True,
                 done: bool = True):
+        super().__init__(_signals)
 
         self.context_handle = context_handle
         self.queue_index = queue_index
         self.event = event
         self.submitted = submitted
         self.done = done
-        self.handle = new_handle(_signals, self)
 
     @staticmethod
     def from_handle(handle: int) -> Optional["CUDASignal"]:
-        return _signals.get(int(handle))
+        return _signals.get(handle)
 
     def record(self, stream: "cuda.Stream"):
         self.submitted = True
@@ -117,4 +114,4 @@ def signal_insert(context, queue_index):
 
 
 def signal_destroy(signal_ptr):
-    _signals.pop(int(signal_ptr), None)
+    _signals.pop(signal_ptr)
