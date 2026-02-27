@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Tuple
 from .constants import LOG_LEVEL_WARNING
 from .cuda_primitives import SourceModule, cuda
 
+#from .api_descriptor import CUDADescriptorSet
 
 # --- Runtime state ---
 
@@ -20,7 +21,6 @@ contexts: Dict[int, "CUDAContext"] = {}
 buffers: Dict[int, "CUDABuffer"] = {}
 command_lists: Dict[int, "CUDACommandList"] = {}
 compute_plans: Dict[int, "CUDAComputePlan"] = {}
-descriptor_sets: Dict[int, "CUDADescriptorSet"] = {}
 external_stream_cache: Dict[int, object] = {}
 stream_override = threading.local()
 
@@ -84,19 +84,4 @@ class CUDAComputePlan:
     pc_size: int
 
 
-@dataclass
-class CUDADescriptorSet:
-    plan_handle: int
-    buffer_bindings: Dict[int, Tuple[int, int, int, int, int, int]] = field(default_factory=dict)
-    image_bindings: Dict[int, Tuple[int, int, int, int]] = field(default_factory=dict)
-    inline_uniform_payload: bytes = b""
 
-
-@dataclass
-class CUDAResolvedLaunch:
-    plan: CUDAComputePlan
-    blocks: Tuple[int, int, int]
-    descriptor_set: Optional[CUDADescriptorSet]
-    pc_size: int
-    pc_offset: int
-    static_args: Optional[Tuple[object, ...]] = None

@@ -23,11 +23,11 @@ from .api_command_list import (
     command_list_get_instance_size,
     command_list_reset,
     command_list_submit,
+    stage_compute_record
 )
 from .api_compute import (
     stage_compute_plan_create,
     stage_compute_plan_destroy,
-    stage_compute_record,
 )
 from .api_context import (
     context_create,
@@ -41,7 +41,7 @@ from .api_context import (
     log,
     set_log_level,
 )
-from .api_descriptor import (
+from .descriptor_sets import (
     descriptor_set_create,
     descriptor_set_destroy,
     descriptor_set_write_buffer,

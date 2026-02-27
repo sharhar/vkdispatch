@@ -11,8 +11,7 @@ from .helpers import (
     set_error,
     to_bytes,
 )
-from .state import CUDACommandRecord, CUDAComputePlan
-
+from .state import CUDAComputePlan
 
 def stage_compute_plan_create(context, shader_source, bindings, pc_size, shader_name):
     ctx = context_from_handle(int(context))
@@ -61,20 +60,3 @@ def stage_compute_plan_destroy(plan):
     if plan is None:
         return
     state.compute_plans.pop(int(plan), None)
-
-
-def stage_compute_record(command_list, plan, descriptor_set, blocks_x, blocks_y, blocks_z):
-    cl = state.command_lists.get(int(command_list))
-    cp = state.compute_plans.get(int(plan))
-    if cl is None or cp is None:
-        set_error("Invalid command list or compute plan handle for stage_compute_record")
-        return
-
-    cl.commands.append(
-        CUDACommandRecord(
-            plan_handle=int(plan),
-            descriptor_set_handle=int(descriptor_set),
-            blocks=(int(blocks_x), int(blocks_y), int(blocks_z)),
-            pc_size=int(cp.pc_size),
-        )
-    )

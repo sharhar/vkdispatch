@@ -1,14 +1,15 @@
 from typing import Dict, Optional
 
+from . import state as state
+
 class HandleRegistry:
     def __init__(self):
         self.registry: Dict[int, object] = {}
-        self.next_handle: int = 1
 
     def new_handle(self, obj: object) -> int:
-        handle = self.next_handle
+        handle = state.next_handle
         self.registry[handle] = obj
-        self.next_handle += 1
+        state.next_handle += 1
         return handle
 
     def get(self, handle: int) -> Optional[object]:

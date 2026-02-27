@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List
+from typing import List, Optional, Tuple
 
 from . import state as state
 from .helpers import (
@@ -13,8 +13,20 @@ from .helpers import (
     stream_for_queue,
     to_bytes,
 )
-from .state import CUDACommandList, CUDAResolvedLaunch
+from .state import CUDACommandList, CUDAComputePlan, CUDACommandRecord
 
+from .descriptor_sets import CUDADescriptorSet
+
+import dataclasses
+
+@dataclasses.dataclass
+class CUDAResolvedLaunch:
+    plan: CUDAComputePlan
+    blocks: Tuple[int, int, int]
+    descriptor_set: Optional[CUDADescriptorSet]
+    pc_size: int
+    pc_offset: int
+    static_args: Optional[Tuple[object, ...]] = None
 
 def command_list_create(context):
     if int(context) not in state.contexts:
@@ -100,7 +112,7 @@ def command_list_submit(command_list, data, instance_count, index):
 
                     descriptor_set = None
                     if command.descriptor_set_handle != 0:
-                        descriptor_set = state.descriptor_sets.get(command.descriptor_set_handle)
+                        descriptor_set = CUDADescriptorSet.from_handle(command.descriptor_set_handle)
                         if descriptor_set is None:
                             raise RuntimeError(
                                 f"Invalid descriptor set handle {command.descriptor_set_handle}"
@@ -175,3 +187,19 @@ def command_list_submit(command_list, data, instance_count, index):
         set_error(f"Failed to submit CUDA command list: {exc}")
 
     return True
+
+def stage_compute_record(command_list, plan, descriptor_set, blocks_x, blocks_y, blocks_z):
+    cl = state.command_lists.get(int(command_list))
+    cp = state.compute_plans.get(int(plan))
+    if cl is None or cp is None:
+        set_error("Invalid command list or compute plan handle for stage_compute_record")
+        return
+
+    cl.commands.append(
+        CUDACommandRecord(
+            plan_handle=int(plan),
+            descriptor_set_handle=int(descriptor_set),
+            blocks=(int(blocks_x), int(blocks_y), int(blocks_z)),
+            pc_size=int(cp.pc_size),
+        )
+    )

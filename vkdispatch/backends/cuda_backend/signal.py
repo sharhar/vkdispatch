@@ -4,13 +4,12 @@ from . import state as state
 from .helpers import (
     activate_context,
     context_from_handle,
-    new_handle,
     queue_indices,
     set_error,
     stream_for_queue,
 )
 
-from typing import Optional, Dict
+from typing import Optional
 
 from .cuda_primitives import cuda
 from .handle import CUDAHandle, HandleRegistry

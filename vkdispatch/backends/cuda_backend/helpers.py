@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 import re
 import sys
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 
 from . import state as state
 from .bindings import driver, np, drv_call, drv_check, to_int
@@ -16,8 +16,9 @@ from .constants import (
     SAMPLER_PARAM_RE,
 )
 from .cuda_primitives import _ByValueKernelArg, cuda
-from .state import CUDABuffer, CUDAComputePlan, CUDAContext, CUDADescriptorSet, CUDAKernelParam
+from .state import CUDABuffer, CUDAComputePlan, CUDAContext, CUDAKernelParam
 
+#from .api_descriptor import CUDADescriptorSet
 
 def new_handle(registry: Dict[int, object], obj: object) -> int:
     handle = state.next_handle
@@ -285,24 +286,9 @@ def parse_kernel_params(source: str) -> List[CUDAKernelParam]:
 
     return params
 
-
-def resolve_buffer_pointer(descriptor_set: CUDADescriptorSet, binding: int) -> int:
-    binding_info = descriptor_set.buffer_bindings.get(binding)
-    if binding_info is None:
-        raise RuntimeError(f"Missing descriptor buffer binding {binding}")
-
-    buffer_handle, offset, _range, _uniform, _read_access, _write_access = binding_info
-
-    buffer_obj = state.buffers.get(int(buffer_handle))
-    if buffer_obj is None:
-        raise RuntimeError(f"Invalid buffer handle {buffer_handle} for binding {binding}")
-
-    return buffer_device_ptr(buffer_obj) + int(offset)
-
-
 def build_kernel_args_template(
     plan: CUDAComputePlan,
-    descriptor_set: Optional[CUDADescriptorSet],
+    descriptor_set: Optional[Any], # CUDADescriptorSet
     push_constant_payload: bytes = b"",
 ) -> Tuple[object, ...]:
     args: List[object] = []
@@ -312,7 +298,7 @@ def build_kernel_args_template(
             if descriptor_set is None:
                 raise RuntimeError("Kernel requires a descriptor set but none was provided")
 
-            args.append(np.uintp(resolve_buffer_pointer(descriptor_set, 0)))
+            args.append(np.uintp(descriptor_set.resolve_buffer_pointer(0)))
             continue
 
         if param.kind == "uniform_value":
@@ -356,7 +342,7 @@ def build_kernel_args_template(
             if param.binding is None:
                 raise RuntimeError("Storage parameter has no binding index")
 
-            args.append(np.uintp(resolve_buffer_pointer(descriptor_set, param.binding)))
+            args.append(np.uintp(descriptor_set.resolve_buffer_pointer(param.binding)))
             continue
 
         if param.kind == "sampler":
