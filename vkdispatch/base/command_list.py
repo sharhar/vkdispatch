@@ -1,7 +1,7 @@
 from typing import Tuple
 from typing import Optional
 
-from .backend import native
+from ..backends.backend_selection import native
 from .init import is_cuda
 
 from .context import Handle

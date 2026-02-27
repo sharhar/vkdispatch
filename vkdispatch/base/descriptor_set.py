@@ -1,4 +1,4 @@
-from .backend import native
+from ..backends.backend_selection import native
 
 from .errors import check_for_errors
 

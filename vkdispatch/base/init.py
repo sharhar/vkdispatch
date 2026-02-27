@@ -6,7 +6,7 @@ from typing import Tuple, List, Optional
 import inspect
 
 from .errors import check_for_errors
-from .backend import (
+from ..backends.backend_selection import (
     BACKEND_CUDA,
     BACKEND_OPENCL,
     BACKEND_VULKAN,

@@ -6,7 +6,7 @@ from .stage import make_reduction_stage, ReductionParams
 
 from typing import List, Optional
 
-from .._compat import numpy_compat as npc
+from ..compat import numpy_compat as npc
 
 class ReduceFunction:
     def __init__(self,

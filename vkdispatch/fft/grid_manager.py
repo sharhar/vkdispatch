@@ -6,7 +6,7 @@ from typing import Optional, Tuple, Union, Literal
 from .config import FFTConfig
 from .prime_utils import prime_factors
 
-from .._compat import numpy_compat as npc
+from ..compat import numpy_compat as npc
 
 def allocation_valid(workgroup_size: int, shared_memory_size: int):
     valid_workgroup = workgroup_size <= vd.get_context().max_workgroup_invocations

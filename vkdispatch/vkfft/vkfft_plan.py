@@ -1,4 +1,4 @@
-from vkdispatch.base.backend import native
+from vkdispatch.backends.backend_selection import native
 
 import vkdispatch as vd
 

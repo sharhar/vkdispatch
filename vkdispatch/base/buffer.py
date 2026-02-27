@@ -12,10 +12,10 @@ from .errors import check_for_errors
 from .dtype import complex64
 from . import dtype as dtypes
 
-from .._compat import numpy_compat as npc
+from ..compat import numpy_compat as npc
 from .dtype import to_numpy_dtype, from_numpy_dtype
 
-from .backend import native
+from ..backends.backend_selection import native
 
 import typing
 

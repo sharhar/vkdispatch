@@ -1,4 +1,4 @@
-from .backend import native
+from ..backends.backend_selection import native
 
 running = True
 

@@ -15,7 +15,7 @@ import uuid
 
 import dataclasses
 
-from .._compat import numpy_compat as npc
+from ..compat import numpy_compat as npc
 
 class LaunchParametersHolder:
     def __init__(self, names_and_defaults, args, kwargs) -> None:

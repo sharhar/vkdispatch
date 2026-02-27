@@ -6,7 +6,7 @@ from typing import Any, Optional
 import numbers
 import math
 
-from ...._compat import numpy_compat as npc
+from ....compat import numpy_compat as npc
 from vkdispatch.codegen.shader_writer import new_scaled_var, append_contents, new_name
 from vkdispatch.codegen.global_builder import get_codegen_backend
 

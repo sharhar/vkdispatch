@@ -1,6 +1,6 @@
 from typing import Any, Optional
 
-from .._compat import numpy_compat as npc
+from ..compat import numpy_compat as npc
 
 class dtype:
     name: str

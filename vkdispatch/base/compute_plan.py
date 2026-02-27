@@ -1,4 +1,4 @@
-from .backend import native
+from ..backends.backend_selection import native
 
 from .context import Handle
 from .errors import check_for_compute_stage_errors, check_for_errors

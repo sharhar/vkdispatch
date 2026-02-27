@@ -11,7 +11,7 @@ import os, signal
 
 from .errors import check_for_errors, set_running
 from .init import DeviceInfo, is_cuda, is_opencl, is_dummy, get_devices, initialize, log_info
-from .backend import native
+from ..backends.backend_selection import native
 
 VK_SHADER_STAGE_COMPUTE_BIT = 0x00000020
 

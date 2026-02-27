@@ -3,7 +3,7 @@ from .resources import FFTResources
 
 from typing import List, Union
 
-from .._compat import numpy_compat as npc
+from ..compat import numpy_compat as npc
 
 def get_angle_factor(inverse: bool) -> float:
     return 2 * npc.pi * (1 if inverse else -1)

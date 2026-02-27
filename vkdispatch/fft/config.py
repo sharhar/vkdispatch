@@ -3,7 +3,7 @@ import vkdispatch.codegen as vc
 import dataclasses
 from typing import List, Tuple, Optional
 
-from .._compat import numpy_compat as npc
+from ..compat import numpy_compat as npc
 import vkdispatch.base.dtype as dtypes
 from .prime_utils import prime_factors, group_primes, default_register_limit, default_max_prime
 

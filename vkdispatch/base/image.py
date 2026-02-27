@@ -1,9 +1,9 @@
 import typing
 from enum import Enum
 
-from .backend import native
+from ..backends.backend_selection import native
 
-from .._compat import numpy_compat as npc
+from ..compat import numpy_compat as npc
 from . import dtype as vdt
 from .context import Handle
 

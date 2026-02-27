@@ -2,7 +2,7 @@ import vkdispatch as vd
 import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import *
 
-from .._compat import numpy_compat as npc
+from ..compat import numpy_compat as npc
 
 from typing import Tuple, Optional
 from functools import lru_cache

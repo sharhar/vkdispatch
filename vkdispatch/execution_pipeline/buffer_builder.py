@@ -11,7 +11,7 @@ from typing import Union
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
-from .._compat import numpy_compat as npc
+from ..compat import numpy_compat as npc
 from vkdispatch.base.dtype import to_numpy_dtype
 
 
