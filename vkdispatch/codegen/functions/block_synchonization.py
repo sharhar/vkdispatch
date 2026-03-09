@@ -1,4 +1,4 @@
-from ..global_builder import get_builder
+from ..global_builder import get_builder, get_codegen_backend
 
 from . import utils
 
@@ -6,7 +6,7 @@ def barrier():
     # On Apple devices, a memory barrier is required before a barrier
     # to ensure memory operations are visible to all threads
     # (for some reason)
-    if get_builder().is_apple_device:
+    if get_builder().is_apple_device and get_codegen_backend().name == "glsl":
         memory_barrier()
 
     utils.append_contents(utils.codegen_backend().barrier_statement() + "\n")

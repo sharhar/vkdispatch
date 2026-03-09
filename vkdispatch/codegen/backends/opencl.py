@@ -609,10 +609,10 @@ class OpenCLBackend(CodeGenBackend):
         raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
 
     def barrier_statement(self) -> str:
-        return "barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);"
+        return "barrier(CLK_LOCAL_MEM_FENCE);"
 
     def memory_barrier_statement(self) -> str:
-        return "mem_fence(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);"
+        return "mem_fence(CLK_LOCAL_MEM_FENCE);"
 
     def memory_barrier_buffer_statement(self) -> str:
         return "mem_fence(CLK_GLOBAL_MEM_FENCE);"
