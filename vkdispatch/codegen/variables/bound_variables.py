@@ -2,6 +2,7 @@ from .variables import ShaderVariable
 import vkdispatch.base.dtype as dtypes
 
 from ..functions import type_casting
+from ..functions.base_functions import base_utils
 from ..global_builder import get_codegen_backend
 
 from typing import Callable, Optional
@@ -21,6 +22,8 @@ class BoundVariable(ShaderVariable):
 class BufferVariable(BoundVariable):
     read_lambda: Callable[[], None]
     write_lambda: Callable[[], None]
+    scalar_expr: Optional[str]
+    codegen_backend: Optional[object]
 
     def __init__(self,
                  var_type: dtypes.dtype,
@@ -30,6 +33,8 @@ class BufferVariable(BoundVariable):
                  shape_var_factory: Optional[Callable[[], "ShaderVariable"]] = None,
                  shape_name: Optional[str] = None,
                  raw_name: Optional[str] = None,
+                 scalar_expr: Optional[str] = None,
+                 codegen_backend: Optional[object] = None,
                  read_lambda: Callable[[], None] = None,
                  write_lambda: Callable[[], None] = None,
             ) -> None:
@@ -45,6 +50,8 @@ class BufferVariable(BoundVariable):
             self._shape_var = shape_var
             self._shape_var_factory = shape_var_factory
             self.shape_name = shape_name
+            self.scalar_expr = scalar_expr
+            self.codegen_backend = codegen_backend
             self.can_index = True
             self.use_child_type = False
 
@@ -61,6 +68,40 @@ class BufferVariable(BoundVariable):
 
     def write_callback(self):
         self.write_lambda()
+
+    def __getitem__(self, index) -> "ShaderVariable":
+        assert self.can_index, f"Variable '{self.resolve()}' of type '{self.var_type.name}' cannot be indexed into!"
+
+        return_type = self.var_type.child_type if self.use_child_type else self.var_type
+
+        if isinstance(index, tuple):
+            assert len(index) == 1, "Only single index is supported, cannot use multi-dimentional indexing!"
+            index = index[0]
+
+        if base_utils.is_int_number(index):
+            return ShaderVariable(
+                return_type,
+                f"{self.resolve()}[{index}]",
+                parents=[self],
+                settable=self.settable,
+                lexical_unit=True,
+                buffer_root=self,
+                buffer_index_expr=str(index),
+            )
+
+        assert isinstance(index, ShaderVariable), f"Index must be a ShaderVariable or int type, not {type(index)}!"
+        assert dtypes.is_scalar(index.var_type), "Indexing variable must be a scalar!"
+        assert dtypes.is_integer_dtype(index.var_type), "Indexing variable must be an integer type!"
+
+        return ShaderVariable(
+            return_type,
+            f"{self.resolve()}[{index.resolve()}]",
+            parents=[self, index],
+            settable=self.settable,
+            lexical_unit=True,
+            buffer_root=self,
+            buffer_index_expr=index.resolve(),
+        )
 
 class ImageVariable(BoundVariable):
     dimensions: int = 0

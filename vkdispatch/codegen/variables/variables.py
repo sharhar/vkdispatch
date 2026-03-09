@@ -19,6 +19,8 @@ class ShaderVariable(BaseVariable):
     _initilized: bool
     is_complex: bool
     is_conjugate: Optional[bool]
+    buffer_root: Optional["ShaderVariable"]
+    buffer_index_expr: Optional[str]
 
     def __init__(self,
                  var_type: dtypes.dtype, 
@@ -28,7 +30,9 @@ class ShaderVariable(BaseVariable):
                  settable: bool = False,
                  register: bool = False,
                  parents: List["ShaderVariable"] = None,
-                 is_conjugate: bool = False
+                 is_conjugate: bool = False,
+                 buffer_root: Optional["ShaderVariable"] = None,
+                 buffer_index_expr: Optional[str] = None,
         ) -> None:
         super().__setattr__("_initilized", False)
 
@@ -44,6 +48,8 @@ class ShaderVariable(BaseVariable):
 
         self.is_complex = False
         self.is_conjugate = None
+        self.buffer_root = buffer_root
+        self.buffer_index_expr = buffer_index_expr
 
         if dtypes.is_complex(self.var_type):
             self.can_index = True
@@ -68,6 +74,28 @@ class ShaderVariable(BaseVariable):
 
         self._initilized = True
        
+    def _buffer_component_expr(self, component_index_expr: str) -> Optional[str]:
+        if self.buffer_root is None or self.buffer_index_expr is None:
+            return None
+
+        if not (dtypes.is_vector(self.var_type) or dtypes.is_complex(self.var_type)):
+            return None
+
+        scalar_expr = getattr(self.buffer_root, "scalar_expr", None)
+        if scalar_expr is None:
+            return None
+
+        backend = getattr(self.buffer_root, "codegen_backend", None)
+        if backend is None:
+            backend = get_codegen_backend()
+
+        return backend.buffer_component_expr(
+            scalar_expr,
+            self.var_type,
+            self.buffer_index_expr,
+            component_index_expr,
+        )
+
     def __getitem__(self, index) -> "ShaderVariable":
         assert self.can_index, f"Variable '{self.resolve()}' of type '{self.var_type.name}' cannot be indexed into!"
 
@@ -78,11 +106,31 @@ class ShaderVariable(BaseVariable):
             index = index[0]
 
         if base_utils.is_int_number(index):
+            component_expr = self._buffer_component_expr(str(index))
+            if component_expr is not None:
+                return ShaderVariable(
+                    return_type,
+                    component_expr,
+                    parents=[self],
+                    settable=self.settable,
+                    lexical_unit=True
+                )
+
             return ShaderVariable(return_type, f"{self.resolve()}[{index}]", parents=[self], settable=self.settable, lexical_unit=True)
         
         assert isinstance(index, ShaderVariable), f"Index must be a ShaderVariable or int type, not {type(index)}!"
         assert dtypes.is_scalar(index.var_type), "Indexing variable must be a scalar!"
         assert dtypes.is_integer_dtype(index.var_type), "Indexing variable must be an integer type!"
+
+        component_expr = self._buffer_component_expr(index.resolve())
+        if component_expr is not None:
+            return ShaderVariable(
+                return_type,
+                component_expr,
+                parents=[self, index],
+                settable=self.settable,
+                lexical_unit=True
+            )
         
         return ShaderVariable(return_type, f"{self.resolve()}[{index.resolve()}]", parents=[self, index], settable=self.settable, lexical_unit=True)
 
@@ -128,6 +176,19 @@ class ShaderVariable(BaseVariable):
         
         if self.var_type.shape[0] < 2:
             assert 'y' not in components, f"Cannot swizzle variable '{self.resolve()}' of type '{self.var_type.name}' with component 'y'!"
+
+        if len(components) == 1:
+            component_index = "xyzw".index(components)
+            component_expr = self._buffer_component_expr(str(component_index))
+            if component_expr is not None:
+                return ShaderVariable(
+                    var_type=return_type,
+                    name=component_expr,
+                    parents=[self],
+                    lexical_unit=True,
+                    settable=self.settable,
+                    register=self.register
+                )
 
         swizzle_expr = backend.component_access_expr(base_expr, components, self.var_type)
         if len(components) > 1:

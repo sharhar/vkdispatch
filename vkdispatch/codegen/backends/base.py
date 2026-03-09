@@ -52,6 +52,16 @@ class CodeGenBackend:
     def component_access_expr(self, expr: str, component: str, base_type: dtypes.dtype) -> str:
         return f"{expr}.{component}"
 
+    def buffer_component_expr(
+        self,
+        scalar_buffer_expr: str,
+        base_type: dtypes.dtype,
+        element_index_expr: str,
+        component_index_expr: str,
+    ) -> Optional[str]:
+        _ = (scalar_buffer_expr, base_type, element_index_expr, component_index_expr)
+        return None
+
     def fma_function_name(self, var_type: dtypes.dtype) -> str:
         return "fma"
 

@@ -249,6 +249,10 @@ class ShaderBuilder(ShaderWriter):
 
         buffer_name = f"buf{self.binding_count}" if var_name is None else var_name
         shape_name = f"{buffer_name}_shape"
+        scalar_expr = None
+
+        if self.backend.name == "opencl" and (dtypes.is_vector(var_type) or dtypes.is_complex(var_type)):
+            scalar_expr = f"{buffer_name}_scalar"
         
         self.binding_list.append(ShaderBinding(var_type, buffer_name, 0, BindingType.STORAGE_BUFFER))
         self.binding_read_access[self.binding_count] = False
@@ -271,6 +275,8 @@ class ShaderBuilder(ShaderWriter):
             f"{buffer_name}.data",
             shape_var_factory=shape_var_factory,
             shape_name=shape_name,
+            scalar_expr=scalar_expr,
+            codegen_backend=self.backend,
             read_lambda=read_lambda,
             write_lambda=write_lambda
         )
@@ -313,6 +319,8 @@ class ShaderBuilder(ShaderWriter):
             var_name,
             shape_var_factory=shape_var_factory,
             shape_name=shape_name,
+            scalar_expr=None,
+            codegen_backend=self.backend,
             read_lambda=lambda: None,
             write_lambda=lambda: None
         )

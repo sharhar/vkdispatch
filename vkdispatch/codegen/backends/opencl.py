@@ -146,6 +146,26 @@ class OpenCLBackend(CodeGenBackend):
             return expr
         return super().component_access_expr(expr, component, base_type)
 
+    def buffer_component_expr(
+        self,
+        scalar_buffer_expr: str,
+        base_type: dtypes.dtype,
+        element_index_expr: str,
+        component_index_expr: str,
+    ) -> Optional[str]:
+        if dtypes.is_complex(base_type):
+            component_count = base_type.child_count
+        elif dtypes.is_vector(base_type):
+            component_count = base_type.child_count
+        else:
+            return None
+
+        return (
+            f"{scalar_buffer_expr}["
+            f"(({element_index_expr}) * {component_count}) + ({component_index_expr})"
+            f"]"
+        )
+
     def _cast_math_arg(self, arg_type: dtypes.dtype, arg_expr: str) -> str:
         if dtypes.is_scalar(arg_type) or dtypes.is_vector(arg_type) or dtypes.is_complex(arg_type):
             return self.constructor(arg_type, [arg_expr], arg_types=[arg_type])
@@ -486,6 +506,16 @@ class OpenCLBackend(CodeGenBackend):
         param_name = f"vkdispatch_binding_{binding}_ptr"
         data_type = self.type_name(var_type)
         self._register_kernel_param(f"__global {data_type}* {param_name}")
+        if dtypes.is_complex(var_type):
+            scalar_type = self.type_name(var_type.child_type)
+            self._register_alias_line(
+                f"__global {scalar_type}* {name}_scalar = (__global {scalar_type}*)({param_name});"
+            )
+        elif dtypes.is_vector(var_type):
+            scalar_type = self.type_name(var_type.scalar)
+            self._register_alias_line(
+                f"__global {scalar_type}* {name}_scalar = (__global {scalar_type}*)({param_name});"
+            )
         self._register_alias_line(f"{struct_name} {name} = {{{param_name}}};")
         return f"typedef struct {struct_name} {{ __global {data_type}* data; }} {struct_name};\n"
 
