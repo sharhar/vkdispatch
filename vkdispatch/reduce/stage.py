@@ -41,7 +41,7 @@ def global_reduce(
     if reduction_identity == "inf":
         reduction_identity = vc.inf_f32() if out_type == vd.float32 else vc.inf_f64()
     elif reduction_identity == "-inf":
-        reduction_identity = vc.ninf_f32 if out_type == vd.float32 else vc.ninf_f64()
+        reduction_identity = vc.ninf_f32() if out_type == vd.float32 else vc.ninf_f64()
 
     reduction_aggregate = vc.new_register(out_type, reduction_identity, var_name="reduction_aggregate")
 
@@ -83,17 +83,22 @@ def workgroup_reduce(
     sdata[tid] = reduction_aggregate
 
     vc.barrier()
+
+    subgroup_reduce_size = vd.get_context().subgroup_size
+
+    if not vd.get_context().subgroup_enabled:
+        subgroup_reduce_size = 1
     
     current_size = group_size // 2
-    while current_size > vd.get_context().subgroup_size:
+    while current_size > subgroup_reduce_size:
         vc.if_statement(tid < current_size)
         sdata[tid] = reduction.reduction(sdata[tid], sdata[tid + current_size])            
-        if current_size // 2 > vd.get_context().subgroup_size:
+        if current_size // 2 > subgroup_reduce_size:
             vc.end()
         else:
             tid_limit = 2
 
-            if vd.get_context().subgroup_size != 1:
+            if subgroup_reduce_size != 1:
                 tid_limit = 2*vc.subgroup_size()
 
             vc.else_if_statement(tid < tid_limit)
@@ -111,14 +116,17 @@ def subgroup_reduce(
         reduction: ReduceOp,
         group_size: int):
     tid = vc.local_invocation_id().x
-    subgroup_size = vd.get_context().subgroup_size
+    subgroup_reduce_size = vd.get_context().subgroup_size
 
-    if group_size > subgroup_size:
-        vc.if_statement(tid < subgroup_size)
-        sdata[tid] = reduction.reduction(sdata[tid], sdata[tid + subgroup_size])
+    if not vd.get_context().subgroup_enabled:
+        subgroup_reduce_size = 1
+
+    if group_size > subgroup_reduce_size:
+        vc.if_statement(tid < subgroup_reduce_size)
+        sdata[tid] = reduction.reduction(sdata[tid], sdata[tid + subgroup_reduce_size])
         vc.end()
 
-        if subgroup_size == 1:
+        if subgroup_reduce_size == 1:
             return sdata[tid].to_register("local_var")
 
         vc.subgroup_barrier()
@@ -129,7 +137,7 @@ def subgroup_reduce(
 
         return local_var
     else:
-        current_size = subgroup_size // 2
+        current_size = subgroup_reduce_size // 2
         while current_size > 1:
             vc.if_statement(tid < current_size)
             sdata[tid] = reduction.reduction(sdata[tid], sdata[tid + current_size])

@@ -4,7 +4,7 @@ import numpy as np
 
 from typing import Tuple
 
-vd.initialize(backend="pycuda")
+vd.initialize(backend="vulkan")
 
 def make_shape(fft_size: int, data_size: int) -> Tuple[int, ...]:
     total_square_size = fft_size * fft_size
@@ -34,7 +34,7 @@ def compute_metrics(reference: np.ndarray, result: np.ndarray):
 
     return float(relative_l2), float(max_relative), float(max_absolute)
 
-fft_size = 64
+fft_size = 8
 data_size = 16 * 1024 * 1024
 
 input_data = make_random_data(fft_size, 0, data_size)
@@ -45,7 +45,7 @@ shape = make_shape(fft_size, data_size)
 buffer = vd.buffer_c64(shape) #Buffer(shape, var_type=vd.complex64)
 
 buffer.write(input_data)
-vd.fft.fft(buffer) #, print_shader=True)
+vd.fft.fft(buffer, print_shader=True)
 result_data = buffer.read(0)
 
-print(compute_metrics(reference, result_data))
+#print(compute_metrics(reference, result_data))

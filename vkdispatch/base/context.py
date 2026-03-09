@@ -228,7 +228,7 @@ class Context:
 
         self.subgroup_enabled = subgroup_enabled
         self.subgroup_arithmetic = subgroup_arithmetic
-        self.subgroup_size = min(subgroup_sizes) if self.subgroup_enabled else 1
+        self.subgroup_size = min(subgroup_sizes)
         self.max_workgroup_size = (
             min(max_workgroup_sizes_x),
             min(max_workgroup_sizes_y),
