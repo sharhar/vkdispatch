@@ -111,6 +111,7 @@ _PUSH_CONSTANT_FIELD_RE = re.compile(
 _VECTOR_TYPE_RE = re.compile(r"([A-Za-z_][A-Za-z0-9_]*?)([2-4])$")
 _OPENCL_VERSION_RE = re.compile(r"OpenCL\s+(\d+)\.(\d+)")
 _DIGIT_RE = re.compile(r"(\d+)")
+_OPENCL_MAX_INFLIGHT_SUBMISSIONS = 4
 
 
 # --- Runtime state ---
@@ -163,6 +164,7 @@ class _Context:
     queue_count: int
     queue_to_device: List[int]
     sub_buffer_alignment: int
+    submission_events: List[List[object]] = field(default_factory=list)
     stopped: bool = False
 
 
@@ -430,23 +432,30 @@ def _queue_indices(ctx: _Context, queue_index: int, *, all_on_negative: bool = F
 
 
 def _record_signal(signal: _Signal, event_obj: Optional[object]) -> None:
+    if signal.event is not None and signal.event is not event_obj:
+        try:
+            signal.event.release()
+        except Exception:
+            pass
     signal.submitted = True
     signal.done = event_obj is None
     signal.event = event_obj
 
 
-def _query_signal(signal: _Signal) -> bool:
-    if signal.event is None:
-        return bool(signal.done)
+def _query_event_done(event_obj: Optional[object]) -> bool:
+    if event_obj is None:
+        return True
 
     try:
         complete = int(getattr(getattr(cl, "command_execution_status", object()), "COMPLETE", 0))
-        status = _coerce_int(signal.event.command_execution_status, 0)
-        done = status == complete
+        status = _coerce_int(event_obj.command_execution_status, 0)
+        return status == complete
     except Exception:
-        done = False
+        return False
 
-    signal.done = bool(done)
+
+def _query_signal(signal: _Signal) -> bool:
+    signal.done = _query_event_done(signal.event) if signal.event is not None else bool(signal.done)
     return signal.done
 
 
@@ -861,6 +870,66 @@ def _marker_wait_functions() -> List[object]:
     return funcs
 
 
+def _insert_queue_marker_event(queue) -> Optional[object]:
+    for marker_fn in _marker_wait_functions():
+        try:
+            event_obj = marker_fn(queue)
+            if event_obj is not None:
+                return event_obj
+        except TypeError:
+            try:
+                event_obj = marker_fn(queue, wait_for=[])
+                if event_obj is not None:
+                    return event_obj
+            except Exception:
+                continue
+        except Exception:
+            continue
+
+    return None
+
+
+def _release_event(event_obj: Optional[object]) -> None:
+    if event_obj is None:
+        return
+
+    try:
+        event_obj.release()
+    except Exception:
+        pass
+
+
+def _prune_submission_events(ctx: _Context, queue_index: int) -> int:
+    pending_events: List[object] = []
+
+    for event_obj in ctx.submission_events[queue_index]:
+        if _query_event_done(event_obj):
+            _release_event(event_obj)
+            continue
+
+        pending_events.append(event_obj)
+
+    ctx.submission_events[queue_index] = pending_events
+    return len(pending_events)
+
+
+def _reserve_submission_slot(ctx: _Context, queue_index: int) -> bool:
+    return _prune_submission_events(ctx, queue_index) < _OPENCL_MAX_INFLIGHT_SUBMISSIONS
+
+
+def _track_submission_completion(ctx: _Context, queue_index: int) -> None:
+    queue = ctx.queues[queue_index]
+    marker_event = _insert_queue_marker_event(queue)
+
+    if marker_event is None:
+        queue.finish()
+        _prune_submission_events(ctx, queue_index)
+        return
+
+    ctx.submission_events[queue_index].append(marker_event)
+    queue.flush()
+
+
 # --- API: context/init/logging ---
 
 
@@ -1064,6 +1133,7 @@ def context_create(device_indicies, queue_families):
             queue_count=1,
             queue_to_device=[0],
             sub_buffer_alignment=sub_buffer_alignment,
+            submission_events=[[]],
             stopped=False,
         )
         return _new_handle(_contexts, ctx)
@@ -1076,6 +1146,11 @@ def context_destroy(context):
     ctx = _contexts.pop(int(context), None)
     if ctx is None:
         return
+
+    for queue_events in ctx.submission_events:
+        for event_obj in queue_events:
+            _release_event(event_obj)
+        queue_events.clear()
 
     for queue in ctx.queues:
         try:
@@ -1136,22 +1211,7 @@ def signal_insert(context, queue_index):
     handle = _new_handle(_signals, signal)
 
     try:
-        event_obj = None
-        for marker_fn in _marker_wait_functions():
-            try:
-                event_obj = marker_fn(ctx.queues[selected[0]])
-                if event_obj is not None:
-                    break
-            except TypeError:
-                try:
-                    event_obj = marker_fn(ctx.queues[selected[0]], wait_for=[])
-                    if event_obj is not None:
-                        break
-                except Exception:
-                    continue
-            except Exception:
-                continue
-
+        event_obj = _insert_queue_marker_event(ctx.queues[selected[0]])
         if event_obj is None:
             ctx.queues[selected[0]].finish()
             signal.done = True
@@ -1439,6 +1499,10 @@ def command_list_submit(command_list, data, instance_count, index):
 
     try:
         for queue_index in queue_targets:
+            if not _reserve_submission_slot(ctx, queue_index):
+                return False
+
+        for queue_index in queue_targets:
             queue = ctx.queues[queue_index]
             for instance_index in range(instance_count):
                 instance_base_offset = instance_index * instance_size
@@ -1501,6 +1565,8 @@ def command_list_submit(command_list, data, instance_count, index):
                         f"Internal command list size mismatch: computed {per_instance_offset} bytes, "
                         f"expected {instance_size} bytes."
                     )
+
+            _track_submission_completion(ctx, queue_index)
     except Exception as exc:
         _set_error(f"Failed to submit OpenCL command list: {exc}")
 
