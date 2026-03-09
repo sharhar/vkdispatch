@@ -1,6 +1,6 @@
 import vkdispatch.base.dtype as dtypes
 from  vkdispatch.codegen.variables.base_variable import BaseVariable
-from typing import Any, Tuple
+from typing import Any, Tuple, Union
 
 from .. import scalar_eval as se
 
@@ -443,37 +443,76 @@ def mod(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
     base_utils.append_contents(f"{var.resolve()} %= {other.resolve()};\n")
     return var
 
-def pow(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = False) -> BaseVariable:
-    return_type = arithmetic_op_common(var, other, reverse=reverse, inplace=inplace)
 
-    if base_utils.is_scalar_number(other):
-        other_expr = base_utils.format_number_literal(other)
-        if not inplace:
-            return base_utils.new_base_var(
-                return_type,
-                (
-                    f"pow({var.resolve()}, {other_expr})"
-                    if not reverse else
-                    f"pow({other_expr}, {var.resolve()})"
-                ),
-                parents=[var])
-
-        base_utils.append_contents(f"{var.resolve()} = pow({var.resolve()}, {other_expr});\n")
-        return var
-
-    assert isinstance(other, BaseVariable)
-
-    if not inplace:
-        return base_utils.new_base_var(
-            return_type,
-            (
-                f"pow({var.resolve()}, {other.resolve()})"
-                if not reverse else
-                f"pow({other.resolve()}, {var.resolve()})"
-            ),
-            parents=[var, other])
+def pow_expr(x: Any, y: Any) -> Union[BaseVariable, float]:
+    if base_utils.is_int_number(y) and y == 0:
+        return 1
+            
+    if base_utils.is_number(y) and base_utils.is_number(x):
+        return se.power(x, y)
     
-    base_utils.append_contents(f"{var.resolve()} = pow({var.resolve()}, {other.resolve()});\n")
+    if base_utils.is_number(x) and isinstance(y, BaseVariable):
+        result_type = base_utils.dtype_to_floating(y.var_type)
+        return base_utils.new_base_var(
+            result_type,
+            base_utils.get_codegen_backend().binary_math_expr(
+                "pow",
+                dtypes.float32,
+                base_utils.resolve_input(x),
+                result_type,
+                y.resolve(),
+            ),
+            parents=[y]
+        )
+    
+    if base_utils.is_number(y) and isinstance(x, BaseVariable):
+        result_type = base_utils.dtype_to_floating(x.var_type)
+
+        if base_utils.is_int_number(y) and x.is_register():
+            if y > 0 and y <= 4:
+                expr = " * ".join([x.resolve()] * int(y))
+                return base_utils.new_base_var(result_type, expr, parents=[x])
+            elif y < 0 and y >= -4:
+                expr = " * ".join([x.resolve()] * int(-y))
+                return base_utils.new_base_var(result_type, f"1 / ({expr})", parents=[x])
+
+        return base_utils.new_base_var(
+            result_type,
+            base_utils.get_codegen_backend().binary_math_expr(
+                "pow",
+                result_type,
+                x.resolve(),
+                dtypes.float32,
+                base_utils.resolve_input(y),
+            ),
+            parents=[x]
+        )
+
+    assert isinstance(y, BaseVariable), "First argument must be a ShaderVariable or number"
+    assert isinstance(x, BaseVariable), "Second argument must be a ShaderVariable or number"
+
+    result_type = base_utils.dtype_to_floating(dtypes.cross_type(x.var_type, y.var_type))
+    return base_utils.new_base_var(
+        result_type,
+        base_utils.get_codegen_backend().binary_math_expr(
+            "pow",
+            base_utils.dtype_to_floating(x.var_type),
+            x.resolve(),
+            base_utils.dtype_to_floating(y.var_type),
+            y.resolve(),
+        ),
+        parents=[y, x],
+        lexical_unit=True
+    )
+
+def pow(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = False) -> BaseVariable:
+    _ = arithmetic_op_common(var, other, reverse=reverse, inplace=inplace)
+    experession = pow_expr(other, var) if reverse else pow_expr(var, other)
+    
+    if not inplace:
+        return experession
+    
+    base_utils.append_contents(f"{var.resolve()} = {experession};\n")
     return var
 
 def neg(var: BaseVariable) -> BaseVariable:

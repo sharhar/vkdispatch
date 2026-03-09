@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from . import state as state
-from .cuda_primitives import SourceModule
+from .cuda_primitives import SourceModule, cuda
 from .helpers import (
     activate_context,
     context_from_handle,
@@ -12,6 +12,20 @@ from .helpers import (
     to_bytes,
 )
 from .state import CUDAComputePlan
+
+
+def _nvrtc_compile_options(ctx):
+    options = ["-w"]
+
+    try:
+        dev = cuda.Device(ctx.device_index)
+        cc_major, cc_minor = dev.compute_capability()
+        options.append(f"--gpu-architecture=sm_{int(cc_major)}{int(cc_minor)}")
+    except Exception:
+        pass
+
+    return options
+
 
 def stage_compute_plan_create(context, shader_source, bindings, pc_size, shader_name):
     ctx = context_from_handle(int(context))
@@ -27,7 +41,7 @@ def stage_compute_plan_create(context, shader_source, bindings, pc_size, shader_
             module = SourceModule(
                 source_text,
                 no_extern_c=True,
-                options=["-w"],
+                options=_nvrtc_compile_options(ctx),
             )
             function = module.get_function("vkdispatch_main")
     except Exception as exc:

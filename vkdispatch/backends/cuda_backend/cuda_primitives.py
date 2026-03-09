@@ -304,6 +304,7 @@ class SourceModule:
             "nvrtcCreateProgram",
         )
 
+        cubin = b""
         ptx = b""
         build_log = b""
 
@@ -329,20 +330,34 @@ class SourceModule:
                     f"NVRTC compilation failed: {clean_build_log}{hint}"
                 )
 
-            ptx = nvrtc_read_bytes(program, "nvrtcGetPTXSize", "nvrtcGetPTX")
+            try:
+                cubin = nvrtc_read_bytes(program, "nvrtcGetCUBINSize", "nvrtcGetCUBIN")
+            except Exception:
+                cubin = b""
+
+            if len(cubin) == 0:
+                try:
+                    ptx = nvrtc_read_bytes(program, "nvrtcGetPTXSize", "nvrtcGetPTX")
+                except Exception:
+                    ptx = b""
         finally:
             try:
                 nvrtc_check(nvrtc_call("nvrtcDestroyProgram", program), "nvrtcDestroyProgram")
             except Exception:
                 pass
 
-        if len(ptx) == 0:
-            raise RuntimeError("NVRTC compilation succeeded but produced an empty PTX payload.")
-        if not ptx.endswith(b"\x00"):
-            ptx += b"\x00"
+        image_data = cubin
+        if len(image_data) == 0:
+            image_data = ptx
+
+        if len(image_data) == 0:
+            raise RuntimeError("NVRTC compilation succeeded but produced neither a CUBIN nor a PTX payload.")
+
+        if len(cubin) == 0 and not image_data.endswith(b"\x00"):
+            image_data += b"\x00"
 
         self.module_raw = drv_check(
-            drv_call(["cuModuleLoadDataEx", "cuModuleLoadData"], ptx),
+            drv_call(["cuModuleLoadDataEx", "cuModuleLoadData"], image_data),
             "cuModuleLoadData",
         )
 
