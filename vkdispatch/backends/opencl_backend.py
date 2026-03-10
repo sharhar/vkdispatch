@@ -619,6 +619,63 @@ def _parse_local_size(source: str) -> Tuple[int, int, int]:
     return (1, 1, 1)
 
 
+def _opencl_device_launch_limits(logical_device_index: int) -> Tuple[Tuple[int, int, int], int]:
+    entries = _enumerate_opencl_devices()
+    if logical_device_index < 0 or logical_device_index >= len(entries):
+        raise RuntimeError(
+            f"OpenCL device index {logical_device_index} is out of range for launch validation"
+        )
+
+    device = entries[logical_device_index].device
+    max_work_item_sizes = tuple(
+        _coerce_int(x, 1)
+        for x in _device_attr(device, "max_work_item_sizes", (1, 1, 1))
+    )
+
+    if len(max_work_item_sizes) < 3:
+        max_work_item_sizes = (max_work_item_sizes + (1, 1, 1))[:3]
+    else:
+        max_work_item_sizes = max_work_item_sizes[:3]
+
+    max_workgroup_size = (
+        max(1, int(max_work_item_sizes[0])),
+        max(1, int(max_work_item_sizes[1])),
+        max(1, int(max_work_item_sizes[2])),
+    )
+    max_workgroup_invocations = max(
+        1,
+        _coerce_int(_device_attr(device, "max_work_group_size", 1), 1),
+    )
+
+    return max_workgroup_size, max_workgroup_invocations
+
+
+def _validate_local_size_for_enqueue(ctx: _Context, local_size: Tuple[int, int, int]) -> None:
+    max_workgroup_size, max_workgroup_invocations = _opencl_device_launch_limits(ctx.device_index)
+    local_x, local_y, local_z = (max(1, int(dim)) for dim in local_size)
+    local_invocations = local_x * local_y * local_z
+
+    violations = []
+    if local_x > max_workgroup_size[0]:
+        violations.append(f"x={local_x} exceeds {max_workgroup_size[0]}")
+    if local_y > max_workgroup_size[1]:
+        violations.append(f"y={local_y} exceeds {max_workgroup_size[1]}")
+    if local_z > max_workgroup_size[2]:
+        violations.append(f"z={local_z} exceeds {max_workgroup_size[2]}")
+    if local_invocations > max_workgroup_invocations:
+        violations.append(
+            f"total invocations={local_invocations} exceeds {max_workgroup_invocations}"
+        )
+
+    if violations:
+        raise RuntimeError(
+            "OpenCL local size is invalid for the active device: "
+            f"requested ({local_x}, {local_y}, {local_z}), "
+            f"device limits {max_workgroup_size} with max_work_group_size="
+            f"{max_workgroup_invocations} ({'; '.join(violations)})"
+        )
+
+
 _PUSH_CONSTANT_SCALAR_LAYOUTS: Dict[str, Tuple[int, int]] = {
     "char": (1, 1),
     "uchar": (1, 1),
@@ -1669,6 +1726,7 @@ def command_list_submit(command_list, data, instance_count, index):
                     local_x = max(1, int(plan.local_size[0]))
                     local_y = max(1, int(plan.local_size[1]))
                     local_z = max(1, int(plan.local_size[2]))
+                    _validate_local_size_for_enqueue(ctx, (local_x, local_y, local_z))
 
                     blocks_x = max(1, int(command.blocks[0]))
                     blocks_y = max(1, int(command.blocks[1]))

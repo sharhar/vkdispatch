@@ -7,6 +7,119 @@ from ..compat import numpy_compat as npc
 import vkdispatch.base.dtype as dtypes
 from .prime_utils import prime_factors, group_primes, default_register_limit, default_max_prime
 
+
+@dataclasses.dataclass(frozen=True)
+class _FFTPlanCandidate:
+    max_register_count: int
+    stages: Tuple["FFTRegisterStageConfig", ...]
+    register_count: int
+    batch_threads: int
+
+
+def _default_max_register_count(N: int) -> int:
+    max_register_count = default_register_limit()
+
+    if N == 16 or N == 8 or N == 4 or (N == 2 and vd.get_devices()[0].is_nvidia()):
+        max_register_count = max(2, N // 2)
+
+    return min(max_register_count, N)
+
+
+def _required_batch_threads_limit(batch_inner_count: int) -> int:
+    context = vd.get_context()
+    thread_dimension_limit = (
+        context.max_workgroup_size[1]
+        if batch_inner_count > 1
+        else context.max_workgroup_size[0]
+    )
+    return max(1, min(int(thread_dimension_limit), int(context.max_workgroup_invocations)))
+
+
+def _evaluate_fft_plan_candidate(
+    N: int,
+    all_factors: List[int],
+    max_register_count: int,
+    compute_item_size: int,
+) -> _FFTPlanCandidate:
+    prime_groups = group_primes(all_factors, max_register_count)
+    stages = tuple(
+        FFTRegisterStageConfig(group, max_register_count, N, compute_item_size)
+        for group in prime_groups
+    )
+    register_count = max(stage.registers_used for stage in stages)
+    batch_threads = max(stage.thread_count for stage in stages)
+
+    assert register_count <= max_register_count, (
+        f"Register count {register_count} exceeds max register count {max_register_count}"
+    )
+
+    return _FFTPlanCandidate(
+        max_register_count=max_register_count,
+        stages=stages,
+        register_count=register_count,
+        batch_threads=batch_threads,
+    )
+
+
+def _register_limit_candidates(N: int, initial_limit: int) -> List[int]:
+    divisors = {1}
+
+    for factor in prime_factors(N):
+        divisors.update(divisor * factor for divisor in tuple(divisors))
+
+    candidates = [initial_limit]
+    candidates.extend(
+        divisor
+        for divisor in sorted(divisors)
+        if initial_limit < divisor <= N
+    )
+    return candidates
+
+
+def _select_fft_plan_candidate(
+    N: int,
+    all_factors: List[int],
+    batch_inner_count: int,
+    compute_item_size: int,
+    max_register_count: Optional[int],
+) -> _FFTPlanCandidate:
+    batch_threads_limit = _required_batch_threads_limit(batch_inner_count)
+    dimension_name = "y" if batch_inner_count > 1 else "x"
+
+    if max_register_count is None:
+        requested_limit = _default_max_register_count(N)
+        candidate_limits = _register_limit_candidates(N, requested_limit)
+        searched_limit = candidate_limits[-1]
+        explicit_limit = False
+    else:
+        requested_limit = min(max_register_count, N)
+        candidate_limits = [requested_limit]
+        searched_limit = requested_limit
+        explicit_limit = True
+
+    best_candidate = None
+
+    for candidate_limit in candidate_limits:
+        candidate = _evaluate_fft_plan_candidate(
+            N=N,
+            all_factors=all_factors,
+            max_register_count=candidate_limit,
+            compute_item_size=compute_item_size,
+        )
+        if best_candidate is None or candidate.batch_threads < best_candidate.batch_threads:
+            best_candidate = candidate
+
+        if candidate.batch_threads <= batch_threads_limit:
+            return candidate
+
+    explicit_text = "requested" if explicit_limit else "default"
+    raise ValueError(
+        f"Unable to build an FFT plan for size {N}: minimum achievable batch thread count "
+        f"{best_candidate.batch_threads} exceeds the device's local {dimension_name}-dimension "
+        f"limit {batch_threads_limit} (starting from {explicit_text} max_register_count="
+        f"{requested_limit}, searched up to {searched_limit})."
+    )
+
 @dataclasses.dataclass
 class FFTRegisterStageConfig:
     """
@@ -136,14 +249,6 @@ class FFTConfig:
         
         self.N = N
 
-        if max_register_count is None:
-            max_register_count = default_register_limit()
-
-        if N==16 or N==8 or N==4 or N==2 and vd.get_devices()[0].is_nvidia():
-            max_register_count = max(2, N//2)
-
-        max_register_count = min(max_register_count, N)
-
         all_factors = prime_factors(N)
 
         for factor in all_factors:
@@ -151,15 +256,15 @@ class FFTConfig:
 
         self.max_prime_radix = max(all_factors)
 
-        prime_groups = group_primes(all_factors, max_register_count)        
-
-        self.stages = tuple(
-            [FFTRegisterStageConfig(group, max_register_count, N, self.compute_type.item_size) for group in prime_groups]
+        plan_candidate = _select_fft_plan_candidate(
+            N=N,
+            all_factors=all_factors,
+            batch_inner_count=self.batch_inner_count,
+            compute_item_size=self.compute_type.item_size,
+            max_register_count=max_register_count,
         )
-        register_utilizations = [stage.registers_used for stage in self.stages]
-        self.register_count = max(register_utilizations)
-
-        assert self.register_count <= max_register_count, f"Register count {self.register_count} exceeds max register count {max_register_count}"
+        self.stages = plan_candidate.stages
+        self.register_count = plan_candidate.register_count
 
         self.sdata_allocation = 1
         self.sdata_row_size = 1
@@ -173,9 +278,9 @@ class FFTConfig:
             self.sdata_row_size = stage.sdata_width
             self.sdata_row_size_padded = stage.sdata_width_padded
 
-        self.thread_counts = [stage.thread_count for stage in self.stages]
+        self.thread_counts = tuple(stage.thread_count for stage in self.stages)
 
-        self.batch_threads = max(self.thread_counts)
+        self.batch_threads = plan_candidate.batch_threads
 
     def __str__(self):
         return f"FFT Config:\nN: {self.N}\nregister_count: {self.register_count}\nstages:\n{self.stages}\nlocal_size: {self.thread_counts}"
