@@ -90,7 +90,7 @@ class FFTSDataManager:
     def write_to_sdata(self, registers: Optional[FFTRegisters] = None, stage_index: int = -1):
         self.op_write()
 
-        self.use_padding = self.padding_enabled and self.resources.output_strides[stage_index] < 32
+        self.use_padding = self.padding_enabled and self.resources.config.stages[stage_index].input_stride < 32
 
         if registers is None:
             registers = self.default_registers

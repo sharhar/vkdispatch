@@ -155,7 +155,7 @@ Register-group coverage this stage: {self.config.N // stage.registers_used}.""")
                 self.register_shuffle(output_stage=i-1, input_stage=i)
 
             self.resources.stage_begin(i)
-            for ii, invocation in enumerate(self.resources.invocations[i]):
+            for ii, invocation in enumerate(self.config.stages[i].invocations):
                 self.resources.invocation_gaurd(i, ii)
 
                 self.registers.slice_set(invocation.register_selection, radix_composite(
@@ -163,7 +163,7 @@ Register-group coverage this stage: {self.config.N // stage.registers_used}.""")
                     inverse=inverse,
                     register_list=self.registers.register_slice(invocation.register_selection),
                     primes=stage.primes,
-                    twiddle_index=invocation.inner_block_offset,
+                    twiddle_index=invocation.get_inner_block_offset(self.resources.tid),
                     twiddle_N=invocation.block_width
                 ))
 
