@@ -112,6 +112,14 @@ _VECTOR_TYPE_RE = re.compile(r"([A-Za-z_][A-Za-z0-9_]*?)([2-4])$")
 _OPENCL_VERSION_RE = re.compile(r"OpenCL\s+(\d+)\.(\d+)")
 _DIGIT_RE = re.compile(r"(\d+)")
 _OPENCL_MAX_INFLIGHT_SUBMISSIONS = 4
+_OPENCL_SUBGROUP_PROBE_SOURCE = """
+__kernel void vkdispatch_subgroup_probe(__global uint *out) {
+    size_t gid = get_global_id(0);
+    if (gid == 0) {
+        out[0] = 0u;
+    }
+}
+"""
 
 
 # --- Runtime state ---
@@ -131,6 +139,7 @@ _descriptor_sets: Dict[int, "_DescriptorSet"] = {}
 _images: Dict[int, object] = {}
 _samplers: Dict[int, object] = {}
 _fft_plans: Dict[int, object] = {}
+_subgroup_size_cache: Dict[Tuple[int, int, str, str], int] = {}
 
 _marker_helpers = threading.local()
 
@@ -401,6 +410,122 @@ def _device_attr(device, attr_name: str, default):
         return getattr(device, attr_name)
     except Exception:
         return default
+
+
+def _release_opencl_object(obj: object) -> None:
+    release = getattr(obj, "release", None)
+    if callable(release):
+        try:
+            release()
+        except Exception:
+            pass
+
+
+def _device_identity_key(entry: _DeviceEntry, device_name: str, driver_version: str) -> Tuple[int, int, str, str]:
+    return (int(entry.platform_index), int(entry.device_index), str(device_name), str(driver_version))
+
+
+def _kernel_preferred_workgroup_multiple(device) -> Optional[int]:
+    ctx = None
+    program = None
+    kernel = None
+
+    try:
+        ctx = cl.Context(devices=[device])
+        program = cl.Program(ctx, _OPENCL_SUBGROUP_PROBE_SOURCE).build()
+        kernel = cl.Kernel(program, "vkdispatch_subgroup_probe")
+        multiple = kernel.get_work_group_info(
+            cl.kernel_work_group_info.PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
+            device,
+        )
+        multiple_int = _coerce_int(multiple, 0)
+        if multiple_int > 0:
+            return multiple_int
+    except Exception:
+        return None
+    finally:
+        _release_opencl_object(kernel)
+        _release_opencl_object(program)
+        _release_opencl_object(ctx)
+
+    return None
+
+
+def _round_down_power_of_two(value: int) -> int:
+    value = int(value)
+    if value <= 1:
+        return 1
+    return 1 << (value.bit_length() - 1)
+
+
+def _vendor_subgroup_fallback(
+    *,
+    device_type: int,
+    vendor_text: str,
+    platform_name: str,
+    device_name: str,
+    max_workgroup_invocations: int,
+) -> int:
+    if device_type == 4:
+        return 1
+
+    combined = " ".join(
+        token.lower()
+        for token in (vendor_text, platform_name, device_name)
+        if isinstance(token, str) and len(token) > 0
+    )
+
+    if "nvidia" in combined:
+        return 32
+
+    if "advanced micro devices" in combined or " amd" in f" {combined}" or "radeon" in combined:
+        return 64
+
+    if "apple" in combined or "m1" in combined or "m2" in combined or "m3" in combined or "m4" in combined:
+        return 32
+
+    if "intel" in combined:
+        return 16 if device_type == 2 else 1
+
+    if device_type == 2:
+        bounded = min(max(1, int(max_workgroup_invocations)), 64)
+        if bounded >= 32:
+            return 32
+        return _round_down_power_of_two(bounded)
+
+    return 1
+
+
+def _estimate_subgroup_size(
+    entry: _DeviceEntry,
+    device,
+    *,
+    device_name: str,
+    driver_version: str,
+    device_type: int,
+    max_workgroup_invocations: int,
+) -> int:
+    cache_key = _device_identity_key(entry, device_name, driver_version)
+    cached = _subgroup_size_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    platform_name = str(_device_attr(entry.platform, "name", ""))
+    vendor_text = str(_device_attr(device, "vendor", _device_attr(entry.platform, "vendor", "")))
+
+    subgroup_size = _kernel_preferred_workgroup_multiple(device)
+    if subgroup_size is None:
+        subgroup_size = _vendor_subgroup_fallback(
+            device_type=device_type,
+            vendor_text=vendor_text,
+            platform_name=platform_name,
+            device_name=device_name,
+            max_workgroup_invocations=max_workgroup_invocations,
+        )
+
+    subgroup_size = max(1, int(subgroup_size))
+    _subgroup_size_cache[cache_key] = subgroup_size
+    return subgroup_size
 
 
 def _context_from_handle(context_handle: int) -> Optional[_Context]:
@@ -1023,9 +1148,13 @@ def get_devices():
         )
         max_push_constant_size = max(0, _coerce_int(_device_attr(device, "max_parameter_size", 0), 0))
 
-        subgroup_size = max(
-            1,
-            _coerce_int(_device_attr(device, "preferred_work_group_size_multiple", 1), 1),
+        subgroup_size = _estimate_subgroup_size(
+            entry,
+            device,
+            device_name=device_name,
+            driver_version=driver_version,
+            device_type=device_type,
+            max_workgroup_invocations=max_workgroup_invocations,
         )
 
         max_compute_shared_memory_size = max(
