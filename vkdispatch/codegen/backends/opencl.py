@@ -172,6 +172,23 @@ class OpenCLBackend(CodeGenBackend):
 
         return arg_expr
 
+    def math_func_name(self, func_name: str, var_type: dtypes.dtype) -> str:
+        func_name_dict = {
+            "sin": "native_sin",
+            "cos": "native_cos",
+            "tan": "native_tan",
+            "sqrt": "native_sqrt",
+            "exp": "native_exp",
+            "exp2": "native_exp2",
+            "log": "native_log",
+            "log2": "native_log2",
+        }
+
+        if func_name in func_name_dict:
+            return func_name_dict[func_name]
+
+        return func_name
+
     def unary_math_expr(self, func_name: str, arg_type: dtypes.dtype, arg_expr: str) -> str:
         mapped = self.math_func_name(func_name, arg_type)
         return f"{mapped}({self._cast_math_arg(arg_type, arg_expr)})"

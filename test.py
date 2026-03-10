@@ -4,7 +4,7 @@ import numpy as np
 
 from typing import Tuple
 
-vd.initialize(backend="vulkan")
+#vd.initialize(backend="vulkan")
 
 def make_shape(fft_size: int, data_size: int) -> Tuple[int, ...]:
     total_square_size = fft_size * fft_size
@@ -34,7 +34,12 @@ def compute_metrics(reference: np.ndarray, result: np.ndarray):
 
     return float(relative_l2), float(max_relative), float(max_absolute)
 
-fft_size = 8
+@vd.map
+def kernel_mapping(scale_factor: vc.Var[vc.f32]):
+    read_op = vd.fft.read_op()
+    read_op.register[:] = read_op.register * scale_factor
+
+fft_size = 4096
 data_size = 16 * 1024 * 1024
 
 input_data = make_random_data(fft_size, 0, data_size)
@@ -45,7 +50,8 @@ shape = make_shape(fft_size, data_size)
 buffer = vd.buffer_c64(shape) #Buffer(shape, var_type=vd.complex64)
 
 buffer.write(input_data)
-vd.fft.fft(buffer, print_shader=True)
+#vd.fft.fft(buffer, print_shader=True)
+vd.fft.convolve(buffer, np.random.rand(), kernel_map=kernel_mapping, print_shader=True)
 result_data = buffer.read(0)
 
 #print(compute_metrics(reference, result_data))
