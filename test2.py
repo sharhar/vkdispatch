@@ -79,8 +79,7 @@ def run_vkdispatch(config: Config,
 def run_test(config: Config,
                io_count: Union[int, Callable],
                gpu_function: Callable):
-    #fft_sizes = [9, 64]
-    fft_sizes = [64, 128, 256, 512, 1024, 2048, 4096]
+    fft_sizes = [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096]
 
     for fft_size in fft_sizes:
         rates = []
@@ -100,7 +99,6 @@ def do_fft(config: Config,
 
 
 conf = Config(
-    #data_size=81*(2**20),
     data_size=2**26,
     iter_count=80,
     iter_batch=10,

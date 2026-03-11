@@ -124,9 +124,14 @@ def select_fft_plan_candidate(
         explicit_text = "requested"
         searched_limit = requested_limit
     else:
+        max_registers = default_register_limit()
+
+        if N==16 or N==8 or N==4 or N==2 and vd.get_devices()[0].is_nvidia():
+            max_registers = max(2, N//2)
+
         baseline_limit = min(8, N)
         requested_limit = baseline_limit
-        candidate_limits = register_limit_candidates(default_register_limit(), baseline_limit)
+        candidate_limits = register_limit_candidates(max_registers, baseline_limit)
         searched_limit = candidate_limits[-1]
 
         baseline_candidate = FFTPlanCandidate(
