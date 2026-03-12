@@ -55,16 +55,18 @@ void command_list_reset_extern(struct CommandList* command_list) {
     LOG_INFO("Command list reset");
 }
 
-void command_list_submit_extern(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int index, int recordType) {
+bool command_list_submit_extern(struct CommandList* command_list, void* instance_buffer, unsigned int instance_count, int index, int recordType, const char* name) {
     struct Context* ctx = command_list->ctx;
     
     LOG_INFO("Submitting command list with handle %p to queue %d", command_list, index);
 
-    if(index == -2) {
-        for(int i = 0; i < ctx->queues.size(); i++) {
-            ctx->work_queue->push(command_list, instance_buffer, instance_count, i, recordType);
-        }
-    } else {
-        ctx->work_queue->push(command_list, instance_buffer, instance_count, index, recordType);
+    if(index != -2)
+        return ctx->work_queue->push(command_list, instance_buffer, instance_count, index, recordType, name);
+
+    for(int i = 0; i < ctx->queues.size(); i++) {
+        if(!ctx->work_queue->push(command_list, instance_buffer, instance_count, i, recordType, name))
+            return false;
     }
+
+    return true;
 }

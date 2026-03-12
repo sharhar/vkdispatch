@@ -1,0 +1,1073 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VkDispatch Shader Playground</title>
+  <script src="https://cdn.jsdelivr.net/npm/brython@3.12.2/brython.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/brython@3.12.2/brython_stdlib.js"></script>
+  <script src="libs/vkdispatch.brython.js"></script>
+
+  <!-- CodeMirror 5 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/theme/material-darker.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/mode/python/python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/mode/clike/clike.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --ink: #162136;
+      --muted: #586178;
+      --border: #cfd8e6;
+      --accent: #005fcc;
+      --accent-hover: #004aa0;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      height: 100%;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: #1a1a2e;
+      color: var(--ink);
+      overflow: hidden;
+    }
+
+    /* ── top bar ── */
+    .toolbar {
+      height: 48px;
+      background: #0f0f23;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      border-bottom: 1px solid #2a2a4a;
+      gap: 10px;
+    }
+
+    .toolbar h1 {
+      font-size: 1rem;
+      color: #c7d2fe;
+      font-weight: 600;
+      margin-right: auto;
+    }
+
+    .toolbar button {
+      border: 0;
+      background: var(--accent);
+      color: #fff;
+      padding: 7px 18px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .toolbar button:hover {
+      background: var(--accent-hover);
+    }
+
+    .toolbar .icon-btn {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      border-radius: 50%;
+      background: #2a2a4a;
+      color: #c7d2fe;
+      flex-shrink: 0;
+    }
+
+    .toolbar .icon-btn:hover {
+      background: #3a3a6a;
+    }
+
+    /* ── toast notification ── */
+    .toast {
+      position: fixed;
+      top: 56px;
+      right: 16px;
+      background: rgba(15, 23, 42, 0.96);
+      color: #e2e8f0;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      box-shadow: 0 14px 32px rgba(0, 0, 0, 0.35);
+      opacity: 0;
+      transform: translateY(-8px);
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+      z-index: 200;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ── backend toggle ── */
+    .backend-toggle {
+      display: flex;
+      align-items: center;
+      background: #2a2a4a;
+      border-radius: 6px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .backend-toggle button {
+      padding: 6px 14px;
+      border-radius: 0;
+      background: transparent;
+      color: #7c8bbf;
+      font-size: 0.8rem;
+      font-weight: 600;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .backend-toggle button:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .backend-toggle button.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    /* ── main split ── */
+    .split {
+      display: flex;
+      height: calc(100% - 48px);
+    }
+
+    .pane {
+      display: flex;
+      flex-direction: column;
+      min-width: 80px;
+      overflow: hidden;
+      width: calc(50% - 3px);
+    }
+
+    .pane-header {
+      height: 32px;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      flex-shrink: 0;
+    }
+
+    /* ── divider ── */
+    .divider {
+      width: 6px;
+      cursor: col-resize;
+      background: #2a2a4a;
+      flex-shrink: 0;
+      position: relative;
+      transition: background 0.15s;
+    }
+
+    .divider:hover,
+    .divider.active {
+      background: var(--accent);
+    }
+
+    .divider::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 2px;
+      height: 40px;
+      border-radius: 1px;
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    /* ── code pane (left) ── */
+    .pane.code .pane-header {
+      background: #16163a;
+      color: #7c8bbf;
+    }
+
+    /* ── output pane (right) ── */
+    .pane.output .pane-header {
+      background: #0d1a0d;
+      color: #5fa35f;
+    }
+
+    /* ── CodeMirror fills its pane ── */
+    .pane .CodeMirror {
+      flex: 1;
+      height: auto;
+      font: 14px/1.6 "SFMono-Regular", Consolas, "Liberation Mono",
+        Menlo, monospace;
+      border: none;
+    }
+
+    .pane.code .CodeMirror {
+      background: #1e1e3a;
+    }
+
+    .pane.output .CodeMirror {
+      background: #0f172a;
+    }
+
+    /* Tweak gutter to match pane backgrounds */
+    .pane.code .CodeMirror-gutters {
+      background: #1a1a36;
+      border-right: 1px solid #2a2a4a;
+    }
+
+    .pane.output .CodeMirror-gutters {
+      background: #0d1526;
+      border-right: 1px solid #1a2a3a;
+    }
+
+    /* ── overlay panels (help + options) ── */
+    .overlay-panel {
+      display: none;
+      position: fixed;
+      top: 56px;
+      left: 16px;
+      width: 360px;
+      max-height: calc(100vh - 72px);
+      background: #16163a;
+      border: 1px solid #2a2a4a;
+      border-radius: 10px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+      z-index: 100;
+      overflow-y: auto;
+      color: #c7d2fe;
+      font-size: 0.88rem;
+      line-height: 1.55;
+    }
+
+    .overlay-panel.visible {
+      display: block;
+    }
+
+    .overlay-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid #2a2a4a;
+      font-weight: 700;
+      font-size: 0.95rem;
+      position: sticky;
+      top: 0;
+      background: #16163a;
+    }
+
+    .overlay-header button {
+      background: none;
+      border: none;
+      color: #7c8bbf;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+
+    .overlay-header button:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .overlay-body {
+      padding: 16px;
+    }
+
+    /* ── options-specific ── */
+    .opt-group {
+      margin-bottom: 18px;
+    }
+
+    .opt-group label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #7c8bbf;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .opt-group input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .opt-group select,
+    .opt-group input[type="text"] {
+      width: 100%;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid #2a2a4a;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    .opt-group select:focus,
+    .opt-group input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+    }
+
+    .toggle-row span {
+      font-size: 0.85rem;
+    }
+
+    /* simple toggle switch */
+    .switch {
+      position: relative;
+      width: 40px;
+      height: 22px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .switch .slider {
+      position: absolute;
+      inset: 0;
+      background: #2a2a4a;
+      border-radius: 22px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .switch .slider::before {
+      content: "";
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      left: 3px;
+      top: 3px;
+      background: #c7d2fe;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+
+    .switch input:checked + .slider {
+      background: var(--accent);
+    }
+
+    .switch input:checked + .slider::before {
+      transform: translateX(18px);
+    }
+
+    /* prevent text selection while dragging */
+    body.resizing {
+      user-select: none;
+      cursor: col-resize;
+    }
+  </style>
+</head>
+<body onload="brython({pythonpath: ['libs']})">
+  <div class="toolbar">
+    <button class="icon-btn" id="help-btn" title="Help">?</button>
+    <button class="icon-btn" id="opts-btn" title="Options">⚙</button>
+    <button id="run-btn">▶ Run</button>
+    <div class="backend-toggle" id="backend-toggle">
+      <button class="active" data-backend="glsl">GLSL</button>
+      <button data-backend="cuda">CUDA</button>
+    </div>
+    <h1>VkDispatch Shader Playground</h1>
+    <button id="copy-output-btn">⎘ Copy</button>
+    <button id="share-btn">🔗 Share</button>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Help panel -->
+  <div class="overlay-panel" id="help-panel">
+    <div class="overlay-header">
+      <span>Help</span>
+      <button id="help-close">✕</button>
+    </div>
+    <div class="overlay-body">
+      <p>
+        This web-based shader compiler is designed for rapid shader-authoring workflows: write Python in the left pane,
+        run it in the browser, and inspect generated output on the right. It is especially useful
+        for researchers who want to iterate on kernel structure and inspect code generation without
+        switching to a full native setup.
+      </p>
+      <br>
+      <p>
+        The key feature is shader visibility: when you print a decorated shader function (for
+        example, <code>print(add_scalar)</code>), the panel shows the generated GLSL. This makes
+        it easy to validate indexing logic, control flow, and type usage directly from the
+        high-level Python definition.
+      </p>
+      <br>
+      <p>
+        The Options panel controls a dummy device model, not your physical GPU. You can adjust
+        limits such as subgroup size, workgroup limits, and shared memory to test how your shader
+        configuration behaves under different device constraints.
+      </p>
+      <br>
+      <p>
+        Most standard <code>vkdispatch</code> APIs are available in this environment (buffers,
+        images, descriptor bindings, and dispatch calls), but this page is intended for codegen and
+        interface exploration. Many operations are simulated, and dispatch execution is not a real
+        GPU compute run.
+      </p>
+    </div>
+  </div>
+
+  <!-- Options panel -->
+  <div class="overlay-panel" id="opts-panel">
+    <div class="overlay-header">
+      <span>VkDispatch Device Parameters</span>
+      <button id="opts-close">✕</button>
+    </div>
+    <div class="overlay-body">
+      <div class="opt-group">
+        <label>Subgroup Size</label>
+        <input type="text" id="opt-subgroup-size" value="32">
+      </div>
+      <!-- <div class="opt-group">
+        <div class="toggle-row">
+          <span>Shader Print Line Numbers</span>
+          <label class="switch">
+            <input type="checkbox" id="opt-shader-line-numbers">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>  -->
+      <div class="opt-group">
+        <label>Max Workgroup Size (x, y, z)</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="opt-wg-size-x" value="1024" style="width:33%">
+          <input type="text" id="opt-wg-size-y" value="1024" style="width:33%">
+          <input type="text" id="opt-wg-size-z" value="64" style="width:33%">
+        </div>
+      </div>
+      <div class="opt-group">
+        <label>Max Workgroup Invocations</label>
+        <input type="text" id="opt-wg-invocations" value="1024">
+      </div>
+      <div class="opt-group">
+        <label>Max Workgroup Count (x, y, z)</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="opt-wg-count-x" value="65535" style="width:33%">
+          <input type="text" id="opt-wg-count-y" value="65535" style="width:33%">
+          <input type="text" id="opt-wg-count-z" value="65535" style="width:33%">
+        </div>
+      </div>
+      <div class="opt-group">
+        <label>Max Shared Memory (bytes)</label>
+        <input type="text" id="opt-shared-memory" value="65536">
+      </div>
+    </div>
+  </div>
+
+  <div class="split" id="split">
+    <div class="pane code" id="pane-left">
+      <div class="pane-header">Code</div>
+      <textarea id="code" spellcheck="false">import vkdispatch as vd
+import vkdispatch.codegen as vc
+from vkdispatch.codegen.abreviations import *
+
+@vd.shader("buff.size")
+def add_scalar(buff: Buff[f32], bias: Const[f32]):
+    tid = vc.global_invocation_id().x
+    buff[tid] = buff[tid] + bias
+
+
+print(add_scalar)</textarea>
+    </div>
+    <div class="divider" id="divider"></div>
+    <div class="pane output" id="pane-right">
+      <div class="pane-header">Output</div>
+      <textarea id="output" readonly></textarea>
+    </div>
+  </div>
+
+  <!-- CodeMirror init + GLSL mode definition (before Brython boots) -->
+  <script>
+  (function () {
+    /* ── Define GLSL MIME type using clike ── */
+    function words(str) {
+      var obj = {}, arr = str.split(" ");
+      for (var i = 0; i < arr.length; i++) if (arr[i]) obj[arr[i]] = true;
+      return obj;
+    }
+
+    CodeMirror.defineMIME("text/x-glsl", {
+      name: "clike",
+      keywords: words(
+        "break continue discard do else for if return while switch case default " +
+        "attribute const in inout out uniform varying " +
+        "layout flat smooth noperspective centroid patch sample " +
+        "buffer shared coherent volatile restrict readonly writeonly " +
+        "subroutine precision highp mediump lowp " +
+        "struct true false " +
+        "invariant interpolation " +
+        "barrier memoryBarrier memoryBarrierAtomicCounter memoryBarrierBuffer " +
+        "memoryBarrierImage memoryBarrierShared groupMemoryBarrier"
+      ),
+      types: words(
+        "void bool int uint float double " +
+        "vec2 vec3 vec4 ivec2 ivec3 ivec4 uvec2 uvec3 uvec4 " +
+        "bvec2 bvec3 bvec4 dvec2 dvec3 dvec4 " +
+        "mat2 mat3 mat4 " +
+        "mat2x2 mat2x3 mat2x4 mat3x2 mat3x3 mat3x4 mat4x2 mat4x3 mat4x4 " +
+        "dmat2 dmat3 dmat4 " +
+        "dmat2x2 dmat2x3 dmat2x4 dmat3x2 dmat3x3 dmat3x4 dmat4x2 dmat4x3 dmat4x4 " +
+        "sampler1D sampler2D sampler3D samplerCube " +
+        "sampler1DShadow sampler2DShadow samplerCubeShadow " +
+        "sampler1DArray sampler2DArray sampler1DArrayShadow sampler2DArrayShadow " +
+        "isampler1D isampler2D isampler3D isamplerCube " +
+        "isampler1DArray isampler2DArray " +
+        "usampler1D usampler2D usampler3D usamplerCube " +
+        "usampler1DArray usampler2DArray " +
+        "sampler2DRect sampler2DRectShadow isampler2DRect usampler2DRect " +
+        "samplerBuffer isamplerBuffer usamplerBuffer " +
+        "sampler2DMS isampler2DMS usampler2DMS " +
+        "sampler2DMSArray isampler2DMSArray usampler2DMSArray " +
+        "samplerCubeArray samplerCubeArrayShadow isamplerCubeArray usamplerCubeArray " +
+        "image1D image2D image3D imageCube " +
+        "iimage1D iimage2D iimage3D iimageCube " +
+        "uimage1D uimage2D uimage3D uimageCube " +
+        "image1DArray image2DArray iimage1DArray iimage2DArray " +
+        "uimage1DArray uimage2DArray " +
+        "image2DRect iimage2DRect uimage2DRect " +
+        "imageBuffer iimageBuffer uimageBuffer " +
+        "image2DMS iimage2DMS uimage2DMS " +
+        "image2DMSArray iimage2DMSArray uimage2DMSArray " +
+        "imageCubeArray iimageCubeArray uimageCubeArray " +
+        "atomic_uint"
+      ),
+      builtin: words(
+        "gl_GlobalInvocationID gl_LocalInvocationID gl_LocalInvocationIndex " +
+        "gl_WorkGroupID gl_WorkGroupSize gl_NumWorkGroups " +
+        "gl_VertexID gl_InstanceID gl_Position gl_PointSize " +
+        "gl_FragCoord gl_FrontFacing gl_FragDepth gl_FragColor " +
+        "gl_ClipDistance gl_CullDistance gl_PrimitiveID " +
+        "gl_InvocationID gl_TessLevelOuter gl_TessLevelInner gl_TessCoord " +
+        "gl_SampleID gl_SamplePosition gl_SampleMask gl_SampleMaskIn " +
+        "gl_SubgroupSize gl_SubgroupInvocationID gl_SubgroupID gl_NumSubgroups " +
+        "radians degrees sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh " +
+        "pow exp log exp2 log2 sqrt inversesqrt " +
+        "abs sign floor ceil trunc round roundEven fract mod modf " +
+        "min max clamp mix step smoothstep isnan isinf " +
+        "floatBitsToInt floatBitsToUint intBitsToFloat uintBitsToFloat " +
+        "fma frexp ldexp " +
+        "packSnorm2x16 unpackSnorm2x16 packUnorm2x16 unpackUnorm2x16 " +
+        "packHalf2x16 unpackHalf2x16 packDouble2x32 unpackDouble2x32 " +
+        "length distance dot cross normalize faceforward reflect refract " +
+        "matrixCompMult outerProduct transpose determinant inverse " +
+        "lessThan lessThanEqual greaterThan greaterThanEqual equal notEqual any all not " +
+        "uaddCarry usubBorrow umulExtended imulExtended " +
+        "bitfieldExtract bitfieldInsert bitfieldReverse bitCount findLSB findMSB " +
+        "textureSize textureSamples textureQueryLod textureQueryLevels " +
+        "texture textureProj textureLod textureOffset texelFetch texelFetchOffset " +
+        "textureProjOffset textureLodOffset textureProjLod textureProjLodOffset " +
+        "textureGrad textureGradOffset textureProjGrad textureProjGradOffset " +
+        "textureGather textureGatherOffset textureGatherOffsets " +
+        "imageLoad imageStore imageSize imageAtomicAdd imageAtomicMin imageAtomicMax " +
+        "imageAtomicAnd imageAtomicOr imageAtomicXor imageAtomicExchange imageAtomicCompSwap " +
+        "atomicAdd atomicMin atomicMax atomicAnd atomicOr atomicXor " +
+        "atomicExchange atomicCompSwap atomicCounter atomicCounterIncrement atomicCounterDecrement " +
+        "EmitVertex EndPrimitive EmitStreamVertex EndStreamPrimitive " +
+        "dFdx dFdy dFdxFine dFdyFine dFdxCoarse dFdyCoarse fwidth fwidthFine fwidthCoarse " +
+        "subgroupElect subgroupBarrier subgroupMemoryBarrier " +
+        "subgroupBallot subgroupBroadcast subgroupBroadcastFirst " +
+        "subgroupShuffle subgroupShuffleXor subgroupShuffleUp subgroupShuffleDown " +
+        "subgroupAdd subgroupMul subgroupMin subgroupMax " +
+        "subgroupAnd subgroupOr subgroupXor " +
+        "subgroupInclusiveAdd subgroupInclusiveMul subgroupInclusiveMin subgroupInclusiveMax " +
+        "subgroupExclusiveAdd subgroupExclusiveMul subgroupExclusiveMin subgroupExclusiveMax"
+      ),
+      blockKeywords: words("case do else for if switch while struct"),
+      defKeywords: words("struct"),
+      atoms: words("true false"),
+      hooks: {
+        "#": function (stream) {
+          stream.skipToEnd();
+          return "meta";            /* preprocessor lines: #version, #define, etc. */
+        }
+      },
+      modeProps: { fold: ["brace"] }
+    });
+
+    /* ── Create editors ── */
+    window.cmCode = CodeMirror.fromTextArea(
+      document.getElementById("code"),
+      {
+        mode: "python",
+        theme: "material-darker",
+        lineNumbers: true,
+        indentUnit: 4,
+        tabSize: 4,
+        indentWithTabs: false,
+        extraKeys: {
+          Tab: function (cm) {
+            if (cm.somethingSelected()) {
+              cm.indentSelection("add");
+            } else {
+              cm.replaceSelection("    ", "end");
+            }
+          },
+          "Shift-Tab": function (cm) {
+            cm.indentSelection("subtract");
+          },
+        },
+      }
+    );
+
+    window.cmOutput = CodeMirror.fromTextArea(
+      document.getElementById("output"),
+      {
+        mode: "text/x-glsl",
+        theme: "material-darker",
+        lineNumbers: true,
+        readOnly: true,
+      }
+    );
+
+    /* ── Track current backend ── */
+    window.currentBackend = "glsl";
+
+    /* ── Backend toggle buttons ── */
+    var toggleContainer = document.getElementById("backend-toggle");
+    var toggleButtons = toggleContainer.querySelectorAll("button");
+
+    toggleButtons.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var backend = btn.getAttribute("data-backend");
+        if (backend === window.currentBackend) return;
+
+        window.currentBackend = backend;
+
+        toggleButtons.forEach(function (b) {
+          b.classList.remove("active");
+        });
+        btn.classList.add("active");
+
+        /* Switch output highlighting mode */
+        if (backend === "cuda") {
+          window.cmOutput.setOption("mode", "text/x-csrc");
+        } else {
+          window.cmOutput.setOption("mode", "text/x-glsl");
+        }
+
+        /* Trigger a run via the run button click */
+        document.getElementById("run-btn").click();
+      });
+    });
+
+    /* ── URL hash restore ── */
+    var deviceFields = [
+      { key: "ss",  id: "opt-subgroup-size" },
+      { key: "wsx", id: "opt-wg-size-x" },
+      { key: "wsy", id: "opt-wg-size-y" },
+      { key: "wsz", id: "opt-wg-size-z" },
+      { key: "wi",  id: "opt-wg-invocations" },
+      { key: "wcx", id: "opt-wg-count-x" },
+      { key: "wcy", id: "opt-wg-count-y" },
+      { key: "wcz", id: "opt-wg-count-z" },
+      { key: "sm",  id: "opt-shared-memory" },
+    ];
+    var toggleFields = [
+      { key: "pln", id: "opt-shader-line-numbers" },
+    ];
+
+    var hash = window.location.hash.slice(1);
+    var params = new URLSearchParams(hash);
+
+    if (params.has("code")) {
+      try {
+        var decoded = decodeURIComponent(
+          escape(atob(params.get("code")))
+        );
+        window.cmCode.setValue(decoded);
+      } catch (e) {
+        console.error("Failed to decode code from URL:", e);
+      }
+    }
+
+    /* Restore backend from URL */
+    if (params.has("be")) {
+      var be = params.get("be").toLowerCase();
+      if (be === "cuda") {
+        window.currentBackend = "cuda";
+        toggleButtons.forEach(function (b) {
+          b.classList.remove("active");
+          if (b.getAttribute("data-backend") === "cuda") {
+            b.classList.add("active");
+          }
+        });
+        window.cmOutput.setOption("mode", "text/x-csrc");
+      }
+    }
+
+    deviceFields.forEach(function (f) {
+      if (params.has(f.key)) {
+        document.getElementById(f.id).value = params.get(f.key);
+      }
+    });
+    toggleFields.forEach(function (f) {
+      if (params.has(f.key)) {
+        var raw = params.get(f.key).toLowerCase();
+        document.getElementById(f.id).checked =
+          raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+      }
+    });
+
+    /* ── clipboard helper ── */
+    function copyToClipboard(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+      }
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+      } catch (e) {
+        prompt("Copy this link:", text);
+      }
+      document.body.removeChild(ta);
+      return Promise.resolve();
+    }
+
+    /* ── toast helper ── */
+    var toastTimer = null;
+    function showToast(message) {
+      var toast = document.getElementById("toast");
+      if (!toast) return;
+      toast.textContent = message;
+      toast.classList.remove("show");
+      void toast.offsetWidth; /* restart transition for repeated clicks */
+      toast.classList.add("show");
+      if (toastTimer) {
+        clearTimeout(toastTimer);
+      }
+      toastTimer = setTimeout(function () {
+        toast.classList.remove("show");
+      }, 1600);
+    }
+
+    /* ── copy output button ── */
+    document
+      .getElementById("copy-output-btn")
+      .addEventListener("click", function () {
+        copyToClipboard(window.cmOutput.getValue()).then(function () {
+          showToast("Output copied to clipboard.");
+        });
+      });
+
+    /* ── share button ── */
+    function buildPlaygroundHash() {
+      var code = window.cmCode.getValue();
+      var encoded = btoa(unescape(encodeURIComponent(code)));
+
+      var hashParts = ["code=" + encoded];
+
+      /* Include backend in share/runtime URL */
+      hashParts.push("be=" + encodeURIComponent(window.currentBackend));
+
+      deviceFields.forEach(function (f) {
+        var val = document.getElementById(f.id).value.trim();
+        if (val !== "") {
+          hashParts.push(
+            encodeURIComponent(f.key) +
+              "=" +
+              encodeURIComponent(val)
+          );
+        }
+      });
+      toggleFields.forEach(function (f) {
+        var el = document.getElementById(f.id);
+        if (!el) return;
+        var checked = el.checked ? "1" : "0";
+        hashParts.push(
+          encodeURIComponent(f.key) +
+            "=" +
+            encodeURIComponent(checked)
+        );
+      });
+
+      return hashParts.join("&");
+    }
+
+    window.updatePlaygroundUrlState = function () {
+      var hash = buildPlaygroundHash();
+      var nextUrl =
+        window.location.pathname +
+        window.location.search +
+        "#" +
+        hash;
+
+      if (window.location.hash.slice(1) !== hash) {
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState(null, "", nextUrl);
+        } else {
+          window.location.hash = hash;
+        }
+      }
+
+      return hash;
+    };
+
+    document
+      .getElementById("share-btn")
+      .addEventListener("click", function () {
+        var hash = window.updatePlaygroundUrlState();
+
+        var url =
+          window.location.origin +
+          window.location.pathname +
+          window.location.search +
+          "#" +
+          hash;
+
+        copyToClipboard(url).then(function () {
+          showToast("Share link copied to clipboard.");
+        });
+      });
+
+    /* ── resizable split pane ── */
+    var split = document.getElementById("split");
+    var divider = document.getElementById("divider");
+    var paneL = document.getElementById("pane-left");
+    var paneR = document.getElementById("pane-right");
+    var dragging = false;
+
+    divider.addEventListener("mousedown", function (e) {
+      e.preventDefault();
+      dragging = true;
+      divider.classList.add("active");
+      document.body.classList.add("resizing");
+    });
+
+    window.addEventListener("mousemove", function (e) {
+      if (!dragging) return;
+      var rect = split.getBoundingClientRect();
+      var x = e.clientX - rect.left;
+      var divW = divider.offsetWidth;
+      var minPx = 80;
+      var maxPx = rect.width - divW - 80;
+      x = Math.max(minPx, Math.min(x, maxPx));
+      var leftPct = (x / rect.width) * 100;
+      var rightPct = ((rect.width - x - divW) / rect.width) * 100;
+      paneL.style.width = leftPct + "%";
+      paneR.style.width = rightPct + "%";
+      window.cmCode.refresh();
+      window.cmOutput.refresh();
+    });
+
+    window.addEventListener("mouseup", function () {
+      if (dragging) {
+        dragging = false;
+        divider.classList.remove("active");
+        document.body.classList.remove("resizing");
+        window.cmCode.refresh();
+        window.cmOutput.refresh();
+      }
+    });
+
+    /* ── help & options panels ── */
+    function toggle(panelId) {
+      var panel = document.getElementById(panelId);
+      var isVisible = panel.classList.contains("visible");
+      document.querySelectorAll(".overlay-panel").forEach(function (p) {
+        p.classList.remove("visible");
+      });
+      if (!isVisible) panel.classList.add("visible");
+    }
+
+    document
+      .getElementById("help-btn")
+      .addEventListener("click", function () {
+        toggle("help-panel");
+      });
+    document
+      .getElementById("help-close")
+      .addEventListener("click", function () {
+        document
+          .getElementById("help-panel")
+          .classList.remove("visible");
+      });
+    document
+      .getElementById("opts-btn")
+      .addEventListener("click", function () {
+        toggle("opts-panel");
+      });
+    document
+      .getElementById("opts-close")
+      .addEventListener("click", function () {
+        document
+          .getElementById("opts-panel")
+          .classList.remove("visible");
+      });
+  })();
+  </script>
+
+  <script type="text/python">
+from browser import document, window
+import sys
+import traceback
+
+import vkdispatch as vd
+import vkdispatch.base.context as vd_context
+import vkdispatch.base.init as vd_init
+import vkdispatch.execution_pipeline.command_graph as vd_command_graph
+import vkdispatch.fft.shader_factories as vd_fft_shader_factories
+import vkdispatch.codegen as vc
+
+vd.initialize(backend="dummy")
+
+class OutputBuffer:
+    def __init__(self):
+        self._parts = []
+
+    def write(self, value):
+        if value is None:
+            return
+        self._parts.append(str(value))
+
+    def flush(self):
+        pass
+
+    def get_text(self):
+        return "".join(self._parts)
+
+
+def _parse_positive_int(element_id, field_name):
+    raw = document[element_id].value.strip()
+
+    if raw == "":
+        raise ValueError(f"{field_name} cannot be empty.")
+
+    try:
+        parsed = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be an integer.") from exc
+
+    if parsed <= 0:
+        raise ValueError(f"{field_name} must be greater than zero.")
+
+    return parsed
+
+
+def _read_device_options():
+    return {
+        "subgroup_size": _parse_positive_int("opt-subgroup-size", "Subgroup Size"),
+        "max_workgroup_size": (
+            _parse_positive_int("opt-wg-size-x", "Max Workgroup Size X"),
+            _parse_positive_int("opt-wg-size-y", "Max Workgroup Size Y"),
+            _parse_positive_int("opt-wg-size-z", "Max Workgroup Size Z"),
+        ),
+        "max_workgroup_invocations": _parse_positive_int(
+            "opt-wg-invocations",
+            "Max Workgroup Invocations",
+        ),
+        "max_workgroup_count": (
+            _parse_positive_int("opt-wg-count-x", "Max Workgroup Count X"),
+            _parse_positive_int("opt-wg-count-y", "Max Workgroup Count Y"),
+            _parse_positive_int("opt-wg-count-z", "Max Workgroup Count Z"),
+        ),
+        "max_compute_shared_memory_size": _parse_positive_int(
+            "opt-shared-memory",
+            "Max Shared Memory (bytes)",
+        ),
+    }
+
+
+def _reset_vkdispatch_runtime():
+    context = getattr(vd_context, "__context", None)
+    #if context is not None:
+    #    vd_context.destroy_context()
+
+    vd_init.__initilized_instance = False
+    vd_init.__device_infos = None
+
+    state = vd_command_graph._global_graph
+    for attr_name in ("custom_graph", "default_graph"):
+        if hasattr(state, attr_name):
+            delattr(state, attr_name)
+
+
+def run_code(event):
+    code = window.cmCode.getValue()
+    window.cmOutput.setValue("")
+
+    if event is not None and hasattr(window, "updatePlaygroundUrlState"):
+        window.updatePlaygroundUrlState()
+
+    stdout_buffer = OutputBuffer()
+    stderr_buffer = OutputBuffer()
+
+    old_stdout, old_stderr = sys.stdout, sys.stderr
+    sys.stdout, sys.stderr = stdout_buffer, stderr_buffer
+    namespace = {"__name__": "__main__"}
+
+    try:
+        options = _read_device_options()
+        _reset_vkdispatch_runtime()
+
+        vd.initialize(backend="dummy")
+        vd.get_context()
+        vd.set_dummy_context_params(
+            subgroup_size=options["subgroup_size"],
+            max_workgroup_size=options["max_workgroup_size"],
+            max_workgroup_invocations=options["max_workgroup_invocations"],
+            max_workgroup_count=options["max_workgroup_count"],
+            max_shared_memory=options["max_compute_shared_memory_size"],
+        )
+
+        # Set codegen backend based on toggle state
+        backend = str(window.currentBackend)
+        vc.set_codegen_backend(backend)
+        vd_fft_shader_factories.cache_clear()
+
+        exec(code, namespace)
+    except Exception:
+        traceback.print_exc()
+    finally:
+        sys.stdout, sys.stderr = old_stdout, old_stderr
+        window.cmOutput.setValue(stdout_buffer.get_text() + stderr_buffer.get_text())
+
+
+document["run-btn"].bind("click", run_code)
+
+# Auto-run once when the Brython runtime is ready.
+run_code(None)
+  </script>
+</body>
+</html>

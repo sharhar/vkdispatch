@@ -60,6 +60,11 @@ struct PhysicalDeviceDetails {
 
     unsigned int queue_family_count;
     struct QueueFamilyProperties* queue_family_properties;
+
+    int scalar_block_layout;
+    int timeline_semaphores;
+
+    unsigned char* uuid;
 };
 
 void init_extern(bool debug, LogLevel log_level);
@@ -70,7 +75,9 @@ void log_extern(LogLevel log_level, const char* text, const char* file_str, int 
 void set_log_level_extern(LogLevel log_level);
 
 struct Context* context_create_extern(int* device_indicies, int* queue_counts, int* queue_families, int device_count);
-void context_queue_wait_idle_extern(struct Context* context, int queue_index);
+bool signal_wait_extern(void* signal_ptr, bool wait_for_timestamp, int queue_index);
+void* signal_insert_extern(struct Context* context, int queue_index);
+void signal_destroy_extern(void* signal_ptr);
 void context_destroy_extern(struct Context* context);
 
 void context_stop_threads_extern(struct Context* context);

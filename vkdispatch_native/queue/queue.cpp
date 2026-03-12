@@ -79,6 +79,7 @@ Queue::Queue(
     this->run_queue.store(true);
 
     if(this->recording_thread_count > 1) {
+        LOG_INFO("Starting ingest, %d record, and submit threads for queue %d", recording_thread_count, this->queue_index);
         submit_thread = std::thread([this]() { this->submit_worker(); });
         
         record_threads = new std::thread[recording_thread_count];
@@ -88,6 +89,7 @@ Queue::Queue(
         
         ingest_thread = std::thread([this]() { this->ingest_worker(); });
     } else {
+        LOG_INFO("Starting fused worker thread for queue %d", this->queue_index);
         submit_thread = std::thread([this]() { this->fused_worker(); });
     }
 }
@@ -138,32 +140,41 @@ void Queue::destroy() {
     recording_results.clear();
 }
 
-void Queue::wait_for_timestamp(uint64_t timestamp) {
+bool Queue::try_wait_for_timestamp(uint64_t timestamp) {
     uint64_t last_completed = 0;
-    VK_CALL(vkGetSemaphoreCounterValue(device, timeline_semaphore, &last_completed));
+    VK_CALL_RETURN(vkGetSemaphoreCounterValue(device, timeline_semaphore, &last_completed), true);
     if (last_completed >= timestamp) {
-        return;
+        return true;
     }
 
-    while(last_completed < timestamp) {
-        VkSemaphoreWaitInfo wi = {};
-        wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-        wi.semaphoreCount = 1;
-        wi.pSemaphores = &timeline_semaphore;
-        wi.pValues     = &timestamp;
-        VkResult result = vkWaitSemaphores(device, &wi, 1000000000);
-        if (result != VK_TIMEOUT) {
-            if(result != VK_SUCCESS) {
-                set_error("Failed to wait for semaphore: %d", result);
-            }
-            return;
-        }
+    LOG_INFO("Last completed timestamp: %llu, waiting for timestamp: %llu on queue %d", last_completed, timestamp, this->queue_index);
+
+    VkSemaphoreWaitInfo wi = {};
+    wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+    wi.semaphoreCount = 1;
+    wi.pSemaphores = &timeline_semaphore;
+    wi.pValues     = &timestamp;
+    VkResult result = vkWaitSemaphores(device, &wi, 1000000000);
+
+    if (result == VK_TIMEOUT) {
+        LOG_INFO("Timeout while waiting for semaphore %d on queue %d", timestamp, this->queue_index);
+        return false;
+    }
+
+    if(result != VK_SUCCESS) {
+        set_error("Failed to wait for semaphore: %d", result);
+    }
+
+    return true;
+}
+
+void Queue::wait_for_timestamp(uint64_t timestamp) {
+    while(!try_wait_for_timestamp(timestamp)) {
+        LOG_VERBOSE("Timeout while waiting for timestamp %llu on queue %d, (running=%d) checking again...", timestamp, this->queue_index, this->run_queue.load());
 
         if(!this->run_queue.load()) {
             return;
         }
-
-        VK_CALL(vkGetSemaphoreCounterValue(device, timeline_semaphore, &last_completed));
     }
 }
 
@@ -177,11 +188,12 @@ void ingest_work_item(
     LOG_VERBOSE("Ingesting work item for queue %d, current index %llu", queue->queue_index, current_index);
 
     if (current_index + 1 > queue->inflight_cmd_buffer_count) {
+        LOG_VERBOSE("Waiting for timestamp %llu on queue %d", current_index + 1 - queue->inflight_cmd_buffer_count, queue->queue_index);
         queue->wait_for_timestamp(current_index + 1 - queue->inflight_cmd_buffer_count);
     }
         
     if(!work_queue->pop(&work_header, queue->queue_index)) {
-        LOG_INFO("Thread worker for device %d, queue %d has no more work", queue->device_index, queue->queue_index);
+        LOG_VERBOSE("Thread worker for device %d, queue %d has no more work", queue->device_index, queue->queue_index);
         queue->run_queue.store(false);
         return;
     }
@@ -222,7 +234,7 @@ void Queue::ingest_worker() {
         }
     }
 
-    LOG_INFO("Thread worker for device %d, queue %d has quit", device_index, queue_index);
+    LOG_VERBOSE("Thread worker for device %d, queue %d has quit", device_index, queue_index);
 }
 
 int record_work_item(
@@ -253,7 +265,7 @@ int record_work_item(
     exec_indices.queue_index = queue->queue_index;
     exec_indices.recorder_index = worker_id;
 
-    LOG_INFO("Recording work item %p on queue %d, worker %d, instance count %d", work_item.work_header, queue->queue_index, worker_id, work_item.work_header->instance_count);
+    LOG_VERBOSE("Recording work item %p on queue %d, worker %d, instance count %d", work_item.work_header, queue->queue_index, worker_id, work_item.work_header->instance_count);
 
     char* current_instance_data = (char*)&work_item.work_header[1];
     for(size_t instance = 0; instance < work_item.work_header->instance_count; instance++) {
@@ -273,7 +285,7 @@ int record_work_item(
 
     queue->ctx->work_queue->finish(work_item.work_header);
 
-    LOG_INFO("Finished recording work item %p on queue %d, worker %d, instance count %d", work_item.work_header, queue->queue_index, worker_id, work_item.work_header->instance_count);
+    LOG_VERBOSE("Finished recording work item %p on queue %d, worker %d, instance count %d", work_item.work_header, queue->queue_index, worker_id, work_item.work_header->instance_count);
 
     return cmd_buffer_index;
 }
@@ -393,7 +405,7 @@ void submit_work_item(
     submit_info.signalSemaphoreCount = 1;
     submit_info.pSignalSemaphores    = &queue->timeline_semaphore;
 
-    LOG_INFO("Submitting command buffer %p with signal value %llu to queue %d", work_item.recording_result->commandBuffer, signalValue, queue->queue_index);
+    LOG_INFO("Submitting command buffer %p with signal value %llu to queue %d with name '%s'", work_item.recording_result->commandBuffer, signalValue, queue->queue_index, work_item.work_header->name);
 
     VK_CALL(vkQueueSubmit(queue->queue, 1, &submit_info, VK_NULL_HANDLE));
 

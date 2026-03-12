@@ -80,7 +80,7 @@ struct Buffer* buffer_create_extern(struct Context* ctx, unsigned long long size
             ctx->handle_manager->set_handle(indicies.queue_index, staging_allocations_handle, (uint64_t)h_staging_allocation);
 
             Signal* signal = (Signal*)ctx->handle_manager->get_handle(indicies.queue_index, signals_pointers_handle, 0);
-            signal->notify();
+            signal->notify(indicies.queue_index, timestamp);
     });
 
     return buffer;
@@ -96,7 +96,7 @@ void buffer_destroy_extern(struct Buffer* buffer) {
         Signal* signal = (Signal*)ctx->handle_manager->get_handle(queue_index, signals_pointers_handle, 0);
 
         // wait for the recording thread to finish
-        signal->wait();
+        //signal->wait();
 
         ctx->handle_manager->destroy_handle(queue_index, buffer->signals_pointers_handle);
 
@@ -136,26 +136,72 @@ void buffer_destroy_extern(struct Buffer* buffer) {
     delete buffer;
 }
 
-void write_to_buffer(Context* ctx, struct Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int queue_index) {
-    int device_index = ctx->queues[queue_index]->device_index;
+void* buffer_get_queue_signal_extern(struct Buffer* buffer, int queue_index) {
+    struct Context* ctx = buffer->ctx;
 
     uint64_t signals_pointers_handle = buffer->signals_pointers_handle;
     Signal* signal = (Signal*)ctx->handle_manager->get_handle(queue_index, signals_pointers_handle, 0);
 
-    // wait for the recording thread to finish
-    signal->wait();
-    signal->reset();
+    return (void*)signal;
+}
 
-    // wait for the staging buffer to be ready
+bool buffer_wait_staging_idle_extern(struct Buffer* buffer, int queue_index) {
+    struct Context* ctx = buffer->ctx;
+
     uint64_t staging_buffer_timestamp = ctx->handle_manager->get_handle_timestamp(queue_index, buffer->staging_buffers_handle);
-    ctx->queues[queue_index]->wait_for_timestamp(staging_buffer_timestamp);
+    return ctx->queues[queue_index]->try_wait_for_timestamp(staging_buffer_timestamp);
+}
+
+void buffer_write_staging_extern(struct Buffer* buffer, int queue_index, void* data, unsigned long long size) {
+    struct Context* ctx = buffer->ctx;
+    int device_index = ctx->queues[queue_index]->device_index;
 
     VmaAllocation staging_allocation = (VmaAllocation)ctx->handle_manager->get_handle(queue_index, buffer->staging_allocations_handle, 0);
 
     void* mapped;
     VK_CALL(vmaMapMemory(ctx->allocators[device_index], staging_allocation, &mapped));
     memcpy(mapped, data, size);
+    VK_CALL(vmaFlushAllocation(ctx->allocators[device_index], staging_allocation, 0, size));
     vmaUnmapMemory(ctx->allocators[device_index], staging_allocation);
+}
+
+void buffer_read_staging_extern(struct Buffer* buffer, int queue_index, void* data, unsigned long long size) {
+    struct Context* ctx = buffer->ctx;
+    int device_index = ctx->queues[queue_index]->device_index;
+
+    VmaAllocation staging_allocation = (VmaAllocation)ctx->handle_manager->get_handle(queue_index, buffer->staging_allocations_handle, 0);
+    
+    void* mapped;
+    VK_CALL(vmaMapMemory(ctx->allocators[device_index], staging_allocation, &mapped));
+    VK_CALL(vmaInvalidateAllocation(ctx->allocators[device_index], staging_allocation, 0, size));
+    memcpy(data, mapped, size);
+    vmaUnmapMemory(ctx->allocators[device_index], staging_allocation);
+}
+
+void buffer_write_extern(struct Buffer* buffer, unsigned long long offset, unsigned long long size, int queue_index) {
+    LOG_INFO("Writing data to buffer (%p) at offset %d with size %d", buffer, offset, size);
+
+    struct Context* ctx = buffer->ctx;
+
+    int device_index = ctx->queues[queue_index]->device_index;
+
+    uint64_t signals_pointers_handle = buffer->signals_pointers_handle;
+    Signal* signal = (Signal*)ctx->handle_manager->get_handle(queue_index, signals_pointers_handle, 0);
+
+    // wait for the recording thread to finish
+    //signal->wait();
+    signal->reset();
+
+    // wait for the staging buffer to be ready
+    // uint64_t staging_buffer_timestamp = ctx->handle_manager->get_handle_timestamp(queue_index, buffer->staging_buffers_handle);
+    // ctx->queues[queue_index]->wait_for_timestamp(staging_buffer_timestamp);
+
+    // VmaAllocation staging_allocation = (VmaAllocation)ctx->handle_manager->get_handle(queue_index, buffer->staging_allocations_handle, 0);
+
+    // void* mapped;
+    // VK_CALL(vmaMapMemory(ctx->allocators[device_index], staging_allocation, &mapped));
+    // memcpy(mapped, data, size);
+    // vmaUnmapMemory(ctx->allocators[device_index], staging_allocation);
 
     uint64_t buffers_handle = buffer->buffers_handle;
     uint64_t staging_buffers_handle = buffer->staging_buffers_handle;
@@ -187,28 +233,28 @@ void write_to_buffer(Context* ctx, struct Buffer* buffer, void* data, unsigned l
 
             vkCmdCopyBuffer(cmd_buffer, stagingBuffer, buffer, 1, &bufferCopy);
 
+            VkMemoryBarrier compute_barrier = {
+                VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                0,
+                VK_ACCESS_TRANSFER_WRITE_BIT,
+                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_UNIFORM_READ_BIT,
+            };
+            
+            vkCmdPipelineBarrier(
+                cmd_buffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                0,
+                1, &compute_barrier, 0, NULL, 0, NULL
+            );
+
             Signal* signal = (Signal*)ctx->handle_manager->get_handle(indicies.queue_index, signals_pointers_handle, 0);
-            signal->notify();
+            signal->notify(indicies.queue_index, timestamp);
         }
     );
 }
 
-void buffer_write_extern(struct Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int index) {
-    LOG_INFO("Writing data to buffer (%p) at offset %d with size %d", buffer, offset, size);
-
-    struct Context* ctx = buffer->ctx;
-
-    if(index != -1) {
-        write_to_buffer(ctx, buffer, data, offset, size, index);
-        return;
-    }
-
-    for(int i = 0; i < ctx->queues.size(); i++) {
-        write_to_buffer(ctx, buffer, data, offset, size, i);
-    }
-}
-
-void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long offset, unsigned long long size, int queue_index) {
+void buffer_read_extern(struct Buffer* buffer, unsigned long long offset, unsigned long long size, int queue_index) {
     LOG_INFO("Reading data from buffer (%p) at offset %d with size %d", buffer, offset, size);
 
     struct Context* ctx = buffer->ctx;
@@ -217,7 +263,7 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
     Signal* signal = (Signal*)ctx->handle_manager->get_handle(queue_index, signals_pointers_handle, 0);
 
     // wait for the recording thread to finish
-    signal->wait();
+    //signal->wait();
     signal->reset();
 
     uint64_t buffers_handle = buffer->buffers_handle;
@@ -229,6 +275,21 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
             VkBuffer stagingBuffer = (VkBuffer)ctx->handle_manager->get_handle(indicies.queue_index, staging_buffers_handle, timestamp);
             VkBuffer buffer = (VkBuffer)ctx->handle_manager->get_handle(indicies.queue_index, buffers_handle, timestamp);
 
+            VkMemoryBarrier compute_barrier = {
+                VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                0,
+                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_UNIFORM_READ_BIT,
+                VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT,
+            };
+            
+            vkCmdPipelineBarrier(
+                cmd_buffer,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                0,
+                1, &compute_barrier, 0, NULL, 0, NULL
+            );
+
             VkBufferCopy bufferCopy;
             bufferCopy.size = size;
             bufferCopy.dstOffset = 0;
@@ -239,7 +300,7 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
             VkMemoryBarrier barrier = {
                 VK_STRUCTURE_TYPE_MEMORY_BARRIER,
                 0,
-                VK_ACCESS_TRANSFER_WRITE_BIT,
+                VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT,
                 VK_ACCESS_HOST_READ_BIT,
             };
             vkCmdPipelineBarrier(
@@ -251,23 +312,23 @@ void buffer_read_extern(struct Buffer* buffer, void* data, unsigned long long of
             );
 
             Signal* signal = (Signal*)ctx->handle_manager->get_handle(indicies.queue_index, signals_pointers_handle, 0);
-            signal->notify();
+            signal->notify(indicies.queue_index, timestamp);
         }
     );
 
     // wait for the recording thread to finish again
-    signal->wait();
+    // signal->wait();
 
-    // wait for the staging buffer to be ready
-    uint64_t staging_buffer_timestamp = ctx->handle_manager->get_handle_timestamp(queue_index, buffer->staging_buffers_handle);
-    ctx->queues[queue_index]->wait_for_timestamp(staging_buffer_timestamp);
+    // // wait for the staging buffer to be ready
+    // uint64_t staging_buffer_timestamp = ctx->handle_manager->get_handle_timestamp(queue_index, buffer->staging_buffers_handle);
+    // ctx->queues[queue_index]->wait_for_timestamp(staging_buffer_timestamp);
     
-    int device_index = ctx->queues[queue_index]->device_index;
+    // int device_index = ctx->queues[queue_index]->device_index;
 
-    VmaAllocation staging_allocation = (VmaAllocation)ctx->handle_manager->get_handle(queue_index, buffer->staging_allocations_handle, 0);
+    // VmaAllocation staging_allocation = (VmaAllocation)ctx->handle_manager->get_handle(queue_index, buffer->staging_allocations_handle, 0);
     
-    void* mapped;
-    VK_CALL(vmaMapMemory(ctx->allocators[device_index], staging_allocation, &mapped));
-    memcpy(data, mapped, size);
-    vmaUnmapMemory(ctx->allocators[device_index], staging_allocation);
+    // void* mapped;
+    // VK_CALL(vmaMapMemory(ctx->allocators[device_index], staging_allocation, &mapped));
+    // memcpy(data, mapped, size);
+    // vmaUnmapMemory(ctx->allocators[device_index], staging_allocation);
 }

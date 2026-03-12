@@ -1,381 +1,90 @@
-import vkdispatch as vd
+import threading
+import vkdispatch.base.dtype as dtypes
+from .shader_writer import set_shader_writer
+from .backends import CodeGenBackend, GLSLBackend, CUDABackend, OpenCLBackend
+from vkdispatch.base.init import is_cuda, is_opencl
+from typing import Optional, TYPE_CHECKING, Union
 
-from .builder import ShaderBuilder, ShaderVariable
+if TYPE_CHECKING:
+    from .builder import ShaderBuilder
 
-import contextlib
+_builder_context = threading.local()
+_shader_print_line_numbers = threading.local()
+_codegen_backend = threading.local()
 
-from typing import List, Union, Optional
+def _make_runtime_default_codegen_backend() -> CodeGenBackend:
+    if is_cuda():
+        return CUDABackend()
 
-inf_f32 = "uintBitsToFloat(0x7F800000)"
-ninf_f32 = "uintBitsToFloat(0xFF800000)"
+    if is_opencl():
+        return OpenCLBackend()
 
-class GlobalBuilder:
-    obj = ShaderBuilder()
+    return GLSLBackend()
 
-def set_global_builder(builder: ShaderBuilder):
-    old_value = GlobalBuilder.obj
-    GlobalBuilder.obj = builder  # Update the global reference.
-    return old_value
+def get_shader_print_line_numbers() -> bool:
+    return getattr(_shader_print_line_numbers, 'value', False)
 
-@contextlib.contextmanager
-def builder_context(
-    enable_subgroup_ops: bool = True,
-    enable_atomic_float_ops: bool = True,
-    enable_printf: bool = True,
-    enable_exec_bounds: bool = True):
+def set_shader_print_line_numbers(value: bool):
+    _shader_print_line_numbers.value = value
 
-    builder = ShaderBuilder(
-        enable_atomic_float_ops=enable_atomic_float_ops,
-        enable_subgroup_ops=enable_subgroup_ops,
-        enable_printf=enable_printf,
-        enable_exec_bounds=enable_exec_bounds,
-        is_apple_device=vd.get_context().is_apple()
-    )
-    old_builder = set_global_builder(builder)
+def _get_builder() -> Optional['ShaderBuilder']:
+    return getattr(_builder_context, 'active_builder', None)
 
-    try:
-        yield builder
-    finally:
-        set_global_builder(old_builder)
+def _get_codegen_backend() -> Optional[CodeGenBackend]:
+    return getattr(_codegen_backend, 'active_backend', None)
 
-def comment(text: str):
-    GlobalBuilder.obj.comment(text)
+def set_codegen_backend(backend: Optional[Union[CodeGenBackend, str]]):
+    if backend is None:
+        _codegen_backend.active_backend = None
+        return
 
-def global_invocation():
-    return GlobalBuilder.obj.global_invocation
+    if isinstance(backend, str):
+        backend_name = backend.lower()
 
-def local_invocation():
-    return GlobalBuilder.obj.local_invocation
+        if backend_name == "glsl":
+            _codegen_backend.active_backend = GLSLBackend()
+            return
 
-def workgroup():
-    return GlobalBuilder.obj.workgroup
+        if backend_name == "cuda":
+            _codegen_backend.active_backend = CUDABackend()
+            return
 
-def workgroup_size():
-    return GlobalBuilder.obj.workgroup_size
+        if backend_name == "opencl":
+            _codegen_backend.active_backend = OpenCLBackend()
+            return
 
-def num_workgroups():
-    return GlobalBuilder.obj.num_workgroups
+        raise ValueError(f"Unknown codegen backend '{backend}'")
 
-def num_subgroups():
-    return GlobalBuilder.obj.num_subgroups
+    _codegen_backend.active_backend = backend
 
-def subgroup_id():
-    return GlobalBuilder.obj.subgroup_id
+def get_codegen_backend() -> CodeGenBackend:
+    builder = _get_builder()
 
-def subgroup_size():
-    return GlobalBuilder.obj.subgroup_size
+    if builder is not None:
+        return builder.backend
 
-def subgroup_invocation():
-    return GlobalBuilder.obj.subgroup_invocation
+    backend = _get_codegen_backend()
 
-def set_mapping_index(index: ShaderVariable):
-    GlobalBuilder.obj.set_mapping_index(index)
+    if backend is None:
+        backend = _make_runtime_default_codegen_backend()
+        _codegen_backend.active_backend = backend
 
-def set_kernel_index(index: ShaderVariable):
-    GlobalBuilder.obj.set_kernel_index(index)
+    return backend
 
-def set_mapping_registers(registers: ShaderVariable):
-    GlobalBuilder.obj.set_mapping_registers(registers)
+def set_builder(builder: 'ShaderBuilder'):
+    if builder is None:
+        _builder_context.active_builder = None
+        set_shader_writer(None)
+        return
 
-def mapping_index():
-    return GlobalBuilder.obj.mapping_index
+    assert _get_builder() is None, "A global ShaderBuilder is already set for the current thread!"
+    set_shader_writer(builder)
+    _builder_context.active_builder = builder
 
-def kernel_index():
-    return GlobalBuilder.obj.kernel_index
+def get_builder() -> 'ShaderBuilder':
+    builder = _get_builder()
+    assert builder is not None, "No global ShaderBuilder is set for the current thread!"
+    return builder
 
-def mapping_registers():
-    return GlobalBuilder.obj.mapping_registers
-
-def shared_buffer(var_type: vd.dtype, size: int, var_name: Optional[str] = None):
-    return GlobalBuilder.obj.shared_buffer(var_type, size, var_name)
-
-def abs(arg: ShaderVariable):
-    return GlobalBuilder.obj.abs(arg)
-
-def acos(arg: ShaderVariable):
-    return GlobalBuilder.obj.acos(arg)
-
-def acosh(arg: ShaderVariable):
-    return GlobalBuilder.obj.acosh(arg)
-
-def asin(arg: ShaderVariable):
-    return GlobalBuilder.obj.asin(arg)
-
-def asinh(arg: ShaderVariable):
-    return GlobalBuilder.obj.asinh(arg)
-
-def atan(arg: ShaderVariable):
-    return GlobalBuilder.obj.atan(arg)
-
-def atan2(arg1: ShaderVariable, arg2: ShaderVariable):
-    return GlobalBuilder.obj.atan2(arg1, arg2)
-
-def atanh(arg: ShaderVariable):
-    return GlobalBuilder.obj.atanh(arg)
-
-def atomic_add(arg1: ShaderVariable, arg2: ShaderVariable):
-    return GlobalBuilder.obj.atomic_add(arg1, arg2)
-
-def barrier():
-    GlobalBuilder.obj.barrier()
-
-def ceil(arg: ShaderVariable):
-    return GlobalBuilder.obj.ceil(arg)
-
-def clamp(arg: ShaderVariable, min_val: ShaderVariable, max_val: ShaderVariable):
-    return GlobalBuilder.obj.clamp(arg, min_val, max_val)
-
-def cos(arg: ShaderVariable):
-    return GlobalBuilder.obj.cos(arg)
-
-def cosh(arg: ShaderVariable):
-    return GlobalBuilder.obj.cosh(arg)
-
-def cross(arg1: ShaderVariable, arg2: ShaderVariable):
-    return GlobalBuilder.obj.cross(arg1, arg2)
-
-def degrees(arg: ShaderVariable):
-    return GlobalBuilder.obj.degrees(arg)
-
-def determinant(arg: ShaderVariable):
-    return GlobalBuilder.obj.determinant(arg)
-
-def distance(arg1: ShaderVariable, arg2: ShaderVariable):
-    return GlobalBuilder.obj.distance(arg1, arg2)
-
-def dot(arg1: ShaderVariable, arg2: ShaderVariable):
-    return GlobalBuilder.obj.dot(arg1, arg2)
-
-def exp(arg: ShaderVariable):
-    return GlobalBuilder.obj.exp(arg)
-
-def exp2(arg: ShaderVariable):
-    return GlobalBuilder.obj.exp2(arg)
-
-def float_bits_to_int(arg: ShaderVariable):
-    return GlobalBuilder.obj.float_bits_to_int(arg)
-
-def float_bits_to_uint(arg: ShaderVariable):
-    return GlobalBuilder.obj.float_bits_to_uint(arg)
-
-def floor(arg: ShaderVariable):
-    return GlobalBuilder.obj.floor(arg)
-
-def fma(arg1: ShaderVariable, arg2: ShaderVariable, arg3: ShaderVariable):
-    return GlobalBuilder.obj.fma(arg1, arg2, arg3)
-
-def int_bits_to_float(arg: ShaderVariable):
-    return GlobalBuilder.obj.int_bits_to_float(arg)
-
-def inverse(arg: ShaderVariable):
-    return GlobalBuilder.obj.inverse(arg)
-
-def inverse_sqrt(arg: ShaderVariable):
-    return GlobalBuilder.obj.inverse_sqrt(arg)
-
-def isinf(arg: ShaderVariable):
-    return GlobalBuilder.obj.isinf(arg)
-
-def isnan(arg: ShaderVariable):
-    return GlobalBuilder.obj.isnan(arg)
-
-def length(arg: ShaderVariable):
-    return GlobalBuilder.obj.length(arg)
-
-def log(arg: ShaderVariable):
-    return GlobalBuilder.obj.log(arg)
-
-def log2(arg: ShaderVariable):
-    return GlobalBuilder.obj.log2(arg)
-
-def max(arg1: ShaderVariable, arg2: ShaderVariable):
-    return GlobalBuilder.obj.max(arg1, arg2)
-
-def memory_barrier():
-    GlobalBuilder.obj.memory_barrier()
-
-def memory_barrier_shared():
-    GlobalBuilder.obj.memory_barrier_shared()
-
-def min(arg1: ShaderVariable, arg2: ShaderVariable):
-    return GlobalBuilder.obj.min(arg1, arg2)
-
-def mix(arg1: ShaderVariable, arg2: ShaderVariable, arg3: ShaderVariable):
-    return GlobalBuilder.obj.mix(arg1, arg2, arg3)
-
-def mod(arg1: ShaderVariable, arg2: ShaderVariable):
-    return GlobalBuilder.obj.mod(arg1, arg2)
-
-def normalize(arg: ShaderVariable):
-    return GlobalBuilder.obj.normalize(arg)
-
-def pow(arg1: ShaderVariable, arg2: ShaderVariable):
-    return GlobalBuilder.obj.pow(arg1, arg2)
-
-def radians(arg: ShaderVariable):
-    return GlobalBuilder.obj.radians(arg)
-
-def round(arg: ShaderVariable):
-    return GlobalBuilder.obj.round(arg)
-
-def round_even(arg: ShaderVariable):
-    return GlobalBuilder.obj.round_even(arg)
-
-def sign(arg: ShaderVariable):
-    return GlobalBuilder.obj.sign(arg)
-
-def sin(arg: ShaderVariable):
-    return GlobalBuilder.obj.sin(arg)
-
-def sinh(arg: ShaderVariable):
-    return GlobalBuilder.obj.sinh(arg)
-
-def smoothstep(arg1: ShaderVariable, arg2: ShaderVariable, arg3: ShaderVariable):
-    return GlobalBuilder.obj.smoothstep(arg1, arg2, arg3)
-
-def sqrt(arg: ShaderVariable):
-    return GlobalBuilder.obj.sqrt(arg)
-
-def step(arg1: ShaderVariable, arg2: ShaderVariable):
-    return GlobalBuilder.obj.step(arg1, arg2)
-
-def tan(arg: ShaderVariable):
-    return GlobalBuilder.obj.tan(arg)
-
-def tanh(arg: ShaderVariable):
-    return GlobalBuilder.obj.tanh(arg)
-
-def transpose(arg: ShaderVariable):
-    return GlobalBuilder.obj.transpose(arg)
-
-def trunc(arg: ShaderVariable):
-    return GlobalBuilder.obj.trunc(arg)
-
-def uint_bits_to_float(arg: ShaderVariable):
-    return GlobalBuilder.obj.uint_bits_to_float(arg)
-
-def mult_c64(arg1: ShaderVariable, arg2: ShaderVariable):
-    return GlobalBuilder.obj.mult_c64(arg1, arg2)
-
-def mult_c64_by_const(arg1: ShaderVariable, number: complex):
-    return GlobalBuilder.obj.mult_c64_by_const(arg1, number)
-
-def mult_conj_c64(arg1: ShaderVariable, arg2: ShaderVariable):
-    return GlobalBuilder.obj.mult_conj_c64(arg1, arg2)
-
-def if_statement(arg: ShaderVariable, command: Optional[str] = None):
-    GlobalBuilder.obj.if_statement(arg, command=command)
-
-def if_any(*args: List[ShaderVariable]):
-    GlobalBuilder.obj.if_any(*args)
-
-def if_all(*args: List[ShaderVariable]):
-    GlobalBuilder.obj.if_all(*args)
-
-def else_statement():
-    GlobalBuilder.obj.else_statement()
-
-def else_if_statement(arg: ShaderVariable):
-    GlobalBuilder.obj.else_if_statement(arg)
-
-def else_if_any(*args: List[ShaderVariable]):
-    GlobalBuilder.obj.else_if_any(*args)
-
-def else_if_all(*args: List[ShaderVariable]):
-    GlobalBuilder.obj.else_if_all(*args)
-
-def return_statement(arg=None):
-    GlobalBuilder.obj.return_statement(arg)
-
-def while_statement(arg: ShaderVariable):
-    GlobalBuilder.obj.while_statement(arg)
-
-def new_scope():
-    GlobalBuilder.obj.new_scope()
-
-def end():
-    GlobalBuilder.obj.end()
-
-def logical_and(arg1: ShaderVariable, arg2: ShaderVariable):
-    return GlobalBuilder.obj.logical_and(arg1, arg2)
-
-def logical_or(arg1: ShaderVariable, arg2: ShaderVariable):
-    return GlobalBuilder.obj.logical_or(arg1, arg2)
-
-def subgroup_add(arg1: ShaderVariable):
-    return GlobalBuilder.obj.subgroup_add(arg1)
-
-def subgroup_mul(arg1: ShaderVariable):
-    return GlobalBuilder.obj.subgroup_mul(arg1)
-
-def subgroup_min(arg1: ShaderVariable):
-    return GlobalBuilder.obj.subgroup_min(arg1)
-
-def subgroup_max(arg1: ShaderVariable):
-    return GlobalBuilder.obj.subgroup_max(arg1)
-
-def subgroup_and(arg1: ShaderVariable):
-    return GlobalBuilder.obj.subgroup_and(arg1)
-
-def subgroup_or(arg1: ShaderVariable):
-    return GlobalBuilder.obj.subgroup_or(arg1)
-
-def subgroup_xor(arg1: ShaderVariable):
-    return GlobalBuilder.obj.subgroup_xor(arg1)
-
-def subgroup_elect():
-    return GlobalBuilder.obj.subgroup_elect()
-
-def subgroup_barrier():
-    GlobalBuilder.obj.subgroup_barrier()
-
-def new(var_type: vd.dtype, *args, var_name: Optional[str] = None):
-    return GlobalBuilder.obj.new(var_type, *args, var_name=var_name)
-
-def new_float(*args, var_name: Optional[str] = None):
-    return new(vd.float32, *args, var_name=var_name)
-
-def new_int(*args, var_name: Optional[str] = None):
-    return new(vd.int32, *args, var_name=var_name)
-
-def new_uint(*args, var_name: Optional[str] = None):
-    return new(vd.uint32, *args, var_name=var_name)
-
-def new_vec2(*args, var_name: Optional[str] = None):
-    return new(vd.vec2, *args, var_name=var_name)
-
-def new_vec3(*args, var_name: Optional[str] = None):
-    return new(vd.vec3, *args, var_name=var_name)
-
-def new_vec4(*args, var_name: Optional[str] = None):
-    return new(vd.vec4, *args, var_name=var_name)
-
-def new_uvec2(*args, var_name: Optional[str] = None):
-    return new(vd.uvec2, *args, var_name=var_name)
-
-def new_uvec3(*args, var_name: Optional[str] = None):
-    return new(vd.uvec3, *args, var_name=var_name)
-
-def new_uvec4(*args, var_name: Optional[str] = None):
-    return new(vd.uvec4, *args, var_name=var_name)
-
-def new_ivec2(*args, var_name: Optional[str] = None):
-    return new(vd.ivec2, *args, var_name=var_name)
-
-def new_ivec3(*args, var_name: Optional[str] = None):
-    return new(vd.ivec3, *args, var_name=var_name)
-
-def new_ivec4(*args, var_name: Optional[str] = None):
-    return new(vd.ivec4, *args, var_name=var_name)
-
-def printf(format: str, *args: Union[ShaderVariable, str], seperator=" "):
-    GlobalBuilder.obj.printf(format, *args, seperator=seperator)
-
-def print_vars(*args: Union[ShaderVariable, str], seperator=" "):
-    GlobalBuilder.obj.print_vars(*args, seperator=seperator)
-
-def unravel_index(index: ShaderVariable, shape: ShaderVariable):
-    return GlobalBuilder.obj.unravel_index(index, shape)
-
-def complex_from_euler_angle(angle: ShaderVariable):
-    return GlobalBuilder.obj.complex_from_euler_angle(angle)
+def shared_buffer(var_type: dtypes.dtype, size: int, var_name: Optional[str] = None):
+    return get_builder().shared_buffer(var_type, size, var_name)

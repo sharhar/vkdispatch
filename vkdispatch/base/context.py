@@ -10,9 +10,12 @@ import weakref
 import os, signal
 
 from .errors import check_for_errors, set_running
-from .init import DeviceInfo, get_devices, initialize, set_log_level, LogLevel
+from .init import DeviceInfo, is_cuda, is_opencl, is_dummy, get_devices, initialize, log_info
+from ..backends.backend_selection import native
 
-import vkdispatch_native
+VK_SHADER_STAGE_COMPUTE_BIT = 0x00000020
+
+VK_SUBGROUP_FEATURE_ARITHMETIC_BIT = 0x00000004
 
 class Handle:
     context: "Context"
@@ -53,6 +56,8 @@ class Handle:
         """
         Clears the parent handles.
         """
+        # children_dict uses weak references, so a child key may disappear
+        # before teardown reaches this point.
         for parent in self.parents.values():
             parent.remove_child_handle(self)
 
@@ -71,10 +76,8 @@ class Handle:
         """
         Removes a child handle from the current handle.
         """
-        if child._handle not in self.children_dict.keys():
-            raise ValueError(f"Child handle {child._handle} does not exist in parent handle!")
-        
-        self.children_dict.pop(child._handle)
+        # Be idempotent to tolerate repeated teardown paths and weakref eviction.
+        self.children_dict.pop(child._handle, None)
 
     def _destroy(self) -> None:
         raise NotImplementedError("destroy is an abstract method and must be implemented by subclasses.")
@@ -84,27 +87,56 @@ class Handle:
         Destroys the context handle and cleans up resources.
         """
         if self.destroyed:
-            return
+            return        
 
-        child_list = list(self.children_dict.values())
+        self.destroyed = True
+        self.clear_parents()
 
-        for child in child_list:
-            child.destroy()
+        child_keys = list(self.children_dict.keys())
+
+        for child_handle in child_keys:
+            if child_handle in self.children_dict:
+                child = self.children_dict[child_handle]
+                child.destroy()
 
         assert len(self.children_dict) == 0, "Not all children were destroyed!"
         
         assert not self.canary, "Handle was already destroyed!"
-        self._destroy()
+        if self._handle is not None:
+            self._destroy()
+            check_for_errors()
+
         self.canary = True
-        check_for_errors()
-                
-        self.clear_parents()
 
         if self._handle in self.context.handles_dict.keys():
             self.context.handles_dict.pop(self._handle)
         
-        self.destroyed = True
         
+
+class Signal:
+    ptr_addr: int
+
+    def __init__(self, ptr_addr: int = None):
+        self.ptr_addr = ptr_addr
+
+    def wait(self, wait_for_timestamp: bool, queue_index: int):
+        done = False
+        while not done:
+            done = native.signal_wait(
+                self.ptr_addr, wait_for_timestamp, queue_index
+            )
+            check_for_errors()
+
+    def try_wait(self, wait_for_timestamp: bool, queue_index: int):
+        done = native.signal_wait(
+            self.ptr_addr, wait_for_timestamp, queue_index
+        )
+        check_for_errors()
+
+        return done
+
+    def free(self):
+        native.signal_destroy(self.ptr_addr)
 
 class Context:
     """
@@ -125,11 +157,14 @@ class Context:
     """
 
     _handle: int
-    devices: List[int]
+    device_ids: List[int]
+    mapped_device_ids: List[int]
     device_infos: List[DeviceInfo]
     queue_families: List[List[int]]
     queue_count: int
     subgroup_size: int
+    subgroup_enabled: bool
+    subgroup_arithmetic: bool
     max_workgroup_size: Tuple[int]
     max_workgroup_invocations: int
     max_workgroup_count: Tuple[int, int, int]
@@ -139,17 +174,21 @@ class Context:
 
     def __init__(
         self,
-        devices: List[int],
+        device_ids: List[int],
         queue_families: List[List[int]]
     ) -> None:
-        self.devices = devices
-        self.device_infos = [get_devices()[dev] for dev in devices]
+        self.device_ids = device_ids
+        self.device_infos = [get_devices()[dev] for dev in device_ids]
         self.queue_families = queue_families
         self.queue_count = sum([len(i) for i in queue_families])
         self.handles_dict = weakref.WeakValueDictionary()
-        self._handle = vkdispatch_native.context_create(devices, queue_families)
+        self.mapped_device_ids = [dev.dev_index for dev in self.device_infos]
+        self._handle = native.context_create(self.mapped_device_ids, queue_families)
         check_for_errors()
-        
+
+        self._refresh_limits_from_device_infos()
+
+    def _refresh_limits_from_device_infos(self) -> None:
         subgroup_sizes = []
         max_workgroup_sizes_x = []
         max_workgroup_sizes_y = []
@@ -160,6 +199,9 @@ class Context:
         max_workgroup_counts_z = []
         uniform_buffer_alignments = []
         max_shared_memory = []
+
+        subgroup_enabled = True
+        subgroup_arithmetic = True
 
         for device in self.device_infos:
             subgroup_sizes.append(device.sub_group_size)
@@ -178,6 +220,14 @@ class Context:
 
             max_shared_memory.append(device.max_compute_shared_memory_size)
 
+            if not device.supported_stages & VK_SHADER_STAGE_COMPUTE_BIT:
+                subgroup_enabled = False
+
+            if not device.supported_operations & VK_SUBGROUP_FEATURE_ARITHMETIC_BIT:
+                subgroup_arithmetic = False
+
+        self.subgroup_enabled = subgroup_enabled
+        self.subgroup_arithmetic = subgroup_arithmetic
         self.subgroup_size = min(subgroup_sizes)
         self.max_workgroup_size = (
             min(max_workgroup_sizes_x),
@@ -341,6 +391,18 @@ def make_context(
                     select_queue_families(dev_index, queue_family_count)
                 )
 
+        if is_cuda() or is_opencl():
+            backend_name = "CUDA" if is_cuda() else "OpenCL"
+            if len(device_ids) != 1:
+                raise NotImplementedError(
+                    f"The {backend_name} backend currently supports exactly one device."
+                )
+
+            if len(queue_families) != 1 or len(queue_families[0]) != 1:
+                raise NotImplementedError(
+                    f"The {backend_name} backend currently supports exactly one queue."
+                )
+
         total_devices = len(get_devices())
 
         # Do type checking before passing to native code
@@ -358,6 +420,8 @@ def make_context(
 
         __context = Context(device_ids, queue_families)
 
+        queue_wait_idle(queue_index=None, context=__context)
+
     return __context
 
 def is_context_initialized() -> bool:
@@ -370,7 +434,110 @@ def get_context() -> Context:
 def get_context_handle() -> int:
     return get_context()._handle
 
-def queue_wait_idle(queue_index: int = None) -> None:
+def _as_positive_int(name: str, value) -> int:
+    try:
+        result = int(value)
+    except Exception as exc:
+        raise ValueError(f"{name} must be a positive integer") from exc
+
+    if result <= 0:
+        raise ValueError(f"{name} must be a positive integer")
+
+    return result
+
+def _as_positive_triplet(name: str, value) -> Tuple[int, int, int]:
+    try:
+        parts = list(value)
+    except Exception as exc:
+        raise ValueError(f"{name} must contain exactly 3 positive integers") from exc
+
+    if len(parts) != 3:
+        raise ValueError(f"{name} must contain exactly 3 positive integers")
+
+    return (
+        _as_positive_int(f"{name}[0]", parts[0]),
+        _as_positive_int(f"{name}[1]", parts[1]),
+        _as_positive_int(f"{name}[2]", parts[2]),
+    )
+
+def set_dummy_context_params(
+    subgroup_size: int = None,
+    max_workgroup_size: Tuple[int, int, int] = None,
+    max_workgroup_invocations: int = None,
+    max_workgroup_count: Tuple[int, int, int] = None,
+    max_shared_memory: int = None,
+) -> None:
+    """
+    Update cached context/device limit values for the active dummy backend context.
+
+    This only works when a dummy context already exists.
+    """
+    global __context
+
+    if not is_dummy():
+        raise RuntimeError(
+            "set_dummy_context_params() is only supported when running with backend='dummy'."
+        )
+
+    if __context is None:
+        __context = get_context()
+
+    validated_subgroup_size = None
+    validated_max_workgroup_size = None
+    validated_max_workgroup_invocations = None
+    validated_max_workgroup_count = None
+    validated_max_shared_memory = None
+
+    backend_kwargs = {}
+
+    if subgroup_size is not None:
+        validated_subgroup_size = _as_positive_int("subgroup_size", subgroup_size)
+        backend_kwargs["subgroup_size"] = validated_subgroup_size
+
+    if max_workgroup_size is not None:
+        validated_max_workgroup_size = _as_positive_triplet("max_workgroup_size", max_workgroup_size)
+        backend_kwargs["max_workgroup_size"] = validated_max_workgroup_size
+
+    if max_workgroup_invocations is not None:
+        validated_max_workgroup_invocations = _as_positive_int(
+            "max_workgroup_invocations",
+            max_workgroup_invocations,
+        )
+        backend_kwargs["max_workgroup_invocations"] = validated_max_workgroup_invocations
+
+    if max_workgroup_count is not None:
+        validated_max_workgroup_count = _as_positive_triplet("max_workgroup_count", max_workgroup_count)
+        backend_kwargs["max_workgroup_count"] = validated_max_workgroup_count
+
+    if max_shared_memory is not None:
+        validated_max_shared_memory = _as_positive_int("max_shared_memory", max_shared_memory)
+        backend_kwargs["max_compute_shared_memory_size"] = validated_max_shared_memory
+
+    if backend_kwargs:
+        native.set_device_options(**backend_kwargs)
+        check_for_errors()
+
+    for device in __context.device_infos:
+        if validated_subgroup_size is not None:
+            device.sub_group_size = validated_subgroup_size
+
+        if validated_max_workgroup_size is not None:
+            device.max_workgroup_size = validated_max_workgroup_size
+
+        if validated_max_workgroup_invocations is not None:
+            device.max_workgroup_invocations = validated_max_workgroup_invocations
+
+        if validated_max_workgroup_count is not None:
+            device.max_workgroup_count = validated_max_workgroup_count
+
+        if validated_max_shared_memory is not None:
+            device.max_compute_shared_memory_size = validated_max_shared_memory
+
+        device.uniform_buffer_alignment = 0
+
+    __context._refresh_limits_from_device_infos()
+
+def queue_wait_idle(queue_index: int = None, context: Context = None) -> None:
     """
     Wait for the specified queue to finish processing. For all queues, leave queue_index as None.
     
@@ -378,12 +545,26 @@ def queue_wait_idle(queue_index: int = None) -> None:
         queue_index (int): The index of the queue.
     """
 
-    assert queue_index is None or isinstance(queue_index, int), "queue_index must be an integer or None."
-    assert queue_index is None or queue_index >= -1, "queue_index must be a non-negative integer or -1 (for all queues)."
-    assert queue_index is None or queue_index < get_context().queue_count, f"Queue index {queue_index} is out of bounds for context with {get_context().queue_count} queues."
+    if context is None:
+        context = get_context()
 
-    vkdispatch_native.context_queue_wait_idle(get_context_handle(), queue_index if queue_index is not None else -1)
+    assert queue_index is None or isinstance(queue_index, int), "queue_index must be an integer or None."
+    assert queue_index is None or queue_index >= 0, "queue_index must be a non-negative integer or None (for all queues)."
+    assert queue_index is None or queue_index < context.queue_count, f"Queue index {queue_index} is out of bounds for context with {context.queue_count} queues."
+
+    if queue_index is None:
+        for i in range(context.queue_count):
+            queue_wait_idle(i, context)
+        return
+
+    signal_ptr = native.signal_insert(context._handle, queue_index)
     check_for_errors()
+    
+    signal = Signal(signal_ptr)
+    signal.wait(True, queue_index)
+    check_for_errors()
+
+    signal.free()
 
 def destroy_context() -> None:
     """
@@ -392,16 +573,22 @@ def destroy_context() -> None:
     global __context
     set_running(False)
 
-    if __context is not None:
-        handles_list = list(__context.handles_dict.values())
+    if __context is None:
+        return
 
-        for handle in handles_list:
-            handle.destroy()
+    log_info("Destroying context...")
 
-        assert len(__context.handles_dict) == 0, "Not all handles were destroyed!"
+    handles_list = list(__context.handles_dict.values())
 
-        vkdispatch_native.context_destroy(__context._handle)
-        __context = None
+    for handle in handles_list:
+        log_info(f"Destroying handle {handle._handle}...")
+        handle.destroy()
+
+    assert len(__context.handles_dict) == 0, "Not all handles were destroyed!"
+
+    log_info("Calling native context destroy...")
+    native.context_destroy(__context._handle)
+    __context = None
 
 atexit.register(destroy_context)
 
@@ -409,7 +596,7 @@ def stop_threads() -> None:
     """
     Stops all threads in the context.
     """
-    vkdispatch_native.context_stop_threads(get_context_handle())
+    native.context_stop_threads(get_context_handle())
 
 _shutdown_once = False
 
@@ -427,6 +614,8 @@ def _sig_handler(signum, frame):
     signal.signal(signum, signal.SIG_DFL)
     os.kill(os.getpid(), signum)
 
-# Install from the main thread
-signal.signal(signal.SIGINT, _sig_handler)
-signal.signal(signal.SIGTERM, _sig_handler)
+
+from .brython_utils import is_brython
+if not is_brython():
+    signal.signal(signal.SIGINT, _sig_handler)
+    signal.signal(signal.SIGTERM, _sig_handler)

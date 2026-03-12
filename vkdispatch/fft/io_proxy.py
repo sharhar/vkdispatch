@@ -43,89 +43,9 @@ class IOProxy:
 
         self.buffer_variables = vars
 
-    def read(self,
-             register: vc.ShaderVariable,
-             memory_index: vc.ShaderVariable,
-             spare_register: vc.ShaderVariable = None,
-             r2c: bool = False) -> vc.ShaderVariable:
-        assert self.enabled, f"{self.name} IOProxy is not enabled"
-        
-        if self.map_func is not None:
-            assert spare_register is not None, "Spare register must be provided when using a mapping function"
+    def has_callback(self) -> bool:
+        return self.map_func is not None
 
-            vc.set_mapping_index(memory_index)
-            vc.set_mapping_registers([register, spare_register])
-
-            self.map_func.callback(*self.buffer_variables)
-
-            return
-        
-        if not r2c:
-            register[:] = self.buffer_variables[0][memory_index]
-            return
-        
-        real_value = self.buffer_variables[0][memory_index / 2][memory_index % 2]
-        register[:] = f"vec2({real_value}, 0)"
-
-    def read_r2c_inverse(self,
-                         register: vc.ShaderVariable,
-                         memory_index: vc.ShaderVariable,
-                         fft_index: vc.ShaderVariable,
-                         spare_index: vc.ShaderVariable,
-                         input_batch_offset: vc.ShaderVariable,
-                         fft_size: int,
-                         fft_stride: int) -> vc.ShaderVariable:
-        assert self.enabled, f"{self.name} IOProxy is not enabled"
-        
-        assert self.map_func is None, "Mapping functions do not support inverse r2c operations"
-        
-        vc.if_statement(fft_index >= (fft_size // 2) + 1)
-        spare_index[:] = 2 * input_batch_offset + fft_size * fft_stride - memory_index
-        register[:] = self.buffer_variables[0][spare_index]
-        register.y = -register.y
-        vc.else_statement()
-        register[:] = self.buffer_variables[0][memory_index]
-        vc.end()
-
-    def write(self,
-                register: vc.ShaderVariable,
-                memory_index: vc.ShaderVariable,
-                r2c: bool = False,
-                inverse: bool = False,
-                fft_index: vc.ShaderVariable = None,
-                fft_size: int = None) -> vc.ShaderVariable:
-            assert self.enabled, f"{self.name} IOProxy is not enabled"
-            
-            if self.map_func is not None:
-
-                if not inverse and r2c:
-                    assert fft_size is not None, "FFT size must be provided for forward r2c write"
-                    assert fft_index is not None, "FFT index must be provided for forward r2c write"
-
-                    vc.if_statement(fft_index < (fft_size // 2) + 1)
-
-                vc.set_mapping_index(memory_index)
-                vc.set_mapping_registers([register])
-                self.map_func.callback(*self.buffer_variables)
-
-                if not inverse and r2c:
-                    vc.end()
-
-                return
-            
-            if not r2c:
-                self.buffer_variables[0][memory_index] = register
-                return
-            
-            if not inverse:
-                assert fft_size is not None, "FFT size must be provided for forward r2c write"
-                assert fft_index is not None, "FFT index must be provided for forward r2c write"
-
-                vc.if_statement(fft_index < (fft_size // 2) + 1)
-                self.buffer_variables[0][memory_index] = register
-                vc.end()
-                return
-
-
-            self.buffer_variables[0][memory_index / 2][memory_index % 2] = register.x
-            
+    def do_callback(self):
+        assert self.map_func is not None, "IOProxy does not have a mapping function"
+        self.map_func.callback(*self.buffer_variables)

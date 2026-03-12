@@ -1,23 +1,13 @@
 import typing
 from enum import Enum
 
-import numpy as np
+from ..backends.backend_selection import native
 
-import vkdispatch_native
-
+from ..compat import numpy_compat as npc
 from . import dtype as vdt
 from .context import Handle
 
-__MAPPING__ = {
-    (np.uint8, 1),
-    (np.uint8, 1),
-    (np.uint8, 2),
-    (np.uint8, 2),
-    (np.uint8, 3),
-    (np.uint8, 3),
-    (np.uint8, 4),
-    (np.uint8, 4),
-}
+__MAPPING__ = set()
 
 
 class image_format(Enum):  # TODO: Fix class naming scheme to adhere to convention
@@ -82,46 +72,6 @@ def select_image_format(dtype: vdt.dtype, channels: int) -> image_format:
     # }
     # return __MAPPING__[(dtype, channels)]
 
-    """
-
-    if dtype == np.uint8:
-        if channels == 1:
-            return image_format.R8_UINT
-        elif channels == 2:
-            return image_format.R8G8_UINT
-        elif channels == 3:
-            return image_format.R8G8B8_UINT
-        elif channels == 4:
-            return image_format.R8G8B8A8_UINT
-    elif dtype == np.int8:
-        if channels == 1:
-            return image_format.R8_SINT
-        elif channels == 2:
-            return image_format.R8G8_SINT
-        elif channels == 3:
-            return image_format.R8G8B8_SINT
-        elif channels == 4:
-            return image_format.R8G8B8A8_SINT
-    elif dtype == np.uint16:
-        if channels == 1:
-            return image_format.R16_UINT
-        elif channels == 2:
-            return image_format.R16G16_UINT
-        elif channels == 3:
-            return image_format.R16G16B16_UINT
-        elif channels == 4:
-            return image_format.R16G16B16A16_UINT
-    elif dtype == np.int16:
-        if channels == 1:
-            return image_format.R16_SINT
-        elif channels == 2:
-            return image_format.R16G16_SINT
-        elif channels == 3:
-            return image_format.R16G16B16_SINT
-        elif channels == 4:
-            return image_format.R16G16B16A16_SINT
-    el """
-    
     if dtype == vdt.uint32:
         if channels == 1:
             return image_format.R32_UINT
@@ -268,7 +218,7 @@ class Sampler(Handle):
 
         self.image = image
         
-        handle = vkdispatch_native.image_create_sampler(
+        handle = native.image_create_sampler(
             self.context._handle,
             mag_filter.value,
             min_filter.value,
@@ -284,7 +234,7 @@ class Sampler(Handle):
         self.register_parent(image)
 
     def _destroy(self):
-        vkdispatch_native.image_destroy_sampler(self._handle)
+        native.image_destroy_sampler(self._handle)
     
     def __del__(self) -> None:
         self.destroy()
@@ -346,13 +296,13 @@ class Image(Handle):
         if channels == 1:
             self.array_shape = self.array_shape[:-1]
 
-        self.block_size: int = vkdispatch_native.image_format_block_size(
+        self.block_size: int = native.image_format_block_size(
             self.format.value
         )
 
-        self.mem_size: int = np.prod(self.shape) * self.block_size
+        self.mem_size: int = npc.prod(self.shape) * self.block_size
 
-        handle: int = vkdispatch_native.image_create(
+        handle: int = native.image_create(
             self.context._handle,
             self.extent,
             self.layers,
@@ -365,17 +315,27 @@ class Image(Handle):
         self.register_handle(handle)
 
     def _destroy(self) -> None:
-        vkdispatch_native.image_destroy(self._handle)
+        native.image_destroy(self._handle)
 
     def __del__(self) -> None:
         self.destroy()
 
-    def write(self, data: np.ndarray, device_index: int = -1) -> None:
-        if data.size * np.dtype(data.dtype).itemsize != self.mem_size:
-            raise ValueError(f"Numpy buffer sizes must match! {data.size * np.dtype(data.dtype).itemsize} != {self.mem_size}")
-        vkdispatch_native.image_write(
+    def write(self, data: typing.Any, device_index: int = -1) -> None:
+        if npc.is_array_like(data):
+            true_data = npc.as_contiguous_bytes(data)
+            data_size = npc.array_nbytes(data)
+        elif npc.is_bytes_like(data):
+            true_data = npc.ensure_bytes(data)
+            data_size = len(true_data)
+        else:
+            raise TypeError("Expected array-like or bytes-like image input")
+
+        if data_size != self.mem_size:
+            raise ValueError(f"Image buffer sizes must match! {data_size} != {self.mem_size}")
+
+        native.image_write(
             self._handle,
-            np.ascontiguousarray(data).tobytes(),
+            true_data,
             [0, 0, 0],
             self.extent,
             0,
@@ -383,17 +343,17 @@ class Image(Handle):
             device_index,
         )
 
-    def read(self, device_index: int = 0) -> np.ndarray:
+    def read(self, device_index: int = 0):
         true_scalar = self.dtype.scalar
 
         if self.dtype.scalar is None:
             true_scalar = self.dtype
 
-        out_size = np.prod(self.array_shape) * true_scalar.item_size
-        out_bytes = vkdispatch_native.image_read(
+        out_size = npc.prod(self.array_shape) * true_scalar.item_size
+        out_bytes = native.image_read(
             self._handle, out_size, [0, 0, 0], self.extent, 0, self.layers, device_index
         )
-        return np.frombuffer(out_bytes, dtype=vdt.to_numpy_dtype(true_scalar)).reshape(self.array_shape)
+        return npc.from_buffer(out_bytes, dtype=vdt.to_numpy_dtype(true_scalar), shape=self.array_shape)
     
     def sample(self, 
                     mag_filter: Filter = Filter.LINEAR,
@@ -428,7 +388,7 @@ class Image1D(Image):
 
 class Image2D(Image):
     def __init__(
-        self, shape: typing.Tuple[int, int], dtype: type = np.float32, channels: int = 1, enable_mipmaps: bool = False
+        self, shape: typing.Tuple[int, int], dtype: type = vdt.float32, channels: int = 1, enable_mipmaps: bool = False
     ) -> None:
         assert len(shape) == 2, "Shape must be 2D!"
         super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_2D, enable_mipmaps)
@@ -443,7 +403,7 @@ class Image2DArray(Image):
         self,
         shape: typing.Tuple[int, int],
         layers: int,
-        dtype: type = np.float32,
+        dtype: type = vdt.float32,
         channels: int = 1,
         enable_mipmaps: bool = False
     ) -> None:
@@ -459,7 +419,7 @@ class Image2DArray(Image):
 
 class Image3D(Image):
     def __init__(
-        self, shape: typing.Tuple[int, int, int], dtype: type = np.float32, channels: int = 1, enable_mipmaps: bool = False
+        self, shape: typing.Tuple[int, int, int], dtype: type = vdt.float32, channels: int = 1, enable_mipmaps: bool = False
     ) -> None:
         assert len(shape) == 3, "Shape must be 3D!"
         super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_3D, enable_mipmaps)

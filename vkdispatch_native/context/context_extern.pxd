@@ -66,6 +66,11 @@ cdef extern from "context/context_extern.hh":
 
         unsigned int queue_family_count
         QueueFamilyProperties* queue_family_properties
+
+        int scalar_block_layout
+        int timeline_semaphores
+
+        unsigned char* uuid
     
     void init_extern(bool debug, LogLevel log_level)
     PhysicalDeviceDetails* get_devices_extern(int* count)
@@ -75,7 +80,10 @@ cdef extern from "context/context_extern.hh":
     struct Context
 
     Context* context_create_extern(int* device_indicies, int* queue_counts, int* queue_families, int device_count)
-    void context_queue_wait_idle_extern(Context* context, int queue_index);
+    bool signal_wait_extern(void* signal_ptr, bool wait_for_timestamp, int queue_index)
+    void* signal_insert_extern(Context* context, int queue_index)
+    void signal_destroy_extern(void* signal_ptr)
+
     void context_destroy_extern(Context* device_context);
 
     const char* get_error_string_extern()
@@ -138,7 +146,10 @@ cpdef inline get_devices():
             device.supported_operations,
             device.quad_operations_in_all_stages,
             device.max_compute_shared_memory_size,
-            [(device.queue_family_properties[j].queueCount, device.queue_family_properties[j].queueFlags) for j in range(device.queue_family_count)]
+            [(device.queue_family_properties[j].queueCount, device.queue_family_properties[j].queueFlags) for j in range(device.queue_family_count)],
+            device.scalar_block_layout,
+            device.timeline_semaphores,
+            bytes([device.uuid[k] for k in range(16)]) if device.uuid != NULL else None
         )
         device_list.append(device_info)
 
@@ -177,8 +188,15 @@ cpdef inline context_create(list[int] device_indicies, list[list[int]] queue_fam
 
     return result
 
-cpdef inline void context_queue_wait_idle(unsigned long long context, int queue_index):
-    context_queue_wait_idle_extern(<Context*>context, queue_index)
+cpdef inline bool signal_wait(unsigned long long signal_ptr, bool wait_for_timestamp, int queue_index):
+    return signal_wait_extern(<void*>signal_ptr, wait_for_timestamp, queue_index)
+
+cpdef inline unsigned long long signal_insert(unsigned long long context, int queue_index):
+    cdef void* signal_ptr = signal_insert_extern(<Context*>context, queue_index)
+    return <unsigned long long>signal_ptr
+
+cpdef inline signal_destroy(unsigned long long signal_ptr):
+    signal_destroy_extern(<void*>signal_ptr)
 
 cpdef inline context_destroy(unsigned long long context):
     context_destroy_extern(<Context*>context)

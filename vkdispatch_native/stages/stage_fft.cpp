@@ -17,38 +17,80 @@ struct FFTPlan {
 };
 
 void print_vkfft_config(VkFFTConfiguration* config) {
-     LOG_INFO(R"(
- VkConfig:
-     Size: (%d, %d, %d)
-     Omit Dimention: (%d, %d, %d)
-     Input Buffer Size: %d
-     Is Input Formatted: %d
-     Frequency Zero Padding: %d
-     Kernel Convolution: %d
-     Perform Convolution: %d
-     Coordinate Features: %d
-     Number Kernels: %d
-     Kernel Size: %d
-     Normalize: %d
-     Buffer Size: %d
-     Perform R2C: %d
-     Number Batches: %d
-     )", 
-     config->size[0], config->size[1], config->size[2],
-     config->omitDimension[0], config->omitDimension[1], config->omitDimension[2],
-     *config->inputBufferSize,
-     config->isInputFormatted,
-     config->frequencyZeroPadding,
-     config->kernelConvolution,
-     config->performConvolution,
-     config->coordinateFeatures,
-     config->numberKernels,
-     *config->kernelSize,
-     config->normalize,
-     *config->bufferSize,
-     config->performR2C,
-     config->numberBatches);
-     //config->singleKernelMultipleBatches);
+    LOG_INFO(R"(
+VkConfig:
+    FFTDim: %d
+    size[0]: %d
+    size[1]: %d
+    size[2]: %d
+    bufferSize: %llu
+    inputBufferSize: %llu
+    kernelSize: %llu
+    numberBatches: %d
+    omitDimension[0]: %d
+    omitDimension[1]: %d
+    omitDimension[2]: %d
+    normalize: %d
+    performR2C: %d
+    isInputFormatted: %d
+    performZeropadding[0]: %d
+    performZeropadding[1]: %d
+    performZeropadding[2]: %d
+    fft_zeropad_left[0]: %llu
+    fft_zeropad_left[1]: %llu
+    fft_zeropad_left[2]: %llu
+    fft_zeropad_right[0]: %llu
+    fft_zeropad_right[1]: %llu
+    fft_zeropad_right[2]: %llu
+    frequencyZeroPadding: %d
+    performConvolution: %d
+    conjugateConvolution: %d
+    coordinateFeatures: %d
+    numberKernels: %d
+    kernelConvolution: %d
+    maxComputeWorkGroupCount[0]: %d
+    maxComputeWorkGroupCount[1]: %d
+    maxComputeWorkGroupCount[2]: %d
+    maxComputeWorkGroupSize[0]: %d
+    maxComputeWorkGroupSize[1]: %d
+    maxComputeWorkGroupSize[2]: %d
+    )", 
+    config->FFTdim,
+    config->size[0],
+    config->size[1],
+    config->size[2],
+    config->bufferSize ? *config->bufferSize : 0,
+    config->inputBufferSize ? *config->inputBufferSize : 0,
+    config->kernelSize ? *config->kernelSize : 0,
+    config->numberBatches,
+    config->omitDimension[0],
+    config->omitDimension[1],
+    config->omitDimension[2],
+    config->normalize,
+    config->performR2C,
+    config->isInputFormatted,
+    config->performZeropadding[0],
+    config->performZeropadding[1],
+    config->performZeropadding[2],
+    config->fft_zeropad_left[0],
+    config->fft_zeropad_left[1],
+    config->fft_zeropad_left[2],
+    config->fft_zeropad_right[0],
+    config->fft_zeropad_right[1],
+    config->fft_zeropad_right[2],
+    config->frequencyZeroPadding,
+    config->performConvolution,
+    config->conjugateConvolution,
+    config->coordinateFeatures,
+    config->numberKernels,
+    config->kernelConvolution,
+    config->maxComputeWorkGroupCount[0],
+    config->maxComputeWorkGroupCount[1],
+    config->maxComputeWorkGroupCount[2],
+    config->maxComputeWorkGroupSize[0],
+    config->maxComputeWorkGroupSize[1],
+    config->maxComputeWorkGroupSize[2]
+    );
  }
 
 struct FFTPlan* stage_fft_plan_create_extern(
@@ -111,6 +153,18 @@ struct FFTPlan* stage_fft_plan_create_extern(
         (VkCommandBuffer cmd_buffer, ExecIndicies indicies, void* pc_data, BarrierManager* barrier_manager, uint64_t timestamp) {
             LOG_VERBOSE("Initializing FFT on device %d, queue %d, recorder %d", indicies.device_index, indicies.queue_index, indicies.recorder_index);
 
+            unsigned long long true_rows = rows;
+
+            if(do_r2c) {
+                true_rows = (rows / 2) + 1;
+            }
+
+            int convolution_multiplier = 1;
+
+            if(kernel_num > 0) {
+                convolution_multiplier = kernel_num * convolution_features;
+            }
+
             VkFFTConfiguration config = {};
 
             config.FFTdim = dims;
@@ -118,11 +172,24 @@ struct FFTPlan* stage_fft_plan_create_extern(
             config.size[1] = cols;
             config.size[2] = depth;
 
-            config.disableSetLocale = 1;
+            config.bufferSize = (uint64_t*)malloc(sizeof(uint64_t));
+            config.inputBufferSize = (uint64_t*)malloc(sizeof(uint64_t));
+            config.kernelSize = (uint64_t*)malloc(sizeof(uint64_t));
 
+            *config.bufferSize = num_batches * convolution_multiplier * true_rows * cols * depth * sizeof(float) * 2; 
+            *config.inputBufferSize = input_buffer_size;
+            *config.kernelSize = 2 * sizeof(float) * num_batches * kernel_num * convolution_features * true_rows * config.size[1] * config.size[2];
+
+            config.numberBatches = num_batches;
             config.omitDimension[0] = omit_rows;
             config.omitDimension[1] = omit_cols;
             config.omitDimension[2] = omit_depth;
+
+            config.normalize = normalize;
+            config.performR2C = do_r2c;
+            config.isInputFormatted = input_buffer_size > 0;
+            config.keepShaderCode = keep_shader_code;
+            config.disableSetLocale = 1;
 
             config.performZeropadding[0] = pad_right_rows != 0;
             config.performZeropadding[1] = pad_right_cols != 0;
@@ -135,31 +202,14 @@ struct FFTPlan* stage_fft_plan_create_extern(
             config.fft_zeropad_right[0] = pad_right_rows;
             config.fft_zeropad_right[1] = pad_right_cols;
             config.fft_zeropad_right[2] = pad_right_depth;
-
-            config.keepShaderCode = keep_shader_code;
-
-            config.inputBufferSize = (uint64_t*)malloc(sizeof(uint64_t));
-            *config.inputBufferSize = input_buffer_size;
-            config.isInputFormatted = input_buffer_size > 0;
-
+            
             config.frequencyZeroPadding = frequency_zeropadding;
-
-            unsigned long long true_rows = rows;
-
-            if(do_r2c) {
-                true_rows = (rows / 2) + 1;
-            }
-
-            config.kernelConvolution = kernel_convolution;
 
             config.performConvolution = kernel_num > 0;
             config.conjugateConvolution = conjugate_convolution;
             config.coordinateFeatures = convolution_features;
             config.numberKernels = kernel_num;
-            config.kernelSize = (uint64_t*)malloc(sizeof(uint64_t));
-            *config.kernelSize = 2 * sizeof(float) * kernel_num * convolution_features * true_rows * config.size[1] * config.size[2];
-
-            //config.singleKernelMultipleBatches = single_kernel_multiple_batches;
+            config.kernelConvolution = kernel_convolution;
 
             glslang_resource_t* resource = reinterpret_cast<glslang_resource_t*>(ctx->glslang_resource_limits);
 
@@ -170,20 +220,6 @@ struct FFTPlan* stage_fft_plan_create_extern(
             config.maxComputeWorkGroupSize[0] = resource->max_compute_work_group_size_x;
             config.maxComputeWorkGroupSize[1] = resource->max_compute_work_group_size_y;
             config.maxComputeWorkGroupSize[2] = resource->max_compute_work_group_size_z;
-
-            config.normalize = normalize;
-
-            int convolution_multiplier = 1;
-
-            if(kernel_num > 0) {
-                convolution_multiplier = kernel_num * convolution_features;
-            }         
-            
-            config.bufferSize = (uint64_t*)malloc(sizeof(uint64_t));
-            *config.bufferSize = num_batches * convolution_multiplier * true_rows * cols * depth * sizeof(float) * 2;
-            config.performR2C = do_r2c;
-
-            config.numberBatches = num_batches;
 
             config.isCompilerInitialized = true;
             config.glslang_mutex = &ctx->glslang_mutex;

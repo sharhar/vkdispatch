@@ -17,21 +17,21 @@ They also come in the following shapes:
  * Matricies (only :class:`vkdispatch.float32` at 2x2 and 4x4)
 
 Data Type API Reference
----------------------
+-----------------------
 
-.. autofunction:: vkdispatch.is_dtype
+.. autofunction:: vkdispatch.base.dtype.is_dtype
 
-.. autofunction:: vkdispatch.is_scalar
+.. autofunction:: vkdispatch.base.dtype.is_scalar
 
-.. autofunction:: is_complex
+.. autofunction:: vkdispatch.base.dtype.is_complex
 
-.. autofunction:: vkdispatch.is_vector
+.. autofunction:: vkdispatch.base.dtype.is_vector
 
-.. autofunction:: vkdispatch.is_matrix
+.. autofunction:: vkdispatch.base.dtype.is_matrix
 
-.. autofunction:: vkdispatch.from_numpy_dtype
+.. autofunction:: vkdispatch.base.dtype.from_numpy_dtype
 
-.. autofunction:: vkdispatch.to_numpy_dtype
+.. autofunction:: vkdispatch.base.dtype.to_numpy_dtype
 
 .. autoclass:: vkdispatch.dtype
 

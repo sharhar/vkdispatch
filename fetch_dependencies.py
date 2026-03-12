@@ -60,7 +60,7 @@ if len(sys.argv) > 1 and sys.argv[1] == "--no-molten-vk":
 
 os.makedirs("deps/MoltenVK", exist_ok=True)
 
-molten_vk_url = "https://github.com/KhronosGroup/MoltenVK/releases/download/v1.2.8/MoltenVK-macos.tar"
+molten_vk_url = "https://github.com/KhronosGroup/MoltenVK/releases/download/v1.4.0/MoltenVK-macos.tar"
 molten_vk_path = "deps/MoltenVK"
 molten_vk_filename = "MoltenVK-macos.tar"
 molten_vk_full_file_path = os.path.join(molten_vk_path, molten_vk_filename)

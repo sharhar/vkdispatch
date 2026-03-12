@@ -1,12 +1,24 @@
-import typing
+
 from enum import Enum
 import os
+from typing import Tuple, List, Optional
 
 import inspect
 
 from .errors import check_for_errors
-
-import vkdispatch_native
+from ..backends.backend_selection import (
+    BACKEND_CUDA,
+    BACKEND_OPENCL,
+    BACKEND_VULKAN,
+    BACKEND_DUMMY,
+    BackendUnavailableError,
+    clear_active_backend,
+    get_active_backend_name,
+    get_backend_module,
+    native,
+    get_environment_backend,
+    set_active_backend,
+)
 
 # string representations of device types
 device_type_id_to_str_dict = {
@@ -31,7 +43,7 @@ device_type_ranks_dict = {
     4: 1
 }
 
-def get_queue_type_strings(queue_type: int, verbose: bool) -> typing.List[str]:
+def get_queue_type_strings(queue_type: int, verbose: bool) -> List[str]:
     """
     A function which returns a list of strings representing the queue's supported operations.
 
@@ -154,9 +166,9 @@ class DeviceInfo:
         uniform_and_storage_buffer_16_bit_access: int,
         storage_push_constant_16: int,
         storage_input_output_16: int,
-        max_workgroup_size: typing.Tuple[int, int, int],
+        max_workgroup_size: Tuple[int, int, int],
         max_workgroup_invocations: int,
-        max_workgroup_count: typing.Tuple[int, int, int],
+        max_workgroup_count: Tuple[int, int, int],
         max_bound_descriptor_sets: int,
         max_push_constant_size: int,
         max_storage_buffer_range: int,
@@ -167,9 +179,13 @@ class DeviceInfo:
         supported_operations: int,
         quad_operations_in_all_stages: int,
         max_compute_shared_memory_size: int,
-        queue_properties: typing.List[typing.Tuple[int, int]]
+        queue_properties: List[Tuple[int, int]],
+        scalar_block_layout: int,
+        timeline_semaphores: int,
+        uuid: Optional[bytes],
     ):
         self.dev_index = dev_index
+        self.sorted_index = -1  # to be set later
 
         self.version_variant = version_variant
         self.version_major = version_major
@@ -216,6 +232,10 @@ class DeviceInfo:
 
         self.queue_properties = queue_properties
 
+        self.scalar_block_layout = scalar_block_layout
+        self.timeline_semaphores = timeline_semaphores
+        self.uuid = uuid
+
     def is_nvidia(self) -> bool:
         """
         A method which checks if the device is an NVIDIA device.
@@ -245,9 +265,21 @@ class DeviceInfo:
             str: A string representation of the device information.
         """
 
-        result = f"Device {self.dev_index}: {self.device_name}\n"
+        result = f"Device {self.sorted_index}: {self.device_name}\n"
 
-        result += f"\tVulkan Version: {self.version_major}.{self.version_minor}.{self.version_patch}\n"
+        backend_type = "Vulkan"
+        version_number = f"{self.version_major}.{self.version_minor}.{self.version_patch}"
+
+        if is_cuda():
+            backend_type = "CUDA Compute Capability"
+            version_number = f"{self.version_major}.{self.version_minor}"
+        elif is_opencl():
+            backend_type = "OpenCL"
+            version_number = f"{self.version_major}.{self.version_minor}"
+        elif is_dummy():
+            backend_type = "Dummy"
+
+        result += f"\t{backend_type} Version: {version_number}\n"
         result += f"\tDevice Type: {device_type_id_to_str_dict[self.device_type]}\n"
 
         if self.version_variant != 0:
@@ -258,10 +290,23 @@ class DeviceInfo:
             result += f"\tVendor ID={self.vendor_id}\n"
             result += f"\tDevice ID={self.device_id}\n"
 
+
+            if self.uuid is not None:
+                uuid_str = '-'.join([
+                    self.uuid[0:4].hex(),
+                    self.uuid[4:6].hex(),
+                    self.uuid[6:8].hex(),
+                    self.uuid[8:10].hex(),
+                    self.uuid[10:16].hex(),
+                ])
+                result += f"\tUUID: {uuid_str}\n"
+
         result += "\n\tFeatures:\n"
 
         if verbose:
             result += f"\t\tFloat32 Atomics: {self.shader_buffer_float32_atomics == 1}\n"
+            result += f"\t\tScalar Block Layout: {self.scalar_block_layout == 1}\n"
+            result += f"\t\tTimeline Semaphores: {self.timeline_semaphores == 1}\n"
         
         result += f"\t\tFloat32 Atomic Add: {self.shader_buffer_float32_atomic_add == 1}\n"
 
@@ -306,13 +351,16 @@ class DeviceInfo:
                 result += f"\t\t{ii} (count={queue[0]}, flags={hex(queue[1])}): "
                 result += " | ".join(queue_types) + "\n"
 
+        
+
         return result
     
     def __repr__(self) -> str:
         return self.get_info_string()
 
 __initilized_instance: bool = False
-
+__device_infos: List[DeviceInfo] = None
+__backend_name: str = BACKEND_VULKAN
 
 def is_initialized() -> bool:
     """
@@ -326,7 +374,154 @@ def is_initialized() -> bool:
 
     return __initilized_instance
 
-def initialize(debug_mode: bool = False, log_level: LogLevel = LogLevel.WARNING, loader_debug_logs: bool = False):
+def get_cuda_device_map():
+    """
+    Returns a dict mapping CUDA device index -> UUID (bytes).
+    Format: { 0: b'\x00...', 1: b'\x01...' }
+
+    If the CUDA driver bindings are not available, returns None.
+    """
+    try:
+        from cuda.bindings import driver
+    except (ImportError, ModuleNotFoundError):
+        __log_noinit("'cuda-python' not installed, skipping CUDA device matching", level=LogLevel.WARNING)
+        return None
+
+    try:
+        err, = driver.cuInit(0)
+        if err != driver.CUresult.CUDA_SUCCESS:
+            raise RuntimeError("Failed to initialize CUDA Driver API")
+
+        err, count = driver.cuDeviceGetCount()
+        if err != driver.CUresult.CUDA_SUCCESS:
+            raise RuntimeError("Failed to get CUDA device count")
+
+        uuid_map = {}
+
+        for i in range(count):
+            err, device = driver.cuDeviceGet(i)
+            if err != driver.CUresult.CUDA_SUCCESS:
+                continue
+
+            err, uuid_bytes = driver.cuDeviceGetUuid(device)
+            if err == driver.CUresult.CUDA_SUCCESS:
+                assert len(uuid_bytes.bytes) == 16
+                uuid_map[i] = uuid_bytes.bytes
+    except Exception as e:
+        __log_noinit(f"Error while querying CUDA devices: {e}", level=LogLevel.WARNING)
+        return None
+
+    return uuid_map
+
+
+def _set_initialized_state(backend_name: str, devices: List[DeviceInfo]) -> None:
+    global __initilized_instance
+    global __backend_name
+    global __device_infos
+
+    __initilized_instance = True
+    __backend_name = backend_name
+    __device_infos = devices
+
+    for ii, dev in enumerate(__device_infos):
+        dev.sorted_index = ii
+
+
+def _build_no_gpu_backend_error(
+    vulkan_error: Exception,
+    cuda_python_error: Exception,
+    opencl_error: Exception,
+) -> RuntimeError:
+    return RuntimeError(
+        "vkdispatch could not find an available GPU backend.\n"
+        f"Vulkan backend unavailable: {vulkan_error}\n"
+        f"CUDA Python backend unavailable: {cuda_python_error}\n"
+        f"OpenCL backend unavailable: {opencl_error}\n"
+        "Install the Vulkan backend with `pip install vkdispatch`, or install CUDA support "
+        "(`pip install cuda-python`), or install OpenCL support (`pip install pyopencl`), "
+        "or explicitly use `vd.initialize(backend='dummy')` "
+        "for codegen-only workflows."
+    )
+
+
+def _build_vulkan_backend_error(vulkan_error: Exception) -> RuntimeError:
+    return RuntimeError(
+        "vkdispatch could not load the Vulkan backend.\n"
+        f"Vulkan backend unavailable: {vulkan_error}\n"
+        "Install the Vulkan backend with `pip install vkdispatch`, use a CUDA backend "
+        "(`pip install cuda-python`), use an OpenCL backend (`pip install pyopencl`), "
+        "or explicitly use `vd.initialize(backend='dummy')` "
+        "for codegen-only workflows."
+    )
+
+
+def _initialize_with_backend(
+    backend_name: str,
+    debug_mode: bool,
+    log_level: LogLevel,
+    loader_debug_logs: bool,
+) -> None:
+    global __initilized_instance
+
+    set_active_backend(backend_name)
+
+    try:
+        if loader_debug_logs and backend_name == BACKEND_VULKAN:
+            os.environ["VK_LOADER_DEBUG"] = "all"
+
+        # Force import now so backend availability errors are distinct from runtime init errors.
+        get_backend_module(backend_name)
+
+        native.init(debug_mode, log_level.value)
+        check_for_errors()
+
+        devivces = [
+            DeviceInfo(ii, *dev_obj)
+            for ii, dev_obj in enumerate(native.get_devices())
+        ]
+
+        if backend_name != BACKEND_VULKAN:
+            _set_initialized_state(backend_name, devivces)
+            return
+
+        is_cuda = any(dev.is_nvidia() for dev in devivces)
+        cuda_uuids = get_cuda_device_map() if is_cuda else None
+
+        if cuda_uuids is None:
+            _set_initialized_state(backend_name, devivces)
+            return
+
+        # try to match CUDA devices to Vulkan devices by UUID
+        cuda_uuid_to_index = {
+            uuid_bytes: cuda_index
+            for cuda_index, uuid_bytes in cuda_uuids.items()
+        }
+        matched_devices: List[Tuple[int, DeviceInfo]] = []
+        unmatched_devices: List[DeviceInfo] = []
+        for dev in devivces:
+            if dev.uuid is not None and dev.uuid in cuda_uuid_to_index:
+                matched_devices.append((cuda_uuid_to_index[dev.uuid], dev))
+            else:
+                unmatched_devices.append(dev)
+
+        matched_devices.sort(key=lambda x: x[0])
+        result = [dev for _, dev in matched_devices] + unmatched_devices
+
+        for dev_id, dev in enumerate(result):
+            dev.sorted_index = dev_id
+
+        _set_initialized_state(backend_name, result)
+    except Exception:
+        if not __initilized_instance:
+            clear_active_backend()
+        raise
+
+def initialize(
+    debug_mode: bool = False,
+    log_level: LogLevel = LogLevel.WARNING,
+    loader_debug_logs: bool = False,
+    backend: Optional[str] = None,
+):
     """
     A function which initializes the Vulkan dispatch library.
 
@@ -338,23 +533,76 @@ def initialize(debug_mode: bool = False, log_level: LogLevel = LogLevel.WARNING,
             LogLevel.WARNING
             LogLevel.ERROR
         loader_debug_logs (bool): A flag to enable vulkan loader debug logs.
+        backend (`Optional[str]`): Runtime backend to use. Supported values are
+            "vulkan", "cuda", "opencl", and "dummy". If omitted, the currently selected backend is
+            reused. If no backend was selected yet, `VKDISPATCH_BACKEND` is used
+            when set, otherwise "vulkan" is used.
     """
 
     global __initilized_instance
+    
+    backend_name = get_active_backend_name(backend)
+    backend_explicitly_selected = (backend is not None) or (get_environment_backend() is not None)
 
     if __initilized_instance:
+        if __backend_name != backend_name:
+            raise RuntimeError(
+                f"vkdispatch is already initialized with backend '{__backend_name}'. "
+                f"Cannot reinitialize with '{backend_name}' in the same process."
+            )
         return
-    
-    if loader_debug_logs:
-        os.environ["VK_LOADER_DEBUG"] = "all"
 
-    vkdispatch_native.init(debug_mode, log_level.value)
-    check_for_errors()
-    
-    __initilized_instance = True
+    if (
+        not backend_explicitly_selected
+        and backend_name == BACKEND_VULKAN
+    ):
+        try:
+            _initialize_with_backend(
+                BACKEND_VULKAN,
+                debug_mode=debug_mode,
+                log_level=log_level,
+                loader_debug_logs=loader_debug_logs,
+            )
+            return
+        except BackendUnavailableError as vulkan_error:
+            try:
+                _initialize_with_backend(
+                    BACKEND_CUDA,
+                    debug_mode=debug_mode,
+                    log_level=log_level,
+                    loader_debug_logs=loader_debug_logs,
+                )
+                return
+            except Exception as cuda_python_error:
+                try:
+                    _initialize_with_backend(
+                        BACKEND_OPENCL,
+                        debug_mode=debug_mode,
+                        log_level=log_level,
+                        loader_debug_logs=loader_debug_logs,
+                    )
+                    return
+                except Exception as opencl_error:
+                    raise _build_no_gpu_backend_error(
+                        vulkan_error,
+                        cuda_python_error,
+                        opencl_error,
+                    ) from opencl_error
+
+    try:
+        _initialize_with_backend(
+            backend_name,
+            debug_mode=debug_mode,
+            log_level=log_level,
+            loader_debug_logs=loader_debug_logs,
+        )
+    except BackendUnavailableError as backend_error:
+        if backend_name == BACKEND_VULKAN:
+            raise _build_vulkan_backend_error(backend_error) from backend_error
+        raise
 
 
-def get_devices() -> typing.List[DeviceInfo]:
+def get_devices() -> List[DeviceInfo]:
     """
     Get a list of DeviceInfo instances representing all the Vulkan devices on the system.
 
@@ -362,12 +610,75 @@ def get_devices() -> typing.List[DeviceInfo]:
         `List[DeviceInfo]`: A list of DeviceInfo instances.
     """
 
-    initialize()
+    global __device_infos
 
-    return [
-        DeviceInfo(ii, *dev_obj)
-        for ii, dev_obj in enumerate(vkdispatch_native.get_devices())
-    ]
+    initialize()
+    
+    return __device_infos
+
+
+def get_backend() -> str:
+    if __initilized_instance:
+        return __backend_name
+
+    return get_active_backend_name()
+
+def is_vulkan() -> bool:
+    """
+    A function which checks if the active backend is the Vulkan backend.
+
+    Returns:
+        `bool`: A flag indicating whether the active backend is the Vulkan backend.
+    """
+
+    return get_backend() == BACKEND_VULKAN
+
+def is_cuda() -> bool:
+    """
+    A function which checks if the active backend is a CUDA backend.
+
+    Returns:
+        `bool`: A flag indicating whether the active backend is a CUDA backend.
+    """
+
+    return get_backend() == BACKEND_CUDA
+
+def is_opencl() -> bool:
+    """
+    A function which checks if the active backend is the OpenCL backend.
+
+    Returns:
+        `bool`: A flag indicating whether the active backend is the OpenCL backend.
+    """
+
+    return get_backend() == BACKEND_OPENCL
+
+def is_dummy() -> bool:
+    """
+    A function which checks if the active backend is the dummy backend.
+
+    Returns:
+        `bool`: A flag indicating whether the active backend is the dummy backend.
+    """
+
+    return get_backend() == BACKEND_DUMMY
+
+def __log_noinit(text: str, end: str = '\n', level: LogLevel = LogLevel.ERROR, stack_offset: int = 1):
+    """
+    A function which logs a message at the specified log level.
+
+    Args:
+        level (`LogLevel`): The log level.
+        message (`str`): The message to log.
+    """
+
+    frame = inspect.stack()[stack_offset]
+    native.log(
+        level.value, 
+        (text + end).encode(), 
+        os.path.relpath(frame.filename, os.getcwd()).encode(), 
+        frame.lineno
+    )
 
 def log(text: str, end: str = '\n', level: LogLevel = LogLevel.ERROR, stack_offset: int = 1):
     """
@@ -380,13 +691,7 @@ def log(text: str, end: str = '\n', level: LogLevel = LogLevel.ERROR, stack_offs
 
     initialize()
 
-    frame = inspect.stack()[stack_offset]
-    vkdispatch_native.log(
-        level.value, 
-        (text + end).encode(), 
-        os.path.relpath(frame.filename, os.getcwd()).encode(), 
-        frame.lineno
-    )
+    __log_noinit(text, end, level, stack_offset + 1)
 
 def log_error(text: str, end: str = '\n'):
     """
@@ -438,4 +743,4 @@ def set_log_level(level: LogLevel):
 
     initialize()
 
-    vkdispatch_native.set_log_level(level.value)
+    native.set_log_level(level.value)

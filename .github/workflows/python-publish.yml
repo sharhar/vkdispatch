@@ -14,38 +14,13 @@ on:
 
 
 jobs:
-  #build_mac_and_windows:
-  #  name: Build Python Package
-  #  runs-on: ${{ matrix.os }}
-  #  strategy:
-  #    fail-fast: false
-  #    matrix:
-  #      os: [windows-latest, macos-latest]
-  #      python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
 
-  #  steps:
-  #  - uses: actions/checkout@v4
-  #  - name: Set up Python ${{ matrix.python-version }}
-  #    uses: actions/setup-python@v3
-  #    with:
-  #      python-version: ${{ matrix.python-version }}
-  #  - name: Install dependencies
-  #    run: |
-  #      python -m pip install --upgrade pip
-  #      python fetch_dependencies.py
-  #      python -m pip install build
-  #      python -m build
-  #  - name: Store the distribution packages
-  #    uses: actions/upload-artifact@v3
-  #    with:
-  #      name: python-package-distributions
-  #      path: dist/
-  build_wheels:
-    name: Build wheels on ${{ matrix.os }}
+  build_native_wheels:
+    name: Build native wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-13, macos-14]
+        os: [ubuntu-latest, windows-latest, macos-15-intel, macos-15]
 
     steps:
       - uses: actions/checkout@v4
@@ -53,15 +28,17 @@ jobs:
       # Used to host cibuildwheel
       - uses: actions/setup-python@v5
 
-      - name: Install cibuildwheel
+      - name: Install cibuildwheel and native deps
         run: |
           python -m pip install --upgrade pip
-          python -m pip install cibuildwheel==2.23.3
+          python -m pip install cibuildwheel==3.2.1
           python fetch_dependencies.py
 
-      - name: Build wheels
+      - name: Build native wheels
         env:
           CIBW_SKIP: 'pp* manylinux_i686 musllinux*'
+          VKDISPATCH_BUILD_TARGET: native
+          CIBW_ENVIRONMENT: VKDISPATCH_BUILD_TARGET=native
         run: python -m cibuildwheel --output-dir wheelhouse
         
         # to supply options, put them in 'env', like:
@@ -72,28 +49,44 @@ jobs:
         with:
           name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
           path: ./wheelhouse/*.whl
-  build_sdist:
-    name: Build source distribution
+  build_python_dists:
+    name: Build native/core/meta sdists and pure wheels
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - uses: actions/setup-python@v5
+
+      - name: Install build tooling
         run: |
           python -m pip install --upgrade pip
-          python fetch_dependencies.py
+          python -m pip install build
 
-      - name: Build sdist
-        run: pipx run build --sdist
+      - name: Build native source distribution
+        env:
+          VKDISPATCH_BUILD_TARGET: native
+        run: |
+          python fetch_dependencies.py
+          python -m build --sdist --outdir dist
+
+      - name: Build core wheel and source distribution
+        env:
+          VKDISPATCH_BUILD_TARGET: core
+        run: python -m build --wheel --sdist --outdir dist
+
+      - name: Build meta wheel and source distribution
+        env:
+          VKDISPATCH_BUILD_TARGET: meta
+        run: python -m build --wheel --sdist --outdir dist
 
       - uses: actions/upload-artifact@v4
         with:
-          name: cibw-sdist
-          path: dist/*.tar.gz
+          name: cibw-python-dists
+          path: dist/*
   publish-to-pypi:
     name: Publish Python package to PyPI
     # if: startsWith(github.ref, 'refs/tags/')  # only publish to PyPI on tag pushes
-    needs: [build_wheels, build_sdist]
+    needs: [build_native_wheels, build_python_dists]
     runs-on: ubuntu-latest
     environment:
       name: pypi

@@ -1,44 +1,41 @@
 import dataclasses
-
-from typing import Dict
-from typing import List
-from typing import Tuple
-from typing import Union
-from typing import Optional
-
 import enum
 
-import numpy as np
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import Union
 
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
+from ..compat import numpy_compat as npc
+from vkdispatch.base.dtype import to_numpy_dtype
+
+
 @dataclasses.dataclass
 class BufferedStructEntry:
     memory_slice: slice
-    dtype: Optional[np.dtype]
+    dtype: Optional[Any]
     shape: Tuple[int, ...]
+
 
 class BufferUsage(enum.Enum):
     PUSH_CONSTANT = 0
     UNIFORM_BUFFER = 1
 
+
 class BufferBuilder:
     """
     A class for building buffers in memory that can be submitted to a compute pipeline.
-
-    Attributes:
-        struct_alignment (int): The alignment of the struct in the buffer.
-        instance_bytes (int): The size of the struct in bytes.
-        instance_count (int): The number of instances of the struct.
-        backing_buffer (np.ndarray): The backing buffer for the struct.
-        element_map (Dict[Tuple[str, str], BufferedStructEntry]): A map of the elements in the
     """
 
     struct_alignment: int = -1
     instance_bytes: int = 0
     instance_count: int = 0
-    backing_buffer: np.ndarray = None
+    backing_buffer: Any = None
 
     element_map: Dict[Tuple[str, str], BufferedStructEntry]
 
@@ -52,54 +49,52 @@ class BufferBuilder:
                 struct_alignment = vd.get_context().uniform_buffer_alignment
             else:
                 raise ValueError("Invalid buffer usage!")
-        
+
         self.struct_alignment = struct_alignment
 
         self.reset()
-    
+
     def reset(self) -> None:
         self.instance_bytes = 0
         self.instance_count = 0
         self.backing_buffer = None
         self.element_map = {}
-        
+
     def register_struct(self, name: str, elements: List[vc.StructElement]) -> Tuple[int, int]:
         offset = self.instance_bytes
 
         for elem in elements:
-            np_dtype = np.dtype(vd.to_numpy_dtype(elem.dtype if elem.dtype.scalar is None else elem.dtype.scalar))
+            elem_dtype = elem.dtype if elem.dtype.scalar is None else elem.dtype.scalar
+            host_dtype = to_numpy_dtype(elem_dtype)
 
-            np_shape = elem.dtype.numpy_shape
+            host_shape = elem.dtype.numpy_shape
 
             if elem.count > 1:
-                if np_shape == (1, ):
-                    np_shape = (elem.count,)
+                if host_shape == (1,):
+                    host_shape = (elem.count,)
                 else:
-                    np_shape = (elem.count, *np_shape)
-            
-            element_size = np_dtype.itemsize * np.prod(np_shape)
+                    host_shape = (elem.count, *host_shape)
+
+            element_size = npc.dtype_itemsize(host_dtype) * npc.prod(host_shape)
 
             self.element_map[(name, elem.name)] = BufferedStructEntry(
                 slice(self.instance_bytes, self.instance_bytes + element_size),
-                np_dtype,
-                np_shape
+                host_dtype,
+                host_shape,
             )
 
             self.instance_bytes += element_size
-        
+
         if self.struct_alignment != 0:
-            padded_size = int(np.ceil(self.instance_bytes / self.struct_alignment)) * self.struct_alignment
+            padded_size = ((self.instance_bytes + self.struct_alignment - 1) // self.struct_alignment) * self.struct_alignment
 
             if padded_size != self.instance_bytes:
                 self.instance_bytes = padded_size
-        
+
         return offset, self.instance_bytes - offset
 
-    def __setitem__(
-        self, key: Tuple[str, str], value: Union[np.ndarray, list, tuple, int, float]
-    ) -> None:
-        if key not in self.element_map:
-            raise ValueError(f"Invalid buffer element name '{key}'!")
+    def _setitem_numpy(self, key: Tuple[str, str], value: Any) -> None:
+        np = npc.numpy_module()
 
         buffer_element = self.element_map[key]
 
@@ -129,7 +124,7 @@ class BufferBuilder:
                     raise ValueError(
                         f"The shape of {key} is {buffer_element.shape} but a scalar was given!"
                     )
-            
+
             if len(buffer_element.shape) > 1:
                 (self.backing_buffer[:, buffer_element.memory_slice]).view(buffer_element.dtype).reshape(-1, *buffer_element.shape)[:] = arr
             else:
@@ -149,21 +144,143 @@ class BufferBuilder:
             else:
                 (self.backing_buffer[0, buffer_element.memory_slice]).view(buffer_element.dtype)[:] = arr
 
-#    def __repr__(self) -> str:
-#        result = "Push Constant Buffer:\n"
-#
-#        for elem in self.elements:
-#            result += f"\t{elem.name} ({elem.dtype.name}): {self.numpy_arrays[elem.index]}\n"
-#
-#        return result[:-1]
+    def _write_payload(self, instance_index: int, element_slice: slice, payload: bytes) -> None:
+        expected_size = element_slice.stop - element_slice.start
+
+        if len(payload) != expected_size:
+            raise ValueError(f"Packed value size mismatch! Expected {expected_size}, got {len(payload)}")
+
+        if npc.HAS_NUMPY:
+            np = npc.numpy_module()
+            row = self.backing_buffer[instance_index]
+            row[element_slice] = np.frombuffer(payload, dtype=np.uint8)
+            return
+
+        start = instance_index * self.instance_bytes + element_slice.start
+        end = start + expected_size
+
+        self.backing_buffer[start:end] = payload
+
+    def _pack_single_instance_value(self, value: Any, key: Tuple[str, str], buffer_element: BufferedStructEntry) -> bytes:
+        expected_element_count = npc.prod(buffer_element.shape)
+        flat_values = npc.flatten(value)
+
+        if expected_element_count == 1 and len(flat_values) == 0:
+            raise ValueError(f"The shape of {key} is {buffer_element.shape} but no value was given!")
+
+        if len(flat_values) != expected_element_count:
+            raise ValueError(
+                f"The shape of {key} is {buffer_element.shape} but {len(flat_values)} elements were given!"
+            )
+
+        return npc.pack_values(flat_values, buffer_element.dtype)
+
+    def _setitem_python(self, key: Tuple[str, str], value: Any) -> None:
+        buffer_element = self.element_map[key]
+
+        if self.instance_count == 1:
+            payload = self._pack_single_instance_value(value, key, buffer_element)
+            self._write_payload(0, buffer_element.memory_slice, payload)
+            return
+
+        # Broadcast scalar values across all instances for scalar fields.
+        if not isinstance(value, (list, tuple)) and not npc.is_array_like(value) and buffer_element.shape == (1,):
+            payload = self._pack_single_instance_value([value], key, buffer_element)
+            for instance_index in range(self.instance_count):
+                self._write_payload(instance_index, buffer_element.memory_slice, payload)
+            return
+
+        expected_element_count = npc.prod(buffer_element.shape)
+
+        if npc.is_array_like(value):
+            flat_values = npc.flatten(value)
+            expected_total = expected_element_count * self.instance_count
+
+            if len(flat_values) != expected_total:
+                raise ValueError(
+                    f"The shape of {key} is {(self.instance_count, *buffer_element.shape)} but {len(flat_values)} elements were given!"
+                )
+
+            for instance_index in range(self.instance_count):
+                instance_values = flat_values[
+                    instance_index * expected_element_count: (instance_index + 1) * expected_element_count
+                ]
+                payload = npc.pack_values(instance_values, buffer_element.dtype)
+                self._write_payload(instance_index, buffer_element.memory_slice, payload)
+            return
+
+        if not isinstance(value, (list, tuple)):
+            raise ValueError(
+                f"The shape of {key} is {(self.instance_count, *buffer_element.shape)} but a scalar was given!"
+            )
+
+        if len(value) != self.instance_count:
+            raise ValueError(f"Invalid shape for {key}! Expected {self.instance_count} but got {len(value)}!")
+
+        for instance_index in range(self.instance_count):
+            payload = self._pack_single_instance_value(value[instance_index], key, buffer_element)
+            self._write_payload(instance_index, buffer_element.memory_slice, payload)
+
+    def __setitem__(
+        self, key: Tuple[str, str], value: Union[Any, list, tuple, int, float]
+    ) -> None:
+        if key not in self.element_map:
+            raise ValueError(f"Invalid buffer element name '{key}'!")
+
+        if self.backing_buffer is None:
+            raise RuntimeError("BufferBuilder.prepare(...) must be called before assigning values")
+
+        buffer_element = self.element_map[key]
+
+        if npc.HAS_NUMPY and not npc.is_host_dtype(buffer_element.dtype):
+            self._setitem_numpy(key, value)
+            return
+
+        self._setitem_python(key, value)
+
+    def __repr__(self) -> str:
+        result = "Push Constant Buffer:\n"
+
+        for key, elem in self.element_map.items():
+            buffer_element = self.element_map[key]
+
+            if npc.HAS_NUMPY and not npc.is_host_dtype(buffer_element.dtype):
+                value = (self.backing_buffer[:, buffer_element.memory_slice]).view(buffer_element.dtype)
+            else:
+                decoded_instances = []
+
+                for instance_index in range(self.instance_count):
+                    start = instance_index * self.instance_bytes + buffer_element.memory_slice.start
+                    end = instance_index * self.instance_bytes + buffer_element.memory_slice.stop
+                    raw = bytes(self.backing_buffer[start:end])
+                    decoded = npc.unpack_values(raw, buffer_element.dtype)
+                    decoded_instances.append(decoded if len(decoded) > 1 else decoded[0])
+
+                value = decoded_instances
+
+            result += f"\t{key[0]}, {key[1]} ({elem.dtype}): {value}\n"
+
+        return result[:-1]
 
     def prepare(self, instance_count: int) -> None:
         if self.instance_count != instance_count:
             self.instance_count = instance_count
-            self.backing_buffer = np.zeros((self.instance_count, self.instance_bytes), dtype=np.uint8)
-        
+
+            if npc.HAS_NUMPY:
+                np = npc.numpy_module()
+                self.backing_buffer = np.zeros((self.instance_count, self.instance_bytes), dtype=np.uint8)
+            else:
+                self.backing_buffer = bytearray(self.instance_count * self.instance_bytes)
+
     def toints(self):
-        return self.backing_buffer.view(np.uint32)
-    
+        if npc.HAS_NUMPY:
+            np = npc.numpy_module()
+            return self.backing_buffer.view(np.uint32)
+
+        return npc.from_buffer(bytes(self.backing_buffer), dtype=npc.host_dtype("uint32"), shape=(len(self.backing_buffer) // 4,))
+
     def tobytes(self):
-        return self.backing_buffer.tobytes()
+        if npc.HAS_NUMPY:
+            return self.backing_buffer.tobytes()
+
+        return bytes(self.backing_buffer)
