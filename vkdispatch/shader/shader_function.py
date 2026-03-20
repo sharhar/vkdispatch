@@ -143,7 +143,6 @@ class ShaderSource:
 
 class ShaderFunction:
     plan: ComputePlan
-    func: Callable
     shader_description: vc.ShaderDescription
     shader_signature: ShaderSignature
     bounds: ExectionBounds
@@ -156,7 +155,8 @@ class ShaderFunction:
     exec_size: Union[Tuple[int, int, int], Callable, None]
 
     def __init__(self,
-                 func: Callable,
+                 shader_description: vc.ShaderDescription,
+                 shader_signature: ShaderSignature,
                  local_size=None,
                  workgroups=None,
                  exec_count=None,
@@ -164,38 +164,16 @@ class ShaderFunction:
                  name: str = None) -> None:
         
         self.plan = None
-        self.func = func
-        self.shader_description = None
-        self.shader_signature = None
+        self.shader_description = shader_description
+        self.shader_signature = shader_signature
         self.bounds = None
         self.ready = False
-        self.name = name if name is not None else func.__name__ if func is not None else None
+        self.name = name if name is not None else None
         self.source = None
         self.local_size = local_size
         self.workgroups = workgroups
         self.exec_size = exec_count
         self.flags = flags
-
-    def from_description(
-        shader_description: vc.ShaderDescription,
-        shader_signature: ShaderSignature,
-        local_size=None,
-        workgroups=None,
-        exec_count=None,
-        
-    ) -> "ShaderFunction":
-        shader_obj = ShaderFunction(
-            func=None,
-            local_size=local_size,
-            workgroups=workgroups,
-            exec_count=exec_count,
-            flags=vc.ShaderFlags.NONE
-        )
-
-        shader_obj.shader_description = shader_description
-        shader_obj.shader_signature = shader_signature
-
-        return shader_obj
 
     def build(self):
         if self.ready:
@@ -206,59 +184,6 @@ class ShaderFunction:
             if self.local_size is not None
             else [vd.get_context().max_workgroup_size[0], 1, 1]
         )
-
-        if self.shader_description is None or self.shader_signature is None:
-            assert self.shader_description is None and self.shader_signature is None, "Shader description and signature must both be set or both be None!"
-            assert self.func is not None, "Cannot build a shader without a function!"
-
-            builder = vc.ShaderBuilder(
-                flags=self.flags,
-                is_apple_device=vd.get_context().is_apple()
-            )
-            old_builder = vc.set_builder(builder)
-
-            try:
-                signature = ShaderSignature.from_inspectable_function(builder, self.func)
-                self.func(*signature.get_variables())
-            except Exception as e:
-                print(f"Error during shader inspection: {e}")
-                raise e
-            finally:
-                vc.set_builder(old_builder)
-
-            self.shader_description = builder.build(self.func.__module__ + "." + self.func.__name__)
-            self.shader_signature = signature
-
-        # Resource bindings are declared before final shader layout is known.
-        # For some shader construction paths (e.g. from_description), signatures are
-        # pre-populated and still hold logical bindings assuming a reserved UBO at 0.
-        binding_shift = self.shader_description.resource_binding_base - 1
-        if binding_shift != 0:
-            binding_access_len = len(self.shader_description.binding_access)
-            needs_remap = False
-
-            for shader_arg in self.shader_signature.arguments:
-                if (
-                    shader_arg.binding is not None
-                    and (
-                        shader_arg.arg_type == ShaderArgumentType.BUFFER
-                        or shader_arg.arg_type == ShaderArgumentType.IMAGE
-                    )
-                    and shader_arg.binding >= binding_access_len
-                ):
-                    needs_remap = True
-                    break
-
-            if needs_remap:
-                for shader_arg in self.shader_signature.arguments:
-                    if (
-                        shader_arg.binding is not None
-                        and (
-                            shader_arg.arg_type == ShaderArgumentType.BUFFER
-                            or shader_arg.arg_type == ShaderArgumentType.IMAGE
-                        )
-                    ):
-                        shader_arg.binding += binding_shift
 
         self.bounds = ExectionBounds(self.shader_signature.get_names_and_defaults(), my_local_size, self.workgroups, self.exec_size)
 
