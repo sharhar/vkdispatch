@@ -9,59 +9,6 @@ from .config import FFTConfig
 from .grid_manager import FFTGridManager
 
 @dataclasses.dataclass
-class FFTRegisterStageInvocation:
-    output_stride: int
-    block_width: int
-    inner_block_offset: vc.ShaderVariable
-    sub_sequence_offset: vc.ShaderVariable
-    register_selection: slice
-
-    instance_id: vc.ShaderVariable
-
-    instance_id0: int
-    inner_block_offset0: int
-    sub_sequence_offset0: int
-
-    def __init__(self,
-                 stage_fft_length: int,
-                 stage_instance_count: int,
-                 output_stride: int,
-                 instance_index: int,
-                 tid: vc.ShaderVariable,
-                 N: int):
-        self.output_stride = output_stride
-
-        self.block_width = output_stride * stage_fft_length
-
-        instance_index_stride = N // (stage_fft_length * stage_instance_count)
-
-        self.instance_id = tid + instance_index_stride * instance_index
-
-        self.inner_block_offset = self.instance_id % output_stride
-
-        if output_stride == 1:
-            self.inner_block_offset = 0
-        
-        self.sub_sequence_offset = self.instance_id * stage_fft_length - self.inner_block_offset * (stage_fft_length - 1)
-
-        # pretend tid is 0, used for calculating register shuffles
-        self.instance_id0 = instance_index_stride * instance_index
-        self.inner_block_offset0 = self.instance_id0 % output_stride
-        self.sub_sequence_offset0 = self.instance_id0 * stage_fft_length - self.inner_block_offset0 * (stage_fft_length - 1)
-        
-        if self.block_width == N:
-            self.inner_block_offset = self.instance_id
-            self.sub_sequence_offset = self.inner_block_offset
-        
-        self.register_selection = slice(instance_index * stage_fft_length, (instance_index + 1) * stage_fft_length)
-
-    def get_write_index(self, fft_index: int):
-        return self.sub_sequence_offset0 + fft_index * self.output_stride
-    
-    def get_read_index(self, offset: int):
-        return self.instance_id0 + offset
-
-@dataclasses.dataclass
 class FFTResources:
     input_batch_offset: vc.ShaderVariable
     output_batch_offset: vc.ShaderVariable
@@ -78,48 +25,20 @@ class FFTResources:
 
     config: FFTConfig
 
-    output_strides: List[int]
-    invocations: List[List[FFTRegisterStageInvocation]]
-
     def __init__(self, config: FFTConfig, grid: FFTGridManager):
         self.tid = grid.tid
         self.grid = grid
         self.config = config
         self.input_batch_offset = vc.new_uint_register(var_name="input_batch_offset")
         self.output_batch_offset = vc.new_uint_register(var_name="output_batch_offset")
-        self.omega_register = vc.new_complex_register(var_name="omega_register")
+        self.omega_register = vc.new_register(config.compute_type, var_name="omega_register")
         self.subsequence_offset = vc.new_uint_register(var_name="subsequence_offset")
         self.io_index = vc.new_uint_register(var_name="io_index")
         self.io_index_2 = vc.new_uint_register(var_name="io_index_2")
 
         self.radix_registers = [
-            vc.new_complex_register(var_name=f"radix_register_{i}") for i in range(config.max_prime_radix)
+            vc.new_register(config.compute_type, var_name=f"radix_register_{i}") for i in range(config.max_prime_radix)
         ]
-
-        self.output_strides = []
-        self.invocations = []
-        
-        output_stride = 1
-        stage_count = len(config.stages)
-
-        for i in range(stage_count):
-            stage = config.stages[i]
-            stage_invocations = []
-
-            for ii in range(stage.instance_count):
-                stage_invocations.append(FFTRegisterStageInvocation(
-                    stage.fft_length,
-                    stage.instance_count,
-                    output_stride,
-                    ii,
-                    self.tid,
-                    config.N
-            ))
-                
-            self.output_strides.append(output_stride)
-            self.invocations.append(stage_invocations)
-            
-            output_stride *= config.stages[i].fft_length
 
     def stage_begin(self, stage_index: int):
         thread_count = self.config.stages[stage_index].thread_count
@@ -144,4 +63,3 @@ class FFTResources:
 
         if stage.remainder_offset == 1:
             vc.end()
-

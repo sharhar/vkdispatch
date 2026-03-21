@@ -7,6 +7,8 @@ from typing import Callable
 from typing import Union
 from typing import Optional
 
+
+
 @dataclasses.dataclass
 class ReduceOp:
     name: str
@@ -31,14 +33,14 @@ SubgroupMul = ReduceOp(
 SubgroupMin = ReduceOp(
     name="min",
     reduction=lambda x, y: vc.min(x, y),
-    identity=vc.inf_f32,
+    identity="inf",
     subgroup_reduction=vc.subgroup_min
 )
 
 SubgroupMax = ReduceOp(
     name="max",
     reduction=lambda x, y: vc.max(x, y),
-    identity=vc.ninf_f32,
+    identity="-inf",
     subgroup_reduction=vc.subgroup_max
 )
 

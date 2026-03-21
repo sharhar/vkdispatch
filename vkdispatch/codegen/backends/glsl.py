@@ -1,17 +1,52 @@
-from typing import List, Optional
+from typing import List, Optional, Set
 
 import vkdispatch.base.dtype as dtypes
 
 from .base import CodeGenBackend
 
+# Map scalar dtypes to GLSL extension names.
+_GLSL_TYPE_EXTENSIONS = {
+    dtypes.float16: "GL_EXT_shader_explicit_arithmetic_types_float16",
+    dtypes.int16: "GL_EXT_shader_explicit_arithmetic_types_int16",
+    dtypes.uint16: "GL_EXT_shader_explicit_arithmetic_types_int16",
+    dtypes.int64: "GL_ARB_gpu_shader_int64",
+    dtypes.uint64: "GL_ARB_gpu_shader_int64",
+    dtypes.float64: "GL_ARB_gpu_shader_fp64",
+}
+
 
 class GLSLBackend(CodeGenBackend):
     name = "glsl"
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._needed_extensions: Set[str] = set()
+
+    def reset_state(self) -> None:
+        self._needed_extensions = set()
+
+    def _track_type_extension(self, var_type: dtypes.dtype) -> None:
+        """Record the GLSL extension required by *var_type* (if any)."""
+        scalar = var_type
+        if dtypes.is_vector(var_type) or dtypes.is_matrix(var_type):
+            scalar = var_type.scalar
+        elif dtypes.is_complex(var_type):
+            scalar = var_type.child_type
+        ext = _GLSL_TYPE_EXTENSIONS.get(scalar)
+        if ext is not None:
+            self._needed_extensions.add(ext)
+
     def type_name(self, var_type: dtypes.dtype) -> str:
+        self._track_type_extension(var_type)
         return var_type.glsl_type
 
-    def constructor(self, var_type: dtypes.dtype, args: List[str]) -> str:
+    def constructor(
+        self,
+        var_type: dtypes.dtype,
+        args: List[str],
+        arg_types: Optional[List[Optional[dtypes.dtype]]] = None,
+    ) -> str:
+        _ = arg_types
         return f"{self.type_name(var_type)}({', '.join(args)})"
 
     def pre_header(self, *, enable_subgroup_ops: bool, enable_printf: bool) -> str:
@@ -24,10 +59,17 @@ class GLSLBackend(CodeGenBackend):
         if enable_printf:
             header += "#extension GL_EXT_debug_printf : require\n"
 
-        return header
+        ext_block = ""
+        for ext in sorted(self._needed_extensions):
+            ext_line = f"#extension {ext} : require\n"
+            if ext_line not in header:
+                ext_block += ext_line
+
+        return header + ext_block
 
     def make_source(self, header: str, body: str, x: int, y: int, z: int) -> str:
         layout_str = f"layout(local_size_x = {x}, local_size_y = {y}, local_size_z = {z}) in;"
+
         return f"{header}\n{layout_str}\n{body}"
 
     def constant_namespace(self) -> str:
@@ -62,6 +104,18 @@ class GLSLBackend(CodeGenBackend):
 
     def ninf_f32_expr(self) -> str:
         return "uintBitsToFloat(0xFF800000)"
+
+    def inf_f64_expr(self) -> str:
+        return "packDouble2x32(uvec2(0x00000000u, 0x7FF00000u))"
+
+    def ninf_f64_expr(self) -> str:
+        return "packDouble2x32(uvec2(0x00000000u, 0xFFF00000u))"
+
+    def inf_f16_expr(self) -> str:
+        return "float16_t(uintBitsToFloat(0x7F800000))"
+
+    def ninf_f16_expr(self) -> str:
+        return "float16_t(uintBitsToFloat(0xFF800000))"
 
     def float_bits_to_int_expr(self, var_expr: str) -> str:
         return f"floatBitsToInt({var_expr})"
@@ -123,25 +177,32 @@ class GLSLBackend(CodeGenBackend):
     def group_memory_barrier_statement(self) -> str:
         return "groupMemoryBarrier();"
 
-    def subgroup_add_expr(self, arg_expr: str) -> str:
+    def subgroup_add_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         return f"subgroupAdd({arg_expr})"
 
-    def subgroup_mul_expr(self, arg_expr: str) -> str:
+    def subgroup_mul_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         return f"subgroupMul({arg_expr})"
 
-    def subgroup_min_expr(self, arg_expr: str) -> str:
+    def subgroup_min_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         return f"subgroupMin({arg_expr})"
 
-    def subgroup_max_expr(self, arg_expr: str) -> str:
+    def subgroup_max_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         return f"subgroupMax({arg_expr})"
 
-    def subgroup_and_expr(self, arg_expr: str) -> str:
+    def subgroup_and_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         return f"subgroupAnd({arg_expr})"
 
-    def subgroup_or_expr(self, arg_expr: str) -> str:
+    def subgroup_or_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         return f"subgroupOr({arg_expr})"
 
-    def subgroup_xor_expr(self, arg_expr: str) -> str:
+    def subgroup_xor_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         return f"subgroupXor({arg_expr})"
 
     def subgroup_elect_expr(self) -> str:
@@ -166,3 +227,9 @@ class GLSLBackend(CodeGenBackend):
             return f"texture({texture_expr}, {coord_expr})"
 
         return f"texture({texture_expr}, {coord_expr}, {lod_expr})"
+
+    def atomic_add_expr(self, mem_expr: str, value_expr: str, var_type: dtypes.dtype) -> str:
+        if var_type not in (dtypes.int32, dtypes.uint32):
+            raise NotImplementedError(f"GLSL atomic_add only supports int32/uint32, got '{var_type.name}'")
+
+        return f"atomicAdd({mem_expr}, {value_expr})"

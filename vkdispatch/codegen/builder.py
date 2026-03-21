@@ -17,6 +17,15 @@ import enum
 from .variables.variables import BaseVariable, ShaderVariable, ScaledAndOfftsetIntVariable
 from .variables.bound_variables import BufferVariable, ImageVariable
 
+_PUSH_CONSTANT_UNSUPPORTED_BACKENDS = set()
+
+
+def _push_constant_not_supported_error(backend_name: str) -> str:
+    return (
+        f"Push Constants are not supported for the {backend_name.upper()} backend. "
+        "Use Const instead."
+    )
+
 @dataclasses.dataclass
 class SharedBuffer:
     """
@@ -61,15 +70,22 @@ class ShaderDescription:
     uniform_structure: List[StructElement]
     binding_type_list: List[BindingType]
     binding_access: List[Tuple[bool, bool]] # List of tuples indicating read and write access for each binding
-    exec_count_name: str
+    exec_count_name: Optional[str]
+    resource_binding_base: int
     backend: Optional[CodeGenBackend] = None
 
     def make_source(self, x: int, y: int, z: int) -> str:
         if self.backend is None:
             layout_str = f"layout(local_size_x = {x}, local_size_y = {y}, local_size_z = {z}) in;"
-            return f"{self.header}\n{layout_str}\n{self.body}"
+            shader_source = f"{self.header}\n{layout_str}\n{self.body}"
+        else:
+            shader_source = self.backend.make_source(self.header, self.body, x, y, z)
 
-        return self.backend.make_source(self.header, self.body, x, y, z)
+        # ff = open(f"sources/{self.name}.comp", "w")
+        # ff.write(shader_source)
+        # ff.close()
+
+        return shader_source
     
     def __repr__(self):
         description_string = ""
@@ -123,7 +139,6 @@ class ShaderBuilder(ShaderWriter):
     pc_struct: StructBuilder
     uniform_struct: StructBuilder
     exec_count: Optional[ShaderVariable]
-    pre_header: str
     flags: ShaderFlags
     backend: CodeGenBackend
 
@@ -140,11 +155,6 @@ class ShaderBuilder(ShaderWriter):
         else:
             # Use the selected backend type while keeping per-builder backend state isolated.
             self.backend = get_codegen_backend().__class__()
-
-        self.pre_header = self.backend.pre_header(
-            enable_subgroup_ops=not (self.flags & ShaderFlags.NO_SUBGROUP_OPS),
-            enable_printf=not (self.flags & ShaderFlags.NO_PRINTF)
-        )
         
         self.reset()
 
@@ -159,9 +169,10 @@ class ShaderBuilder(ShaderWriter):
         self.shared_buffers = []
         self.scope_num = 1
         
-        self.exec_count = self.declare_constant(dtypes.uvec4, var_name="exec_count")
-        
+        self.exec_count = None
+
         if not (self.flags & ShaderFlags.NO_EXEC_BOUNDS):
+            self.exec_count = self.declare_constant(dtypes.uvec4, var_name="exec_count")
             self.append_contents(self.backend.exec_bounds_guard(self.exec_count.resolve()))
 
     def new_var(self,
@@ -211,6 +222,9 @@ class ShaderBuilder(ShaderWriter):
         return new_var
 
     def declare_variable(self, var_type: dtypes.dtype, count: int = 1, var_name: Optional[str] = None):
+        if self.backend.name in _PUSH_CONSTANT_UNSUPPORTED_BACKENDS:
+            raise NotImplementedError(_push_constant_not_supported_error(self.backend.name))
+
         if var_name is None:
             var_name = self.new_name()
 
@@ -235,6 +249,10 @@ class ShaderBuilder(ShaderWriter):
 
         buffer_name = f"buf{self.binding_count}" if var_name is None else var_name
         shape_name = f"{buffer_name}_shape"
+        scalar_expr = None
+
+        if self.backend.name == "opencl" and (dtypes.is_vector(var_type) or dtypes.is_complex(var_type)):
+            scalar_expr = f"{buffer_name}_scalar"
         
         self.binding_list.append(ShaderBinding(var_type, buffer_name, 0, BindingType.STORAGE_BUFFER))
         self.binding_read_access[self.binding_count] = False
@@ -247,13 +265,18 @@ class ShaderBuilder(ShaderWriter):
 
         def write_lambda():
             self.binding_write_access[current_binding_count] = True
+
+        def shape_var_factory():
+            return self.declare_constant(dtypes.ivec4, var_name=shape_name)
         
         return BufferVariable(
             var_type,
             self.binding_count,
             f"{buffer_name}.data",
-            self.declare_constant(dtypes.ivec4, var_name=shape_name),
-            shape_name,
+            shape_var_factory=shape_var_factory,
+            shape_name=shape_name,
+            scalar_expr=scalar_expr,
+            codegen_backend=self.backend,
             read_lambda=read_lambda,
             write_lambda=write_lambda
         )
@@ -287,12 +310,17 @@ class ShaderBuilder(ShaderWriter):
         
         shape_name = f"{var_name}_shape"
 
+        def shape_var_factory():
+            return self.declare_constant(dtypes.ivec4, var_name=shape_name)
+
         new_var = BufferVariable(
             var_type,
             -1,
             var_name,
-            self.declare_constant(dtypes.ivec4, var_name=shape_name),
-            shape_name,
+            shape_var_factory=shape_var_factory,
+            shape_name=shape_name,
+            scalar_expr=None,
+            codegen_backend=self.backend,
             read_lambda=lambda: None,
             write_lambda=lambda: None
         )
@@ -316,7 +344,7 @@ class ShaderBuilder(ShaderWriter):
         return "\n".join(declerations)
 
     def build(self, name: str) -> ShaderDescription:
-        header = "" + self.pre_header
+        header = ""
 
         for shared_buffer in self.shared_buffers:
             header += self.backend.shared_buffer_declaration(
@@ -328,22 +356,28 @@ class ShaderBuilder(ShaderWriter):
         uniform_elements = self.uniform_struct.build()
         
         uniform_decleration_contents = self.compose_struct_decleration(uniform_elements)
-        if len(uniform_decleration_contents) > 0:
+        has_uniform_buffer = len(uniform_decleration_contents) > 0
+        if has_uniform_buffer:
             header += self.backend.uniform_block_declaration(uniform_decleration_contents)
 
-        binding_type_list = [BindingType.UNIFORM_BUFFER]
-        binding_access = [(True, False)]  # UBO is read-only
+        binding_base = 1 if has_uniform_buffer else 0
+        binding_type_list = []
+        binding_access = []
+        if has_uniform_buffer:
+            binding_type_list.append(BindingType.UNIFORM_BUFFER)
+            binding_access.append((True, False))  # UBO is read-only
         
         for ii, binding in enumerate(self.binding_list):
+            emitted_binding = ii + binding_base
             if binding.binding_type == BindingType.STORAGE_BUFFER:
-                header += self.backend.storage_buffer_declaration(ii + 1, binding.dtype, binding.name)
+                header += self.backend.storage_buffer_declaration(emitted_binding, binding.dtype, binding.name)
                 binding_type_list.append(binding.binding_type)
                 binding_access.append((
                     self.binding_read_access[ii + 1],
                     self.binding_write_access[ii + 1]
                 ))
             else:
-                header += self.backend.sampler_declaration(ii + 1, binding.dimension, binding.name)
+                header += self.backend.sampler_declaration(emitted_binding, binding.dimension, binding.name)
                 binding_type_list.append(binding.binding_type)
                 binding_access.append((
                     self.binding_read_access[ii + 1],
@@ -355,10 +389,18 @@ class ShaderBuilder(ShaderWriter):
         pc_decleration_contents = self.compose_struct_decleration(pc_elements)
         
         if len(pc_decleration_contents) > 0:
+            assert self.backend.name not in _PUSH_CONSTANT_UNSUPPORTED_BACKENDS, (
+                _push_constant_not_supported_error(self.backend.name)
+            )
             header += self.backend.push_constant_declaration(pc_decleration_contents)
 
+        pre_header = self.backend.pre_header(
+            enable_subgroup_ops=not (self.flags & ShaderFlags.NO_SUBGROUP_OPS),
+            enable_printf=not (self.flags & ShaderFlags.NO_PRINTF)
+        )
+
         return ShaderDescription(
-            header=header,
+            header=f"{pre_header}{header}",
             body=self.backend.entry_point(self.contents),
             name=name,
             pc_size=self.pc_struct.size, 
@@ -366,6 +408,7 @@ class ShaderBuilder(ShaderWriter):
             uniform_structure=uniform_elements, 
             binding_type_list=[binding.value for binding in binding_type_list],
             binding_access=binding_access,
-            exec_count_name=self.exec_count.raw_name,
+            exec_count_name=self.exec_count.raw_name if self.exec_count is not None else None,
+            resource_binding_base=binding_base,
             backend=self.backend
         )

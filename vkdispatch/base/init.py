@@ -6,12 +6,17 @@ from typing import Tuple, List, Optional
 import inspect
 
 from .errors import check_for_errors
-from .backend import (
+from ..backends.backend_selection import (
+    BACKEND_CUDA,
+    BACKEND_OPENCL,
     BACKEND_VULKAN,
+    BACKEND_DUMMY,
+    BackendUnavailableError,
     clear_active_backend,
     get_active_backend_name,
+    get_backend_module,
     native,
-    normalize_backend_name,
+    get_environment_backend,
     set_active_backend,
 )
 
@@ -262,7 +267,19 @@ class DeviceInfo:
 
         result = f"Device {self.sorted_index}: {self.device_name}\n"
 
-        result += f"\tVulkan Version: {self.version_major}.{self.version_minor}.{self.version_patch}\n"
+        backend_type = "Vulkan"
+        version_number = f"{self.version_major}.{self.version_minor}.{self.version_patch}"
+
+        if is_cuda():
+            backend_type = "CUDA Compute Capability"
+            version_number = f"{self.version_major}.{self.version_minor}"
+        elif is_opencl():
+            backend_type = "OpenCL"
+            version_number = f"{self.version_major}.{self.version_minor}"
+        elif is_dummy():
+            backend_type = "Dummy"
+
+        result += f"\t{backend_type} Version: {version_number}\n"
         result += f"\tDevice Type: {device_type_id_to_str_dict[self.device_type]}\n"
 
         if self.version_variant != 0:
@@ -396,6 +413,109 @@ def get_cuda_device_map():
 
     return uuid_map
 
+
+def _set_initialized_state(backend_name: str, devices: List[DeviceInfo]) -> None:
+    global __initilized_instance
+    global __backend_name
+    global __device_infos
+
+    __initilized_instance = True
+    __backend_name = backend_name
+    __device_infos = devices
+
+    for ii, dev in enumerate(__device_infos):
+        dev.sorted_index = ii
+
+
+def _build_no_gpu_backend_error(
+    vulkan_error: Exception,
+    cuda_python_error: Exception,
+    opencl_error: Exception,
+) -> RuntimeError:
+    return RuntimeError(
+        "vkdispatch could not find an available GPU backend.\n"
+        f"Vulkan backend unavailable: {vulkan_error}\n"
+        f"CUDA Python backend unavailable: {cuda_python_error}\n"
+        f"OpenCL backend unavailable: {opencl_error}\n"
+        "Install the Vulkan backend with `pip install vkdispatch`, or install CUDA support "
+        "(`pip install cuda-python`), or install OpenCL support (`pip install pyopencl`), "
+        "or explicitly use `vd.initialize(backend='dummy')` "
+        "for codegen-only workflows."
+    )
+
+
+def _build_vulkan_backend_error(vulkan_error: Exception) -> RuntimeError:
+    return RuntimeError(
+        "vkdispatch could not load the Vulkan backend.\n"
+        f"Vulkan backend unavailable: {vulkan_error}\n"
+        "Install the Vulkan backend with `pip install vkdispatch`, use a CUDA backend "
+        "(`pip install cuda-python`), use an OpenCL backend (`pip install pyopencl`), "
+        "or explicitly use `vd.initialize(backend='dummy')` "
+        "for codegen-only workflows."
+    )
+
+
+def _initialize_with_backend(
+    backend_name: str,
+    debug_mode: bool,
+    log_level: LogLevel,
+    loader_debug_logs: bool,
+) -> None:
+    global __initilized_instance
+
+    set_active_backend(backend_name)
+
+    try:
+        if loader_debug_logs and backend_name == BACKEND_VULKAN:
+            os.environ["VK_LOADER_DEBUG"] = "all"
+
+        # Force import now so backend availability errors are distinct from runtime init errors.
+        get_backend_module(backend_name)
+
+        native.init(debug_mode, log_level.value)
+        check_for_errors()
+
+        devivces = [
+            DeviceInfo(ii, *dev_obj)
+            for ii, dev_obj in enumerate(native.get_devices())
+        ]
+
+        if backend_name != BACKEND_VULKAN:
+            _set_initialized_state(backend_name, devivces)
+            return
+
+        is_cuda = any(dev.is_nvidia() for dev in devivces)
+        cuda_uuids = get_cuda_device_map() if is_cuda else None
+
+        if cuda_uuids is None:
+            _set_initialized_state(backend_name, devivces)
+            return
+
+        # try to match CUDA devices to Vulkan devices by UUID
+        cuda_uuid_to_index = {
+            uuid_bytes: cuda_index
+            for cuda_index, uuid_bytes in cuda_uuids.items()
+        }
+        matched_devices: List[Tuple[int, DeviceInfo]] = []
+        unmatched_devices: List[DeviceInfo] = []
+        for dev in devivces:
+            if dev.uuid is not None and dev.uuid in cuda_uuid_to_index:
+                matched_devices.append((cuda_uuid_to_index[dev.uuid], dev))
+            else:
+                unmatched_devices.append(dev)
+
+        matched_devices.sort(key=lambda x: x[0])
+        result = [dev for _, dev in matched_devices] + unmatched_devices
+
+        for dev_id, dev in enumerate(result):
+            dev.sorted_index = dev_id
+
+        _set_initialized_state(backend_name, result)
+    except Exception:
+        if not __initilized_instance:
+            clear_active_backend()
+        raise
+
 def initialize(
     debug_mode: bool = False,
     log_level: LogLevel = LogLevel.WARNING,
@@ -414,20 +534,15 @@ def initialize(
             LogLevel.ERROR
         loader_debug_logs (bool): A flag to enable vulkan loader debug logs.
         backend (`Optional[str]`): Runtime backend to use. Supported values are
-            "vulkan" and "pycuda". If omitted, the currently selected backend is
+            "vulkan", "cuda", "opencl", and "dummy". If omitted, the currently selected backend is
             reused. If no backend was selected yet, `VKDISPATCH_BACKEND` is used
             when set, otherwise "vulkan" is used.
     """
 
     global __initilized_instance
-    global __device_infos
-    global __backend_name
-
-    backend_name = normalize_backend_name(
-        backend
-        if backend is not None
-        else get_active_backend_name(os.environ.get("VKDISPATCH_BACKEND"))
-    )
+    
+    backend_name = get_active_backend_name(backend)
+    backend_explicitly_selected = (backend is not None) or (get_environment_backend() is not None)
 
     if __initilized_instance:
         if __backend_name != backend_name:
@@ -437,72 +552,53 @@ def initialize(
             )
         return
 
-    set_active_backend(backend_name)
+    if (
+        not backend_explicitly_selected
+        and backend_name == BACKEND_VULKAN
+    ):
+        try:
+            _initialize_with_backend(
+                BACKEND_VULKAN,
+                debug_mode=debug_mode,
+                log_level=log_level,
+                loader_debug_logs=loader_debug_logs,
+            )
+            return
+        except BackendUnavailableError as vulkan_error:
+            try:
+                _initialize_with_backend(
+                    BACKEND_CUDA,
+                    debug_mode=debug_mode,
+                    log_level=log_level,
+                    loader_debug_logs=loader_debug_logs,
+                )
+                return
+            except Exception as cuda_python_error:
+                try:
+                    _initialize_with_backend(
+                        BACKEND_OPENCL,
+                        debug_mode=debug_mode,
+                        log_level=log_level,
+                        loader_debug_logs=loader_debug_logs,
+                    )
+                    return
+                except Exception as opencl_error:
+                    raise _build_no_gpu_backend_error(
+                        vulkan_error,
+                        cuda_python_error,
+                        opencl_error,
+                    ) from opencl_error
 
     try:
-        if loader_debug_logs and backend_name == BACKEND_VULKAN:
-            os.environ["VK_LOADER_DEBUG"] = "all"
-
-        native.init(debug_mode, log_level.value)
-        check_for_errors()
-
-        devivces = [
-            DeviceInfo(ii, *dev_obj)
-            for ii, dev_obj in enumerate(native.get_devices())
-        ]
-
-        if backend_name != BACKEND_VULKAN:
-            __initilized_instance = True
-            __backend_name = backend_name
-            __device_infos = devivces
-            for ii, dev in enumerate(__device_infos):
-                dev.sorted_index = ii
-            return
-
-        is_cuda = any(dev.is_nvidia() for dev in devivces)
-
-        cuda_uuids = get_cuda_device_map() if is_cuda else None
-
-        if cuda_uuids is None:
-            __initilized_instance = True
-            __backend_name = backend_name
-            __device_infos = devivces
-            for ii, dev in enumerate(__device_infos):
-                dev.sorted_index = ii
-            return
-        
-        # try to match CUDA devices to Vulkan devices by UUID
-        cuda_uuid_to_index = {
-            uuid_bytes: cuda_index
-            for cuda_index, uuid_bytes in cuda_uuids.items()
-        }
-        matched_devices: List[Tuple[int, DeviceInfo, int]]= []
-        unmatched_devices: List[DeviceInfo] = []
-        for dev in devivces:
-            if dev.uuid is not None and dev.uuid in cuda_uuid_to_index:
-                #print(f"Matched Vulkan device {ii} ({dev.device_name}) to CUDA device {cuda_uuid_to_index[dev.uuid]} with UUID {dev.uuid.hex()}")
-                matched_devices.append( (cuda_uuid_to_index[dev.uuid], dev) )
-            else:
-                #print(f"Could not match Vulkan device {ii} ({dev.device_name}) with UUID {dev.uuid.hex()} to any CUDA device")
-                unmatched_devices.append(dev)
-
-        # sort matched devices by CUDA index
-        matched_devices.sort(key=lambda x: x[0])
-
-        # return matched devices first (by CUDA index), then unmatched devices (by Vulkan order)
-        result = [dev for _, dev in matched_devices] + unmatched_devices
-        #result_ids = [ii for _, _, ii in matched_devices] + unmatched_device_ids
-
-        for dev_id, dev in enumerate(result):
-            #print(f"Final device order index {dev.sorted_index} -> Vulkan device {dev_id} ({dev.device_name})")
-            dev.sorted_index = dev_id
-        
-        __initilized_instance = True
-        __backend_name = backend_name
-        __device_infos = result
-    except Exception:
-        if not __initilized_instance:
-            clear_active_backend()
+        _initialize_with_backend(
+            backend_name,
+            debug_mode=debug_mode,
+            log_level=log_level,
+            loader_debug_logs=loader_debug_logs,
+        )
+    except BackendUnavailableError as backend_error:
+        if backend_name == BACKEND_VULKAN:
+            raise _build_vulkan_backend_error(backend_error) from backend_error
         raise
 
 
@@ -516,7 +612,7 @@ def get_devices() -> List[DeviceInfo]:
 
     global __device_infos
 
-    initialize(backend=get_active_backend_name())
+    initialize()
     
     return __device_infos
 
@@ -526,6 +622,46 @@ def get_backend() -> str:
         return __backend_name
 
     return get_active_backend_name()
+
+def is_vulkan() -> bool:
+    """
+    A function which checks if the active backend is the Vulkan backend.
+
+    Returns:
+        `bool`: A flag indicating whether the active backend is the Vulkan backend.
+    """
+
+    return get_backend() == BACKEND_VULKAN
+
+def is_cuda() -> bool:
+    """
+    A function which checks if the active backend is a CUDA backend.
+
+    Returns:
+        `bool`: A flag indicating whether the active backend is a CUDA backend.
+    """
+
+    return get_backend() == BACKEND_CUDA
+
+def is_opencl() -> bool:
+    """
+    A function which checks if the active backend is the OpenCL backend.
+
+    Returns:
+        `bool`: A flag indicating whether the active backend is the OpenCL backend.
+    """
+
+    return get_backend() == BACKEND_OPENCL
+
+def is_dummy() -> bool:
+    """
+    A function which checks if the active backend is the dummy backend.
+
+    Returns:
+        `bool`: A flag indicating whether the active backend is the dummy backend.
+    """
+
+    return get_backend() == BACKEND_DUMMY
 
 def __log_noinit(text: str, end: str = '\n', level: LogLevel = LogLevel.ERROR, stack_offset: int = 1):
     """
@@ -553,7 +689,7 @@ def log(text: str, end: str = '\n', level: LogLevel = LogLevel.ERROR, stack_offs
         message (`str`): The message to log.
     """
 
-    initialize(backend=get_active_backend_name())
+    initialize()
 
     __log_noinit(text, end, level, stack_offset + 1)
 
@@ -605,6 +741,6 @@ def set_log_level(level: LogLevel):
         level (`LogLevel`): The log level.
     """
 
-    initialize(backend=get_active_backend_name())
+    initialize()
 
     native.set_log_level(level.value)

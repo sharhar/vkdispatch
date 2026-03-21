@@ -30,16 +30,31 @@ from .functions.matrix import determinant, inverse
 
 from .functions.atomic_memory import atomic_add
 
-from .functions.type_casting import to_dtype, str_to_dtype, to_float, to_int, to_uint
-from .functions.type_casting import to_vec2, to_vec3, to_vec4, to_complex
-from .functions.type_casting import to_uvec2, to_uvec3, to_uvec4
+from .functions.type_casting import to_dtype, str_to_dtype
+from .functions.type_casting import to_float16, to_float, to_float64
+from .functions.type_casting import to_int16, to_int, to_int64, to_uint16, to_uint, to_uint64
+from .functions.type_casting import to_complex, to_complex32, to_complex64, to_complex128
+from .functions.type_casting import to_hvec2, to_hvec3, to_hvec4
+from .functions.type_casting import to_vec2, to_vec3, to_vec4
+from .functions.type_casting import to_dvec2, to_dvec3, to_dvec4
+from .functions.type_casting import to_ihvec2, to_ihvec3, to_ihvec4
 from .functions.type_casting import to_ivec2, to_ivec3, to_ivec4
+from .functions.type_casting import to_uhvec2, to_uhvec3, to_uhvec4
+from .functions.type_casting import to_uvec2, to_uvec3, to_uvec4
 from .functions.type_casting import to_mat2, to_mat3, to_mat4
 
-from .functions.registers import new_register, new_float_register, new_int_register, new_uint_register
-from .functions.registers import new_vec2_register, new_ivec2_register, new_uvec2_register, new_complex_register
-from .functions.registers import new_vec3_register, new_ivec3_register, new_uvec3_register
-from .functions.registers import new_vec4_register, new_ivec4_register, new_uvec4_register
+from .functions.registers import new_register, new_complex_register
+from .functions.registers import new_float16_register, new_float_register, new_float64_register
+from .functions.registers import new_int16_register, new_int_register, new_int64_register
+from .functions.registers import new_uint16_register, new_uint_register, new_uint64_register
+from .functions.registers import new_complex32_register, new_complex64_register, new_complex128_register
+from .functions.registers import new_hvec2_register, new_hvec3_register, new_hvec4_register
+from .functions.registers import new_vec2_register, new_vec3_register, new_vec4_register
+from .functions.registers import new_dvec2_register, new_dvec3_register, new_dvec4_register
+from .functions.registers import new_ihvec2_register, new_ihvec3_register, new_ihvec4_register
+from .functions.registers import new_ivec2_register, new_ivec3_register, new_ivec4_register
+from .functions.registers import new_uhvec2_register, new_uhvec3_register, new_uhvec4_register
+from .functions.registers import new_uvec2_register, new_uvec3_register, new_uvec4_register
 from .functions.registers import new_mat2_register, new_mat3_register, new_mat4_register
 
 from .functions.subgroups import subgroup_add, subgroup_mul
@@ -56,7 +71,7 @@ from .functions.complex_numbers import mult_complex, complex_from_euler_angle
 
 from .functions.builtin_constants import global_invocation_id, local_invocation_id, workgroup_id, local_invocation_index
 from .functions.builtin_constants import workgroup_size, num_workgroups, num_subgroups, subgroup_id
-from .functions.builtin_constants import subgroup_size, subgroup_invocation_id, inf_f32, ninf_f32
+from .functions.builtin_constants import subgroup_size, subgroup_invocation_id, inf_f32, ninf_f32, inf_f64, ninf_f64, inf_f16, ninf_f16
 
 from .functions.index_raveling import ravel_index, unravel_index
 
@@ -66,7 +81,7 @@ from .functions.printing import print_vars as print
 from .builder import ShaderBinding, ShaderDescription
 from .builder import ShaderBuilder, ShaderFlags
 
-from .backends import CodeGenBackend, GLSLBackend, CUDABackend
+from .backends import CodeGenBackend, GLSLBackend, CUDABackend, OpenCLBackend
 
 from .global_builder import set_builder, get_builder, shared_buffer, set_shader_print_line_numbers, get_shader_print_line_numbers
 from .global_builder import set_codegen_backend, get_codegen_backend

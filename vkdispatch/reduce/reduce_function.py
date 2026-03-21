@@ -6,7 +6,7 @@ from .stage import make_reduction_stage, ReductionParams
 
 from typing import List, Optional
 
-from .._compat import numpy_compat as npc
+from ..compat import numpy_compat as npc
 
 class ReduceFunction:
     def __init__(self,
@@ -49,11 +49,26 @@ class ReduceFunction:
             self.group_size, 
             True,
         )
+
+    def get_src(self, line_numbers: bool = None) -> str:
+        self.make_stages()
+
+        return [
+            self.stage1.get_src(line_numbers),
+            self.stage2.get_src(line_numbers)
+        ]
+    
+    def print_src(self, line_numbers: bool = None):
+        srcs = self.get_src(line_numbers)
+
+        print(f"// Reduction Stage 1:\n{srcs[0]}\n// Reduction Stage 2:\n{srcs[1]}")
     
     def __repr__(self) -> str:
         self.make_stages()
 
-        return f"Stage 1:\n{self.stage1}\nStage 2:\n{self.stage2}"
+        srcs = self.get_src()
+
+        return f"// Reduction Stage 1:\n{srcs[0]}\n// Reduction Stage 2:\n{srcs[1]}"
 
     def __call__(self, *args, **kwargs) -> vd.Buffer:
         self.make_stages()

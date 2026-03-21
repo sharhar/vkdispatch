@@ -27,11 +27,9 @@ bundle_lib:
 	@rm -rf "$(LIB_DEST)/vkdispatch"
 	@mkdir -p "$(LIB_DEST)"
 	@rm -f "$(LIB_DEST)/$(LIB_BUNDLE)"
-	@rm -f "$(LIB_DEST)/vkdispatch_native.brython.js"
 	@rm -rf "$(LIB_STAGE)"
 	@mkdir -p "$(LIB_STAGE)"
 	@cp -r ../vkdispatch "$(LIB_STAGE)/vkdispatch"
-	@cp -r special_pages/libs/vkdispatch_native "$(LIB_STAGE)/vkdispatch_native"
 	@cd "$(LIB_STAGE)" && $(PYTHON) -m brython make_package vkdispatch \
 		--src-dir . \
 		--output-path "$(CURDIR)/$(LIB_DEST)/$(LIB_BUNDLE)"

@@ -1,21 +1,41 @@
 from typing import Tuple
 from typing import List
 from typing import Union
+from typing import Optional
+from contextlib import nullcontext
 
+from .init import is_cuda
 from .dtype import dtype
 from .context import Handle, Signal
 from .errors import check_for_errors
 
-from .dtype import complex64, uint32, int32, float32
+from .dtype import complex64
+from . import dtype as dtypes
 
-from .._compat import numpy_compat as npc
+from ..compat import numpy_compat as npc
 from .dtype import to_numpy_dtype, from_numpy_dtype
 
-from .backend import native
+from ..backends.backend_selection import native
 
 import typing
 
 _ArgType = typing.TypeVar('_ArgType', bound=dtype)
+
+import dataclasses
+
+def _suspend_cuda_capture_if_needed():
+    if not is_cuda():
+        return nullcontext()
+
+    from ..execution_pipeline.cuda_graph_capture import suspend_cuda_capture
+    return suspend_cuda_capture()
+
+@dataclasses.dataclass
+class ExternalBufferInfo:
+    writable: bool
+    iface: dict
+    keepalive: bool
+    cuda_ptr: int
 
 class Buffer(Handle, typing.Generic[_ArgType]):
     """
@@ -37,8 +57,14 @@ class Buffer(Handle, typing.Generic[_ArgType]):
     size: int
     mem_size: int
     signals: List[Signal]
+    is_external: bool
+    owns_memory: bool
+    is_writable: bool
+    cuda_ptr: typing.Optional[int]
+    cuda_source: typing.Any
+    cuda_array_stream: typing.Optional[typing.Any]
 
-    def __init__(self, shape: Tuple[int, ...], var_type: dtype) -> None:
+    def __init__(self, shape: Tuple[int, ...], var_type: dtype, external_buffer: ExternalBufferInfo = None) -> None:
         super().__init__()
 
         if isinstance(shape, int):
@@ -49,7 +75,6 @@ class Buffer(Handle, typing.Generic[_ArgType]):
 
         self.var_type: dtype = var_type
         self.shape: Tuple[int] = shape
-        #self.size: int = int(np.prod(shape))
 
         size = 1
         for dim in shape:
@@ -71,11 +96,25 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         self.shader_shape = tuple(shader_shape_internal)
 
         self.signals = []
+        self.is_external = external_buffer is not None
+        self.owns_memory = external_buffer is None
+        self.is_writable = True if external_buffer is None else external_buffer.writable
+        self.cuda_ptr = None if external_buffer is None else external_buffer.cuda_ptr
+        self.cuda_source = None if external_buffer is None else (external_buffer.iface if external_buffer.keepalive else None)
+        self.cuda_array_stream = None if external_buffer is None else external_buffer.iface.get("stream")
 
-        handle = native.buffer_create(
-            self.context._handle, self.mem_size, 0
-        )
-        check_for_errors()
+        with _suspend_cuda_capture_if_needed():
+            if external_buffer is not None:
+                handle = native.buffer_create_external(
+                    self.context._handle,
+                    self.mem_size,
+                    self.cuda_ptr,
+                )
+            else:
+                handle = native.buffer_create(
+                    self.context._handle, self.mem_size, 0
+                )
+            check_for_errors()
 
         self.signals = [
             Signal(
@@ -87,6 +126,17 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         ]
 
         self.register_handle(handle)
+
+    def __repr__(self):
+        return f"""Buffer {self._handle}:
+    shape={self.shape}
+    var_type={self.var_type.name}
+    mem_size={self.mem_size} bytes
+    is_external={self.is_external}
+    writable={self.is_writable}
+    cuda_ptr={self.cuda_ptr}
+    cuda_iface={self.cuda_source}
+"""
 
     def _destroy(self) -> None:
         """Destroy the buffer and all child handles."""
@@ -100,31 +150,33 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         self.destroy()
 
     def _wait_staging_idle(self, index: int):
-        is_idle = native.buffer_wait_staging_idle(self._handle, index)
-        check_for_errors()
+        with _suspend_cuda_capture_if_needed():
+            is_idle = native.buffer_wait_staging_idle(self._handle, index)
+            check_for_errors()
         return is_idle
 
     def _do_writes(self, data: bytes, index: int = None):
         indicies = [index] if index is not None else range(self.context.queue_count)
         completed_stages = [0] * len(indicies)
 
-        while not all(stage == 1 for stage in completed_stages):
-            for i in range(len(indicies)):
-                if completed_stages[i] == 1:
-                    continue
+        with _suspend_cuda_capture_if_needed():
+            while not all(stage == 1 for stage in completed_stages):
+                for i in range(len(indicies)):
+                    if completed_stages[i] == 1:
+                        continue
 
-                queue_index = indicies[i]
+                    queue_index = indicies[i]
 
-                if not self.signals[queue_index].try_wait(True, queue_index):
-                    continue
+                    if not self.signals[queue_index].try_wait(True, queue_index):
+                        continue
 
-                completed_stages[i] = 1
+                    completed_stages[i] = 1
 
-                native.buffer_write_staging(self._handle, queue_index, data, len(data))
-                check_for_errors()
+                    native.buffer_write_staging(self._handle, queue_index, data, len(data))
+                    check_for_errors()
 
-                native.buffer_write(self._handle, 0, len(data), queue_index)
-                check_for_errors()
+                    native.buffer_write(self._handle, 0, len(data), queue_index)
+                    check_for_errors()
 
     def write(self, data: Union[bytes, bytearray, memoryview, typing.Any], index: int = None) -> None:
         """
@@ -142,6 +194,9 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         if index is not None:
             assert isinstance(index, int), "Index must be an integer or None!"
             assert index >= 0 and index < self.context.queue_count, "Index must be valid!"
+
+        if not getattr(self, "is_writable", True):
+            raise ValueError("Cannot write to a read-only buffer alias.")
 
         true_data_object = None
 
@@ -167,29 +222,30 @@ class Buffer(Handle, typing.Generic[_ArgType]):
 
         mem_size = int(npc.prod(shape)) * var_type.item_size
 
-        while not all(stage == 2 for stage in completed_stages):
-            for i in range(len(indicies)):
-                if completed_stages[i] == 2:
-                    continue
-
-                queue_index = indicies[i]
-
-                if completed_stages[i] == 0:
-                    if self.signals[queue_index].try_wait(False, queue_index):
-                        completed_stages[i] = 1
-                        native.buffer_read(self._handle, 0, mem_size, queue_index)
-                        check_for_errors()
-                    else:
+        with _suspend_cuda_capture_if_needed():
+            while not all(stage == 2 for stage in completed_stages):
+                for i in range(len(indicies)):
+                    if completed_stages[i] == 2:
                         continue
 
-                if completed_stages[i] == 1:
-                    if self.signals[queue_index].try_wait(True, queue_index):
-                        completed_stages[i] = 2
-                    else:
-                        continue
+                    queue_index = indicies[i]
 
-                bytes_list[i] = native.buffer_read_staging(self._handle, queue_index, mem_size)
-                check_for_errors()
+                    if completed_stages[i] == 0:
+                        if self.signals[queue_index].try_wait(False, queue_index):
+                            completed_stages[i] = 1
+                            native.buffer_read(self._handle, 0, mem_size, queue_index)
+                            check_for_errors()
+                        else:
+                            continue
+
+                    if completed_stages[i] == 1:
+                        if self.signals[queue_index].try_wait(True, queue_index):
+                            completed_stages[i] = 2
+                        else:
+                            continue
+
+                    bytes_list[i] = native.buffer_read_staging(self._handle, queue_index, mem_size)
+                    check_for_errors()
         
         host_arrays = []
 
@@ -231,6 +287,9 @@ class Buffer(Handle, typing.Generic[_ArgType]):
 def asbuffer(array: typing.Any) -> Buffer:
     """Cast an array-like object to a buffer object."""
 
+    if hasattr(array, "__cuda_array_interface__"):
+        return from_cuda_array(array)
+
     if not npc.is_array_like(array):
         raise TypeError("Expected an array-like object")
 
@@ -239,62 +298,151 @@ def asbuffer(array: typing.Any) -> Buffer:
 
     return buffer
 
-def buffer_u32(shape: Tuple[int, ...]) -> Buffer:
-    """Create a buffer of unsigned 32-bit integers with the specified shape."""
-    return Buffer(shape, uint32)
 
-def buffer_i32(shape: Tuple[int, ...]) -> Buffer:
-    """Create a buffer of signed 32-bit integers with the specified shape."""
-    return Buffer(shape, int32)
+def from_cuda_array(
+    obj: typing.Any,
+    var_type: typing.Optional[dtype] = None,
+    require_contiguous: bool = True,
+    writable: typing.Optional[bool] = None,
+    keepalive: bool = True,
+) -> Buffer:
+    assert is_cuda(), "__cuda_array_interface__ is only supported with CUDA backends."
 
-def buffer_f32(shape: Tuple[int, ...]) -> Buffer:
-    """Create a buffer of 32-bit floating-point numbers with the specified shape."""
-    return Buffer(shape, float32)
+    if not hasattr(obj, "__cuda_array_interface__"):
+        raise TypeError("Expected an object with __cuda_array_interface__")
 
-def buffer_c64(shape: Tuple[int, ...]) -> Buffer:
-    """Create a buffer of 64-bit complex numbers with the specified shape."""
-    return Buffer(shape, complex64)
+    npc.require_numpy("from_cuda_array")
+    np = npc.numpy_module()
+
+    iface = obj.__cuda_array_interface__
+    if not isinstance(iface, dict):
+        raise TypeError("__cuda_array_interface__ must be a dictionary")
+
+    if "shape" not in iface or "typestr" not in iface or "data" not in iface:
+        raise ValueError("__cuda_array_interface__ is missing required fields (shape/typestr/data)")
+
+    shape = tuple(int(dim) for dim in iface["shape"])
+    if len(shape) == 0:
+        shape = (1,)
+
+    data_entry = iface["data"]
+    if not (isinstance(data_entry, tuple) and len(data_entry) >= 2):
+        raise ValueError("__cuda_array_interface__['data'] must be a tuple (ptr, read_only)")
+
+    ptr = int(data_entry[0])
+    source_read_only = bool(data_entry[1])
+
+    inferred_np_dtype = np.dtype(iface["typestr"])
+    inferred_var_type = from_numpy_dtype(inferred_np_dtype)
+    if var_type is None:
+        var_type = inferred_var_type
+
+    if not (var_type == inferred_var_type):
+        raise ValueError(
+            f"CAI dtype ({inferred_np_dtype}) does not match requested vd dtype ({var_type.name})."
+        )
+
+    if require_contiguous:
+        strides = iface.get("strides")
+        if strides is not None:
+            expected_strides = []
+            stride = int(inferred_np_dtype.itemsize)
+            for dim in reversed(shape):
+                expected_strides.insert(0, stride)
+                stride *= int(dim)
+            if tuple(int(x) for x in strides) != tuple(expected_strides):
+                raise ValueError("Only contiguous C-order CUDA arrays are supported in from_cuda_array().")
+
+    buffer_writable = (not source_read_only) if writable is None else bool(writable)
+    if buffer_writable and source_read_only:
+        raise ValueError("Requested writable=True for a read-only CUDA array.")
+    
+    external_buffer_info = ExternalBufferInfo(
+        writable=buffer_writable,
+        iface=iface,
+        keepalive=keepalive,
+        cuda_ptr=ptr
+    )
+
+    return Buffer(shape, var_type, external_buffer=external_buffer_info)
 
 class RFFTBuffer(Buffer):
-    def __init__(self, shape: Tuple[int, ...]):
-        super().__init__(tuple(shape[:-1]) + (shape[-1] // 2 + 1,), complex64)
+    real_shape: Tuple[int, ...]
+    fourier_shape: Tuple[int, ...]
+    real_type: dtype
+
+    def __init__(self, shape: Tuple[int, ...], fourier_type: dtype = complex64):
+        if not dtypes.is_complex(fourier_type):
+            raise ValueError("RFFTBuffer fourier_type must be complex32, complex64, or complex128")
+
+        if not dtypes.is_float_dtype(fourier_type.child_type):
+            raise ValueError("RFFTBuffer fourier_type must use a floating-point scalar")
+
+        super().__init__(tuple(shape[:-1]) + (shape[-1] // 2 + 1,), fourier_type)
 
         self.real_shape = shape
         self.fourier_shape = self.shape
-    
+        self.real_type = fourier_type.child_type
+
     def read_real(self, index: Union[int, None] = None):
         npc.require_numpy("RFFTBuffer.read_real")
         np = npc.numpy_module()
-        return self.read(index).view(np.float32)[..., :self.real_shape[-1]]
+
+        packed_shape = list(self.shape[:-1]) + [self.shape[-1] * 2]
+        packed_data = self._do_reads(self.real_type, packed_shape, index)
+
+        if index is None:
+            packed_data = np.array(packed_data)
+
+        return packed_data[..., :self.real_shape[-1]]
 
     def read_fourier(self, index: Union[int, None] = None):
         return self.read(index)
-    
+
     def write_real(self, data, index: int = None):
         npc.require_numpy("RFFTBuffer.write_real")
         np = npc.numpy_module()
         assert data.shape == self.real_shape, "Data shape must match real shape!"
-        assert not np.issubdtype(data.dtype, np.complexfloating) , "Data dtype must be scalar!"
+        assert not np.issubdtype(data.dtype, np.complexfloating), "Data dtype must be scalar!"
 
-        true_data = np.zeros(self.shape[:-1] + (self.shape[-1] * 2,), dtype=np.float32)
+        real_dtype = to_numpy_dtype(self.real_type)
+        true_data = np.zeros(self.shape[:-1] + (self.shape[-1] * 2,), dtype=real_dtype)
         true_data[..., :self.real_shape[-1]] = data
 
-        self.write(np.ascontiguousarray(true_data).view(np.complex64), index)
+        self.write(np.ascontiguousarray(true_data), index)
 
     def write_fourier(self, data, index: int = None):
         npc.require_numpy("RFFTBuffer.write_fourier")
         np = npc.numpy_module()
         assert data.shape == self.fourier_shape, f"Data shape {data.shape} must match fourier shape {self.fourier_shape}!"
-        assert np.issubdtype(data.dtype, np.complexfloating) , "Data dtype must be complex!"
+        assert np.issubdtype(data.dtype, np.complexfloating), "Data dtype must be complex!"
 
-        self.write(np.ascontiguousarray(data.astype(np.complex64)).view(np.float32), index)
+        target_fourier_dtype = to_numpy_dtype(self.var_type)
+        if npc.is_host_dtype(target_fourier_dtype):
+            # complex32: pack complex values into float16 real/imag pairs.
+            complex_data = np.ascontiguousarray(data.astype(np.complex64))
+            packed_pairs = np.empty(complex_data.shape + (2,), dtype=np.float16)
+            packed_pairs[..., 0] = complex_data.real.astype(np.float16)
+            packed_pairs[..., 1] = complex_data.imag.astype(np.float16)
 
-def asrfftbuffer(data) -> RFFTBuffer:
+            packed_real_shape = self.shape[:-1] + (self.shape[-1] * 2,)
+            self.write(np.ascontiguousarray(packed_pairs).reshape(packed_real_shape), index)
+            return
+
+        self.write(np.ascontiguousarray(data.astype(target_fourier_dtype)), index)
+
+
+def asrfftbuffer(data, fourier_type: Optional[dtype] = None) -> RFFTBuffer:
     npc.require_numpy("asrfftbuffer")
     np = npc.numpy_module()
     assert not np.issubdtype(data.dtype, np.complexfloating), "Data dtype must be scalar!"
 
-    buffer = RFFTBuffer(data.shape)
+    if fourier_type is None:
+        scalar_dtype = from_numpy_dtype(data.dtype)
+        scalar_dtype = dtypes.make_floating_dtype(scalar_dtype)
+        fourier_type = dtypes.complex_from_float(scalar_dtype)
+
+    buffer = RFFTBuffer(data.shape, fourier_type=fourier_type)
     buffer.write_real(data)
 
     return buffer

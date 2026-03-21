@@ -1,7 +1,8 @@
 import threading
 import vkdispatch.base.dtype as dtypes
 from .shader_writer import set_shader_writer
-from .backends import CodeGenBackend, GLSLBackend, CUDABackend
+from .backends import CodeGenBackend, GLSLBackend, CUDABackend, OpenCLBackend
+from vkdispatch.base.init import is_cuda, is_opencl
 from typing import Optional, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
@@ -11,16 +12,12 @@ _builder_context = threading.local()
 _shader_print_line_numbers = threading.local()
 _codegen_backend = threading.local()
 
-
 def _make_runtime_default_codegen_backend() -> CodeGenBackend:
-    try:
-        from vkdispatch.base.backend import BACKEND_PYCUDA, get_active_backend_name
+    if is_cuda():
+        return CUDABackend()
 
-        if get_active_backend_name() == BACKEND_PYCUDA:
-            return CUDABackend()
-    except Exception:
-        # If runtime backend metadata is unavailable, fall back to GLSL.
-        pass
+    if is_opencl():
+        return OpenCLBackend()
 
     return GLSLBackend()
 
@@ -50,6 +47,10 @@ def set_codegen_backend(backend: Optional[Union[CodeGenBackend, str]]):
 
         if backend_name == "cuda":
             _codegen_backend.active_backend = CUDABackend()
+            return
+
+        if backend_name == "opencl":
+            _codegen_backend.active_backend = OpenCLBackend()
             return
 
         raise ValueError(f"Unknown codegen backend '{backend}'")

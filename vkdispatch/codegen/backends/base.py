@@ -40,11 +40,73 @@ class CodeGenBackend:
     def type_name(self, var_type: dtypes.dtype) -> str:
         raise NotImplementedError
 
-    def constructor(self, var_type: dtypes.dtype, args: List[str]) -> str:
+    def constructor(
+        self,
+        var_type: dtypes.dtype,
+        args: List[str],
+        arg_types: Optional[List[Optional[dtypes.dtype]]] = None,
+    ) -> str:
+        _ = arg_types
         raise NotImplementedError
+
+    def component_access_expr(self, expr: str, component: str, base_type: dtypes.dtype) -> str:
+        return f"{expr}.{component}"
+
+    def buffer_component_expr(
+        self,
+        scalar_buffer_expr: str,
+        base_type: dtypes.dtype,
+        element_index_expr: str,
+        component_index_expr: str,
+    ) -> Optional[str]:
+        _ = (scalar_buffer_expr, base_type, element_index_expr, component_index_expr)
+        return None
 
     def fma_function_name(self, var_type: dtypes.dtype) -> str:
         return "fma"
+
+    def math_func_name(self, func_name: str, var_type: dtypes.dtype) -> str:
+        """Return the backend-specific function name for a math operation.
+
+        Backends can override this to remap function names for specific types
+        (e.g. CUDA __half intrinsics).
+        """
+        return func_name
+
+    def unary_math_expr(self, func_name: str, arg_type: dtypes.dtype, arg_expr: str) -> str:
+        return f"{self.math_func_name(func_name, arg_type)}({arg_expr})"
+
+    def binary_math_expr(
+        self,
+        func_name: str,
+        lhs_type: dtypes.dtype,
+        lhs_expr: str,
+        rhs_type: dtypes.dtype,
+        rhs_expr: str,
+    ) -> str:
+        mapped = self.math_func_name(func_name, lhs_type)
+        if func_name == "atan2":
+            mapped_atan = self.math_func_name("atan", lhs_type)
+            return f"{mapped_atan}({lhs_expr}, {rhs_expr})"
+
+        return f"{mapped}({lhs_expr}, {rhs_expr})"
+
+    def arithmetic_unary_expr(self, op: str, var_type: dtypes.dtype, var_expr: str) -> Optional[str]:
+        """Optional backend override for unary arithmetic expressions."""
+        _ = (op, var_type, var_expr)
+        return None
+
+    def arithmetic_binary_expr(
+        self,
+        op: str,
+        lhs_type: dtypes.dtype,
+        lhs_expr: str,
+        rhs_type: dtypes.dtype,
+        rhs_expr: str,
+    ) -> Optional[str]:
+        """Optional backend override for binary arithmetic expressions."""
+        _ = (op, lhs_type, lhs_expr, rhs_type, rhs_expr)
+        return None
 
     def pre_header(self, *, enable_subgroup_ops: bool, enable_printf: bool) -> str:
         raise NotImplementedError
@@ -83,6 +145,18 @@ class CodeGenBackend:
         raise NotImplementedError
 
     def ninf_f32_expr(self) -> str:
+        raise NotImplementedError
+
+    def inf_f64_expr(self) -> str:
+        raise NotImplementedError
+
+    def ninf_f64_expr(self) -> str:
+        raise NotImplementedError
+
+    def inf_f16_expr(self) -> str:
+        raise NotImplementedError
+
+    def ninf_f16_expr(self) -> str:
         raise NotImplementedError
 
     def float_bits_to_int_expr(self, var_expr: str) -> str:
@@ -145,25 +219,32 @@ class CodeGenBackend:
     def group_memory_barrier_statement(self) -> str:
         raise NotImplementedError
 
-    def subgroup_add_expr(self, arg_expr: str) -> str:
+    def subgroup_add_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         raise NotImplementedError
 
-    def subgroup_mul_expr(self, arg_expr: str) -> str:
+    def subgroup_mul_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         raise NotImplementedError
 
-    def subgroup_min_expr(self, arg_expr: str) -> str:
+    def subgroup_min_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         raise NotImplementedError
 
-    def subgroup_max_expr(self, arg_expr: str) -> str:
+    def subgroup_max_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         raise NotImplementedError
 
-    def subgroup_and_expr(self, arg_expr: str) -> str:
+    def subgroup_and_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         raise NotImplementedError
 
-    def subgroup_or_expr(self, arg_expr: str) -> str:
+    def subgroup_or_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         raise NotImplementedError
 
-    def subgroup_xor_expr(self, arg_expr: str) -> str:
+    def subgroup_xor_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
+        _ = arg_type
         raise NotImplementedError
 
     def subgroup_elect_expr(self) -> str:
@@ -183,3 +264,8 @@ class CodeGenBackend:
 
     def mark_texture_sample_dimension(self, dimensions: int) -> None:
         return
+
+    def atomic_add_expr(self, mem_expr: str, value_expr: str, var_type: dtypes.dtype) -> str:
+        raise NotImplementedError(
+            f"atomic_add is not supported for backend '{self.name}' and type '{var_type.name}'"
+        )

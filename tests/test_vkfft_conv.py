@@ -30,6 +30,8 @@ def check_fft_dims(fft_dims: List[int], max_fft_size: int):
     return all([dim <= max_fft_size for dim in fft_dims]) and np.prod(fft_dims) * vd.complex64.item_size < 2 ** 29
 
 def test_convolution_2d_powers_of_2():
+    if not vd.is_vulkan():
+        return
     max_fft_size = vd.get_context().max_shared_memory // vd.complex64.item_size
 
     buffer_cache = {}

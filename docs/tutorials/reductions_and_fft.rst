@@ -162,6 +162,14 @@ For advanced workflows (for example padded 2D cross-correlation), use ``input_ma
 ``output_map`` to remap FFT I/O indices and ``input_signal_range`` to skip inactive
 regions.
 
+Map argument annotations do not determine FFT compute precision. ``read_op.register``
+and ``write_op.register`` always use the internal FFT compute type; map callbacks should
+cast user-chosen buffer values to and from that register type as needed. If both FFT I/O
+paths are mapped and ``compute_type`` is not provided, ``vd.fft`` defaults to
+``complex64`` (falling back to ``complex32`` when required by device support).
+When ``output_map`` is provided without ``input_map``, pass an explicit input buffer
+argument after the ``output_map`` arguments so read and write phases use different proxies.
+
 .. code-block:: python
 
    import vkdispatch.codegen as vc

@@ -22,14 +22,14 @@ def memory_reads_iterator(resources: FFTResources, stage_index: int = 0):
     resources.stage_begin(stage_index)
 
     index_list = list(range(resources.config.register_count))
-    invocations = resources.invocations[stage_index]
+    invocations = resources.config.stages[stage_index].invocations
 
     for ii, invocation in enumerate(invocations):
         resources.invocation_gaurd(stage_index, ii)
 
         register_indicies = index_list[invocation.register_selection]
 
-        offset = invocation.instance_id
+        offset = invocation.get_offset(resources.tid)
         stride = resources.config.N // resources.config.stages[stage_index].fft_length
 
         for i in range(len(register_indicies)):
@@ -58,14 +58,14 @@ def memory_writes_iterator(resources: FFTResources, stage_index: int = -1):
 
     index_list = list(range(resources.config.register_count))
     element_count = resources.config.stages[stage_index].fft_length
-    invocations = resources.invocations[stage_index]
+    invocations = resources.config.stages[stage_index].invocations
 
     for i in range(element_count):
         for ii, invocation in enumerate(invocations):
             resources.invocation_gaurd(stage_index, ii)
 
-            offset = invocation.sub_sequence_offset
-            stride = resources.output_strides[stage_index]
+            offset = invocation.get_sub_sequence_offset(resources.tid)
+            stride = resources.config.stages[stage_index].input_stride
 
             fft_index = offset + i * stride
 

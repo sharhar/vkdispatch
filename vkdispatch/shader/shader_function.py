@@ -12,12 +12,10 @@ from vkdispatch.base.compute_plan import ComputePlan
 from .signature import ShaderArgumentType, ShaderSignature
 
 import uuid
-import sys
 
 import dataclasses
 
-from .._compat import numpy_compat as npc
-from ..base.backend import BACKEND_PYCUDA, BACKEND_VULKAN
+from ..compat import numpy_compat as npc
 
 class LaunchParametersHolder:
     def __init__(self, names_and_defaults, args, kwargs) -> None:
@@ -58,7 +56,7 @@ class ExectionBounds:
 
     def __init__(self, names_and_defaults, local_size, workgroups, exec_size) -> None:
         self.names_and_defaults = names_and_defaults
-        self.local_size = local_size
+        self.local_size = tuple(local_size)
         self.workgroups = workgroups
         self.exec_size = exec_size
 
@@ -134,55 +132,48 @@ class ExectionBounds:
         
         return (my_blocks, my_limits)
 
+@dataclasses.dataclass
+class ShaderSource:
+    name: str
+    code: str
+    local_size: Tuple[int, int, int]
+
+    def __repr__(self):
+        return f"// ====== Source Code for '{self.name}', workgroup_size: {self.local_size} ======\n{self.code}"
+
 class ShaderFunction:
     plan: ComputePlan
-    func: Callable
     shader_description: vc.ShaderDescription
     shader_signature: ShaderSignature
     bounds: ExectionBounds
     ready: bool
+    name: str
     source: str
     flags: vc.ShaderFlags
+    local_size: Union[Tuple[int, int, int], Callable, None]
+    workgroups: Union[Tuple[int, int, int], Callable, None]
+    exec_size: Union[Tuple[int, int, int], Callable, None]
 
     def __init__(self,
-                 func: Callable,
+                 shader_description: vc.ShaderDescription,
+                 shader_signature: ShaderSignature,
                  local_size=None,
                  workgroups=None,
                  exec_count=None,
-                 flags: vc.ShaderFlags = vc.ShaderFlags.NONE) -> None:
+                 flags: vc.ShaderFlags = vc.ShaderFlags.NONE,
+                 name: str = None) -> None:
         
         self.plan = None
-        self.func = func
-        self.shader_description = None
-        self.shader_signature = None
+        self.shader_description = shader_description
+        self.shader_signature = shader_signature
         self.bounds = None
         self.ready = False
+        self.name = name if name is not None else None
         self.source = None
         self.local_size = local_size
         self.workgroups = workgroups
         self.exec_size = exec_count
         self.flags = flags
-
-    def from_description(
-        shader_description: vc.ShaderDescription,
-        shader_signature: ShaderSignature,
-        local_size=None,
-        workgroups=None,
-        exec_count=None,
-        
-    ) -> "ShaderFunction":
-        shader_obj = ShaderFunction(
-            func=None,
-            local_size=local_size,
-            workgroups=workgroups,
-            exec_count=exec_count,
-            flags=vc.ShaderFlags.NONE
-        )
-
-        shader_obj.shader_description = shader_description
-        shader_obj.shader_signature = shader_signature
-
-        return shader_obj
 
     def build(self):
         if self.ready:
@@ -194,70 +185,65 @@ class ShaderFunction:
             else [vd.get_context().max_workgroup_size[0], 1, 1]
         )
 
-        if self.shader_description is None or self.shader_signature is None:
-            assert self.shader_description is None and self.shader_signature is None, "Shader description and signature must both be set or both be None!"
-            assert self.func is not None, "Cannot build a shader without a function!"
-
-            builder = vc.ShaderBuilder(
-                flags=self.flags,
-                is_apple_device=vd.get_context().is_apple()
-            )
-            old_builder = vc.set_builder(builder)
-
-            signature = ShaderSignature.from_inspectable_function(builder, self.func)
-            
-            self.func(*signature.get_variables())
-
-            vc.set_builder(old_builder)
-
-            self.shader_description = builder.build(self.func.__module__ + "." + self.func.__name__)
-            self.shader_signature = signature
-
         self.bounds = ExectionBounds(self.shader_signature.get_names_and_defaults(), my_local_size, self.workgroups, self.exec_size)
 
-        if not sys.implementation.name == "Brython":
-            runtime_backend = vd.get_backend()
-            shader_backend_name = (
-                self.shader_description.backend.name
-                if self.shader_description.backend is not None
-                else "glsl"
+        shader_backend_name = (
+            self.shader_description.backend.name
+            if self.shader_description.backend is not None
+            else "glsl"
+        )
+
+        if vd.is_dummy():
+            pass
+        elif vd.is_cuda() and shader_backend_name != "cuda":
+            raise RuntimeError(
+                "The selected CUDA runtime backend requires CUDA codegen output. "
+                "Call vd.initialize(backend='cuda') "
+                "before building shaders."
             )
-
-            if runtime_backend == BACKEND_PYCUDA and shader_backend_name != "cuda":
-                raise RuntimeError(
-                    "PyCUDA runtime backend requires CUDA codegen output. "
-                    "Call vd.initialize(backend='pycuda') before building shaders."
-                )
-
-            if runtime_backend == BACKEND_VULKAN and shader_backend_name == "cuda":
-                raise RuntimeError(
-                    "Vulkan runtime backend cannot execute CUDA codegen output. "
-                    "Use GLSL codegen or initialize with backend='pycuda'."
-                )
+        elif vd.is_opencl() and shader_backend_name != "opencl":
+            raise RuntimeError(
+                "The selected OpenCL runtime backend requires OpenCL codegen output. "
+                "Call vd.initialize(backend='opencl') "
+                "before building shaders."
+            )
+        elif vd.is_vulkan() and shader_backend_name == "cuda":
+            raise RuntimeError(
+                "Vulkan runtime backend cannot execute CUDA codegen output. "
+                "Use GLSL codegen or initialize with backend='cuda'."
+            )
+        elif vd.is_vulkan() and shader_backend_name == "opencl":
+            raise RuntimeError(
+                "Vulkan runtime backend cannot execute OpenCL codegen output. "
+                "Use GLSL codegen or initialize with backend='opencl'."
+            )
 
         self.source = self.shader_description.make_source(
             my_local_size[0], my_local_size[1], my_local_size[2]
         )
 
         try:
-            self.plan = ComputePlan(
-                self.source, 
-                self.shader_description.binding_type_list, 
-                self.shader_description.pc_size, 
-                self.shader_description.name
-            )
+            if not vd.is_dummy():
+                self.plan = ComputePlan(
+                    self.source, 
+                    self.shader_description.binding_type_list, 
+                    self.shader_description.pc_size, 
+                    self.shader_description.name
+                )
         except Exception as e:
             print(f"Error building shader: {e}")
-            print(self.make_repr())
+            print(self.get_src(build=False, line_numbers=True))
             raise e
 
         self.ready = True
 
     def __repr__(self) -> str:
-        self.build()
-        return self.make_repr()
+        return self.get_src().__repr__()
     
-    def make_repr(self, line_numbers: bool = None) -> str:
+    def get_src(self, line_numbers: bool = None, build: bool = True) -> ShaderSource:
+        if build:
+            self.build()
+
         result = ""
 
         if line_numbers is None:
@@ -268,9 +254,14 @@ class ShaderFunction:
             
             result += f"{line_prefix}{line}\n"
 
-        return result
+        return ShaderSource(name=self.name, code=result, local_size=self.bounds.local_size)
+
+    def print_src(self, line_numbers: bool = None):
+        print(self.get_src(line_numbers))
 
     def __call__(self, *args, **kwargs):
+        assert not vd.is_dummy(), "Cannot execute shader functions with dummy backend!"
+        
         self.build()
 
         if not self.ready:

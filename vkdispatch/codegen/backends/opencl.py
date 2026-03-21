@@ -1,0 +1,701 @@
+from typing import List, Optional, Set
+
+import vkdispatch.base.dtype as dtypes
+
+from .base import CodeGenBackend
+
+
+class OpenCLBackend(CodeGenBackend):
+    name = "opencl"
+
+    _SCALAR_TYPE_NAMES = {
+        dtypes.int16: "short",
+        dtypes.uint16: "ushort",
+        dtypes.int32: "int",
+        dtypes.uint32: "uint",
+        dtypes.int64: "long",
+        dtypes.uint64: "ulong",
+        dtypes.float16: "half",
+        dtypes.float32: "float",
+        dtypes.float64: "double",
+    }
+
+    _MATRIX_TYPE_NAMES = {
+        dtypes.mat2: "vkdispatch_mat2",
+        dtypes.mat3: "vkdispatch_mat3",
+        dtypes.mat4: "vkdispatch_mat4",
+    }
+
+    def __init__(self) -> None:
+        self.reset_state()
+
+    def reset_state(self) -> None:
+        self._kernel_params: List[str] = []
+        self._entry_alias_lines: List[str] = []
+        self._shared_buffer_lines: List[str] = []
+        self._matrix_type_usage: Set[int] = set()
+
+    def _register_kernel_param(self, param_decl: str) -> None:
+        if param_decl not in self._kernel_params:
+            self._kernel_params.append(param_decl)
+
+    def _register_alias_line(self, alias_line: str) -> None:
+        self._entry_alias_lines.append(alias_line)
+
+    def _record_matrix_dim(self, dim: int) -> None:
+        if dim not in (2, 3, 4):
+            raise ValueError(f"Unsupported OpenCL matrix dimension '{dim}'")
+        self._matrix_type_usage.add(dim)
+
+    def _record_matrix_type(self, var_type: dtypes.dtype) -> None:
+        if dtypes.is_matrix(var_type):
+            self._record_matrix_dim(var_type.child_count)
+
+    @staticmethod
+    def _matrix_helper_name(dim: int, constructor_kind: str) -> str:
+        return f"vkdispatch_make_mat{dim}_{constructor_kind}"
+
+    def _is_matrix_copy_constructor_arg(self, arg_expr: str, dim: int) -> bool:
+        stripped = arg_expr.strip()
+        mat_type = self._matrix_struct_name(dim)
+
+        if stripped.startswith(f"({mat_type})") or stripped.startswith(f"(({mat_type})"):
+            return True
+
+        if f"vkdispatch_make_mat{dim}_" in stripped:
+            return True
+
+        if f"vkdispatch_mat{dim}_" in stripped:
+            return True
+
+        return False
+
+    @classmethod
+    def _scalar_type_name(cls, scalar_type: dtypes.dtype) -> str:
+        type_name = cls._SCALAR_TYPE_NAMES.get(scalar_type)
+        if type_name is None:
+            raise ValueError(f"Unsupported OpenCL scalar type mapping for '{scalar_type.name}'")
+        return type_name
+
+    def type_name(self, var_type: dtypes.dtype) -> str:
+        if dtypes.is_scalar(var_type):
+            return self._scalar_type_name(var_type)
+
+        if dtypes.is_vector(var_type):
+            return f"{self._scalar_type_name(var_type.scalar)}{var_type.child_count}"
+
+        if dtypes.is_complex(var_type):
+            return f"{self._scalar_type_name(var_type.child_type)}2"
+
+        if dtypes.is_matrix(var_type):
+            self._record_matrix_type(var_type)
+            matrix_name = self._MATRIX_TYPE_NAMES.get(var_type)
+            if matrix_name is None:
+                raise ValueError(f"Unsupported OpenCL matrix type mapping for '{var_type.name}'")
+            return matrix_name
+
+        raise ValueError(f"Unsupported OpenCL type mapping for '{var_type.name}'")
+
+    def constructor(
+        self,
+        var_type: dtypes.dtype,
+        args: List[str],
+        arg_types: Optional[List[Optional[dtypes.dtype]]] = None,
+    ) -> str:
+        target_type = self.type_name(var_type)
+
+        if dtypes.is_scalar(var_type):
+            assert len(args) > 0, f"Constructor for scalar type '{var_type.name}' needs at least one argument."
+            return f"(({target_type})({args[0]}))"
+
+        if dtypes.is_matrix(var_type):
+            dim = var_type.child_count
+            assert len(args) in (1, dim, dim * dim), (
+                f"Constructor for matrix type '{var_type.name}' needs 1, {dim}, or {dim * dim} arguments."
+            )
+            if len(args) == 1:
+                single_arg = args[0]
+                helper_name = self._matrix_helper_name(
+                    dim,
+                    "copy" if self._is_matrix_copy_constructor_arg(single_arg, dim) else "scalar",
+                )
+                return f"{helper_name}({single_arg})"
+
+            if len(args) == dim:
+                return f"{self._matrix_helper_name(dim, 'cols')}({', '.join(args)})"
+
+            return f"{self._matrix_helper_name(dim, 'flat')}({', '.join(args)})"
+
+        # NVIDIA's OpenCL frontend rejects direct vector casts between different
+        # vector base types (e.g. uint2 -> float2). Use convert_* builtins when
+        # we know this is a vector/complex-to-vector/complex conversion.
+        if (
+            len(args) == 1
+            and arg_types is not None
+            and len(arg_types) == 1
+            and arg_types[0] is not None
+            and (dtypes.is_vector(var_type) or dtypes.is_complex(var_type))
+            and (dtypes.is_vector(arg_types[0]) or dtypes.is_complex(arg_types[0]))
+        ):
+            return f"convert_{target_type}({args[0]})"
+
+        return f"(({target_type})({', '.join(args)}))"
+
+    def component_access_expr(self, expr: str, component: str, base_type: dtypes.dtype) -> str:
+        if dtypes.is_scalar(base_type) and component == "x":
+            return expr
+        return super().component_access_expr(expr, component, base_type)
+
+    def buffer_component_expr(
+        self,
+        scalar_buffer_expr: str,
+        base_type: dtypes.dtype,
+        element_index_expr: str,
+        component_index_expr: str,
+    ) -> Optional[str]:
+        if dtypes.is_complex(base_type):
+            component_count = base_type.child_count
+        elif dtypes.is_vector(base_type):
+            component_count = base_type.child_count
+        else:
+            return None
+
+        return (
+            f"{scalar_buffer_expr}["
+            f"(({element_index_expr}) * {component_count}) + ({component_index_expr})"
+            f"]"
+        )
+
+    def _cast_math_arg(self, arg_type: dtypes.dtype, arg_expr: str) -> str:
+        if dtypes.is_scalar(arg_type) or dtypes.is_vector(arg_type) or dtypes.is_complex(arg_type):
+            return self.constructor(arg_type, [arg_expr], arg_types=[arg_type])
+
+        return arg_expr
+
+    def math_func_name(self, func_name: str, var_type: dtypes.dtype) -> str:
+        func_name_dict = {
+            "sin": "native_sin",
+            "cos": "native_cos",
+            "tan": "native_tan",
+            "sqrt": "native_sqrt",
+            "exp": "native_exp",
+            "exp2": "native_exp2",
+            "log": "native_log",
+            "log2": "native_log2",
+        }
+
+        if func_name in func_name_dict:
+            return func_name_dict[func_name]
+
+        return func_name
+
+    def unary_math_expr(self, func_name: str, arg_type: dtypes.dtype, arg_expr: str) -> str:
+        mapped = self.math_func_name(func_name, arg_type)
+        return f"{mapped}({self._cast_math_arg(arg_type, arg_expr)})"
+
+    def binary_math_expr(
+        self,
+        func_name: str,
+        lhs_type: dtypes.dtype,
+        lhs_expr: str,
+        rhs_type: dtypes.dtype,
+        rhs_expr: str,
+    ) -> str:
+        mapped = self.math_func_name(func_name, lhs_type)
+        lhs_cast_expr = self._cast_math_arg(lhs_type, lhs_expr)
+        rhs_cast_expr = self._cast_math_arg(rhs_type, rhs_expr)
+        return f"{mapped}({lhs_cast_expr}, {rhs_cast_expr})"
+
+    def pre_header(self, *, enable_subgroup_ops: bool, enable_printf: bool) -> str:
+        _ = enable_subgroup_ops
+        _ = enable_printf
+        header = (
+            "// OpenCL C source generated by vkdispatch\n"
+            "#ifdef cl_khr_global_int32_base_atomics\n"
+            "#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable\n"
+            "#endif\n"
+            "#ifdef cl_khr_local_int32_base_atomics\n"
+            "#pragma OPENCL EXTENSION cl_khr_local_int32_base_atomics : enable\n"
+            "#endif\n"
+            "#ifdef cl_khr_fp64\n"
+            "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n"
+            "#endif\n"
+            "#ifdef cl_khr_fp16\n"
+            "#pragma OPENCL EXTENSION cl_khr_fp16 : enable\n"
+            "#endif\n"
+        )
+        matrix_helpers = self._emit_matrix_helpers()
+        if len(matrix_helpers) > 0:
+            header += f"\n{matrix_helpers}\n"
+        return header
+
+    def _emit_matrix_helpers(self) -> str:
+        if len(self._matrix_type_usage) == 0:
+            return ""
+
+        sections: List[str] = []
+        if 3 in self._matrix_type_usage:
+            sections.append(
+                "typedef struct __attribute__((packed)) vkdispatch_packed_float3 {\n"
+                "    float x;\n"
+                "    float y;\n"
+                "    float z;\n"
+                "} vkdispatch_packed_float3;\n"
+                "static inline float3 vkdispatch_unpack_float3(vkdispatch_packed_float3 v) { return (float3)(v.x, v.y, v.z); }\n"
+                "static inline vkdispatch_packed_float3 vkdispatch_pack_float3(float3 v) {\n"
+                "    vkdispatch_packed_float3 out = {v.x, v.y, v.z};\n"
+                "    return out;\n"
+                "}"
+            )
+
+        for dim in sorted(self._matrix_type_usage):
+            sections.append(self._emit_matrix_helpers_for_dim(dim))
+
+        return "\n\n".join(sections)
+
+    @staticmethod
+    def _vector_components(dim: int) -> List[str]:
+        return list("xyzw"[:dim])
+
+    @staticmethod
+    def _matrix_struct_name(dim: int) -> str:
+        return f"vkdispatch_mat{dim}"
+
+    @staticmethod
+    def _vector_type_name(dim: int) -> str:
+        return f"float{dim}"
+
+    def _matrix_col_expr(self, mat_expr: str, col: int, dim: int) -> str:
+        if dim == 3:
+            return f"vkdispatch_unpack_float3({mat_expr}.c{col})"
+        return f"{mat_expr}.c{col}"
+
+    def _matrix_col_assign_stmt(self, target_expr: str, col: int, value_expr: str, dim: int) -> str:
+        if dim == 3:
+            return f"{target_expr}.c{col} = vkdispatch_pack_float3({value_expr});"
+        return f"{target_expr}.c{col} = {value_expr};"
+
+    def _emit_matrix_helpers_for_dim(self, dim: int) -> str:
+        mat_type = self._matrix_struct_name(dim)
+        vec_type = self._vector_type_name(dim)
+        comps = self._vector_components(dim)
+        scalar_helper_name = self._matrix_helper_name(dim, "scalar")
+        copy_helper_name = self._matrix_helper_name(dim, "copy")
+        cols_helper_name = self._matrix_helper_name(dim, "cols")
+        flat_helper_name = self._matrix_helper_name(dim, "flat")
+
+        lines: List[str] = []
+
+        if dim == 3:
+            lines.append(
+                "typedef struct __attribute__((packed)) vkdispatch_mat3 {\n"
+                "    vkdispatch_packed_float3 c0;\n"
+                "    vkdispatch_packed_float3 c1;\n"
+                "    vkdispatch_packed_float3 c2;\n"
+                "} vkdispatch_mat3;"
+            )
+        else:
+            cols = "\n".join([f"    {vec_type} c{i};" for i in range(dim)])
+            lines.append(f"typedef struct {mat_type} {{\n{cols}\n}} {mat_type};")
+
+        # Constructors.
+        lines.append(f"static inline {mat_type} {scalar_helper_name}(float s) {{")
+        lines.append(f"    {mat_type} out;")
+        for col_idx in range(dim):
+            diag_values = [("s" if row_idx == col_idx else "0.0f") for row_idx in range(dim)]
+            vec_expr = f"({vec_type})(" + ", ".join(diag_values) + ")"
+            lines.append(f"    {self._matrix_col_assign_stmt('out', col_idx, vec_expr, dim)}")
+        lines.append("    return out;")
+        lines.append("}")
+
+        lines.append(f"static inline {mat_type} {copy_helper_name}({mat_type} m) {{ return m; }}")
+
+        col_args = ", ".join([f"{vec_type} c{i}" for i in range(dim)])
+        lines.append(f"static inline {mat_type} {cols_helper_name}({col_args}) {{")
+        lines.append(f"    {mat_type} out;")
+        for col_idx in range(dim):
+            lines.append(f"    {self._matrix_col_assign_stmt('out', col_idx, f'c{col_idx}', dim)}")
+        lines.append("    return out;")
+        lines.append("}")
+
+        flat_names = [f"m{col}{row}" for col in range(dim) for row in range(dim)]
+        flat_args = ", ".join([f"float {name}" for name in flat_names])
+        lines.append(f"static inline {mat_type} {flat_helper_name}({flat_args}) {{")
+        lines.append(f"    return {cols_helper_name}(")
+        for col_idx in range(dim):
+            values = [f"m{col_idx}{row_idx}" for row_idx in range(dim)]
+            suffix = "," if col_idx < dim - 1 else ""
+            lines.append(f"        ({vec_type})({', '.join(values)}){suffix}")
+        lines.append("    );")
+        lines.append("}")
+
+        # Unary negation.
+        lines.append(f"static inline {mat_type} vkdispatch_mat{dim}_neg({mat_type} a) {{")
+        lines.append(f"    {mat_type} out;")
+        for col_idx in range(dim):
+            col_expr = self._matrix_col_expr("a", col_idx, dim)
+            lines.append(
+                f"    {self._matrix_col_assign_stmt('out', col_idx, f'-{col_expr}', dim)}"
+            )
+        lines.append("    return out;")
+        lines.append("}")
+
+        # Matrix +/- matrix.
+        for op_name, op_symbol in (("add", "+"), ("sub", "-")):
+            lines.append(
+                f"static inline {mat_type} vkdispatch_mat{dim}_{op_name}_mm({mat_type} a, {mat_type} b) {{"
+            )
+            lines.append(f"    {mat_type} out;")
+            for col_idx in range(dim):
+                lhs_col = self._matrix_col_expr("a", col_idx, dim)
+                rhs_col = self._matrix_col_expr("b", col_idx, dim)
+                lines.append(
+                    f"    {self._matrix_col_assign_stmt('out', col_idx, f'{lhs_col} {op_symbol} {rhs_col}', dim)}"
+                )
+            lines.append("    return out;")
+            lines.append("}")
+
+        # Matrix/scalar and scalar/matrix arithmetic.
+        for op_name, op_symbol in (("add", "+"), ("sub", "-"), ("mul", "*"), ("div", "/")):
+            lines.append(
+                f"static inline {mat_type} vkdispatch_mat{dim}_{op_name}_ms({mat_type} a, float b) {{"
+            )
+            lines.append(f"    {mat_type} out;")
+            for col_idx in range(dim):
+                lhs_col = self._matrix_col_expr("a", col_idx, dim)
+                lines.append(
+                    f"    {self._matrix_col_assign_stmt('out', col_idx, f'{lhs_col} {op_symbol} b', dim)}"
+                )
+            lines.append("    return out;")
+            lines.append("}")
+
+            lines.append(
+                f"static inline {mat_type} vkdispatch_mat{dim}_{op_name}_sm(float a, {mat_type} b) {{"
+            )
+            lines.append(f"    {mat_type} out;")
+            for col_idx in range(dim):
+                rhs_col = self._matrix_col_expr("b", col_idx, dim)
+                lines.append(
+                    f"    {self._matrix_col_assign_stmt('out', col_idx, f'a {op_symbol} {rhs_col}', dim)}"
+                )
+            lines.append("    return out;")
+            lines.append("}")
+
+        # Matrix/vector product (column-major, GLSL-style): m * v.
+        mat_vec_terms = [f"({self._matrix_col_expr('m', i, dim)} * v.{comps[i]})" for i in range(dim)]
+        lines.append(f"static inline {vec_type} vkdispatch_mat{dim}_mul_mv({mat_type} m, {vec_type} v) {{")
+        lines.append(f"    return {' + '.join(mat_vec_terms)};")
+        lines.append("}")
+
+        # Vector/matrix product (column-major, GLSL-style): v * m.
+        lines.append(f"static inline {vec_type} vkdispatch_mat{dim}_mul_vm({vec_type} v, {mat_type} m) {{")
+        for col_idx in range(dim):
+            lines.append(f"    {vec_type} col{col_idx} = {self._matrix_col_expr('m', col_idx, dim)};")
+        row_exprs = []
+        for col_idx in range(dim):
+            terms = [f"(v.{comps[row_idx]} * col{col_idx}.{comps[row_idx]})" for row_idx in range(dim)]
+            row_exprs.append(" + ".join(terms))
+        lines.append(f"    return ({vec_type})({', '.join(row_exprs)});")
+        lines.append("}")
+
+        return "\n".join(lines)
+
+    def arithmetic_unary_expr(self, op: str, var_type: dtypes.dtype, var_expr: str) -> Optional[str]:
+        if op == "-" and dtypes.is_matrix(var_type):
+            dim = var_type.child_count
+            self._record_matrix_dim(dim)
+            return f"vkdispatch_mat{dim}_neg({var_expr})"
+        return None
+
+    def arithmetic_binary_expr(
+        self,
+        op: str,
+        lhs_type: dtypes.dtype,
+        lhs_expr: str,
+        rhs_type: dtypes.dtype,
+        rhs_expr: str,
+    ) -> Optional[str]:
+        if not (dtypes.is_matrix(lhs_type) or dtypes.is_matrix(rhs_type)):
+            return None
+
+        if op not in ("+", "-", "*", "/"):
+            raise NotImplementedError(
+                f"OpenCL matrix arithmetic override does not support operator '{op}' "
+                f"for ({lhs_type.name}, {rhs_type.name})."
+            )
+
+        if dtypes.is_matrix(lhs_type):
+            dim = lhs_type.child_count
+            if dtypes.is_matrix(rhs_type):
+                if rhs_type.child_count != dim:
+                    raise ValueError(
+                        f"OpenCL matrix arithmetic requires matching dimensions, got '{lhs_type.name}' and '{rhs_type.name}'."
+                    )
+                if op not in ("+", "-"):
+                    raise NotImplementedError(
+                        f"OpenCL matrix arithmetic does not support operator '{op}' for two matrices."
+                    )
+                self._record_matrix_dim(dim)
+                return f"vkdispatch_mat{dim}_{'add' if op == '+' else 'sub'}_mm({lhs_expr}, {rhs_expr})"
+
+            if dtypes.is_scalar(rhs_type):
+                self._record_matrix_dim(dim)
+                suffix = "add" if op == "+" else "sub" if op == "-" else "mul" if op == "*" else "div"
+                return f"vkdispatch_mat{dim}_{suffix}_ms({lhs_expr}, {rhs_expr})"
+
+            if dtypes.is_vector(rhs_type) and op == "*":
+                if rhs_type.child_count != dim or rhs_type.scalar != dtypes.float32:
+                    raise ValueError(
+                        f"OpenCL matrix/vector multiplication requires float32 vec{dim}, got '{rhs_type.name}'."
+                    )
+                self._record_matrix_dim(dim)
+                return f"vkdispatch_mat{dim}_mul_mv({lhs_expr}, {rhs_expr})"
+
+            raise NotImplementedError(
+                f"Unsupported OpenCL matrix arithmetic for ({lhs_type.name}, {rhs_type.name}) with operator '{op}'."
+            )
+
+        # lhs is not matrix; rhs is matrix
+        dim = rhs_type.child_count
+        if dtypes.is_scalar(lhs_type):
+            self._record_matrix_dim(dim)
+            suffix = "add" if op == "+" else "sub" if op == "-" else "mul" if op == "*" else "div"
+            return f"vkdispatch_mat{dim}_{suffix}_sm({lhs_expr}, {rhs_expr})"
+
+        if dtypes.is_vector(lhs_type) and op == "*":
+            if lhs_type.child_count != dim or lhs_type.scalar != dtypes.float32:
+                raise ValueError(
+                    f"OpenCL vector/matrix multiplication requires float32 vec{dim}, got '{lhs_type.name}'."
+                )
+            self._record_matrix_dim(dim)
+            return f"vkdispatch_mat{dim}_mul_vm({lhs_expr}, {rhs_expr})"
+
+        raise NotImplementedError(
+            f"Unsupported OpenCL matrix arithmetic for ({lhs_type.name}, {rhs_type.name}) with operator '{op}'."
+        )
+
+    def make_source(self, header: str, body: str, x: int, y: int, z: int) -> str:
+        expected_size_header = (
+            f"// Expected local size: ({x}, {y}, {z})\n"
+            f"#define VKDISPATCH_EXPECTED_LOCAL_SIZE_X {x}\n"
+            f"#define VKDISPATCH_EXPECTED_LOCAL_SIZE_Y {y}\n"
+            f"#define VKDISPATCH_EXPECTED_LOCAL_SIZE_Z {z}\n"
+        )
+        workgroup_attribute = f"__attribute__((reqd_work_group_size({x}, {y}, {z})))"
+        if "__kernel void vkdispatch_main" in body:
+            body = body.replace(
+                "__kernel void vkdispatch_main",
+                f"{workgroup_attribute}\n__kernel void vkdispatch_main",
+                1,
+            )
+        else:
+            body = f"{workgroup_attribute}\n{body}"
+
+        return f"{expected_size_header}\n{header}\n{body}"
+
+    def constant_namespace(self) -> str:
+        return "UBO"
+
+    def variable_namespace(self) -> str:
+        return "PC"
+
+    def exec_bounds_guard(self, exec_count_expr: str) -> str:
+        gid_expr = f"({self.global_invocation_id_expr()})"
+        exec_expr = f"({exec_count_expr})"
+        return (
+            f"if ({self.component_access_expr(exec_expr, 'x', dtypes.uvec4)} <= {self.component_access_expr(gid_expr, 'x', dtypes.uvec3)} || "
+            f"{self.component_access_expr(exec_expr, 'y', dtypes.uvec4)} <= {self.component_access_expr(gid_expr, 'y', dtypes.uvec3)} || "
+            f"{self.component_access_expr(exec_expr, 'z', dtypes.uvec4)} <= {self.component_access_expr(gid_expr, 'z', dtypes.uvec3)}) {{ return; }}\n"
+        )
+
+    def shared_buffer_declaration(self, var_type: dtypes.dtype, name: str, size: int) -> str:
+        self._shared_buffer_lines.append(f"__local {self.type_name(var_type)} {name}[{size}];")
+        # OpenCL requires __local storage declarations at kernel/function scope.
+        return ""
+
+    def uniform_block_declaration(self, contents: str) -> str:
+        self._register_kernel_param("__global const UniformObjectBuffer* vkdispatch_uniform_ptr")
+        self._register_alias_line("const UniformObjectBuffer UBO = *vkdispatch_uniform_ptr;")
+        return f"\ntypedef struct UniformObjectBuffer {{\n{contents}\n}} UniformObjectBuffer;\n"
+
+    def storage_buffer_declaration(self, binding: int, var_type: dtypes.dtype, name: str) -> str:
+        struct_name = f"Buffer{binding}"
+        param_name = f"vkdispatch_binding_{binding}_ptr"
+        data_type = self.type_name(var_type)
+        self._register_kernel_param(f"__global {data_type}* {param_name}")
+        if dtypes.is_complex(var_type):
+            scalar_type = self.type_name(var_type.child_type)
+            self._register_alias_line(
+                f"__global {scalar_type}* {name}_scalar = (__global {scalar_type}*)({param_name});"
+            )
+        elif dtypes.is_vector(var_type):
+            scalar_type = self.type_name(var_type.scalar)
+            self._register_alias_line(
+                f"__global {scalar_type}* {name}_scalar = (__global {scalar_type}*)({param_name});"
+            )
+        self._register_alias_line(f"{struct_name} {name} = {{{param_name}}};")
+        return f"typedef struct {struct_name} {{ __global {data_type}* data; }} {struct_name};\n"
+
+    def sampler_declaration(self, binding: int, dimensions: int, name: str) -> str:
+        _ = (binding, dimensions, name)
+        raise NotImplementedError("image/sampler unsupported in OpenCL backend")
+
+    def push_constant_declaration(self, contents: str) -> str:
+        self._register_kernel_param("const PushConstant vkdispatch_pc_value")
+        self._register_alias_line("const PushConstant PC = vkdispatch_pc_value;")
+        return f"\ntypedef struct PushConstant {{\n{contents}\n}} PushConstant;\n"
+
+    def entry_point(self, body_contents: str) -> str:
+        params = ", ".join(self._kernel_params)
+        alias_block = ""
+        shared_block = ""
+        for line in self._shared_buffer_lines:
+            shared_block += f"    {line}\n"
+        for line in self._entry_alias_lines:
+            alias_block += f"    {line}\n"
+
+        return (
+            f"__kernel void vkdispatch_main({params}) {{\n"
+            f"{shared_block}"
+            f"{alias_block}"
+            f"{body_contents}"
+            f"}}\n"
+        )
+
+    def inf_f32_expr(self) -> str:
+        return "as_float((uint)0x7F800000u)"
+
+    def ninf_f32_expr(self) -> str:
+        return "as_float((uint)0xFF800000u)"
+
+    def inf_f64_expr(self) -> str:
+        return "as_double((ulong)0x7FF0000000000000UL)"
+
+    def ninf_f64_expr(self) -> str:
+        return "as_double((ulong)0xFFF0000000000000UL)"
+
+    def inf_f16_expr(self) -> str:
+        return "as_half((ushort)0x7C00u)"
+
+    def ninf_f16_expr(self) -> str:
+        return "as_half((ushort)0xFC00u)"
+
+    def float_bits_to_int_expr(self, var_expr: str) -> str:
+        return f"as_int({var_expr})"
+
+    def float_bits_to_uint_expr(self, var_expr: str) -> str:
+        return f"as_uint({var_expr})"
+
+    def int_bits_to_float_expr(self, var_expr: str) -> str:
+        return f"as_float({var_expr})"
+
+    def uint_bits_to_float_expr(self, var_expr: str) -> str:
+        return f"as_float({var_expr})"
+
+    def global_invocation_id_expr(self) -> str:
+        return "((uint3)((uint)get_global_id(0), (uint)get_global_id(1), (uint)get_global_id(2)))"
+
+    def local_invocation_id_expr(self) -> str:
+        return "((uint3)((uint)get_local_id(0), (uint)get_local_id(1), (uint)get_local_id(2)))"
+
+    def local_invocation_index_expr(self) -> str:
+        return (
+            "((uint)(get_local_id(0) + "
+            "get_local_size(0) * (get_local_id(1) + get_local_size(1) * get_local_id(2))))"
+        )
+
+    def workgroup_id_expr(self) -> str:
+        return "((uint3)((uint)get_group_id(0), (uint)get_group_id(1), (uint)get_group_id(2)))"
+
+    def workgroup_size_expr(self) -> str:
+        return "((uint3)((uint)get_local_size(0), (uint)get_local_size(1), (uint)get_local_size(2)))"
+
+    def num_workgroups_expr(self) -> str:
+        return "((uint3)((uint)get_num_groups(0), (uint)get_num_groups(1), (uint)get_num_groups(2)))"
+
+    def num_subgroups_expr(self) -> str:
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
+
+    def subgroup_id_expr(self) -> str:
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
+
+    def subgroup_size_expr(self) -> str:
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
+
+    def subgroup_invocation_id_expr(self) -> str:
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
+
+    def barrier_statement(self) -> str:
+        return "barrier(CLK_LOCAL_MEM_FENCE);"
+
+    def memory_barrier_statement(self) -> str:
+        return "mem_fence(CLK_LOCAL_MEM_FENCE);"
+
+    def memory_barrier_buffer_statement(self) -> str:
+        return "mem_fence(CLK_GLOBAL_MEM_FENCE);"
+
+    def memory_barrier_shared_statement(self) -> str:
+        return "mem_fence(CLK_LOCAL_MEM_FENCE);"
+
+    def memory_barrier_image_statement(self) -> str:
+        raise NotImplementedError("image/sampler unsupported in OpenCL backend")
+
+    def group_memory_barrier_statement(self) -> str:
+        return "mem_fence(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);"
+
+    def subgroup_add_expr(self, arg_expr: str) -> str:
+        _ = arg_expr
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
+
+    def subgroup_mul_expr(self, arg_expr: str) -> str:
+        _ = arg_expr
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
+
+    def subgroup_min_expr(self, arg_expr: str) -> str:
+        _ = arg_expr
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
+
+    def subgroup_max_expr(self, arg_expr: str) -> str:
+        _ = arg_expr
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
+
+    def subgroup_and_expr(self, arg_expr: str) -> str:
+        _ = arg_expr
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
+
+    def subgroup_or_expr(self, arg_expr: str) -> str:
+        _ = arg_expr
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
+
+    def subgroup_xor_expr(self, arg_expr: str) -> str:
+        _ = arg_expr
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
+
+    def subgroup_elect_expr(self) -> str:
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
+
+    def subgroup_barrier_statement(self) -> str:
+        raise NotImplementedError("subgroup operations unsupported in OpenCL backend")
+
+    def printf_statement(self, fmt: str, args: List[str]) -> str:
+        if len(args) == 0:
+            return f'printf("{fmt}");'
+        return f'printf("{fmt}", {", ".join(args)});'
+
+    def texture_size_expr(self, texture_expr: str, lod: int, dimensions: int) -> str:
+        _ = (texture_expr, lod, dimensions)
+        raise NotImplementedError("image/sampler unsupported in OpenCL backend")
+
+    def sample_texture_expr(self, texture_expr: str, coord_expr: str, lod_expr: Optional[str] = None) -> str:
+        _ = (texture_expr, coord_expr, lod_expr)
+        raise NotImplementedError("image/sampler unsupported in OpenCL backend")
+
+    def mark_texture_sample_dimension(self, dimensions: int) -> None:
+        _ = dimensions
+        raise NotImplementedError("image/sampler unsupported in OpenCL backend")
+
+    def atomic_add_expr(self, mem_expr: str, value_expr: str, var_type: dtypes.dtype) -> str:
+        if var_type not in (dtypes.int32, dtypes.uint32):
+            raise NotImplementedError(f"OpenCL atomic_add only supports int32/uint32, got '{var_type.name}'")
+
+        return f"atomic_add(&({mem_expr}), {value_expr})"

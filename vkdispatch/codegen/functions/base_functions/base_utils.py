@@ -4,12 +4,17 @@ from vkdispatch.codegen.variables.base_variable import BaseVariable
 from typing import Any, Optional
 
 import numbers
+import math
 
-from ...._compat import numpy_compat as npc
+from ....compat import numpy_compat as npc
 from vkdispatch.codegen.shader_writer import new_scaled_var, append_contents, new_name
 from vkdispatch.codegen.global_builder import get_codegen_backend
 
 from vkdispatch.codegen.shader_writer import new_var as new_var_impl
+
+_I32_MIN = -(2 ** 31)
+_I32_MAX = 2 ** 31 - 1
+_U32_MAX = 2 ** 32 - 1
 
 def new_base_var(var_type: dtypes.dtype,
             var_name: Optional[str],
@@ -45,9 +50,13 @@ def is_int_power_of_2(n: int) -> bool:
 def number_to_dtype(number: numbers.Number):
     if is_int_number(number):
         if number >= 0:
-            return dtypes.uint32
+            if number <= _U32_MAX:
+                return dtypes.uint32
+            return dtypes.uint64
 
-        return dtypes.int32
+        if number >= _I32_MIN and number <= _I32_MAX:
+            return dtypes.int32
+        return dtypes.int64
     elif is_float_number(number):
         return dtypes.float32
     elif is_complex_number(number):
@@ -62,33 +71,65 @@ def check_is_int(variable):
     return npc.is_integer_scalar(variable)
 
 def dtype_to_floating(var_type: dtypes.dtype) -> dtypes.dtype:
-    if var_type == dtypes.int32 or var_type == dtypes.uint32:
-        return dtypes.float32
+    return dtypes.make_floating_dtype(var_type)
 
-    if var_type == dtypes.ivec2 or var_type == dtypes.uvec2:
-        return dtypes.vec2
-
-    if var_type == dtypes.ivec3 or var_type == dtypes.uvec3:
-        return dtypes.vec3
-    
-    if var_type == dtypes.ivec4 or var_type == dtypes.uvec4:
-        return dtypes.vec4
-    
+def _inf_scalar_type(var_type: dtypes.dtype) -> dtypes.dtype:
+    """Extract the scalar float type from any dtype."""
+    if dtypes.is_complex(var_type):
+        return var_type.child_type
+    if dtypes.is_vector(var_type) or dtypes.is_matrix(var_type):
+        return var_type.scalar
     return var_type
 
-def resolve_input(var: Any) -> str:
+def format_number_literal(var: numbers.Number, *, force_float32: bool = False, dtype: Optional[dtypes.dtype] = None) -> str:
+    if is_complex_number(var):
+        return str(var)
+
+    if is_float_number(var) or (force_float32 and is_int_number(var)):
+        value = float(var)
+
+        if math.isinf(value):
+            backend = get_codegen_backend()
+            scalar = _inf_scalar_type(dtype) if dtype is not None else dtypes.float32
+            if scalar is dtypes.float64:
+                return backend.inf_f64_expr() if value > 0 else backend.ninf_f64_expr()
+            if scalar is dtypes.float16:
+                return backend.inf_f16_expr() if value > 0 else backend.ninf_f16_expr()
+            return backend.inf_f32_expr() if value > 0 else backend.ninf_f32_expr()
+
+        if math.isnan(value):
+            return "(0.0f / 0.0f)"
+
+        literal = repr(value)
+        if "e" not in literal and "E" not in literal and "." not in literal:
+            literal += ".0"
+        return literal + "f"
+
+    return str(var)
+
+def resolve_input(var: Any, dtype: Optional[dtypes.dtype] = None) -> str:
     #print("Resolving input:", var)
 
     if is_number(var):
-        return str(var)
-    
+        return format_number_literal(var, dtype=dtype)
+
     assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
     return var.resolve()
+
+def resolve_input_type(var: Any) -> Optional[dtypes.dtype]:
+    if is_number(var):
+        return number_to_dtype(var)
+
+    if isinstance(var, BaseVariable):
+        return var.var_type
+
+    return None
 
 def backend_constructor(var_type: dtypes.dtype, *args) -> str:
     return get_codegen_backend().constructor(
         var_type,
-        [resolve_input(elem) for elem in args]
+        [resolve_input(elem, dtype=var_type) for elem in args],
+        arg_types=[resolve_input_type(elem) for elem in args],
     )
 
 def to_dtype_base(var_type: dtypes.dtype, *args):

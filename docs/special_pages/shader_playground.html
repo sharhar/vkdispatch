@@ -401,6 +401,7 @@
     <div class="backend-toggle" id="backend-toggle">
       <button class="active" data-backend="glsl">GLSL</button>
       <button data-backend="cuda">CUDA</button>
+      <button data-backend="opencl">OpenCL</button>
     </div>
     <h1>VkDispatch Shader Playground</h1>
     <button id="copy-output-btn">⎘ Copy</button>
@@ -455,15 +456,17 @@
         <label>Subgroup Size</label>
         <input type="text" id="opt-subgroup-size" value="32">
       </div>
-      <!-- <div class="opt-group">
+      <!-- <input type="checkbox" id="opt-subgroup-enabled" checked> -->
+
+      <div class="opt-group">
         <div class="toggle-row">
-          <span>Shader Print Line Numbers</span>
+          <span>Subgroup Ops Enabled</span>
           <label class="switch">
-            <input type="checkbox" id="opt-shader-line-numbers">
+            <input type="checkbox" id="opt-subgroup-enabled" checked>
             <span class="slider"></span>
           </label>
         </div>
-      </div>  -->
+      </div>
       <div class="opt-group">
         <label>Max Workgroup Size (x, y, z)</label>
         <div style="display:flex; gap:8px;">
@@ -676,7 +679,7 @@ print(add_scalar)</textarea>
         btn.classList.add("active");
 
         /* Switch output highlighting mode */
-        if (backend === "cuda") {
+        if (backend === "cuda" || backend === "opencl") {
           window.cmOutput.setOption("mode", "text/x-csrc");
         } else {
           window.cmOutput.setOption("mode", "text/x-glsl");
@@ -690,6 +693,7 @@ print(add_scalar)</textarea>
     /* ── URL hash restore ── */
     var deviceFields = [
       { key: "ss",  id: "opt-subgroup-size" },
+      { key: "sse", id: "opt-subgroup-enabled" },
       { key: "wsx", id: "opt-wg-size-x" },
       { key: "wsy", id: "opt-wg-size-y" },
       { key: "wsz", id: "opt-wg-size-z" },
@@ -720,11 +724,11 @@ print(add_scalar)</textarea>
     /* Restore backend from URL */
     if (params.has("be")) {
       var be = params.get("be").toLowerCase();
-      if (be === "cuda") {
-        window.currentBackend = "cuda";
+      if (be === "cuda" || be === "opencl") {
+        window.currentBackend = be;
         toggleButtons.forEach(function (b) {
           b.classList.remove("active");
-          if (b.getAttribute("data-backend") === "cuda") {
+          if (b.getAttribute("data-backend") === be) {
             b.classList.add("active");
           }
         });
@@ -734,7 +738,15 @@ print(add_scalar)</textarea>
 
     deviceFields.forEach(function (f) {
       if (params.has(f.key)) {
-        document.getElementById(f.id).value = params.get(f.key);
+        if(f.id === "opt-subgroup-enabled") {
+          document.getElementById(f.id).checked =
+            params.get(f.key) === "1" ||
+            params.get(f.key).toLowerCase() === "true" ||
+            params.get(f.key).toLowerCase() === "yes" ||
+            params.get(f.key).toLowerCase() === "on";
+        } else {
+          document.getElementById(f.id).value = params.get(f.key);
+        }
       }
     });
     toggleFields.forEach(function (f) {
@@ -792,43 +804,74 @@ print(add_scalar)</textarea>
       });
 
     /* ── share button ── */
-    document
-      .getElementById("share-btn")
-      .addEventListener("click", function () {
-        var code = window.cmCode.getValue();
-        var encoded = btoa(unescape(encodeURIComponent(code)));
+    function buildPlaygroundHash() {
+      var code = window.cmCode.getValue();
+      var encoded = btoa(unescape(encodeURIComponent(code)));
 
-        var hashParts = ["code=" + encoded];
+      var hashParts = ["code=" + encoded];
 
-        /* Include backend in share link */
-        hashParts.push("be=" + encodeURIComponent(window.currentBackend));
+      /* Include backend in share/runtime URL */
+      hashParts.push("be=" + encodeURIComponent(window.currentBackend));
 
-        deviceFields.forEach(function (f) {
-          var val = document.getElementById(f.id).value.trim();
-          if (val !== "") {
-            hashParts.push(
-              encodeURIComponent(f.key) +
-                "=" +
-                encodeURIComponent(val)
-            );
-          }
-        });
-        toggleFields.forEach(function (f) {
-          var el = document.getElementById(f.id);
-          if (!el) return;
-          var checked = el.checked ? "1" : "0";
+      deviceFields.forEach(function (f) {
+        var val = document.getElementById(f.id).value.trim();
+
+        if(f.id === "opt-subgroup-enabled") {
+          val = document.getElementById(f.id).checked ? "1" : "0";
+        }
+
+        if (val !== "") {
           hashParts.push(
             encodeURIComponent(f.key) +
               "=" +
-              encodeURIComponent(checked)
+              encodeURIComponent(val)
           );
-        });
+        }
+      });
+      toggleFields.forEach(function (f) {
+        var el = document.getElementById(f.id);
+        if (!el) return;
+        var checked = el.checked ? "1" : "0";
+        hashParts.push(
+          encodeURIComponent(f.key) +
+            "=" +
+            encodeURIComponent(checked)
+        );
+      });
+
+      return hashParts.join("&");
+    }
+
+    window.updatePlaygroundUrlState = function () {
+      var hash = buildPlaygroundHash();
+      var nextUrl =
+        window.location.pathname +
+        window.location.search +
+        "#" +
+        hash;
+
+      if (window.location.hash.slice(1) !== hash) {
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState(null, "", nextUrl);
+        } else {
+          window.location.hash = hash;
+        }
+      }
+
+      return hash;
+    };
+
+    document
+      .getElementById("share-btn")
+      .addEventListener("click", function () {
+        var hash = window.updatePlaygroundUrlState();
 
         var url =
           window.location.origin +
           window.location.pathname +
+          window.location.search +
           "#" +
-          hashParts.join("&");
+          hash;
 
         copyToClipboard(url).then(function () {
           showToast("Share link copied to clipboard.");
@@ -917,13 +960,14 @@ from browser import document, window
 import sys
 import traceback
 
-import vkdispatch_native
+import vkdispatch as vd
 import vkdispatch.base.context as vd_context
 import vkdispatch.base.init as vd_init
 import vkdispatch.execution_pipeline.command_graph as vd_command_graph
 import vkdispatch.fft.shader_factories as vd_fft_shader_factories
 import vkdispatch.codegen as vc
 
+vd.initialize(backend="dummy")
 
 class OutputBuffer:
     def __init__(self):
@@ -961,6 +1005,7 @@ def _parse_positive_int(element_id, field_name):
 def _read_device_options():
     return {
         "subgroup_size": _parse_positive_int("opt-subgroup-size", "Subgroup Size"),
+        "subgroup_enabled": document["opt-subgroup-enabled"].checked,
         "max_workgroup_size": (
             _parse_positive_int("opt-wg-size-x", "Max Workgroup Size X"),
             _parse_positive_int("opt-wg-size-y", "Max Workgroup Size Y"),
@@ -984,16 +1029,8 @@ def _read_device_options():
 
 def _reset_vkdispatch_runtime():
     context = getattr(vd_context, "__context", None)
-    if context is not None:
-        if hasattr(vd_context, "set_running"):
-            vd_context.set_running(False)
-
-        handles_list = list(context.handles_dict.values())
-        for handle in handles_list:
-            handle.destroy()
-
-        vkdispatch_native.context_destroy(context._handle)
-        vd_context.__context = None
+    #if context is not None:
+    #    vd_context.destroy_context()
 
     vd_init.__initilized_instance = False
     vd_init.__device_infos = None
@@ -1008,6 +1045,9 @@ def run_code(event):
     code = window.cmCode.getValue()
     window.cmOutput.setValue("")
 
+    if event is not None and hasattr(window, "updatePlaygroundUrlState"):
+        window.updatePlaygroundUrlState()
+
     stdout_buffer = OutputBuffer()
     stderr_buffer = OutputBuffer()
 
@@ -1017,14 +1057,18 @@ def run_code(event):
 
     try:
         options = _read_device_options()
-        vkdispatch_native.set_device_options(
+        _reset_vkdispatch_runtime()
+
+        vd.initialize(backend="dummy")
+        vd.get_context()
+        vd.set_dummy_context_params(
             subgroup_size=options["subgroup_size"],
+            subgroup_enabled=options["subgroup_enabled"],
             max_workgroup_size=options["max_workgroup_size"],
             max_workgroup_invocations=options["max_workgroup_invocations"],
             max_workgroup_count=options["max_workgroup_count"],
-            max_compute_shared_memory_size=options["max_compute_shared_memory_size"],
+            max_shared_memory=options["max_compute_shared_memory_size"],
         )
-        _reset_vkdispatch_runtime()
 
         # Set codegen backend based on toggle state
         backend = str(window.currentBackend)

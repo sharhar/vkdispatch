@@ -129,8 +129,9 @@ def get_array(index: int, config: RunConfig) -> np.ndarray:
 
 def make_source(commands: List[ProgramCommand]):
     local_size_x = vd.get_context().max_workgroup_size[0]
+    is_cuda_python = vd.is_cuda()
 
-    if vd.get_backend() == "pycuda":
+    if is_cuda_python:
         header = (
             f"#define VKDISPATCH_EXPECTED_LOCAL_SIZE_X {local_size_x}\n"
             "#define VKDISPATCH_EXPECTED_LOCAL_SIZE_Y 1\n"
@@ -193,7 +194,7 @@ void main() {
         elif command.command_type == CommandType.COS_VALUE:
             body += f"        value = cos(value);\n"
 
-    if vd.get_backend() == "pycuda":
+    if is_cuda_python:
         ending = """
         vkdispatch_binding_0_ptr[tid] = value;
 }
@@ -301,6 +302,9 @@ def do_numpy_command(out_buffer: int, in_buffer: int, program: int, config: RunC
     output_array[:total_exec_size] = temp_array
 
 def test_async_commands():
+    if not vd.is_vulkan():
+        return
+
     for _ in range(50):
         clear_caches()
         

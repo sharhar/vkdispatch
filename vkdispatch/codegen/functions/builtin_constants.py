@@ -17,6 +17,38 @@ def ninf_f32():
         lexical_unit=True
     )
 
+def inf_f64():
+    return utils.new_var(
+        dtypes.float64,
+        utils.codegen_backend().inf_f64_expr(),
+        [],
+        lexical_unit=True
+    )
+
+def ninf_f64():
+    return utils.new_var(
+        dtypes.float64,
+        utils.codegen_backend().ninf_f64_expr(),
+        [],
+        lexical_unit=True
+    )
+
+def inf_f16():
+    return utils.new_var(
+        dtypes.float16,
+        utils.codegen_backend().inf_f16_expr(),
+        [],
+        lexical_unit=True
+    )
+
+def ninf_f16():
+    return utils.new_var(
+        dtypes.float16,
+        utils.codegen_backend().ninf_f16_expr(),
+        [],
+        lexical_unit=True
+    )
+
 def global_invocation_id():
     return utils.new_var(
         dtypes.uvec3,

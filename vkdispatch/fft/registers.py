@@ -32,7 +32,7 @@ class FFTRegisters:
         self.config = resources.config
         
         self.registers = [
-            vc.new_complex_register(var_name=f"{name}_reg_{i}") for i in range(count)
+            vc.new_register(self.config.compute_type, var_name=f"{name}_reg_{i}") for i in range(count)
         ]
 
         self.count = count
@@ -53,40 +53,13 @@ class FFTRegisters:
         self.registers[index][:] = value
 
     def normalize(self):
+        normalization = vc.to_dtype(self.config.compute_type.child_type, self.config.N)
         for i in range(self.count):
-            self.registers[i][:] = self.registers[i] / self.config.N
-
-    def get_input_format(self, stage_index: int = 0) -> Dict[int, int]:
-        in_format = {}
-
-        stride = self.config.N // self.config.stages[stage_index].fft_length
-
-        register_count = len(self.registers)
-        register_index_list = list(range(register_count))
-
-        for invocation in self.resources.invocations[stage_index]:
-            sub_registers = register_index_list[invocation.register_selection]
-            
-            for i in range(len(sub_registers)):
-                in_format[invocation.get_read_index(stride * i)] = sub_registers[i]
-
-        return in_format
-
-    def get_output_format(self, stage_index: int = -1) -> Dict[int, int]:
-        out_format = {}
-
-        register_count = len(self.registers)
-        register_index_list = list(range(register_count))
-
-        for jj in range(self.config.stages[stage_index].fft_length):
-            for invocation in self.resources.invocations[stage_index]:
-                out_format[invocation.get_write_index(jj)] = register_index_list[invocation.register_selection][jj]
-
-        return out_format
+            self.registers[i][:] = self.registers[i] / normalization
 
     def try_shuffle(self, output_stage: int = -1, input_stage: int = 0) -> bool:
-        out_format = self.get_output_format(output_stage)
-        in_format = self.get_input_format(input_stage)
+        out_format = self.config.stages[output_stage].get_output_format(len(self.registers))
+        in_format = self.config.stages[input_stage].get_input_format(len(self.registers))
 
         if out_format.keys() != in_format.keys():
             return False

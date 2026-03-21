@@ -1,13 +1,10 @@
 from typing import List
 
 import vkdispatch as vd
-from .._compat import numpy_compat as npc
+from ..compat import numpy_compat as npc
 
 def default_register_limit():
-    if vd.get_devices()[0].is_nvidia():
-        return 16
-
-    return 15
+    return 16
 
 def default_max_prime():
     return 13

@@ -1,5 +1,6 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
+import vkdispatch.base.dtype as dtypes
 
 from typing import Optional, Tuple
 
@@ -55,11 +56,22 @@ class IOManager:
                     default_registers: FFTRegisters,
                     shader_context: vd.ShaderContext,
                     output_map: Optional[vd.MappingFunction],
+                    output_type: dtypes.dtype = vd.complex64,
+                    input_type: Optional[dtypes.dtype] = None,
                     input_map: Optional[vd.MappingFunction] = None,
                     kernel_map: Optional[vd.MappingFunction] = None):
             self.default_registers = default_registers
-            self.output_proxy = IOProxy(vd.complex64 if output_map is None else output_map, "Output")
-            self.input_proxy = IOProxy(input_map, "Input")
+            self.output_proxy = IOProxy(output_type if output_map is None else output_map, "Output")
+
+            if input_map is not None:
+                self.input_proxy = IOProxy(input_map, "Input")
+            elif output_map is not None:
+                if input_type is None:
+                    raise ValueError("input_type must be provided when output_map is used without input_map")
+                self.input_proxy = IOProxy(input_type, "Input")
+            else:
+                self.input_proxy = IOProxy(None, "Input")
+
             self.kernel_proxy = IOProxy(kernel_map, "Kernel")
     
             output_types = self.output_proxy.buffer_types

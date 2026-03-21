@@ -13,24 +13,14 @@ from typing import List, Union, Optional
 ENABLE_SCALED_AND_OFFSET_INT = True
 
 def var_types_to_floating(var_type: dtypes.dtype) -> dtypes.dtype:
-    if var_type == dtypes.int32 or var_type == dtypes.uint32:
-        return dtypes.float32
-
-    if var_type == dtypes.ivec2 or var_type == dtypes.uvec2:
-        return dtypes.vec2
-
-    if var_type == dtypes.ivec3 or var_type == dtypes.uvec3:
-        return dtypes.vec3
-    
-    if var_type == dtypes.ivec4 or var_type == dtypes.uvec4:
-        return dtypes.vec4
-    
-    return var_type
+    return dtypes.make_floating_dtype(var_type)
 
 class ShaderVariable(BaseVariable):
     _initilized: bool
     is_complex: bool
     is_conjugate: Optional[bool]
+    buffer_root: Optional["ShaderVariable"]
+    buffer_index_expr: Optional[str]
 
     def __init__(self,
                  var_type: dtypes.dtype, 
@@ -40,7 +30,9 @@ class ShaderVariable(BaseVariable):
                  settable: bool = False,
                  register: bool = False,
                  parents: List["ShaderVariable"] = None,
-                 is_conjugate: bool = False
+                 is_conjugate: bool = False,
+                 buffer_root: Optional["ShaderVariable"] = None,
+                 buffer_index_expr: Optional[str] = None,
         ) -> None:
         super().__setattr__("_initilized", False)
 
@@ -56,6 +48,8 @@ class ShaderVariable(BaseVariable):
 
         self.is_complex = False
         self.is_conjugate = None
+        self.buffer_root = buffer_root
+        self.buffer_index_expr = buffer_index_expr
 
         if dtypes.is_complex(self.var_type):
             self.can_index = True
@@ -80,6 +74,28 @@ class ShaderVariable(BaseVariable):
 
         self._initilized = True
        
+    def _buffer_component_expr(self, component_index_expr: str) -> Optional[str]:
+        if self.buffer_root is None or self.buffer_index_expr is None:
+            return None
+
+        if not (dtypes.is_vector(self.var_type) or dtypes.is_complex(self.var_type)):
+            return None
+
+        scalar_expr = getattr(self.buffer_root, "scalar_expr", None)
+        if scalar_expr is None:
+            return None
+
+        backend = getattr(self.buffer_root, "codegen_backend", None)
+        if backend is None:
+            backend = get_codegen_backend()
+
+        return backend.buffer_component_expr(
+            scalar_expr,
+            self.var_type,
+            self.buffer_index_expr,
+            component_index_expr,
+        )
+
     def __getitem__(self, index) -> "ShaderVariable":
         assert self.can_index, f"Variable '{self.resolve()}' of type '{self.var_type.name}' cannot be indexed into!"
 
@@ -90,11 +106,31 @@ class ShaderVariable(BaseVariable):
             index = index[0]
 
         if base_utils.is_int_number(index):
+            component_expr = self._buffer_component_expr(str(index))
+            if component_expr is not None:
+                return ShaderVariable(
+                    return_type,
+                    component_expr,
+                    parents=[self],
+                    settable=self.settable,
+                    lexical_unit=True
+                )
+
             return ShaderVariable(return_type, f"{self.resolve()}[{index}]", parents=[self], settable=self.settable, lexical_unit=True)
         
         assert isinstance(index, ShaderVariable), f"Index must be a ShaderVariable or int type, not {type(index)}!"
         assert dtypes.is_scalar(index.var_type), "Indexing variable must be a scalar!"
         assert dtypes.is_integer_dtype(index.var_type), "Indexing variable must be an integer type!"
+
+        component_expr = self._buffer_component_expr(index.resolve())
+        if component_expr is not None:
+            return ShaderVariable(
+                return_type,
+                component_expr,
+                parents=[self, index],
+                settable=self.settable,
+                lexical_unit=True
+            )
         
         return ShaderVariable(return_type, f"{self.resolve()}[{index.resolve()}]", parents=[self, index], settable=self.settable, lexical_unit=True)
 
@@ -109,15 +145,18 @@ class ShaderVariable(BaseVariable):
 
         sample_type = self.var_type if dtypes.is_scalar(self.var_type) else self.var_type.child_type
         return_type = sample_type if len(components) == 1 else dtypes.to_vector(sample_type, len(components))
+        backend = get_codegen_backend()
+        base_expr = self.resolve()
 
         if dtypes.is_scalar(self.var_type):
             assert all(c == 'x' for c in components), f"Cannot swizzle scalar variable '{self.resolve()}' with components other than 'x'!"
 
-            swizzle_expr = f"{self.resolve()}.x"
+            scalar_x_expr = backend.component_access_expr(base_expr, "x", self.var_type)
+            swizzle_expr = scalar_x_expr
             if len(components) > 1:
-                swizzle_expr = get_codegen_backend().constructor(
+                swizzle_expr = backend.constructor(
                     return_type,
-                    [f"{self.resolve()}.x" for _ in components]
+                    [scalar_x_expr for _ in components]
                 )
 
             return ShaderVariable(
@@ -125,8 +164,8 @@ class ShaderVariable(BaseVariable):
                 name=swizzle_expr,
                 parents=[self],
                 lexical_unit=True,
-                settable=self.settable,
-                register=self.register
+                settable=self.settable and len(components) == 1,
+                register=self.register and len(components) == 1
             )
 
         if self.var_type.shape[0] < 4:
@@ -138,11 +177,24 @@ class ShaderVariable(BaseVariable):
         if self.var_type.shape[0] < 2:
             assert 'y' not in components, f"Cannot swizzle variable '{self.resolve()}' of type '{self.var_type.name}' with component 'y'!"
 
-        swizzle_expr = f"{self.resolve()}.{components}"
+        if len(components) == 1:
+            component_index = "xyzw".index(components)
+            component_expr = self._buffer_component_expr(str(component_index))
+            if component_expr is not None:
+                return ShaderVariable(
+                    var_type=return_type,
+                    name=component_expr,
+                    parents=[self],
+                    lexical_unit=True,
+                    settable=self.settable,
+                    register=self.register
+                )
+
+        swizzle_expr = backend.component_access_expr(base_expr, components, self.var_type)
         if len(components) > 1:
-            swizzle_expr = get_codegen_backend().constructor(
+            swizzle_expr = backend.constructor(
                 return_type,
-                [f"{self.resolve()}.{elem}" for elem in components]
+                [backend.component_access_expr(base_expr, elem, self.var_type) for elem in components]
             )
 
         return ShaderVariable(
@@ -150,8 +202,8 @@ class ShaderVariable(BaseVariable):
             name=swizzle_expr,
             parents=[self],
             lexical_unit=True,
-            settable=self.settable,
-            register=self.register
+            settable=self.settable and len(components) == 1,
+            register=self.register and len(components) == 1
         )
     
     def conjugate(self) -> "ShaderVariable":
@@ -175,16 +227,19 @@ class ShaderVariable(BaseVariable):
         self.read_callback()
 
         if base_utils.is_number(value):
-            if self.var_type == dtypes.complex64:
+            if dtypes.is_complex(self.var_type):
                 complex_value = complex(value)
                 complex_constructor = get_codegen_backend().constructor(
-                    dtypes.complex64,
-                    [str(complex_value.real), str(complex_value.imag)]
+                    self.var_type,
+                    [
+                        base_utils.format_number_literal(complex_value.real),
+                        base_utils.format_number_literal(complex_value.imag),
+                    ]
                 )
                 base_utils.append_contents(f"{self.resolve()} = {complex_constructor};\n")
                 return
 
-            base_utils.append_contents(f"{self.resolve()} = {value};\n")
+            base_utils.append_contents(f"{self.resolve()} = {base_utils.format_number_literal(value)};\n")
             return
 
         assert self.var_type == value.var_type, f"Cannot set variable of type '{self.var_type.name}' to value of type '{value.var_type.name}'!"
@@ -218,6 +273,9 @@ class ShaderVariable(BaseVariable):
                 self.imag.set_value(value)
             
             return
+
+        if dtypes.is_complex(self.var_type) and (name == "x" or name == "y"):
+            raise ValueError(f"Cannot set attribute '{name}' of complex variable '{self.resolve()}', use 'real' and 'imag' instead!")
         
         if dtypes.is_vector(self.var_type) and (name == "x" or name == "y" or name == "z" or name == "w"):
             if name == "x":
@@ -254,7 +312,7 @@ class ShaderVariable(BaseVariable):
     def to_dtype(self, var_type: dtypes.dtype) -> "ShaderVariable":
         return base_utils.new_base_var(
             var_type,
-            get_codegen_backend().constructor(var_type, [self.resolve()]),
+            get_codegen_backend().constructor(var_type, [self.resolve()], arg_types=[self.var_type]),
             [self],
             lexical_unit=True
         )
@@ -316,16 +374,18 @@ class ScaledAndOfftsetIntVariable(ShaderVariable):
                  offset: int = 0,
                  parents: List["ShaderVariable"] = None
         ) -> None:
+        # ShaderVariable.__init__ eagerly creates vector swizzles (`x`, `y`, ...),
+        # which call resolve() during construction. Pre-seed these fields so
+        # ScaledAndOfftsetIntVariable.resolve() is safe before super().__init__ completes.
+        object.__setattr__(self, "base_name", str(name))
+        object.__setattr__(self, "scale", scale)
+        object.__setattr__(self, "offset", offset)
         super().__init__(var_type, name, parents=parents)
-
-        self.base_name = str(name)
-        self.scale = scale
-        self.offset = offset
         
     def new_from_self(self, scale: int = 1, offset: int = 0):
         child_vartype = self.var_type
 
-        if isinstance(scale, float) or isinstance(offset, float):
+        if base_utils.is_float_number(scale) or base_utils.is_float_number(offset):
             child_vartype = var_types_to_floating(self.var_type)
 
         return ScaledAndOfftsetIntVariable(
@@ -337,8 +397,14 @@ class ScaledAndOfftsetIntVariable(ShaderVariable):
         )
 
     def resolve(self) -> str:        
-        scale_str = f" * {self.scale}" if self.scale != 1 else ""
-        offset_str = f" + {self.offset}" if self.offset != 0 else ""
+        scale_str = (
+            f" * {base_utils.format_number_literal(self.scale)}"
+            if self.scale != 1 else ""
+        )
+        offset_str = (
+            f" + {base_utils.format_number_literal(self.offset)}"
+            if self.offset != 0 else ""
+        )
 
         if scale_str == "" and offset_str == "":
             return self.base_name
