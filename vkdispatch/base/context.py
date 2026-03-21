@@ -7,6 +7,7 @@ from typing import MutableMapping
 import atexit
 import weakref
 
+import sys
 import os, signal
 
 from .errors import check_for_errors, set_running
@@ -186,9 +187,9 @@ class Context:
         self._handle = native.context_create(self.mapped_device_ids, queue_families)
         check_for_errors()
 
-        self._refresh_limits_from_device_infos()
+        self.refresh_limits_from_device_infos()
 
-    def _refresh_limits_from_device_infos(self) -> None:
+    def refresh_limits_from_device_infos(self) -> None:
         subgroup_sizes = []
         max_workgroup_sizes_x = []
         max_workgroup_sizes_y = []
@@ -462,6 +463,7 @@ def _as_positive_triplet(name: str, value) -> Tuple[int, int, int]:
 
 def set_dummy_context_params(
     subgroup_size: int = None,
+    subgroup_enabled: bool = None,
     max_workgroup_size: Tuple[int, int, int] = None,
     max_workgroup_invocations: int = None,
     max_workgroup_count: Tuple[int, int, int] = None,
@@ -483,6 +485,7 @@ def set_dummy_context_params(
         __context = get_context()
 
     validated_subgroup_size = None
+    validated_subgroup_enabled = None
     validated_max_workgroup_size = None
     validated_max_workgroup_invocations = None
     validated_max_workgroup_count = None
@@ -493,6 +496,12 @@ def set_dummy_context_params(
     if subgroup_size is not None:
         validated_subgroup_size = _as_positive_int("subgroup_size", subgroup_size)
         backend_kwargs["subgroup_size"] = validated_subgroup_size
+
+    if subgroup_enabled is not None:
+        if not isinstance(subgroup_enabled, bool):
+            raise ValueError("subgroup_enabled must be a boolean value")
+        validated_subgroup_enabled = bool(subgroup_enabled)
+        backend_kwargs["subgroup_enabled"] = subgroup_enabled
 
     if max_workgroup_size is not None:
         validated_max_workgroup_size = _as_positive_triplet("max_workgroup_size", max_workgroup_size)
@@ -521,6 +530,14 @@ def set_dummy_context_params(
         if validated_subgroup_size is not None:
             device.sub_group_size = validated_subgroup_size
 
+        if validated_subgroup_enabled is not None:
+            if validated_subgroup_enabled:
+                device.supported_stages |= VK_SHADER_STAGE_COMPUTE_BIT
+                device.supported_operations |= VK_SUBGROUP_FEATURE_ARITHMETIC_BIT
+            else:
+                device.supported_stages &= ~VK_SHADER_STAGE_COMPUTE_BIT
+                device.supported_operations &= ~VK_SUBGROUP_FEATURE_ARITHMETIC_BIT
+
         if validated_max_workgroup_size is not None:
             device.max_workgroup_size = validated_max_workgroup_size
 
@@ -535,7 +552,7 @@ def set_dummy_context_params(
 
         device.uniform_buffer_alignment = 0
 
-    __context._refresh_limits_from_device_infos()
+    __context.refresh_limits_from_device_infos()
 
 def queue_wait_idle(queue_index: int = None, context: Context = None) -> None:
     """
@@ -614,8 +631,7 @@ def _sig_handler(signum, frame):
     signal.signal(signum, signal.SIG_DFL)
     os.kill(os.getpid(), signum)
 
-
-from .brython_utils import is_brython
-if not is_brython():
+# No need to register signal handlers in Brython, since it runs in a browser
+if not sys.implementation.name == "Brython":
     signal.signal(signal.SIGINT, _sig_handler)
     signal.signal(signal.SIGTERM, _sig_handler)
