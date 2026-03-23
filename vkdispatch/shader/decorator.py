@@ -3,7 +3,7 @@ import vkdispatch.codegen as vc
 
 import dataclasses
 import inspect
-from typing import Callable, TypeVar
+from typing import Callable, Optional, List, Any
 
 from .context import shader_context
 
@@ -44,7 +44,10 @@ def shader(
         exec_size=None,
         local_size=None,
         workgroups=None,    
-        flags: vc.ShaderFlags = vc.ShaderFlags.NONE):
+        flags: vc.ShaderFlags = vc.ShaderFlags.NONE,
+        arg_type_annotations: Optional[List[Any]] = None,
+        arg_names: Optional[List[str]] = None,
+        arg_defaults: Optional[List[Any]] = None):
     """
     A decorator that transforms a Python function into a GPU Compute Shader.
 
@@ -64,6 +67,17 @@ def shader(
     :type workgroups: Union[int, Tuple[int, ...], Callable]
     :param flags: Compilation flags (e.g., ``vc.ShaderFlags.NO_EXEC_BOUNDS``).
     :type flags: vkdispatch.codegen.ShaderFlags
+    :param arg_type_annotations: Optional list of type annotations for the shader function's 
+                                 parameters. If not provided, annotations will be inferred 
+                                 from the decorated function's signature.
+    :type arg_type_annotations: Optional[List[Any]]
+    :param arg_names: Optional list of parameter names corresponding to the type annotations.
+                                 If not provided, names will be inferred from the decorated
+                                 function's signature.
+    :type arg_names: Optional[List[str]]
+    :param arg_defaults: Optional list of default values for the parameters. If not provided,
+                                 defaults will be inferred from the decorated function's signature.
+    :type arg_defaults: Optional[List[Any]]
     :return: A ``ShaderFunction`` wrapper that can be called to execute the kernel.
     :raises ValueError: If both ``exec_size`` and ``workgroups`` are provided.
     """
@@ -71,11 +85,23 @@ def shader(
         raise ValueError("Cannot specify both 'workgroups' and 'exec_size'")
 
     def decorator_callback(func: Callable[P, None]) -> Callable[P, None]:
+        type_annotations = arg_type_annotations
+        names = arg_names
+        defaults = arg_defaults
+
+        if type_annotations is None:
+            assert names is None and defaults is None, "If 'arg_type_annotations' is not provided, 'arg_names' and 'arg_defaults' must also be None"
+            type_annotations, names, defaults = inspect_function_signature(func)
+
         with shader_context(flags=flags) as context:
-            annotations, names, defaults = inspect_function_signature(func)
-            args = context.declare_input_arguments(annotations, names, defaults)
+            args = context.declare_input_arguments(type_annotations, names, defaults)
             func(*args)
 
-        return context.get_function(local_size=local_size, workgroups=workgroups, exec_count=exec_size, name=func.__name__)
+        return context.get_function(
+            local_size=local_size,
+            workgroups=workgroups,
+            exec_count=exec_size,
+            name=func.__name__
+        )
     
     return decorator_callback

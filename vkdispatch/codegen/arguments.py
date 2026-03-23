@@ -27,17 +27,25 @@ class Buffer(BufferVariable, typing.Generic[_ArgType]):
         pass
 
 class Image1D(ImageVariable, typing.Generic[_ArgType]):
+    dimensions: int = 1
+
     def __init__(self) -> None:
         pass
 
 class Image2D(ImageVariable, typing.Generic[_ArgType]):
+    dimensions: int = 2
+
     def __init__(self) -> None:
         pass
 
 class Image2DArray(ImageVariable, typing.Generic[_ArgType]):
+    dimensions: int = 2
+
     def __init__(self) -> None:
         pass
 
 class Image3D(ImageVariable, typing.Generic[_ArgType]):
+    dimensions: int = 3
+
     def __init__(self) -> None:
         pass

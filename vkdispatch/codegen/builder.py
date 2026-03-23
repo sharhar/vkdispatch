@@ -81,10 +81,6 @@ class ShaderDescription:
         else:
             shader_source = self.backend.make_source(self.header, self.body, x, y, z)
 
-        # ff = open(f"sources/{self.name}.comp", "w")
-        # ff.write(shader_source)
-        # ff.close()
-
         return shader_source
     
     def __repr__(self):

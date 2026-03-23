@@ -4,30 +4,15 @@ from ..base.dtype import is_dtype
 
 from typing import List
 from typing import Any
-from typing import Callable
 from typing import Optional
 from typing import Tuple
 from typing import Union
 from typing import Dict
-#from types import GenericAlias
 
 from typing import get_type_hints
 
 import dataclasses
-
-import inspect
-
 import enum
-
-_PUSH_CONSTANT_UNSUPPORTED_BACKENDS = set()
-
-
-def _push_constant_not_supported_error(backend_name: str) -> str:
-    return (
-        f"Push Constants are not supported for the {backend_name.upper()} backend. "
-        "Use Const instead."
-    )
-
 
 class ShaderArgumentType(enum.Enum):
     BUFFER = 0
@@ -45,132 +30,122 @@ class ShaderArgument:
     shader_shape_name: Optional[str]
     binding: Optional[int]
 
+    def __init__(self, 
+                 name: str,
+                 arg_type: ShaderArgumentType,
+                 default_value: Any,
+                 shader_name: Union[str, Dict[str, str]],
+                 shader_shape_name: Optional[str] = None,
+                 binding: Optional[int] = None):
+        self.name = name
+        self.arg_type = arg_type
+        self.default_value = default_value
+        self.shader_name = shader_name
+        self.shader_shape_name = shader_shape_name
+        self.binding = binding
+
+def annotation_to_shader_arg_and_variable(builder: vc.ShaderBuilder, type_annotation: Any, name: str, default_value: Any):
+    # Dataclass case
+    if(dataclasses.is_dataclass(type_annotation)):
+        creation_args: Dict[str, vc.ShaderVariable] = {}
+        value_name = {}
+
+        for field_name, field_type in get_type_hints(type_annotation).items():
+            assert is_dtype(field_type), f"Unsupported type '{field_type}' for field '{type_annotation}.{field_name}'"
+
+            creation_args[field_name] = builder.declare_constant(field_type)
+            value_name[field_name] = creation_args[field_name].raw_name
+
+        return ShaderArgument(
+            name,
+            ShaderArgumentType.CONSTANT_DATACLASS,
+            default_value,
+            value_name
+        ), type_annotation(**creation_args)
+    
+    # Buffer case
+    if(issubclass(type_annotation.__origin__, vc.Buffer)):
+        shader_var = builder.declare_buffer(type_annotation.__args__[0])
+
+        return ShaderArgument(
+            name,
+            ShaderArgumentType.BUFFER,
+            default_value,
+            shader_var.raw_name,
+            shader_shape_name=shader_var.shape_name,
+            binding=shader_var.binding
+        ), shader_var
+
+    # Image case
+    if(issubclass(type_annotation.__origin__, vc.ImageVariable)):
+        shader_var = builder.declare_image(
+            type_annotation.__origin__.dimensions
+        )
+
+        return ShaderArgument(
+            name,
+            ShaderArgumentType.IMAGE,
+            default_value,
+            shader_var.raw_name,
+            binding=shader_var.binding
+        ), shader_var
+
+    # if(issubclass(type_annotation.__origin__, vc.Image2D)):
+    #     shader_param = builder.declare_image(2)
+    #     arg_type = ShaderArgumentType.IMAGE
+    #     binding = shader_param.binding
+    #     value_name = shader_param.raw_name
+
+    # if(issubclass(type_annotation.__origin__, vc.Image3D)):
+    #     shader_param = builder.declare_image(3)
+    #     arg_type = ShaderArgumentType.IMAGE
+    #     binding = shader_param.binding
+    #     value_name = shader_param.raw_name
+
+    if(issubclass(type_annotation.__origin__, vc.Constant)):
+        shader_var = builder.declare_constant(type_annotation.__args__[0])
+
+        return ShaderArgument(
+            name,
+            ShaderArgumentType.CONSTANT,
+            default_value,
+            shader_var.raw_name
+        ), shader_var
+
+    if(issubclass(type_annotation.__origin__, vc.Variable)):
+        shader_var = builder.declare_variable(type_annotation.__args__[0])
+
+        return ShaderArgument(
+            name,
+            ShaderArgumentType.VARIABLE,
+            default_value,
+            shader_var.raw_name
+        ), shader_var
+
+    raise ValueError(f"Unsupported type '{type_annotation.__args__[0]}'")
 
 class ShaderSignature:
     arguments: List[ShaderArgument]
     variables: List[vc.ShaderVariable]
 
-    def __init__(self):
-        raise NotImplementedError("This class is not meant to be instantiated")
+    def __init__(self,
+                 builder: vc.ShaderBuilder,
+                 type_annotations: List,
+                 names: Optional[List[str]] = None,
+                 defaults: Optional[List[Any]] = None) -> 'ShaderSignature':
+        self.arguments = []
+        self.variables = []
 
-    @classmethod
-    def from_argument_list(cls, arguments: Optional[List[ShaderArgument]] = None) -> 'ShaderSignature':
-        instance = cls.__new__(cls)  # Bypasses __init__
-        instance.arguments = arguments if arguments is not None else []
-        instance.variables = None
-        return instance
-
-    @classmethod
-    def from_inspectable_function(cls, builder: vc.ShaderBuilder, func: Callable) -> 'ShaderSignature':
-        func_signature = inspect.signature(func)
-
-        annotations = []
-        names = []
-        defaults = []
-
-        for param in func_signature.parameters.values():
-            if param.annotation == inspect.Parameter.empty:
-                raise ValueError("All parameters must be annotated")
-
-
-            if not dataclasses.is_dataclass(param.annotation): # issubclass(param.annotation.__origin__, dataclasses.dataclass):
-                if not hasattr(param.annotation, '__args__'):
-                    raise TypeError(f"Argument '{param.name}: vd.{param.annotation}' must have a type annotation")
-                
-                if len(param.annotation.__args__) != 1:
-                    raise ValueError(f"Type '{param.name}: vd.{param.annotation.__name__}' must have exactly one type argument")
-
-            annotations.append(param.annotation)
-            names.append(param.name)
-            defaults.append(param.default if param.default != inspect.Parameter.empty else None)
-        
-        return ShaderSignature.from_type_annotations(builder, annotations, names, defaults)
-
-    @classmethod
-    def from_type_annotations(cls, 
-                       builder: vc.ShaderBuilder,
-                       annotations: List,
-                       names: Optional[List[str]] = None,
-                       defaults: Optional[List[Any]] = None) -> 'ShaderSignature':
-
-        instance = cls.__new__(cls)  # Bypasses __init__
-        instance.arguments = []
-        instance.variables = []
-
-        for i in range(len(annotations)):
-            shader_param = None
-            arg_type = None
-            shape_name = None
-            binding = None
-            value_name = None
-
-            if(dataclasses.is_dataclass(annotations[i])):
-                creation_args: Dict[str, vc.ShaderVariable] = {}
-                arg_type = ShaderArgumentType.CONSTANT_DATACLASS
-                value_name = {}
-
-                for field_name, field_type in get_type_hints(annotations[i]).items():
-                    assert is_dtype(field_type), f"Unsupported type '{field_type}' for field '{annotations[i]}.{field_name}'"
-
-                    creation_args[field_name] = builder.declare_constant(field_type)
-                    value_name[field_name] = creation_args[field_name].raw_name
-
-                shader_param = annotations[i](**creation_args)
-            
-            elif(issubclass(annotations[i].__origin__, vc.Buffer)):
-                shader_param = builder.declare_buffer(annotations[i].__args__[0])
-
-                arg_type = ShaderArgumentType.BUFFER
-                shape_name = shader_param.shape_name
-                binding = shader_param.binding
-                value_name = shader_param.raw_name
-
-            elif(issubclass(annotations[i].__origin__, vc.Image1D)):
-                shader_param = builder.declare_image(1)
-                
-                arg_type = ShaderArgumentType.IMAGE
-                binding = shader_param.binding
-                value_name = shader_param.raw_name
-
-            elif(issubclass(annotations[i].__origin__, vc.Image2D)):
-                shader_param = builder.declare_image(2)
-                arg_type = ShaderArgumentType.IMAGE
-                binding = shader_param.binding
-                value_name = shader_param.raw_name
-
-            elif(issubclass(annotations[i].__origin__, vc.Image3D)):
-                shader_param = builder.declare_image(3)
-                arg_type = ShaderArgumentType.IMAGE
-                binding = shader_param.binding
-                value_name = shader_param.raw_name
-
-            elif(issubclass(annotations[i].__origin__, vc.Constant)):
-                shader_param = builder.declare_constant(annotations[i].__args__[0])
-                value_name = shader_param.raw_name
-                arg_type = ShaderArgumentType.CONSTANT
-            elif(issubclass(annotations[i].__origin__, vc.Variable)):
-                if builder.backend.name in _PUSH_CONSTANT_UNSUPPORTED_BACKENDS:
-                    raise NotImplementedError(_push_constant_not_supported_error(builder.backend.name))
-
-                shader_param = builder.declare_variable(annotations[i].__args__[0])
-                arg_type = ShaderArgumentType.VARIABLE
-                value_name = shader_param.raw_name
-
-            else:
-                raise ValueError(f"Unsupported type '{annotations[i].__args__[0]}'")
-
-            instance.variables.append(shader_param)
-            
-            instance.arguments.append(ShaderArgument(
+        for i in range(len(type_annotations)):
+            shader_arg, shader_var = annotation_to_shader_arg_and_variable(
+                builder,
+                type_annotations[i],
                 names[i] if names is not None else f"param{i}",
-                arg_type,
-                defaults[i] if defaults is not None else None,
-                value_name,
-                shape_name,
-                binding
-            ))
-    
-        return instance
+                defaults[i] if defaults is not None else None
+            )
+
+            self.variables.append(shader_var)
+            self.arguments.append(shader_arg)
     
     def get_variables(self) -> List[vc.ShaderVariable]:
         return self.variables

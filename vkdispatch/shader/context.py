@@ -68,10 +68,10 @@ class ShaderContext:
         return self.shader_function
     
     def declare_input_arguments(self,
-                                annotations: List,
+                                type_annotations: List,
                                 names: Optional[List[str]] = None,
                                 defaults: Optional[List[Any]] = None):
-        self.signature = ShaderSignature.from_type_annotations(self.builder, annotations, names, defaults)
+        self.signature = ShaderSignature(self.builder, type_annotations, names, defaults)
         return self.signature.get_variables()
 
 @contextlib.contextmanager

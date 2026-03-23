@@ -221,9 +221,9 @@ class BufferBuilder:
             payload = self._pack_single_instance_value(value[instance_index], key, buffer_element)
             self._write_payload(instance_index, buffer_element.memory_slice, payload)
 
-    def __setitem__(
-        self, key: Tuple[str, str], value: Union[Any, list, tuple, int, float]
-    ) -> None:
+    def set_item(self,
+                 key: Tuple[str, str],
+                 value: Union[Any, list, tuple, int, float]):
         if key not in self.element_map:
             raise ValueError(f"Invalid buffer element name '{key}'!")
 
