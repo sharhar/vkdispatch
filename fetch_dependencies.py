@@ -43,7 +43,7 @@ def clone_and_checkout(repo_url, commit_hash, output_dir):
         sys.exit(1)
 
 dependencies = [
-    ("https://github.com/sharhar/VkFFT.git", "9cb0da8ab98f0f3a10debd1466f13cab65ce9bc3", "deps/VkFFT"), # my fork of VkFFT, will change to official repo once PR is merged
+    ("https://github.com/DTolm/VkFFT.git", "e8e6a391288523a5ed03c4a46a79666543e30329", "deps/VkFFT"),
     ("https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git", "5677097bafb8477097c6e3354ce68b7a44fd01a4", "deps/VMA"),
     ("https://github.com/KhronosGroup/Vulkan-Headers.git", "eaa319dade959cb61ed2229c8ea42e307cc8f8b3", "deps/Vulkan-Headers"),
     ("https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git", "ad7f699a7b2b5deb66eb3de19f24aa33597ed65b", "deps/Vulkan-Utility-Libraries"),
@@ -60,7 +60,11 @@ if len(sys.argv) > 1 and sys.argv[1] == "--no-molten-vk":
 
 os.makedirs("deps/MoltenVK", exist_ok=True)
 
-molten_vk_url = "https://release-assets.githubusercontent.com/github-production-release-asset/1189959592/f4463a14-40e8-45cc-8554-51e9605c43e5?sp=r&sv=2018-11-09&sr=b&spr=https&se=2026-03-24T05%3A30%3A25Z&rscd=attachment%3B+filename%3DMoltenVK-macos.tar&rsct=application%2Foctet-stream&skoid=96c2d410-5711-43a1-aedd-ab1947aa7ab0&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skt=2026-03-24T04%3A29%3A42Z&ske=2026-03-24T05%3A30%3A25Z&sks=b&skv=2018-11-09&sig=V1Yia4bQv95%2F%2FIi0mmWjLypLovSdfKx7FfxfsPh3n0w%3D&jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmVsZWFzZS1hc3NldHMuZ2l0aHVidXNlcmNvbnRlbnQuY29tIiwia2V5Ijoia2V5MSIsImV4cCI6MTc3NDMyOTI4MCwibmJmIjoxNzc0MzI3NDgwLCJwYXRoIjoicmVsZWFzZWFzc2V0cHJvZHVjdGlvbi5ibG9iLmNvcmUud2luZG93cy5uZXQifQ.LHUq45ielOiCY5ctrCMmX3w1GKsgL1vH6plB30MNYdo&response-content-disposition=attachment%3B%20filename%3DMoltenVK-macos.tar&response-content-type=application%2Foctet-stream"
+# Custom MoltenVK v1.4.1 build that uses a custom
+# patched SPIRV-Cross fork that elevates thread_barrier
+# memory scope to Device, which is required for correct
+# execution of compute shaders given a bug on Apple's side.
+molten_vk_url = "https://github.com/sharhar/MoltenVK/releases/download/vkdispatch_patch/MoltenVK-macos.tar"
 molten_vk_path = "deps/MoltenVK"
 molten_vk_filename = "MoltenVK-macos.tar"
 molten_vk_full_file_path = os.path.join(molten_vk_path, molten_vk_filename)
