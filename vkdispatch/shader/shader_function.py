@@ -1,7 +1,7 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
-from typing import Tuple
+from typing import Tuple, Optional
 from typing import Union
 from typing import Callable
 from typing import List
@@ -148,7 +148,6 @@ class ShaderFunction:
     ready: bool
     name: str
     source: str
-    flags: vc.ShaderFlags
     local_size: Union[Tuple[int, int, int], Callable, None]
     workgroups: Union[Tuple[int, int, int], Callable, None]
     exec_size: Union[Tuple[int, int, int], Callable, None]
@@ -157,20 +156,17 @@ class ShaderFunction:
                  shader_description: vc.ShaderDescription,
                  local_size=None,
                  workgroups=None,
-                 exec_count=None,
-                 flags: vc.ShaderFlags = vc.ShaderFlags.NONE,
-                 name: str = None) -> None:
+                 exec_count=None) -> None:
         
         self.plan = None
         self.shader_description = shader_description
         self.bounds = None
         self.ready = False
-        self.name = name if name is not None else None
+        self.name = shader_description.name
         self.source = None
         self.local_size = local_size
         self.workgroups = workgroups
         self.exec_size = exec_count
-        self.flags = flags
 
     def build(self):
         if self.ready:
@@ -359,3 +355,16 @@ class ShaderFunction:
             pc_values,
             shader_uuid=shader_uuid
         )
+
+def make_shader_function(
+    description: vc.ShaderDescription,
+    local_size=None,
+    workgroups=None,
+    exec_count=None
+) -> ShaderFunction:
+    return ShaderFunction(
+        description,
+        local_size=local_size,
+        workgroups=workgroups,
+        exec_count=exec_count
+    )

@@ -187,4 +187,7 @@ def make_reduction_stage(
         input_variables[0][batch_offset + output_offset + params.output_offset] = local_var
         vc.end()
 
-        return context.get_function(local_size=(group_size, 1, 1), name=name)
+        return vd.make_shader_function(
+            context.get_description(name),
+            local_size=(group_size, 1, 1)
+        )

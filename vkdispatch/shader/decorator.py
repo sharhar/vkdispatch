@@ -27,7 +27,7 @@ def inspect_function_signature(func: Callable):
             raise ValueError("All parameters must be annotated")
 
 
-        if not dataclasses.is_dataclass(param.annotation): # issubclass(param.annotation.__origin__, dataclasses.dataclass):
+        if not dataclasses.is_dataclass(param.annotation):
             if not hasattr(param.annotation, '__args__'):
                 raise TypeError(f"Argument '{param.name}: vd.{param.annotation}' must have a type annotation")
             
@@ -97,11 +97,11 @@ def shader(
             args = context.declare_input_arguments(type_annotations, names, defaults)
             func(*args)
 
-        return context.get_function(
+        return vd.make_shader_function(
+            context.get_description(func.__name__),
             local_size=local_size,
             workgroups=workgroups,
-            exec_count=exec_size,
-            name=func.__name__
+            exec_count=exec_size
         )
     
     return decorator_callback

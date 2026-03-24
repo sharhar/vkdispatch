@@ -141,6 +141,7 @@ class ShaderBuilder(ShaderWriter):
     backend: CodeGenBackend
     shader_arg_infos: List[ShaderArgumentInfo]
     shader_args: List[ShaderVariable]
+    has_ubo: bool
 
     def __init__(self, flags: ShaderFlags = ShaderFlags.NONE):
         super().__init__()
@@ -162,6 +163,7 @@ class ShaderBuilder(ShaderWriter):
         self.scope_num = 1
         self.shader_arg_infos = []
         self.shader_args = []
+        self.has_ubo = False
         
         self.exec_count = None
 
@@ -256,8 +258,6 @@ class ShaderBuilder(ShaderWriter):
         return new_var
     
     def _declare_buffer(self, var_type: dtypes.dtype, var_name: Optional[str] = None):
-        self.binding_count += 1
-
         buffer_name = f"buf{self.binding_count}" if var_name is None else var_name
         shape_name = f"{buffer_name}_shape"
         scalar_expr = None
@@ -280,9 +280,11 @@ class ShaderBuilder(ShaderWriter):
         def shape_var_factory():
             return self._declare_constant(dtypes.ivec4, var_name=shape_name)
         
+        self.binding_count += 1
+        
         return BufferVariable(
             var_type,
-            self.binding_count,
+            self.binding_count-1,
             f"{buffer_name}.data",
             shape_var_factory=shape_var_factory,
             shape_name=shape_name,
@@ -293,22 +295,24 @@ class ShaderBuilder(ShaderWriter):
         )
     
     def _declare_image(self, dimensions: int, var_name: Optional[str] = None):
-        self.binding_count += 1
-
         image_name = f"tex{self.binding_count}" if var_name is None else var_name
         self.binding_list.append(ShaderBinding(dtypes.vec4, image_name, dimensions, BindingType.SAMPLER))
         self.binding_read_access[self.binding_count] = False
         self.binding_write_access[self.binding_count] = False
 
+        current_binding_count = self.binding_count
+
         def read_lambda():
-            self.binding_read_access[self.binding_count] = True
+            self.binding_read_access[current_binding_count] = True
 
         def write_lambda():
-            self.binding_write_access[self.binding_count] = True
+            self.binding_write_access[current_binding_count] = True
+
+        self.binding_count += 1
         
         return ImageVariable(
             dtypes.vec4,
-            self.binding_count,
+            self.binding_count-1,
             dimensions,
             f"{image_name}",
             read_lambda=read_lambda,
@@ -364,36 +368,45 @@ class ShaderBuilder(ShaderWriter):
                 shared_buffer.size
             ) + "\n"
 
-        uniform_elements = self.uniform_struct.build()
-        
-        uniform_decleration_contents = self.compose_struct_decleration(uniform_elements)
-        has_uniform_buffer = len(uniform_decleration_contents) > 0
-        if has_uniform_buffer:
-            header += self.backend.uniform_block_declaration(uniform_decleration_contents)
-
-        binding_base = 1 if has_uniform_buffer else 0
+        uniform_elements = []
         binding_type_list: List[BindingType] = []
         binding_access = []
-        if has_uniform_buffer:
+        binding_base = 0
+        
+        if not self.uniform_struct.empty():
+            uniform_elements = self.uniform_struct.build()
+
+            uniform_decleration_contents = self.compose_struct_decleration(uniform_elements)
+            header += self.backend.uniform_block_declaration(uniform_decleration_contents)
+
             binding_type_list.append(BindingType.UNIFORM_BUFFER)
             binding_access.append((True, False))  # UBO is read-only
+            binding_base = 1
+
+            for shader_arg_info in self.shader_arg_infos:
+                if (shader_arg_info.arg_type == ShaderArgumentType.BUFFER or
+                    shader_arg_info.arg_type == ShaderArgumentType.IMAGE):
+                    shader_arg_info.binding += 1 # Shift bindings by 1 to account for UBO at binding 0
         
         for ii, binding in enumerate(self.binding_list):
-            emitted_binding = ii + binding_base
             if binding.binding_type == BindingType.STORAGE_BUFFER:
-                header += self.backend.storage_buffer_declaration(emitted_binding, binding.dtype, binding.name)
-                binding_type_list.append(binding.binding_type)
-                binding_access.append((
-                    self.binding_read_access[ii + 1],
-                    self.binding_write_access[ii + 1]
-                ))
+                header += self.backend.storage_buffer_declaration(
+                    binding=ii + binding_base,
+                    var_type=binding.dtype,
+                    name=binding.name
+                )
             else:
-                header += self.backend.sampler_declaration(emitted_binding, binding.dimension, binding.name)
-                binding_type_list.append(binding.binding_type)
-                binding_access.append((
-                    self.binding_read_access[ii + 1],
-                    self.binding_write_access[ii + 1]
-                ))
+                header += self.backend.sampler_declaration(
+                    binding=ii + binding_base,
+                    dimensions=binding.dimension,
+                    name=binding.name
+                )
+            
+            binding_type_list.append(binding.binding_type)
+            binding_access.append((
+                self.binding_read_access[ii],
+                self.binding_write_access[ii]
+            ))
         
         pc_elements = self.pc_struct.build()
 

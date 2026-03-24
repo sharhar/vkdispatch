@@ -131,10 +131,10 @@ class FFTContext:
         )
 
     def compile_shader(self):
-        self.fft_callable = self.shader_context.get_function(
+        self.fft_callable = vd.make_shader_function(
+            self.shader_context.get_description(self.name),
             local_size=self.grid.local_size,
-            exec_count=self.grid.exec_size,
-            name=self.name
+            exec_count=self.grid.exec_size
         )
 
     def get_callable(self) -> vd.ShaderFunction:
