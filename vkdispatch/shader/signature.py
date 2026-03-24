@@ -90,18 +90,6 @@ def annotation_to_shader_arg_and_variable(builder: vc.ShaderBuilder, type_annota
             binding=shader_var.binding
         ), shader_var
 
-    # if(issubclass(type_annotation.__origin__, vc.Image2D)):
-    #     shader_param = builder.declare_image(2)
-    #     arg_type = ShaderArgumentType.IMAGE
-    #     binding = shader_param.binding
-    #     value_name = shader_param.raw_name
-
-    # if(issubclass(type_annotation.__origin__, vc.Image3D)):
-    #     shader_param = builder.declare_image(3)
-    #     arg_type = ShaderArgumentType.IMAGE
-    #     binding = shader_param.binding
-    #     value_name = shader_param.raw_name
-
     if(issubclass(type_annotation.__origin__, vc.Constant)):
         shader_var = builder.declare_constant(type_annotation.__args__[0])
 
