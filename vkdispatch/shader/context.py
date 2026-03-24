@@ -1,19 +1,17 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
-from .signature import ShaderSignature, ShaderArgumentType
+from ..codegen.shader_description import ShaderArgumentType
 from typing import List, Optional, Any
 
 import contextlib
 
 class ShaderContext:
     builder: vc.ShaderBuilder
-    signature: ShaderSignature
     shader_function: vd.ShaderFunction
 
     def __init__(self, builder: vc.ShaderBuilder):
         self.builder = builder
-        self.signature = None
         self.shader_function = None
 
     def get_function(self,
@@ -34,7 +32,7 @@ class ShaderContext:
             binding_access_len = len(description.binding_access)
             needs_remap = False
 
-            for shader_arg in self.signature.arguments:
+            for shader_arg in description.shader_arg_infos:
                 if (
                     shader_arg.binding is not None
                     and (
@@ -47,7 +45,7 @@ class ShaderContext:
                     break
 
             if needs_remap:
-                for shader_arg in self.signature.arguments:
+                for shader_arg in description.shader_arg_infos:
                     if (
                         shader_arg.binding is not None
                         and (
@@ -59,7 +57,6 @@ class ShaderContext:
 
         self.shader_function = vd.ShaderFunction(
             description,
-            self.signature,
             local_size=local_size,
             workgroups=workgroups,
             exec_count=exec_count
@@ -71,13 +68,13 @@ class ShaderContext:
                                 type_annotations: List,
                                 names: Optional[List[str]] = None,
                                 defaults: Optional[List[Any]] = None):
-        self.signature = ShaderSignature(self.builder, type_annotations, names, defaults)
-        return self.signature.get_variables()
+        self.builder.declare_shader_arguments(type_annotations, names, defaults)
+        return self.builder.get_shader_arguments()
 
 @contextlib.contextmanager
 def shader_context(flags: vc.ShaderFlags = vc.ShaderFlags.NONE):
 
-    builder = vc.ShaderBuilder(flags=flags, is_apple_device=vd.get_context().is_apple())
+    builder = vc.ShaderBuilder(flags=flags)
     old_builder = vc.set_builder(builder)
 
     context = ShaderContext(builder)

@@ -78,7 +78,9 @@ from .functions.index_raveling import ravel_index, unravel_index
 from .functions.printing import printf
 from .functions.printing import print_vars as print
 
-from .builder import ShaderBinding, ShaderDescription
+from .shader_description import ShaderDescription, BindingType, ShaderArgumentInfo
+
+from .builder import ShaderBinding
 from .builder import ShaderBuilder, ShaderFlags
 
 from .backends import CodeGenBackend, GLSLBackend, CUDABackend, OpenCLBackend

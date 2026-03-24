@@ -9,7 +9,7 @@ from typing import Any
 
 from vkdispatch.base.compute_plan import ComputePlan
 
-from .signature import ShaderArgumentType, ShaderSignature
+from ..codegen.shader_description import ShaderArgumentType
 
 import uuid
 
@@ -144,7 +144,6 @@ class ShaderSource:
 class ShaderFunction:
     plan: ComputePlan
     shader_description: vc.ShaderDescription
-    shader_signature: ShaderSignature
     bounds: ExectionBounds
     ready: bool
     name: str
@@ -156,7 +155,6 @@ class ShaderFunction:
 
     def __init__(self,
                  shader_description: vc.ShaderDescription,
-                 shader_signature: ShaderSignature,
                  local_size=None,
                  workgroups=None,
                  exec_count=None,
@@ -165,7 +163,6 @@ class ShaderFunction:
         
         self.plan = None
         self.shader_description = shader_description
-        self.shader_signature = shader_signature
         self.bounds = None
         self.ready = False
         self.name = name if name is not None else None
@@ -185,7 +182,7 @@ class ShaderFunction:
             else [vd.get_context().max_workgroup_size[0], 1, 1]
         )
 
-        self.bounds = ExectionBounds(self.shader_signature.get_names_and_defaults(), my_local_size, self.workgroups, self.exec_size)
+        self.bounds = ExectionBounds(self.shader_description.get_arg_names_and_defaults(), my_local_size, self.workgroups, self.exec_size)
 
         shader_backend_name = (
             self.shader_description.backend.name
@@ -287,7 +284,7 @@ class ShaderFunction:
 
         shader_uuid = f"{self.shader_description.name}.{uuid.uuid4()}"
 
-        for ii, shader_arg in enumerate(self.shader_signature.arguments):
+        for ii, shader_arg in enumerate(self.shader_description.shader_arg_infos):
             arg = None
             
             if ii < len(args):
@@ -304,7 +301,7 @@ class ShaderFunction:
             if shader_arg.arg_type == ShaderArgumentType.BUFFER:
                 if not isinstance(arg, vd.Buffer):
                     raise ValueError(f"Expected a buffer for argument '{shader_arg.name}' but got '{arg}'!")
-                
+
                 bound_buffers.append(vd.BufferBindInfo(
                     buffer=arg,
                     binding=shader_arg.binding,

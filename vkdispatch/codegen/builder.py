@@ -8,23 +8,15 @@ from .global_builder import get_codegen_backend
 
 from enum import IntFlag, auto
 
-from typing import Dict, List, Optional, Tuple
-
+from typing import Dict, List, Optional, Any, get_type_hints
 import dataclasses
 
-import enum
-
+from ..base.dtype import is_dtype
+from .arguments import Constant, Variable, Buffer
 from .variables.variables import BaseVariable, ShaderVariable, ScaledAndOfftsetIntVariable
 from .variables.bound_variables import BufferVariable, ImageVariable
 
-_PUSH_CONSTANT_UNSUPPORTED_BACKENDS = set()
-
-
-def _push_constant_not_supported_error(backend_name: str) -> str:
-    return (
-        f"Push Constants are not supported for the {backend_name.upper()} backend. "
-        "Use Const instead."
-    )
+from .shader_description import ShaderDescription, BindingType, ShaderArgumentInfo, ShaderArgumentType
 
 @dataclasses.dataclass
 class SharedBuffer:
@@ -39,64 +31,6 @@ class SharedBuffer:
     dtype: dtypes.dtype
     size: int
     name: str
-
-class BindingType(enum.Enum):
-    """
-    A dataclass that represents the type of a binding in a shader. Either a
-    STORAGE_BUFFER, UNIFORM_BUFFER, or SAMPLER.
-    """
-    STORAGE_BUFFER = 1
-    UNIFORM_BUFFER = 3
-    SAMPLER = 5
-
-@dataclasses.dataclass
-class ShaderDescription:
-    """
-    A dataclass that represents a description of a shader object.
-
-    Attributes:
-        source (str): The source code of the shader.
-        pc_size (int): The size of the push constant buffer in bytes.
-        pc_structure (List[vc.StructElement]): The structure of the push constant buffer.
-        uniform_structure (List[vc.StructElement]): The structure of the uniform buffer.
-        binding_type_list (List[BindingType]): The list of binding types.
-    """
-
-    header: str
-    body: str
-    name: str
-    pc_size: int
-    pc_structure: List[StructElement]
-    uniform_structure: List[StructElement]
-    binding_type_list: List[BindingType]
-    binding_access: List[Tuple[bool, bool]] # List of tuples indicating read and write access for each binding
-    exec_count_name: Optional[str]
-    resource_binding_base: int
-    backend: Optional[CodeGenBackend] = None
-
-    def make_source(self, x: int, y: int, z: int) -> str:
-        if self.backend is None:
-            layout_str = f"layout(local_size_x = {x}, local_size_y = {y}, local_size_z = {z}) in;"
-            shader_source = f"{self.header}\n{layout_str}\n{self.body}"
-        else:
-            shader_source = self.backend.make_source(self.header, self.body, x, y, z)
-
-        return shader_source
-    
-    def __repr__(self):
-        description_string = ""
-
-        description_string += f"Shader Name: {self.name}\n"
-        description_string += f"Push Constant Size: {self.pc_size} bytes\n"
-        description_string += f"Push Constant Structure: {self.pc_structure}\n"
-        description_string += f"Uniform Structure: {self.uniform_structure}\n"
-        description_string += f"Binding Types: {self.binding_type_list}\n"
-        description_string += f"Binding Access: {self.binding_access}\n"
-        description_string += f"Execution Count Name: {self.exec_count_name}\n"
-        description_string += f"Backend: {self.backend.name if self.backend is not None else 'none'}\n"
-        description_string += f"Header:\n{self.header}\n"
-        description_string += f"Body:\n{self.body}\n"
-        return description_string
 
 @dataclasses.dataclass
 class ShaderBinding:
@@ -125,6 +59,74 @@ class ShaderFlags(IntFlag):
     NO_PRINTF = auto()
     NO_EXEC_BOUNDS = auto()
 
+def annotation_to_shader_arg_and_variable(builder: "ShaderBuilder", type_annotation: Any, name: str, default_value: Any):
+    # Dataclass case
+    if(dataclasses.is_dataclass(type_annotation)):
+        creation_args: Dict[str, ShaderVariable] = {}
+        value_name = {}
+
+        for field_name, field_type in get_type_hints(type_annotation).items():
+            assert is_dtype(field_type), f"Unsupported type '{field_type}' for field '{type_annotation}.{field_name}'"
+
+            creation_args[field_name] = builder._declare_constant(field_type)
+            value_name[field_name] = creation_args[field_name].raw_name
+
+        return ShaderArgumentInfo(
+            name,
+            ShaderArgumentType.CONSTANT_DATACLASS,
+            default_value,
+            value_name
+        ), type_annotation(**creation_args)
+    
+    # Buffer case
+    if(issubclass(type_annotation.__origin__, Buffer)):
+        shader_var = builder._declare_buffer(type_annotation.__args__[0])
+
+        return ShaderArgumentInfo(
+            name,
+            ShaderArgumentType.BUFFER,
+            default_value,
+            shader_var.raw_name,
+            shader_shape_name=shader_var.shape_name,
+            binding=shader_var.binding
+        ), shader_var
+
+    # Image case
+    if(issubclass(type_annotation.__origin__, ImageVariable)):
+        shader_var = builder._declare_image(
+            type_annotation.__origin__.dimensions
+        )
+
+        return ShaderArgumentInfo(
+            name,
+            ShaderArgumentType.IMAGE,
+            default_value,
+            shader_var.raw_name,
+            binding=shader_var.binding
+        ), shader_var
+
+    if(issubclass(type_annotation.__origin__, Constant)):
+        shader_var = builder._declare_constant(type_annotation.__args__[0])
+
+        return ShaderArgumentInfo(
+            name,
+            ShaderArgumentType.CONSTANT,
+            default_value,
+            shader_var.raw_name
+        ), shader_var
+
+    if(issubclass(type_annotation.__origin__, Variable)):
+        shader_var = builder._declare_variable(type_annotation.__args__[0])
+
+        return ShaderArgumentInfo(
+            name,
+            ShaderArgumentType.VARIABLE,
+            default_value,
+            shader_var.raw_name
+        ), shader_var
+
+    raise ValueError(f"Unsupported type '{type_annotation.__args__[0]}'")
+
 class ShaderBuilder(ShaderWriter):
     binding_count: int
     binding_read_access: Dict[int, bool]
@@ -137,20 +139,14 @@ class ShaderBuilder(ShaderWriter):
     exec_count: Optional[ShaderVariable]
     flags: ShaderFlags
     backend: CodeGenBackend
+    shader_arg_infos: List[ShaderArgumentInfo]
+    shader_args: List[ShaderVariable]
 
-    def __init__(self,
-                 flags: ShaderFlags = ShaderFlags.NONE,
-                 is_apple_device: bool = False,
-                 backend: Optional[CodeGenBackend] = None) -> None:
+    def __init__(self, flags: ShaderFlags = ShaderFlags.NONE):
         super().__init__()
 
         self.flags = flags
-        self.is_apple_device = is_apple_device
-        if backend is not None:
-            self.backend = backend
-        else:
-            # Use the selected backend type while keeping per-builder backend state isolated.
-            self.backend = get_codegen_backend().__class__()
+        self.backend = get_codegen_backend().__class__()
         
         self.reset()
 
@@ -164,11 +160,13 @@ class ShaderBuilder(ShaderWriter):
         self.binding_write_access = {}
         self.shared_buffers = []
         self.scope_num = 1
+        self.shader_arg_infos = []
+        self.shader_args = []
         
         self.exec_count = None
 
         if not (self.flags & ShaderFlags.NO_EXEC_BOUNDS):
-            self.exec_count = self.declare_constant(dtypes.uvec4, var_name="exec_count")
+            self.exec_count = self._declare_constant(dtypes.uvec4, var_name="exec_count")
             self.append_contents(self.backend.exec_bounds_guard(self.exec_count.resolve()))
 
     def new_var(self,
@@ -197,7 +195,27 @@ class ShaderBuilder(ShaderWriter):
                                            offset=offset,
                                            parents=parents)
 
-    def declare_constant(self, var_type: dtypes.dtype, count: int = 1, var_name: Optional[str] = None):
+    def declare_shader_arguments(self,
+                                 type_annotations: List,
+                                 names: Optional[List[str]] = None,
+                                 defaults: Optional[List[Any]] = None):
+        assert len(self.shader_args) == 0, "Shader arguments have already been declared for this builder instance"
+
+        for i in range(len(type_annotations)):
+            shader_arg_info, shader_var = annotation_to_shader_arg_and_variable(
+                self,
+                type_annotations[i],
+                names[i] if names is not None else f"param{i}",
+                defaults[i] if defaults is not None else None
+            )
+
+            self.shader_args.append(shader_var)
+            self.shader_arg_infos.append(shader_arg_info)
+
+    def get_shader_arguments(self) -> List[ShaderVariable]:
+        return self.shader_args
+
+    def _declare_constant(self, var_type: dtypes.dtype, count: int = 1, var_name: Optional[str] = None):
         if var_name is None:
             var_name = self.new_name()
 
@@ -217,10 +235,7 @@ class ShaderBuilder(ShaderWriter):
         self.uniform_struct.register_element(new_var.raw_name, var_type, count)
         return new_var
 
-    def declare_variable(self, var_type: dtypes.dtype, count: int = 1, var_name: Optional[str] = None):
-        if self.backend.name in _PUSH_CONSTANT_UNSUPPORTED_BACKENDS:
-            raise NotImplementedError(_push_constant_not_supported_error(self.backend.name))
-
+    def _declare_variable(self, var_type: dtypes.dtype, count: int = 1, var_name: Optional[str] = None):
         if var_name is None:
             var_name = self.new_name()
 
@@ -240,7 +255,7 @@ class ShaderBuilder(ShaderWriter):
         self.pc_struct.register_element(new_var.raw_name, var_type, count)
         return new_var
     
-    def declare_buffer(self, var_type: dtypes.dtype, var_name: Optional[str] = None):
+    def _declare_buffer(self, var_type: dtypes.dtype, var_name: Optional[str] = None):
         self.binding_count += 1
 
         buffer_name = f"buf{self.binding_count}" if var_name is None else var_name
@@ -263,7 +278,7 @@ class ShaderBuilder(ShaderWriter):
             self.binding_write_access[current_binding_count] = True
 
         def shape_var_factory():
-            return self.declare_constant(dtypes.ivec4, var_name=shape_name)
+            return self._declare_constant(dtypes.ivec4, var_name=shape_name)
         
         return BufferVariable(
             var_type,
@@ -277,7 +292,7 @@ class ShaderBuilder(ShaderWriter):
             write_lambda=write_lambda
         )
     
-    def declare_image(self, dimensions: int, var_name: Optional[str] = None):
+    def _declare_image(self, dimensions: int, var_name: Optional[str] = None):
         self.binding_count += 1
 
         image_name = f"tex{self.binding_count}" if var_name is None else var_name
@@ -357,7 +372,7 @@ class ShaderBuilder(ShaderWriter):
             header += self.backend.uniform_block_declaration(uniform_decleration_contents)
 
         binding_base = 1 if has_uniform_buffer else 0
-        binding_type_list = []
+        binding_type_list: List[BindingType] = []
         binding_access = []
         if has_uniform_buffer:
             binding_type_list.append(BindingType.UNIFORM_BUFFER)
@@ -385,9 +400,6 @@ class ShaderBuilder(ShaderWriter):
         pc_decleration_contents = self.compose_struct_decleration(pc_elements)
         
         if len(pc_decleration_contents) > 0:
-            assert self.backend.name not in _PUSH_CONSTANT_UNSUPPORTED_BACKENDS, (
-                _push_constant_not_supported_error(self.backend.name)
-            )
             header += self.backend.push_constant_declaration(pc_decleration_contents)
 
         pre_header = self.backend.pre_header(
@@ -406,5 +418,6 @@ class ShaderBuilder(ShaderWriter):
             binding_access=binding_access,
             exec_count_name=self.exec_count.raw_name if self.exec_count is not None else None,
             resource_binding_base=binding_base,
-            backend=self.backend
+            backend=self.backend,
+            shader_arg_infos=self.shader_arg_infos
         )
