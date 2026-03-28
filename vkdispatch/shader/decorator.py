@@ -5,8 +5,6 @@ import dataclasses
 import inspect
 from typing import Callable, Optional, List, Any
 
-from .context import shader_context
-
 import sys
 
 if sys.version_info >= (3, 10):
@@ -93,7 +91,7 @@ def shader(
             assert names is None and defaults is None, "If 'arg_type_annotations' is not provided, 'arg_names' and 'arg_defaults' must also be None"
             type_annotations, names, defaults = inspect_function_signature(func)
 
-        with shader_context(flags=flags) as context:
+        with vc.shader_context(flags=flags) as context:
             args = context.declare_input_arguments(type_annotations, names, defaults)
             func(*args)
 

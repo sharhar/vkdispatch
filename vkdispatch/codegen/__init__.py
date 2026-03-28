@@ -88,4 +88,6 @@ from .backends import CodeGenBackend, GLSLBackend, CUDABackend, OpenCLBackend
 from .global_builder import set_builder, get_builder, shared_buffer, set_shader_print_line_numbers, get_shader_print_line_numbers
 from .global_builder import set_codegen_backend, get_codegen_backend
 
+from .context import ShaderContext, shader_context
+
 from .abreviations import *

@@ -74,9 +74,8 @@ COMMON_PROJECT_URLS = {
 }
 
 COMMON_EXTRAS = {
-    "cuda": ["cuda-python"],
+    "cuda": ["cuda-python", "numpy"],
     "opencl": ["pyopencl", "numpy"],
-    "pycuda": ["pycuda"],
     "numpy": ["numpy"],
 }
 
@@ -326,10 +325,7 @@ def base_setup_kwargs():
         "version": VERSION,
         "author": "Shahar Sandhaus",
         "author_email": "shahar.sandhaus@gmail.com",
-        "description": (
-            "A Python module for orchestrating and dispatching large computations "
-            "across multi-GPU systems using Vulkan."
-        ),
+        "description": "Python metaprogramming for GPU compute, with runtime-generated kernels, FFTs, and reductions.",
         "long_description": read_readme(),
         "long_description_content_type": "text/markdown",
         "python_requires": ">=3.6",
@@ -373,7 +369,15 @@ def setup_for_target(target: str):
                 "name": "vkdispatch-core",
                 "packages": core_packages(),
                 "install_requires": ["setuptools>=59.0"],
-                "extras_require": dict(COMMON_EXTRAS),
+                "extras_require": {
+                    "cli": ["Click"],
+                    **COMMON_EXTRAS,
+                },
+                "entry_points": {
+                    "console_scripts": [
+                        "vdlist=vkdispatch.cli:cli_entrypoint",
+                    ]
+                },
             }
         )
         return kwargs
@@ -404,11 +408,6 @@ def setup_for_target(target: str):
                 "extras_require": {
                     "cli": ["Click"],
                     **COMMON_EXTRAS,
-                },
-                "entry_points": {
-                    "console_scripts": [
-                        "vdlist=vkdispatch.cli:cli_entrypoint",
-                    ]
                 },
             }
         )

@@ -85,6 +85,9 @@ class VkFFTPlan(Handle):
         )
         check_for_errors()
 
+        if handle == 0:
+            raise RuntimeError("Failed to create FFT plan. Please check the parameters and ensure that your device supports the requested configuration.")
+
         self.register_handle(handle)
 
     def _destroy(self):

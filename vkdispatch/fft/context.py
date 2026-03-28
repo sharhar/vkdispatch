@@ -3,7 +3,7 @@ import vkdispatch.codegen as vc
 import vkdispatch.base.dtype as dtypes
 
 import contextlib
-from typing import Optional, Tuple, Union, List, Dict
+from typing import Optional, Tuple, List
 
 from .io_manager import IOManager
 from .config import FFTConfig
@@ -15,7 +15,7 @@ from .cooley_tukey import radix_composite
 from .global_memory_iterators import global_reads_iterator, global_writes_iterator
 
 class FFTContext:
-    shader_context: vd.ShaderContext
+    shader_context: vc.ShaderContext
     config: FFTConfig
     grid: FFTGridManager
     registers: FFTRegisters
@@ -28,7 +28,7 @@ class FFTContext:
     declarer: str
 
     def __init__(self,
-                shader_context: vd.ShaderContext,
+                shader_context: vc.ShaderContext,
                 buffer_shape: Tuple,
                 axis: int = None,
                 max_register_count: int = None,
@@ -178,7 +178,7 @@ def fft_context(buffer_shape: Tuple,
                 name: Optional[str] = None):
 
     try:
-        with vd.shader_context(vc.ShaderFlags.NO_EXEC_BOUNDS) as context:
+        with vc.shader_context(vc.ShaderFlags.NO_EXEC_BOUNDS) as context:
             fft_context = FFTContext(
                 shader_context=context,
                 buffer_shape=buffer_shape,

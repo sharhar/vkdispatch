@@ -160,7 +160,7 @@ def make_reduction_stage(
 
     name = f"reduction_stage_{reduction.name}_{out_type.name}_{input_types}_{group_size}"
     
-    with vd.shader_context() as context:
+    with vc.shader_context() as context:
         signature_type_array = []
         
         signature_type_array.append(vc.Buffer[out_type])

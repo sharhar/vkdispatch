@@ -55,7 +55,6 @@ from .execution_pipeline.command_graph import global_graph, set_global_graph, de
 from .execution_pipeline.cuda_graph_capture import cuda_graph_capture, get_cuda_capture, CUDAGraphCapture
 
 from .shader.shader_function import ShaderFunction, ShaderSource, make_shader_function
-from .shader.context import ShaderContext, shader_context
 from .shader.map import map, MappingFunction
 from .shader.decorator import shader
 
@@ -63,4 +62,4 @@ import vkdispatch.vkfft as vkfft
 import vkdispatch.fft as fft
 import vkdispatch.reduce as reduce
 
-__version__ = "0.0.34"
+__version__ = "0.0.36"

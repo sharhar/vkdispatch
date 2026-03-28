@@ -137,8 +137,9 @@ cpdef inline stage_fft_plan_create(
         if 0 <= axes[i] < 3:  # Ensure the index is within bounds
             omits__[axes[i]] = 0
         else:
-            print("Invalid axis index: ", axes[i])
-            sys.exit(1)
+            free(dims__)
+            free(omits__)
+            return <unsigned long long>0
     
     cdef FFTPlan* plan = stage_fft_plan_create_extern(
         ctx, 
@@ -161,6 +162,7 @@ cpdef inline stage_fft_plan_create(
         1 if keep_shader_code else 0)
 
     free(dims__)
+    free(omits__)
 
     return <unsigned long long>plan
 

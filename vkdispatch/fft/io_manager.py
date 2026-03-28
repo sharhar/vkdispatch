@@ -54,7 +54,7 @@ class IOManager:
 
     def __init__(self,
                     default_registers: FFTRegisters,
-                    shader_context: vd.ShaderContext,
+                    shader_context: vc.ShaderContext,
                     output_map: Optional[vd.MappingFunction],
                     output_type: dtypes.dtype = vd.complex64,
                     input_type: Optional[dtypes.dtype] = None,
