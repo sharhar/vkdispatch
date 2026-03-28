@@ -617,25 +617,60 @@ def stop_threads() -> None:
     """
     Stops all threads in the context.
     """
-    native.context_stop_threads(get_context_handle())
+    global __context
 
-_shutdown_once = False
+    if __context is None:
+        return
+
+    native.context_stop_threads(__context._handle)
+
+_sigint_shutdown_once = False
+_previous_signal_handlers = {}
+
+def _call_previous_handler(signum, frame) -> None:
+    previous_handler = _previous_signal_handlers.get(signum)
+
+    if callable(previous_handler) and previous_handler is not _sig_handler:
+        try:
+            previous_handler(signum, frame)
+        except Exception:
+            pass
+
+def _reraised_signal(signum: int, handler) -> None:
+    signal.signal(signum, handler)
+    os.kill(os.getpid(), signum)
 
 def _sig_handler(signum, frame):
-    print("Ctrl-C received, stopping threads...")
-
-    global _shutdown_once
+    global _sigint_shutdown_once
     set_running(False)
-    if not _shutdown_once:
-        _shutdown_once = True
-        # Flip the C++ atomic and notify all sleepers
-        stop_threads()
+
+    if signum == signal.SIGINT:
+        print("Ctrl-C received, stopping threads...")
+
+        if not _sigint_shutdown_once:
+            _sigint_shutdown_once = True
+            stop_threads()
+            return
+
+        _reraised_signal(signum, signal.SIG_DFL)
         return
-    # Second Ctrl-C → default behavior (fast exit with right code)
-    signal.signal(signum, signal.SIG_DFL)
-    os.kill(os.getpid(), signum)
+
+    if signum == signal.SIGTERM:
+        try:
+            destroy_context()
+        except Exception:
+            pass
+
+        _call_previous_handler(signum, frame)
+        _reraised_signal(signum, signal.SIG_DFL)
+        return
+
+    _call_previous_handler(signum, frame)
+    _reraised_signal(signum, signal.SIG_DFL)
 
 # No need to register signal handlers in Brython, since it runs in a browser
 if not sys.implementation.name == "Brython":
+    _previous_signal_handlers[signal.SIGINT] = signal.getsignal(signal.SIGINT)
+    _previous_signal_handlers[signal.SIGTERM] = signal.getsignal(signal.SIGTERM)
     signal.signal(signal.SIGINT, _sig_handler)
     signal.signal(signal.SIGTERM, _sig_handler)
