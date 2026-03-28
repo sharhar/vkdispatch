@@ -10,15 +10,20 @@ def _get_shader_writer() -> Optional['ShaderWriter']:
 
 def shader_writer() -> 'ShaderWriter':
     writer = _get_shader_writer()
-    assert writer is not None, "No global ShaderWriter is set for the current thread!"
+    
+    if writer is None:
+        raise RuntimeError("No global ShaderWriter is set for the current thread!")
+    
     return writer
 
 def set_shader_writer(writer: 'ShaderWriter'):
     if writer is None:
         _thread_context.writer = None
         return
-
-    assert _get_shader_writer() is None, "A global ShaderWriter is already set for the current thread!"
+    
+    if _get_shader_writer() is not None:
+        raise RuntimeError("A global ShaderWriter is already set for the current thread!")
+    
     _thread_context.writer = writer
 
 class ShaderWriter:

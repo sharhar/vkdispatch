@@ -18,11 +18,14 @@ def complex_from_euler_angle(angle: ShaderVariable):
 
 def validate_complex_number(arg1: Any) -> Union[ShaderVariable, complex]:
     if isinstance(arg1, ShaderVariable):
-        assert dtypes.is_complex(arg1.var_type), "Input variables to complex multiplication must be complex"
+        if not dtypes.is_complex(arg1.var_type):
+            raise TypeError(f"Input variable '{arg1.resolve()}' of type '{arg1.var_type.name}' is not a complex type!")
+        
         return arg1
     
-    assert utils.is_number(arg1), "Argument must be ShaderVariable or number"
-    
+    if not utils.is_number(arg1):
+        raise TypeError(f"Argument must be a ShaderVariable or a number, got {type(arg1)}!")
+
     return complex(arg1)
     
 def _new_big_complex(var_type: dtypes.dtype, arg1: Any, arg2: Any):

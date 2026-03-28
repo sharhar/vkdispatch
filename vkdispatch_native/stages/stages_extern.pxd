@@ -114,11 +114,16 @@ cpdef inline stage_fft_plan_create(
     int num_batches,
     bool single_kernel_multiple_batches,
     bool keep_shader_code):
-    assert len(dims) > 0 and len(dims) < 4, "dims must be a list of length 1, 2, or 3"
-    assert len(axes) <= 3, "axes must be a list of length less than or equal to 3"
+
+    if len(dims) == 0 or len(dims) > 3:
+        raise ValueError("dims must be a list of length 1, 2, or 3")
+
+    if len(axes) > 3:
+        raise ValueError("axes must be a list of length less than or equal to 3")
 
     for ax in axes:
-        assert ax < len(dims), "axes must be less than the length of dims"
+        if ax < 0 or ax >= len(dims):
+            raise ValueError("axes must be less than the length of dims")
 
     cdef Context* ctx = <Context*>context
     cdef unsigned long long dims_ = len(dims)

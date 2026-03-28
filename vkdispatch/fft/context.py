@@ -144,7 +144,9 @@ class FFTContext:
         )
 
     def get_callable(self) -> vd.ShaderFunction:
-        assert self.fft_callable is not None, "Shader not compiled yet... something is wrong"
+        if self.fft_callable is None:
+            raise ValueError("Shader not compiled yet... something is wrong")
+        
         return self.fft_callable
 
     def execute(self, inverse: bool):

@@ -11,7 +11,7 @@ import sys
 import os, signal
 
 from .errors import check_for_errors, set_running
-from .init import DeviceInfo, is_cuda, is_opencl, is_dummy, get_devices, initialize, log_info
+from .init import DeviceInfo, is_cuda, is_opencl, is_dummy, get_devices, initialize, log_info, log_warning
 from ..backends.backend_selection import native
 
 VK_SHADER_STAGE_COMPUTE_BIT = 0x00000020
@@ -101,9 +101,12 @@ class Handle:
                 child = self.children_dict[child_handle]
                 child.destroy()
 
-        assert len(self.children_dict) == 0, "Not all children were destroyed!"
+        if len(self.children_dict) > 0:
+            log_warning(f"Warning: Not all child handles were destroyed for handle {self._handle}!")
         
-        assert not self.canary, "Handle was already destroyed!"
+        if self.canary:
+            raise RuntimeError("Handle was already destroyed!")
+
         if self._handle is not None:
             self._destroy()
             check_for_errors()
@@ -604,7 +607,8 @@ def destroy_context() -> None:
         log_info(f"Destroying handle {handle._handle}...")
         handle.destroy()
 
-    assert len(__context.handles_dict) == 0, "Not all handles were destroyed!"
+    if len(__context.handles_dict) > 0:
+        log_warning(f"Warning: Not all handles were destroyed for context handle {__context._handle}!")
 
     log_info("Calling native context destroy...")
     native.context_destroy(__context._handle)

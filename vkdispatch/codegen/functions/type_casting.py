@@ -79,7 +79,8 @@ def _infer_complex_dtype(*args) -> dtypes.dtype:
     return complex_type
 
 def _to_complex_dtype(var_type: dtypes.dtype, *args):
-    assert len(args) == 1 or len(args) == 2, "Must give one of two arguments for complex init"
+    if len(args) != 1 and len(args) != 2:
+        raise ValueError("Must give one of two arguments for complex init")
 
     if len(args) == 1 and isinstance(args[0], ShaderVariable) and dtypes.is_complex(args[0].var_type):
         return to_dtype(var_type, args[0])

@@ -77,13 +77,18 @@ def set_builder(builder: 'ShaderBuilder'):
         set_shader_writer(None)
         return
 
-    assert _get_builder() is None, "A global ShaderBuilder is already set for the current thread!"
+    if _get_builder() is not None:
+        raise RuntimeError("A global ShaderBuilder is already set for the current thread!")
+    
     set_shader_writer(builder)
     _builder_context.active_builder = builder
 
 def get_builder() -> 'ShaderBuilder':
     builder = _get_builder()
-    assert builder is not None, "No global ShaderBuilder is set for the current thread!"
+    
+    if builder is None:
+        raise RuntimeError("No global ShaderBuilder is set for the current thread!")
+    
     return builder
 
 def shared_buffer(var_type: dtypes.dtype, size: int, var_name: Optional[str] = None):

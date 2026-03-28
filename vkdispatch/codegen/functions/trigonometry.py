@@ -108,7 +108,9 @@ def radians(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return var * (3.141592653589793 / 180.0)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError("Argument must be a ShaderVariable or number")
+    
     utils.mark_backend_feature("radians")
     return _unary_math_var("radians", var)
 
@@ -116,7 +118,9 @@ def degrees(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return var * (180.0 / 3.141592653589793)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError("Argument must be a ShaderVariable or number")
+    
     utils.mark_backend_feature("degrees")
     return _unary_math_var("degrees", var)
 
@@ -124,42 +128,54 @@ def sin(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.sin(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError("Argument must be a ShaderVariable or number")
+    
     return _unary_math_var("sin", var)
 
 def cos(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.cos(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError("Argument must be a ShaderVariable or number")
+
     return _unary_math_var("cos", var)
 
 def tan(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.tan(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError("Argument must be a ShaderVariable or number")
+    
     return _unary_math_var("tan", var)
 
 def asin(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.arcsin(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError("Argument must be a ShaderVariable or number")
+    
     return _unary_math_var("asin", var)
 
 def acos(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.arccos(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError("Argument must be a ShaderVariable or number")
+    
     return _unary_math_var("acos", var)
 
 def atan(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.arctan(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError("Argument must be a ShaderVariable or number")
+    
     return _unary_math_var("atan", var)
 
 def atan2(y: Any, x: Any) -> Union[ShaderVariable, float]:
@@ -192,8 +208,8 @@ def atan2(y: Any, x: Any) -> Union[ShaderVariable, float]:
             [x],
         )
 
-    assert isinstance(y, ShaderVariable), "First argument must be a ShaderVariable or number"
-    assert isinstance(x, ShaderVariable), "Second argument must be a ShaderVariable or number"
+    if not isinstance(y, ShaderVariable) or not isinstance(x, ShaderVariable):
+        raise ValueError("Both arguments must be ShaderVariables or numbers")
 
     result_type = dtype_to_floating(dtypes.cross_type(y.var_type, x.var_type))
     return _binary_math_var(
@@ -211,40 +227,52 @@ def sinh(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.sinh(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError("Argument must be a ShaderVariable or number")
+    
     return _unary_math_var("sinh", var)
 
 def cosh(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.cosh(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError("Argument must be a ShaderVariable or number")
+
     return _unary_math_var("cosh", var)
 
 def tanh(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.tanh(var)
-
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    
+    if not isinstance(var, ShaderVariable):
+        raise ValueError("Argument must be a ShaderVariable or number")
+    
     return _unary_math_var("tanh", var)
 
 def asinh(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.arcsinh(var)
-
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    
+    if not isinstance(var, ShaderVariable):
+        raise ValueError("Argument must be a ShaderVariable or number")
+    
     return _unary_math_var("asinh", var)
 
 def acosh(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.arccosh(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError("Argument must be a ShaderVariable or number")
+    
     return _unary_math_var("acosh", var)
 
 def atanh(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.arctanh(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError("Argument must be a ShaderVariable or number")
+    
     return _unary_math_var("atanh", var)

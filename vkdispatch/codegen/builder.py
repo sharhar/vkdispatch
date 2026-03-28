@@ -66,7 +66,8 @@ def annotation_to_shader_arg_and_variable(builder: "ShaderBuilder", type_annotat
         value_name = {}
 
         for field_name, field_type in get_type_hints(type_annotation).items():
-            assert is_dtype(field_type), f"Unsupported type '{field_type}' for field '{type_annotation}.{field_name}'"
+            if not is_dtype(field_type):
+                raise ValueError(f"Unsupported type '{field_type}' for field '{type_annotation}.{field_name}'")
 
             creation_args[field_name] = builder._declare_constant(field_type)
             value_name[field_name] = creation_args[field_name].raw_name
@@ -201,7 +202,8 @@ class ShaderBuilder(ShaderWriter):
                                  type_annotations: List,
                                  names: Optional[List[str]] = None,
                                  defaults: Optional[List[Any]] = None):
-        assert len(self.shader_args) == 0, "Shader arguments have already been declared for this builder instance"
+        if len(self.shader_args) > 0:
+            raise RuntimeError("Shader arguments have already been declared for this builder instance")
 
         for i in range(len(type_annotations)):
             shader_arg_info, shader_var = annotation_to_shader_arg_and_variable(

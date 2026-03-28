@@ -105,14 +105,17 @@ class OpenCLBackend(CodeGenBackend):
         target_type = self.type_name(var_type)
 
         if dtypes.is_scalar(var_type):
-            assert len(args) > 0, f"Constructor for scalar type '{var_type.name}' needs at least one argument."
+            if len(args) == 0:
+                raise ValueError(f"Constructor for scalar type '{var_type.name}' needs at least one argument.")
+            
             return f"(({target_type})({args[0]}))"
 
         if dtypes.is_matrix(var_type):
             dim = var_type.child_count
-            assert len(args) in (1, dim, dim * dim), (
-                f"Constructor for matrix type '{var_type.name}' needs 1, {dim}, or {dim * dim} arguments."
-            )
+            if len(args) not in (1, dim, dim * dim):
+                raise ValueError(
+                    f"Constructor for matrix type '{var_type.name}' needs 1, {dim}, or {dim * dim} arguments, but got {len(args)}."
+                )
             if len(args) == 1:
                 single_arg = args[0]
                 helper_name = self._matrix_helper_name(

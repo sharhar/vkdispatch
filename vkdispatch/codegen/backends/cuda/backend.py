@@ -425,7 +425,9 @@ class CUDABackend(CodeGenBackend):
         target_type = self.type_name(var_type)
 
         if dtypes.is_scalar(var_type):
-            assert len(args) > 0, f"Constructor for scalar type '{var_type.name}' needs at least one argument."
+            if len(args) == 0:
+                raise ValueError(f"Constructor for scalar type '{var_type.name}' needs at least one argument.")
+            
             return f"(({target_type})({args[0]}))"
 
         if var_type == dtypes.mat2:
@@ -676,7 +678,9 @@ class CUDABackend(CodeGenBackend):
             return None
 
         helper_suffix = lhs_helper if lhs_helper is not None else rhs_helper
-        assert helper_suffix is not None
+
+        if helper_suffix is None:
+            raise ValueError("At least one of the argument types should have a float vector helper suffix")
 
         signature = ("v" if lhs_helper is not None else "s") + ("v" if rhs_helper is not None else "s")
         self._record_vec_binary_math(helper_suffix, func_name, signature)
