@@ -48,7 +48,7 @@ Most shader examples use these imports:
 
    import vkdispatch as vd
    import vkdispatch.codegen as vc
-   from vkdispatch.codegen.abreviations import *
+   from vkdispatch.codegen.abbreviations import *
 
 * ``Buff[...]`` is a shader buffer argument type.
 * ``Const[...]`` is a uniform/constant argument type.
@@ -62,7 +62,7 @@ Basic In-Place Kernel
    import numpy as np
    import vkdispatch as vd
    import vkdispatch.codegen as vc
-   from vkdispatch.codegen.abreviations import *
+   from vkdispatch.codegen.abbreviations import *
 
    # @vd.shader(exec_size=lambda args: args.buff.size)
    @vd.shader("buff.size")
@@ -256,7 +256,7 @@ output backend you want:
 
    import vkdispatch as vd
    import vkdispatch.codegen as vc
-   from vkdispatch.codegen.abreviations import Buff, Const, f32
+   from vkdispatch.codegen.abbreviations import Buff, Const, f32
 
    vd.initialize(backend="dummy")
    vd.set_dummy_context_params(

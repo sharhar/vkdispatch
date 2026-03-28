@@ -17,25 +17,35 @@ It combines runtime code generation, execution helpers, and FFT/reduction utilit
 
 ## Installation
 
-### Core package
+### Default Vulkan Install
 
-Install `vkdispatch` from PyPI:
+To install `vkdispatch` with the Vulkan backend, run:
 
 ```bash
 pip install vkdispatch
 ```
 
-This installs the core library and the Vulkan backend.
+This will install the entire core library, including the code generation along with a the Vulkan runtime backend which is desgined to run on any system supporting Vulkan 1.2 or higher (along with MacOS through statically linking MoltenVK). Alternate backends can be added with optional dependencies as described below.
 
 On mainstream platforms - Windows (`x86_64`), macOS (`x86_64` and Apple Silicon/`arm64`), and Linux (`x86_64`) - `pip` will usually download a prebuilt wheel, so no compiler is needed.
 
 On less common platforms, `pip` may fall back to a source build, which takes a few minutes. See [Building From Source](https://sharhar.github.io/vkdispatch/tutorials/building_from_source.html) for toolchain requirements and developer-oriented instructions.
 
+### Core package
+
+For cases where only the codegen component is needed (or in environments where only the CUDA/OpenCL backends are needed), the core package can be installed to provide all the features except the Vulkan runtime:
+
+```bash
+pip install vkdispatch-core
+```
+
+This installs the core library and codegen components, and nothing else. To enable features beyond pure codegen, you can install some of the optional dependencies described below.
+
 ### Optional components
 
-- Optional CLI: `pip install "vkdispatch[cli]"` or `pip install click`
-- CUDA runtime backend: `pip install cuda-python`
-- OpenCL runtime backend: `pip install pyopencl`
+- Optional CLI: `pip install "vkdispatch-core[cli]"`
+- CUDA runtime backend: `pip install "vkdispatch-core[cuda]`
+- OpenCL runtime backend: `pip install "vkdispatch-core[opencl]`
 
 ## Runtime backends
 
@@ -46,7 +56,7 @@ On less common platforms, `pip` may fall back to a source build, which takes a f
 - `opencl`
 - `dummy`
 
-If you do not explicitly select a backend, `vkdispatch` prefers Vulkan. When Vulkan is unavailable, initialization falls back to CUDA and then OpenCL.
+If you do not explicitly select a backend, `vkdispatch` prefers Vulkan. When the Vulkan backend cannot be imported due to not being installed, initialization falls back to CUDA and then OpenCL (if the `cuda-python` package is not installed).
 
 You can select a backend explicitly in Python:
 
@@ -80,7 +90,7 @@ The example below defines a simple in-place compute kernel in Python:
 import numpy as np
 import vkdispatch as vd
 import vkdispatch.codegen as vc
-from vkdispatch.codegen.abreviations import Buff, Const, f32
+from vkdispatch.codegen.abbreviations import Buff, Const, f32
 
 # @vd.shader(exec_size=lambda args: args.buff.size)
 @vd.shader("buff.size")
@@ -110,7 +120,7 @@ If you want generated source without compiling or dispatching it on the current 
 ```python
 import vkdispatch as vd
 import vkdispatch.codegen as vc
-from vkdispatch.codegen.abreviations import Buff, Const, f32
+from vkdispatch.codegen.abbreviations import Buff, Const, f32
 
 vd.initialize(backend='dummy')
 vd.set_dummy_context_params(
@@ -138,6 +148,11 @@ If you installed the optional CLI, you can list devices with:
 
 ```bash
 vdlist
+
+# Explicit backend selection can be done with cmdline flags:
+vdlist --vulkan
+vdlist --cuda
+vdlist --opencl
 ```
 
 You can always inspect devices from Python:
