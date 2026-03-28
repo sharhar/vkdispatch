@@ -106,137 +106,6 @@ def execute_fft_plan(
         if graph.submit_on_record:
             graph.submit()
 
-def sanitize_2d_convolution_buffer_shape(in_shape: vd.Buffer):
-    if in_shape is None:
-        return None
-    
-    in_shape = in_shape.shape
-
-    assert len(in_shape) == 2 or len(in_shape) == 3, "Input shape must be 2D or 3D!"
-
-    if len(in_shape) == 2:
-        return (1, in_shape[0], in_shape[1])
-    
-    return in_shape
-
-def convolve_2Dreal(
-        buffer: vd.RFFTBuffer,
-        kernel: Union[vd.Buffer[vd.float32], vd.RFFTBuffer],
-        input: Union[vd.Buffer[vd.float32], vd.RFFTBuffer] = None,
-        normalize: bool = False,
-        conjugate_kernel: bool = False,
-        graph: Optional[vd.CommandGraph] = None,
-        keep_shader_code: bool = False):
-
-    buffer_shape = sanitize_2d_convolution_buffer_shape(buffer)
-    kernel_shape = sanitize_2d_convolution_buffer_shape(kernel)
-    
-    assert buffer_shape == kernel_shape, f"Buffer ({buffer_shape}) and Kernel ({kernel_shape}) shapes must match!"
-
-    input_shape = sanitize_2d_convolution_buffer_shape(input)
-
-    kernel_count = 1
-    feature_count = 1
-
-    if input_shape is not None:
-        assert buffer_shape[0] % input_shape[0] == 0, f"Output count ({buffer_shape[0]}) must be divisible by input count ({input_shape[0]})!"
-        kernel_count = buffer_shape[0] // input_shape[0]
-        feature_count = input_shape[0]
-    else:
-        feature_count = buffer.shape[0]
-
-    execute_fft_plan(
-        buffer,
-        False,
-        graph = graph,
-        config = FFTConfig(
-            buffer_handle=buffer._handle,
-            shape=sanitize_input_tuple(buffer.real_shape),
-            do_r2c=True,
-            normalize=normalize,
-            kernel_count=kernel_count,
-            conjugate_convolution=conjugate_kernel,
-            input_shape=sanitize_input_tuple(input.shape if input is not None else None),
-            input_type=input.var_type if input is not None else None,
-            convolution_features=feature_count,
-            keep_shader_code=keep_shader_code
-        ),
-        kernel=kernel,
-        input=input
-    )
-
-def create_kernel_2Dreal(
-        kernel: vd.RFFTBuffer,
-        shape: Tuple[int, ...] = None,
-        feature_count: int = 1,
-        graph: Optional[vd.CommandGraph] = None,
-        keep_shader_code: bool = False) -> vd.RFFTBuffer:
-    
-    if shape is None:
-        shape = kernel.shape
-
-    if len(shape) == 2:
-        assert feature_count == 1, "Feature count must be 1 for 2D kernels!"
-        shape = (1,) + shape
-
-    execute_fft_plan(
-        kernel,
-        False,
-        graph = graph,
-        config = FFTConfig(
-            buffer_handle=kernel._handle,
-            shape=sanitize_input_tuple(kernel.real_shape),
-            do_r2c=True,
-            kernel_convolution=True,
-            convolution_features=feature_count,
-            num_batches=shape[0] // feature_count,
-            keep_shader_code=keep_shader_code
-        )
-    )
-
-    return kernel
-
-def convolve_2D(
-        buffer: vd.Buffer,
-        kernel: vd.Buffer,
-        normalize: bool = False,
-        conjugate_kernel: bool = False,
-        graph: Optional[vd.CommandGraph] = None,
-        keep_shader_code: bool = False,
-        padding: Tuple[Tuple[int, int]] = None):
-
-    buffer_shape = sanitize_2d_convolution_buffer_shape(buffer)
-    kernel_shape = sanitize_2d_convolution_buffer_shape(kernel)
-    
-    # assert buffer_shape == kernel_shape, f"Buffer ({buffer_shape}) and Kernel ({kernel_shape}) shapes must match!"
-
-    kernel_count = kernel.shape[0] if len(kernel.shape) == 3 else 1
-    feature_count = 1
-
-    if kernel_count > 1:
-        feature_count = buffer.shape[0]
-
-    in_shape = sanitize_input_tuple(buffer.shape)
-
-    execute_fft_plan(
-        buffer,
-        False,
-        graph = graph,
-        config = FFTConfig(
-            buffer_handle=buffer._handle,
-            shape=in_shape[1:], # if kernel_count == 1 else in_shape,
-            normalize=normalize,
-            kernel_count=1, #kernel_count,
-            conjugate_convolution=conjugate_kernel,
-            convolution_features=1, #feature_count,
-            keep_shader_code=keep_shader_code,
-            num_batches=buffer.shape[0], # if kernel_count == 1 else 1,
-            padding=padding
-        ),
-        kernel=kernel
-    )
-
-
 def transpose_kernel2D(
         kernel: vd.Buffer,
         shape: Tuple[int, ...] = None,
@@ -248,8 +117,9 @@ def transpose_kernel2D(
     if len(shape) == 2:
         shape = (1,) + shape
 
-    assert len(shape) == 3, "Kernel shape must be 2D or 3D!"
-    
+    if len(shape) != 3:
+        raise ValueError('Kernel shape must be 2D or 3D!')
+
     execute_fft_plan(
         kernel,
         False,
@@ -338,14 +208,16 @@ def fft(
     )
 
 def fft2(buffer: vd.Buffer, graph: vd.CommandGraph = None, print_shader: bool = False):
-    assert len(buffer.shape) == 2 or len(buffer.shape) == 3, 'Buffer must have 2 or 3 dimensions'
+    if len(buffer.shape) < 2:
+        raise ValueError('Buffer must have at least 2 dimensions')
 
     axes = (len(buffer.shape) - 2, len(buffer.shape) - 1)
 
     fft(buffer, graph=graph, print_shader=print_shader, axis=axes)
 
 def fft3(buffer: vd.Buffer, graph: vd.CommandGraph = None, print_shader: bool = False):
-    assert len(buffer.shape) == 3, 'Buffer must have 3 dimensions'
+    if len(buffer.shape) < 3:
+        raise ValueError('Buffer must have at least 3 dimensions')
 
     fft(buffer, graph=graph, print_shader=print_shader, axis=(0, 1, 2))
 
@@ -358,14 +230,16 @@ def ifft(
     fft(buffer, graph=graph, print_shader=print_shader, axis=axis, inverse=True, normalize_inverse=normalize)
 
 def ifft2(buffer: vd.Buffer, graph: vd.CommandGraph = None, print_shader: bool = False):
-    assert len(buffer.shape) == 2 or len(buffer.shape) == 3, 'Buffer must have 2 or 3 dimensions'
+    if len(buffer.shape) < 2:
+        raise ValueError('Buffer must have at least 2 dimensions')
 
     axes = (len(buffer.shape) - 2, len(buffer.shape) - 1)
 
     ifft(buffer, graph=graph, print_shader=print_shader, axis=axes)
 
 def ifft3(buffer: vd.Buffer, graph: vd.CommandGraph = None, print_shader: bool = False):
-    assert len(buffer.shape) == 3, 'Buffer must have 3 dimensions'
+    if len(buffer.shape) != 3:
+        raise ValueError('Buffer must have 3 dimensions')
 
     ifft(buffer, graph=graph, print_shader=print_shader, axis=(0, 1, 2))
 
@@ -374,13 +248,15 @@ def rfft(buffer: vd.RFFTBuffer, graph: vd.CommandGraph = None, print_shader: boo
     fft(buffer, buffer_shape=buffer.real_shape, graph=graph, print_shader=print_shader, r2c=True, axis=axis)
 
 def rfft2(buffer: vd.RFFTBuffer, graph: vd.CommandGraph = None, print_shader: bool = False):
-    assert len(buffer.real_shape) == 2 or len(buffer.real_shape) == 3, 'Buffer must have 2 or 3 dimensions'
+    if len(buffer.real_shape) < 2:
+        raise ValueError('Buffer must have at least 2 dimensions')
 
     axes = (len(buffer.shape) - 2, len(buffer.shape) - 1)
     rfft(buffer, graph=graph, print_shader=print_shader, axis=axes)
 
 def rfft3(buffer: vd.RFFTBuffer, graph: vd.CommandGraph = None, print_shader: bool = False):
-    assert len(buffer.real_shape) == 3, 'Buffer must have 3 dimensions'
+    if len(buffer.real_shape) != 3:
+        raise ValueError('Buffer must have 3 dimensions')
 
     rfft(buffer, graph=graph, print_shader=print_shader, axis=(0, 1, 2))
 
@@ -388,12 +264,14 @@ def irfft(buffer: vd.RFFTBuffer, graph: vd.CommandGraph = None, print_shader: bo
     fft(buffer, buffer_shape=buffer.real_shape, graph=graph, print_shader=print_shader, inverse=True, normalize_inverse=normalize, r2c=True, axis=axis)
 
 def irfft2(buffer: vd.RFFTBuffer, graph: vd.CommandGraph = None, print_shader: bool = False):
-    assert len(buffer.real_shape) == 2 or len(buffer.real_shape) == 3, 'Buffer must have 2 or 3 dimensions'
+    if len(buffer.real_shape) < 2:
+        raise ValueError('Buffer must have at least 2 dimensions')
 
     axes = (len(buffer.shape) - 2, len(buffer.shape) - 1)
     irfft(buffer, graph=graph, print_shader=print_shader, axis=axes)
 
 def irfft3(buffer: vd.RFFTBuffer, graph: vd.CommandGraph = None, print_shader: bool = False):
-    assert len(buffer.real_shape) == 3, 'Buffer must have 3 dimensions'
+    if len(buffer.real_shape) != 3:
+        raise ValueError('Buffer must have 3 dimensions')
 
     irfft(buffer, graph=graph, print_shader=print_shader, axis=(0, 1, 2))
