@@ -29,9 +29,14 @@ def global_batch_offset(
     outer_batch_stride = config.N * config.fft_stride
 
     if r2c:
-        assert inverse is not None, "Must specify inverse for r2c io"
-        assert is_output is not None, "Must specify is_output for r2c io"
-        assert config.fft_stride == 1, "R2C io only supported for contiguous data"
+        if inverse is None:
+            raise ValueError("Must specify inverse for r2c io")
+        
+        if is_output is None:
+            raise ValueError("Must specify is_output for r2c io")
+        
+        if config.fft_stride != 1:
+            raise ValueError("R2C io only supported for contiguous data")
 
         outer_batch_stride = (config.N // 2) + 1
 
@@ -95,7 +100,8 @@ def global_writes_iterator(
     extra_comment_lines = ""
 
     if r2c:
-        assert inverse is not None, "Must specify inverse for r2c io"
+        if inverse is None:
+            raise ValueError("Must specify inverse for r2c io")
 
         if inverse:
             extra_comment_lines = "\nDoing R2C inverse write, applying Hermitian reconstruction and packed-real rules as needed."
@@ -254,8 +260,8 @@ def global_reads_iterator(
 
     vc.comment(f"""Reading input samples from global memory into FFT registers.{transpose_comment_str}{signal_range_comment_str}{r2c_comment_str}""")
 
-    if r2c:
-        assert not format_transposed, "R2C transposed format not supported"
+    if r2c and format_transposed:
+        raise ValueError("R2C format transposition not supported")
 
     resources = registers.resources
     config = registers.config

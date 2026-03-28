@@ -50,7 +50,8 @@ class FFTContext:
         self.name = name if name is not None else f"fft_shader_{buffer_shape}_{axis}"
 
     def allocate_registers(self, name: str, count: int = None) -> FFTRegisters:
-        assert name is not None, "Must provide a name for allocated registers"
+        if name is None:
+            raise ValueError("Must provide a name for allocated registers")
 
         if count is None:
             count = self.config.register_count
@@ -58,7 +59,9 @@ class FFTContext:
         return FFTRegisters(self.resources, count, name)
 
     def declare_shader_args(self, types: List) -> List[vc.ShaderVariable]:
-        assert not self.declared_shader_args, f"Shader arguments already declared with {self.declarer}"
+        if self.declared_shader_args:
+            raise ValueError(f"Shader arguments already declared with {self.declarer}")
+
         self.declared_shader_args = True
         self.declarer = "declare_shader_args"
         return self.shader_context.declare_input_arguments(types)
@@ -69,7 +72,10 @@ class FFTContext:
                         input_type: Optional[dtypes.dtype] = None,
                         input_map: Optional[vd.MappingFunction] = None,
                         kernel_map: Optional[vd.MappingFunction] = None) -> IOManager:
-        assert not self.declared_shader_args, f"Shader arguments already declared with {self.declarer}"
+        
+        if self.declared_shader_args:
+            raise ValueError(f"Shader arguments already declared with {self.declarer}")
+
         self.declared_shader_args = True
         self.declarer = "make_io_manager"
         return IOManager(

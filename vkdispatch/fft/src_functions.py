@@ -28,7 +28,8 @@ def fft_src(
     return fft_shader.get_src(line_numbers=line_numbers)
 
 def fft2_src(buffer_shape: Tuple, input_map: vd.MappingFunction = None, output_map: vd.MappingFunction = None):
-    assert len(buffer_shape) == 2 or len(buffer_shape) == 3, 'Buffer Shape must have 2 or 3 dimensions'
+    if len(buffer_shape) != 2 and len(buffer_shape) != 3:
+        raise ValueError('Buffer Shape must have 2 or 3 dimensions')
 
     return (
         fft_src(axis=len(buffer_shape) - 2, input_map=input_map),
@@ -36,7 +37,8 @@ def fft2_src(buffer_shape: Tuple, input_map: vd.MappingFunction = None, output_m
     )
 
 def fft3_src(buffer_shape: Tuple, input_map: vd.MappingFunction = None, output_map: vd.MappingFunction = None):
-    assert len(buffer_shape) == 3, 'Buffer must have 3 dimensions'
+    if len(buffer_shape) != 3:
+        raise ValueError('Buffer Shape must have 3 dimensions')
 
     return (
         fft_src(buffer_shape, axis=0, input_map=input_map),
@@ -54,7 +56,8 @@ def ifft_src(
     return fft_src(buffer_shape, axis=axis, inverse=True, normalize_inverse=normalize, input_map=input_map, output_map=output_map)
 
 def ifft2_src(buffer_shape: Tuple, normalize: bool = True, input_map: vd.MappingFunction = None, output_map: vd.MappingFunction = None):
-    assert len(buffer_shape) == 2 or len(buffer_shape) == 3, 'Buffer must have 2 or 3 dimensions'
+    if len(buffer_shape) != 2 and len(buffer_shape) != 3:
+        raise ValueError('Buffer Shape must have 2 or 3 dimensions')
 
     return (
         ifft_src(buffer_shape, axis=len(buffer_shape) - 2, normalize=normalize, input_map=input_map),
@@ -62,7 +65,8 @@ def ifft2_src(buffer_shape: Tuple, normalize: bool = True, input_map: vd.Mapping
     )
 
 def ifft3_src(buffer_shape: Tuple, normalize: bool = True, input_map: vd.MappingFunction = None, output_map: vd.MappingFunction = None):
-    assert len(buffer_shape) == 3, 'Buffer must have 3 dimensions'
+    if len(buffer_shape) != 3:
+        raise ValueError('Buffer Shape must have 3 dimensions')
 
     return (
         ifft_src(buffer_shape, axis=0, normalize=normalize, input_map=input_map),
@@ -75,7 +79,8 @@ def rfft_src(buffer_shape: Tuple):
     return fft_src(buffer_shape, r2c=True)
 
 def rfft2_src(buffer_shape: Tuple):
-    assert len(buffer_shape) == 2 or len(buffer_shape) == 3, 'Buffer must have 2 or 3 dimensions'
+    if len(buffer_shape) != 2 and len(buffer_shape) != 3:
+        raise ValueError('Buffer Shape must have 2 or 3 dimensions')
 
     return (
         rfft_src(buffer_shape),
@@ -83,7 +88,8 @@ def rfft2_src(buffer_shape: Tuple):
     )
 
 def rfft3_src(buffer_shape: Tuple):
-    assert len(buffer_shape) == 3, 'Buffer must have 3 dimensions'
+    if len(buffer_shape) != 3:
+        raise ValueError('Buffer Shape must have 3 dimensions')
 
     return (
         rfft_src(buffer_shape),
@@ -95,7 +101,8 @@ def irfft_src(buffer_shape: Tuple, normalize: bool = True):
     return fft_src(buffer_shape, inverse=True, normalize_inverse=normalize, r2c=True)
 
 def irfft2_src(buffer_shape: Tuple, normalize: bool = True):
-    assert len(buffer_shape) == 2 or len(buffer_shape) == 3, 'Buffer must have 2 or 3 dimensions'
+    if len(buffer_shape) != 2 and len(buffer_shape) != 3:
+        raise ValueError('Buffer Shape must have 2 or 3 dimensions')
 
     return (
         ifft_src(buffer_shape, axis=len(buffer_shape) - 2, normalize=normalize),
@@ -103,7 +110,8 @@ def irfft2_src(buffer_shape: Tuple, normalize: bool = True):
     )
 
 def irfft3_src(buffer_shape: Tuple, normalize: bool = True):
-    assert len(buffer_shape) == 3, 'Buffer must have 3 dimensions'
+    if len(buffer_shape) != 3:
+        raise ValueError('Buffer Shape must have 3 dimensions')
 
     return (
         ifft_src(buffer_shape, axis=0, normalize=normalize),
@@ -147,7 +155,8 @@ def convolve2D_src(
         input_map: vd.MappingFunction = None,
         output_map: vd.MappingFunction = None):
 
-    assert len(buffer_shape) == 2 or len(buffer_shape) == 3, 'Buffer must have 2 or 3 dimensions'
+    if len(buffer_shape) != 2 and len(buffer_shape) != 3:
+        raise ValueError('Buffer must have 2 or 3 dimensions')
 
     return (
         fft_src(buffer_shape, input_map=input_map),
@@ -169,7 +178,8 @@ def convolve2DR_src(
         kernel_inner_only: bool = False,
         normalize: bool = True):
     
-    assert len(buffer_shape) == 2 or len(buffer_shape) == 3, 'Buffer must have 2 or 3 dimensions'
+    if len(buffer_shape) != 2 and len(buffer_shape) != 3:
+        raise ValueError('Buffer must have 2 or 3 dimensions')
 
     return (
         rfft_src(buffer_shape),

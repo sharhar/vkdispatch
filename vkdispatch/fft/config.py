@@ -13,7 +13,8 @@ def plan_fft_stages(N: int, max_register_count: int, compute_item_size: int) -> 
     all_factors = prime_factors(N)
 
     for factor in all_factors:
-        assert factor <= default_max_prime(), f"A prime factor of {N} is {factor}, which exceeds the maximum prime supported {default_max_prime()}"
+        if factor > default_max_prime():
+            raise ValueError(f"A prime factor of {N} is {factor}, which exceeds the maximum prime supported {default_max_prime()}")
 
     prime_groups = group_primes(all_factors, max_register_count)
 
@@ -115,7 +116,8 @@ def select_fft_plan_candidate(
             compute_item_size=compute_item_size,
         )
 
-        assert candidate.stages is not None, f"Failed to create an FFT plan candidate for N={N} with max_register_count={requested_limit}"
+        if candidate.stages is None:
+            raise ValueError(f"Failed to create an FFT plan candidate for N={N} with max_register_count={requested_limit}")
 
         if candidate.batch_threads <= batch_threads_limit:
             return candidate
@@ -235,7 +237,8 @@ class FFTConfig:
         all_factors = prime_factors(N)
 
         for factor in all_factors:
-            assert factor <= default_max_prime(), f"A prime factor of {N} is {factor}, which exceeds the maximum prime supported {default_max_prime()}"
+            if factor > default_max_prime():
+                raise ValueError(f"A prime factor of {N} is {factor}, which exceeds the maximum prime supported {default_max_prime()}")
 
         self.max_prime_radix = max(all_factors)
 
