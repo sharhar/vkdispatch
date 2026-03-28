@@ -31,8 +31,12 @@ def cli_entrypoint(verbose, log_info, vulkan_loader_debug_logs, debug, vulkan, c
 
     log_level = vd.LogLevel.INFO if log_info or debug else vd.LogLevel.WARNING
     loader_debug_logs = vulkan_loader_debug_logs or debug
-
-    vd.initialize(log_level=log_level, loader_debug_logs=loader_debug_logs, backend=selected_backend)
+    
+    try:
+        vd.initialize(log_level=log_level, loader_debug_logs=loader_debug_logs, backend=selected_backend)
+    except vd.BackendUnavailableError as e:
+        print(f"\033[31mError initializing Vkdispatch:\033[0m {str(e)}")
+        return
 
     for dev in vd.get_devices():
         print(dev.get_info_string(verbose))

@@ -340,8 +340,10 @@ void stage_fft_record_extern(
             }
 
             VkFFTApplication* application = (VkFFTApplication*)ctx->handle_manager->get_handle(index, vkfft_applications_handle, timestamp);
-
+            
+            ctx->queues[indicies.queue_index]->queue_usage_mutex.lock();
             VkFFTResult fftRes = VkFFTAppend(application, inverse, &launchParams);
+            ctx->queues[indicies.queue_index]->queue_usage_mutex.unlock();
 
             if (fftRes != VKFFT_SUCCESS) {
                 set_error("(VkFFTResult is %d) VkFFTAppend inside '%s' at %s:%d\n", fftRes, __FUNCTION__, __FILE__, __LINE__);

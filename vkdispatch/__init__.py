@@ -6,6 +6,8 @@ from .base.init import initialize
 from .base.init import is_initialized
 from .base.init import log, log_error, log_warning, log_info, log_verbose, set_log_level
 
+from .backends.backend_selection import BackendUnavailableError
+
 from .base.dtype import dtype
 from .base.dtype import float16, float32, float64, int16, uint16, int32, uint32, int64, uint64
 from .base.dtype import complex32, complex64, complex128

@@ -139,7 +139,7 @@ cpdef inline stage_fft_plan_create(
         else:
             free(dims__)
             free(omits__)
-            return <unsigned long long>0
+            raise ValueError("Axis index out of bounds. Must be between 0 and 2 inclusive.")
     
     cdef FFTPlan* plan = stage_fft_plan_create_extern(
         ctx, 

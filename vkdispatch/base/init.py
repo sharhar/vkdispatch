@@ -553,6 +553,9 @@ def initialize(
             )
         return
 
+    error_backend = None
+    error_string = None
+
     if (
         not backend_explicitly_selected
         and backend_name == BACKEND_VULKAN
@@ -565,7 +568,7 @@ def initialize(
                 loader_debug_logs=loader_debug_logs,
             )
             return
-        except BackendUnavailableError:
+        except BackendUnavailableError as _:
             print("\033[33mVkDispatch Warning:\033[0m Vulkan backend unavailable, trying CUDA backend...", file=sys.stderr)
 
             try:
@@ -576,7 +579,7 @@ def initialize(
                     loader_debug_logs=loader_debug_logs,
                 )
                 return
-            except Exception:
+            except BackendUnavailableError as _:
                 print("\033[33mVkDispatch Warning:\033[0m CUDA backend unavailable, trying OpenCL backend...", file=sys.stderr)
 
                 try:
@@ -587,31 +590,33 @@ def initialize(
                         loader_debug_logs=loader_debug_logs,
                     )
                     return
-                except Exception:
-                    print(f"""\033[31mVkdispatch Backend Error:\033[0m No available backend! Please install one of the three
-                          supported backends: Vulkan (`pip install vkdispatch-vulkan-native`)
-                                              CUDA   (`pip install vkdispatch-core[cuda]`)
-                                              OpenCL (`pip install vkdispatch-core[opencl]`)""", file=sys.stderr)
+                except BackendUnavailableError as _:
+                    error_backend = BACKEND_VULKAN
+                    error_string = f"""No available backend!
+Please install one of the three supported backends:
+        Vulkan (`pip install vkdispatch-vulkan-native`)
+        CUDA   (`pip install vkdispatch-core[cuda]`)
+        OpenCL (`pip install vkdispatch-core[opencl]`)"""
+    else:
+        try:
+            _initialize_with_backend(
+                backend_name,
+                debug_mode=debug_mode,
+                log_level=log_level,
+                loader_debug_logs=loader_debug_logs,
+            )
+        except BackendUnavailableError as _:
+            backend_error_dict = {
+                BACKEND_VULKAN: "Vulkan backend unavailable. It can be installed with `pip install vkdispatch-vulkan-native`.",
+                BACKEND_CUDA: "CUDA Python backend unavailable. It can be enabled by installing the `cuda-python` package (`pip install vkdispatch-core[cuda]`).",
+                BACKEND_OPENCL: "OpenCL backend unavailable. It can be enabled by installing the `pyopencl` package (`pip install vkdispatch-core[opencl]`)."
+            }
 
-                    exit(1)
+            error_backend = backend_name
+            error_string = f"{backend_error_dict.get(backend_name, 'Selected backend unavailable')}"
 
-    try:
-        _initialize_with_backend(
-            backend_name,
-            debug_mode=debug_mode,
-            log_level=log_level,
-            loader_debug_logs=loader_debug_logs,
-        )
-    except BackendUnavailableError as e:
-        backend_error_dict = {
-            BACKEND_VULKAN: "Vulkan backend unavailable. It can be installed with `pip install vkdispatch-vulkan-native`.",
-            BACKEND_CUDA: "CUDA Python backend unavailable. It can be enabled by installing the `cuda-python` package (`pip install vkdispatch-core[cuda]`).",
-            BACKEND_OPENCL: "OpenCL backend unavailable. It can be enabled by installing the `pyopencl` package (`pip install vkdispatch-core[opencl]`)."
-        }
-
-        print(f"\033[31mVkdispatch Backend Error:\033[0m {backend_error_dict.get(backend_name, 'Selected backend unavailable')}", file=sys.stderr)
-
-        exit(1)
+    if error_backend is not None and error_string is not None:
+        raise BackendUnavailableError(error_backend, error_string)
 
 
 def get_devices() -> List[DeviceInfo]:
