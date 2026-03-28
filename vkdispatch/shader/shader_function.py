@@ -127,8 +127,11 @@ class ExecutionBounds:
                 my_block = my_blocks[i]
                 max_block = vd.get_context().max_workgroup_count[i]
 
-                assert my_block > 0, f"Workgroup count for dimension {i} must be greater than 0!"
-                assert my_block <= max_block, f"Workgroup count ({my_block}) for dimension {i} exceeds maximum allowed size ({max_block})!"
+                if my_block <= 0:
+                    raise ValueError(f"Workgroup count for dimension {i} must be greater than 0!")
+                
+                if my_block > max_block:
+                    raise ValueError(f"Workgroup count ({my_block}) for dimension {i} exceeds maximum allowed size ({max_block})!")
         
         return (my_blocks, my_limits)
 
@@ -272,8 +275,9 @@ class ShaderFunction:
         print(self.get_src(line_numbers))
 
     def __call__(self, *args, **kwargs):
-        assert not vd.is_dummy(), "Cannot execute shader functions with dummy backend!"
-        
+        if vd.is_dummy():
+            raise RuntimeError("Cannot execute shader functions with dummy backend!")
+
         self.build()
 
         if not self.ready:

@@ -126,7 +126,9 @@ class CommandGraph(CommandList):
                     descriptor_set.set_inline_uniform_payload(uniform_payload[offset:offset + size])
             else:
                 self.ensure_uniform_constants_capacity(uniform_word_size)
-                assert self.uniform_constants_buffer is not None
+                
+                if self.uniform_constants_buffer is None:
+                    raise RuntimeError("Failed to allocate uniform constants buffer!")
 
                 for descriptor_set, offset, size in self.uniform_descriptors:
                     descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, True, write_access=False)
@@ -340,5 +342,7 @@ def set_global_graph(graph: CommandGraph = None) -> CommandGraph:
         _global_graph.custom_graph = None
         return
 
-    assert _get_global_graph() is None, "A global CommandGraph is already set for the current thread!"
+    if _get_global_graph() is not None:
+        raise RuntimeError("A global CommandGraph is already set for the current thread!")
+    
     _global_graph.custom_graph = graph

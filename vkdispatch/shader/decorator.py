@@ -88,7 +88,9 @@ def shader(
         defaults = arg_defaults
 
         if type_annotations is None:
-            assert names is None and defaults is None, "If 'arg_type_annotations' is not provided, 'arg_names' and 'arg_defaults' must also be None"
+            if names is not None or defaults is not None:
+                raise ValueError("If 'arg_type_annotations' is not provided, 'arg_names' and 'arg_defaults' must also be None")
+            
             type_annotations, names, defaults = inspect_function_signature(func)
 
         with vc.shader_context(flags=flags) as context:

@@ -23,7 +23,8 @@ def get_cuda_capture() -> CUDAGraphCapture:
 
 @contextmanager
 def cuda_graph_capture(cuda_stream=None):
-    assert vd.is_cuda(), "CUDA graph capture is only supported when using the CUDA backend."
+    if not vd.is_cuda():
+        raise RuntimeError("CUDA graph capture is only supported when using the CUDA backend.")
 
     cap = CUDAGraphCapture()
     cap.cuda_stream = cuda_stream
