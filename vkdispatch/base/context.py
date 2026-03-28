@@ -27,13 +27,14 @@ class Handle:
     children_dict: MutableMapping[int, "Handle"]
 
     def __init__(self):
-        self.context = get_context()
+        self.context = None
         self._handle = None
         self.destroyed = False
         self.parents = {}
         self.children_dict = weakref.WeakValueDictionary()
 
         self.canary = False
+        self.context = get_context()
 
     def register_handle(self, handle: int) -> None:
         """
@@ -87,7 +88,7 @@ class Handle:
         """
         Destroys the context handle and cleans up resources.
         """
-        if self.destroyed:
+        if getattr(self, "destroyed", True):
             return        
 
         self.destroyed = True
@@ -109,7 +110,10 @@ class Handle:
 
         self.canary = True
 
-        if self._handle in self.context.handles_dict.keys():
+        if (
+            self.context is not None
+            and self._handle in self.context.handles_dict.keys()
+        ):
             self.context.handles_dict.pop(self._handle)
         
         

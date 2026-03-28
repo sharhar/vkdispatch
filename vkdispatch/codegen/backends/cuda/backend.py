@@ -39,6 +39,19 @@ from .specs import (
 
 class CUDABackend(CodeGenBackend):
     name = "cuda"
+    _SUBGROUP_FEATURE_NAMES = {
+        "num_subgroups",
+        "subgroup_id",
+        "subgroup_size",
+        "subgroup_invocation_id",
+        "subgroup_add",
+        "subgroup_mul",
+        "subgroup_min",
+        "subgroup_max",
+        "subgroup_and",
+        "subgroup_or",
+        "subgroup_xor",
+    }
     _CUDA_BUILTIN_UVEC3_SENTINELS: Dict[str, Dict[str, str]] = {
         "global_invocation_id": {
             "sentinel": "VKDISPATCH_CUDA_GLOBAL_INVOCATION_ID_SENTINEL()",
@@ -79,10 +92,23 @@ class CUDABackend(CodeGenBackend):
         self._sample_texture_dims: Set[int] = set()
         self._needs_cuda_fp16: bool = False
         self._feature_usage: Dict[str, bool] = initialize_feature_usage()
+        self._printf_used: bool = False
 
     def mark_feature_usage(self, feature_name: str) -> None:
         if feature_name in self._feature_usage:
             self._feature_usage[feature_name] = True
+
+    def uses_feature(self, feature_name: str) -> bool:
+        if feature_name == "subgroup_ops":
+            return any(
+                self._feature_usage.get(name, False)
+                for name in self._SUBGROUP_FEATURE_NAMES
+            )
+
+        if feature_name == "printf":
+            return self._printf_used
+
+        return False
 
     _DTYPE_TO_COMPOSITE_KEY = _CUDA_DTYPE_TO_COMPOSITE_KEY
 
@@ -861,6 +887,7 @@ class CUDABackend(CodeGenBackend):
         return "__syncwarp();"
 
     def printf_statement(self, fmt: str, args: List[str]) -> str:
+        self._printf_used = True
         #safe_fmt = fmt.replace("\\", "\\\\").replace('"', '\\"')
 
         if len(args) == 0:

@@ -2,7 +2,7 @@
 
 `vkdispatch` is a Python GPU computing framework for writing single-source kernels in Python and dispatching them across multiple runtime backends.
 
-It combines runtime code generation, execution helpers, FFT and reduction utilities, and image/sampling support in one package. The default PyPI install ships with the Vulkan backend. CUDA and OpenCL backends can be enabled with optional runtime dependencies.
+It combines runtime code generation, execution helpers, and FFT/reduction utilities in one package. The default PyPI install ships with the Vulkan backend. CUDA and OpenCL backends can be enabled with optional runtime dependencies.
 
 ## Highlights
 
@@ -67,6 +67,11 @@ export VKDISPATCH_BACKEND=vulkan
 
 The dummy backend is useful for codegen-only workflows, source inspection, and development environments where no GPU runtime is available.
 
+There are two intended shader-generation modes:
+
+- Default mode: generate for the current machine/runtime. This is the normal path and is how `vkdispatch` picks backend-specific defaults and limits.
+- Custom mode: initialize with `backend="dummy"` and optionally tune the dummy device limits when you want controlled codegen without relying on the current runtime.
+
 ## Quick start
 
 The example below defines a simple in-place compute kernel in Python:
@@ -92,6 +97,34 @@ print(buff.read(0))
 ```
 
 In normal usage, `vkdispatch` initializes itself and creates a default context on first runtime use. Call `vd.initialize()` and `vd.make_context()` manually only when you want non-default settings such as backend selection, custom device selection, debug logging, or multi-device Vulkan contexts.
+
+## Codegen-Only Workflows
+
+If you want generated source without compiling or dispatching it on the current machine, use the dummy backend explicitly:
+
+```python
+import vkdispatch as vd
+import vkdispatch.codegen as vc
+from vkdispatch.codegen.abreviations import Buff, Const, f32
+
+vd.initialize(backend='dummy')
+vd.set_dummy_context_params(
+    subgroup_size=32,
+    max_workgroup_size=(128, 1, 1),
+    max_workgroup_count=(65535, 65535, 65535),
+)
+vc.set_codegen_backend('cuda')
+
+@vd.shader('buff.size')
+def add_scalar(buff: Buff[f32], bias: Const[f32]):
+    tid = vc.global_invocation_id().x
+    buff[tid] = buff[tid] + bias
+
+src = add_scalar.get_src(line_numbers=True)
+print(src)
+```
+
+In this mode, `vkdispatch` uses the dummy device model for launch/layout defaults and emits source for the backend selected with `vc.set_codegen_backend(...)`.
 
 ## Verifying your installation
 

@@ -21,9 +21,24 @@ class GLSLBackend(CodeGenBackend):
     def __init__(self) -> None:
         super().__init__()
         self._needed_extensions: Set[str] = set()
+        self._feature_usage = {
+            "subgroup_ops": False,
+            "printf": False,
+        }
 
     def reset_state(self) -> None:
         self._needed_extensions = set()
+        self._feature_usage = {
+            "subgroup_ops": False,
+            "printf": False,
+        }
+
+    def mark_feature_usage(self, feature_name: str) -> None:
+        if feature_name in self._feature_usage:
+            self._feature_usage[feature_name] = True
+
+    def uses_feature(self, feature_name: str) -> bool:
+        return self._feature_usage.get(feature_name, False)
 
     def _track_type_extension(self, var_type: dtypes.dtype) -> None:
         """Record the GLSL extension required by *var_type* (if any)."""
@@ -179,30 +194,37 @@ class GLSLBackend(CodeGenBackend):
 
     def subgroup_add_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
         _ = arg_type
+        self.mark_feature_usage("subgroup_ops")
         return f"subgroupAdd({arg_expr})"
 
     def subgroup_mul_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
         _ = arg_type
+        self.mark_feature_usage("subgroup_ops")
         return f"subgroupMul({arg_expr})"
 
     def subgroup_min_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
         _ = arg_type
+        self.mark_feature_usage("subgroup_ops")
         return f"subgroupMin({arg_expr})"
 
     def subgroup_max_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
         _ = arg_type
+        self.mark_feature_usage("subgroup_ops")
         return f"subgroupMax({arg_expr})"
 
     def subgroup_and_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
         _ = arg_type
+        self.mark_feature_usage("subgroup_ops")
         return f"subgroupAnd({arg_expr})"
 
     def subgroup_or_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
         _ = arg_type
+        self.mark_feature_usage("subgroup_ops")
         return f"subgroupOr({arg_expr})"
 
     def subgroup_xor_expr(self, arg_expr: str, arg_type: Optional[dtypes.dtype] = None) -> str:
         _ = arg_type
+        self.mark_feature_usage("subgroup_ops")
         return f"subgroupXor({arg_expr})"
 
     def subgroup_elect_expr(self) -> str:
@@ -212,6 +234,7 @@ class GLSLBackend(CodeGenBackend):
         return "subgroupBarrier();"
 
     def printf_statement(self, fmt: str, args: List[str]) -> str:
+        self.mark_feature_usage("printf")
         args_suffix = ""
 
         if len(args) > 0:

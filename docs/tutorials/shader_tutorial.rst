@@ -6,8 +6,9 @@ runtime. This page covers shader launch patterns and the key semantics of vkdisp
 runtime shader generation model.
 
 Examples below omit ``vd.initialize()`` and ``vd.make_context()`` because vkdispatch
-creates them automatically on first runtime use. Call them manually only when you need
-custom initialization/context settings.
+creates them automatically on first runtime use. That default path is intentional:
+generated shaders are specialized against the current machine/runtime unless you
+explicitly choose dummy-mode codegen.
 
 Runtime Generation Model
 ------------------------
@@ -22,6 +23,21 @@ as each operation runs. In practice:
 This is different from AST/IR compilers: it is a forward streaming model, so explicit
 register materialization and explicit shader control-flow helpers matter for performance
 and correctness.
+
+Default Runtime-Coupled Generation
+----------------------------------
+
+By default, ``vkdispatch`` generates shaders for the active runtime backend and uses that
+runtime's limits when choosing implicit launch defaults such as ``local_size``.
+
+This is the normal mode for end-to-end execution:
+
+1. define the kernel with ``@vd.shader``
+2. let ``vkdispatch`` auto-initialize or call ``vd.initialize(...)`` yourself
+3. execute the shader or inspect ``get_src()`` for the current machine
+
+If you want controlled source generation without relying on the active runtime, use the
+dummy backend explicitly.
 
 Imports and Type Annotations
 ----------------------------
@@ -218,6 +234,34 @@ You can pass mapping functions into APIs that accept ``mapping_function``,
 
 Inspecting Generated Shader Source
 ----------------------------------
+
+``get_src()`` returns the generated source for the currently selected runtime/codegen
+configuration. In the default mode, that means the generated shader is tied to the
+current machine/runtime by design.
+
+For explicit codegen-only workflows, initialize the dummy backend first and select the
+output backend you want:
+
+.. code-block:: python
+
+   import vkdispatch as vd
+   import vkdispatch.codegen as vc
+   from vkdispatch.codegen.abreviations import Buff, Const, f32
+
+   vd.initialize(backend="dummy")
+   vd.set_dummy_context_params(
+       subgroup_size=32,
+       max_workgroup_size=(128, 1, 1),
+       max_workgroup_count=(65535, 65535, 65535),
+   )
+   vc.set_codegen_backend("cuda")
+
+   @vd.shader("buff.size")
+   def add_scalar(buff: Buff[f32], bias: Const[f32]):
+       tid = vc.global_invocation_id().x
+       buff[tid] = buff[tid] + bias
+
+   print(add_scalar.get_src(line_numbers=True))
 
 A built shader can be printed for debugging:
 

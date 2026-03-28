@@ -415,9 +415,18 @@ class ShaderBuilder(ShaderWriter):
         if len(pc_decleration_contents) > 0:
             header += self.backend.push_constant_declaration(pc_decleration_contents)
 
+        enable_subgroup_ops = (
+            not (self.flags & ShaderFlags.NO_SUBGROUP_OPS)
+            and self.backend.uses_feature("subgroup_ops")
+        )
+        enable_printf = (
+            not (self.flags & ShaderFlags.NO_PRINTF)
+            and self.backend.uses_feature("printf")
+        )
+
         pre_header = self.backend.pre_header(
-            enable_subgroup_ops=not (self.flags & ShaderFlags.NO_SUBGROUP_OPS),
-            enable_printf=not (self.flags & ShaderFlags.NO_PRINTF)
+            enable_subgroup_ops=enable_subgroup_ops,
+            enable_printf=enable_printf,
         )
 
         return ShaderDescription(

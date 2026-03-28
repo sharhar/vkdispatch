@@ -22,6 +22,11 @@ class CodeGenBackend:
         # Backends that emit optional helper code can override this.
         return
 
+    def uses_feature(self, feature_name: str) -> bool:
+        # Backends that track optional helper code can override this.
+        _ = feature_name
+        return False
+
     def mark_composite_unary_op(self, var_type: dtypes.dtype, op: str) -> None:
         # Backends with composite helper/operator code can override this.
         return

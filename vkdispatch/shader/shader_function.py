@@ -141,6 +141,21 @@ class ShaderSource:
     def __repr__(self):
         return f"// ====== Source Code for '{self.name}', workgroup_size: {self.local_size} ======\n{self.code}"
 
+class ShaderBuildError(RuntimeError):
+    shader_source: ShaderSource
+    compiler_log: Optional[str]
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        shader_source: ShaderSource,
+        compiler_log: Optional[str] = None,
+    ) -> None:
+        super().__init__(message)
+        self.shader_source = shader_source
+        self.compiler_log = compiler_log
+
 class ShaderFunction:
     plan: ComputePlan
     shader_description: vc.ShaderDescription
@@ -224,9 +239,13 @@ class ShaderFunction:
                     self.shader_description.name
                 )
         except Exception as e:
-            print(f"Error building shader: {e}")
-            print(self.get_src(build=False, line_numbers=True))
-            raise e
+            shader_source = self.get_src(build=False, line_numbers=True)
+            compiler_log = str(e)
+            raise ShaderBuildError(
+                f"Failed to build shader '{self.name}': {compiler_log}",
+                shader_source=shader_source,
+                compiler_log=compiler_log,
+            ) from e
 
         self.ready = True
 
