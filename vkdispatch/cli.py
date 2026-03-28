@@ -18,15 +18,17 @@ def cli_entrypoint(verbose, log_info, vulkan_loader_debug_logs, debug, vulkan, c
     selected_backend = None
 
     if vulkan:
-        assert not cuda and not opencl, "Multiple backends selected. Please select only one backend."
+        if cuda or opencl:
+            raise click.UsageError("Multiple backends selected. Please select only one backend.")
         selected_backend = "vulkan"
     
     if cuda:
-        assert not vulkan and not opencl, "Multiple backends selected. Please select only one backend."
+        if opencl:
+            raise click.UsageError("Multiple backends selected. Please select only one backend.")
+        
         selected_backend = "cuda"
     
     if opencl:
-        assert not vulkan and not cuda, "Multiple backends selected. Please select only one backend."
         selected_backend = "opencl"
 
     log_level = vd.LogLevel.INFO if log_info or debug else vd.LogLevel.WARNING

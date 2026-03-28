@@ -59,7 +59,8 @@ class image_format(Enum):  # TODO: Fix class naming scheme to adhere to conventi
 
 # TODO: This can be moved into the enum class as an indexing method
 def select_image_format(dtype: vdt.dtype, channels: int) -> image_format:
-    assert channels in [1, 2, 3, 4], f"Unsupported number of channels ({channels})! Must be 1, 2, 3 or 4!"
+    if channels < 1 or channels > 4:
+        raise ValueError(f"Unsupported number of channels ({channels})! Must be 1, 2, 3 or 4!")
 
     # NOTE: These large if-else statements can be better indexed and maintained by a
     # dictionary lookup scheme
@@ -251,18 +252,23 @@ class Image(Handle):
     ) -> None:
         super().__init__()
 
-        assert len(shape) == 1 or len(shape) == 2 or len(shape) == 3, "Shape must be 2D or 3D!"
+        if len(shape) < 1 or len(shape) > 3:
+            raise ValueError("Shape must be 1D, 2D or 3D!")
 
-        assert type(shape[0]) == int, "Shape must be a tuple of integers!"
+        if type(shape[0]) != int:
+            raise ValueError("Shape must be a tuple of integers!")
         
-        if len(shape) > 1:
-            assert type(shape[1]) == int, "Shape must be a tuple of integers!"
+        if len(shape) > 1 and type(shape[1]) != int:
+            raise ValueError("Shape must be a tuple of integers!")
 
-        if len(shape) == 3:
-            assert type(shape[2]) == int, "Shape must be a tuple of integers!"
-
-        assert issubclass(dtype, vdt.dtype), "Dtype must be a dtype!"
-        assert type(channels) == int, "Channels must be an integer!"
+        if len(shape) >2 and type(shape[2]) != int:
+            raise ValueError("Shape must be a tuple of integers!")
+        
+        if not issubclass(dtype, vdt.dtype):
+            raise ValueError("Dtype must be a dtype!")
+        
+        if type(channels) != int:
+            raise ValueError("Channels must be an integer!")
 
         self.type = image_type.TYPE_1D
 
@@ -390,7 +396,8 @@ class Image2D(Image):
     def __init__(
         self, shape: typing.Tuple[int, int], dtype: type = vdt.float32, channels: int = 1, enable_mipmaps: bool = False
     ) -> None:
-        assert len(shape) == 2, "Shape must be 2D!"
+        if len(shape) != 2:
+            raise ValueError("Shape must be 2D!")
         super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_2D, enable_mipmaps)
     
     @classmethod
@@ -407,7 +414,9 @@ class Image2DArray(Image):
         channels: int = 1,
         enable_mipmaps: bool = False
     ) -> None:
-        assert len(shape) == 2, "Shape must be 2D!"
+        if len(shape) != 2:
+            raise ValueError("Shape must be 2D!")
+
         super().__init__(
             shape, layers, dtype, channels, image_view_type.VIEW_TYPE_2D_ARRAY, enable_mipmaps
         )
@@ -421,7 +430,9 @@ class Image3D(Image):
     def __init__(
         self, shape: typing.Tuple[int, int, int], dtype: type = vdt.float32, channels: int = 1, enable_mipmaps: bool = False
     ) -> None:
-        assert len(shape) == 3, "Shape must be 3D!"
+        if len(shape) != 3:
+            raise ValueError("Shape must be 3D!")
+        
         super().__init__(shape, 1, dtype, channels, image_view_type.VIEW_TYPE_3D, enable_mipmaps)
     
     @classmethod

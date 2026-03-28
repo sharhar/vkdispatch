@@ -112,9 +112,9 @@ class CommandList(Handle):
 
                 instance_count = len(data) // self.get_instance_size()
         
-        if self.get_instance_size() != 0:
-            assert self.get_instance_size() * instance_count == len(data), "Data length must be the product of the instance size and instance count!"
-
+        if self.get_instance_size() != 0 and self.get_instance_size() * instance_count != len(data):
+            raise ValueError("Data length must be the product of the instance size and instance count!")
+        
         if cuda_stream is None and get_cuda_capture() is not None:
             cuda_stream = get_cuda_capture().cuda_stream
 

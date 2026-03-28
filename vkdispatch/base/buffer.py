@@ -192,8 +192,11 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         :raises ValueError: If the data size exceeds the buffer size or if the index is invalid.
         """
         if index is not None:
-            assert isinstance(index, int), "Index must be an integer or None!"
-            assert index >= 0 and index < self.context.queue_count, "Index must be valid!"
+            if not isinstance(index, int):
+                raise ValueError("Index must be an integer or None!")
+            
+            if index < 0 or index >= self.context.queue_count:
+                raise ValueError("Index must be a valid device index within the context!")
 
         if not getattr(self, "is_writable", True):
             raise ValueError("Cannot write to a read-only buffer alias.")
@@ -214,8 +217,6 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         self._do_writes(true_data_object, index)
 
     def _do_reads(self, var_type: dtype, shape: List[int], index: int = None) -> bytes:
-        assert index is None or (isinstance(index, int) and index >= 0), "Index must be None or a non-negative integer!"
-
         indicies = [index] if index is not None else range(self.context.queue_count)
         completed_stages = [0] * len(indicies)
         bytes_list: List[bytes] = [None] * len(indicies)
@@ -275,6 +276,12 @@ class Buffer(Handle, typing.Generic[_ArgType]):
         data_shape = list(self.shape) + list(self.var_type.true_numpy_shape)
 
         if index is not None:
+            if not isinstance(index, int):
+                raise ValueError("Index must be an integer or None!")
+            
+            if index < 0 or index >= self.context.queue_count:
+                raise ValueError("Index must be a valid device index within the context!")
+
             return self._do_reads(true_scalar, data_shape, index)
         
         results = self._do_reads(true_scalar, data_shape, None)
@@ -306,7 +313,8 @@ def from_cuda_array(
     writable: typing.Optional[bool] = None,
     keepalive: bool = True,
 ) -> Buffer:
-    assert is_cuda(), "__cuda_array_interface__ is only supported with CUDA backends."
+    if not is_cuda():
+        raise RuntimeError("from_cuda_array is only supported with CUDA backends.")
 
     if not hasattr(obj, "__cuda_array_interface__"):
         raise TypeError("Expected an object with __cuda_array_interface__")
@@ -402,8 +410,12 @@ class RFFTBuffer(Buffer):
     def write_real(self, data, index: int = None):
         npc.require_numpy("RFFTBuffer.write_real")
         np = npc.numpy_module()
-        assert data.shape == self.real_shape, "Data shape must match real shape!"
-        assert not np.issubdtype(data.dtype, np.complexfloating), "Data dtype must be scalar!"
+
+        if data.shape != self.real_shape:
+            raise ValueError(f"Data shape {data.shape} must match real shape {self.real_shape}!")
+        
+        if np.issubdtype(data.dtype, np.complexfloating):
+            raise ValueError("Data dtype must be real, not complex!")
 
         real_dtype = to_numpy_dtype(self.real_type)
         true_data = np.zeros(self.shape[:-1] + (self.shape[-1] * 2,), dtype=real_dtype)
@@ -414,8 +426,12 @@ class RFFTBuffer(Buffer):
     def write_fourier(self, data, index: int = None):
         npc.require_numpy("RFFTBuffer.write_fourier")
         np = npc.numpy_module()
-        assert data.shape == self.fourier_shape, f"Data shape {data.shape} must match fourier shape {self.fourier_shape}!"
-        assert np.issubdtype(data.dtype, np.complexfloating), "Data dtype must be complex!"
+
+        if data.shape != self.fourier_shape:
+            raise ValueError(f"Data shape {data.shape} must match fourier shape {self.fourier_shape}!")
+        
+        if not np.issubdtype(data.dtype, np.complexfloating):
+            raise ValueError("Data dtype must be complex!")
 
         target_fourier_dtype = to_numpy_dtype(self.var_type)
         if npc.is_host_dtype(target_fourier_dtype):
@@ -435,7 +451,9 @@ class RFFTBuffer(Buffer):
 def asrfftbuffer(data, fourier_type: Optional[dtype] = None) -> RFFTBuffer:
     npc.require_numpy("asrfftbuffer")
     np = npc.numpy_module()
-    assert not np.issubdtype(data.dtype, np.complexfloating), "Data dtype must be scalar!"
+
+    if np.issubdtype(data.dtype, np.complexfloating):
+        raise ValueError("Input data to asrfftbuffer must be real-valued!")
 
     if fourier_type is None:
         scalar_dtype = from_numpy_dtype(data.dtype)

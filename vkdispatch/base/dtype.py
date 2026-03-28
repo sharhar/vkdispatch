@@ -571,19 +571,28 @@ def vector_size(dtype: dtype) -> int:
     return dtype.child_count
 
 def cross_scalar_scalar(dtype1: dtype, dtype2: dtype) -> dtype:
-    assert is_scalar(dtype1) and is_scalar(dtype2), "Both types must be scalar types!"
+    if not is_scalar(dtype1):
+        raise ValueError("First type must be a scalar type!")
+    
+    if not is_scalar(dtype2):
+        raise ValueError("Second type must be a scalar type!")
 
     r1 = _SCALAR_RANK[dtype1]
     r2 = _SCALAR_RANK[dtype2]
     return dtype1 if r1 >= r2 else dtype2
 
 def cross_vector_scalar(dtype1: dtype, dtype2: dtype) -> dtype:
-    assert is_vector(dtype1) and is_scalar(dtype2), "First type must be vector type and second type must be scalar type!"
+    if not is_vector(dtype1):
+        raise ValueError("First type must be a vector type!")
+    
+    if not is_scalar(dtype2):
+        raise ValueError("Second type must be a scalar type!")
 
     return to_vector(cross_scalar_scalar(dtype1.scalar, dtype2), dtype1.child_count)
 
 def cross_vector_vector(dtype1: dtype, dtype2: dtype) -> dtype:
-    assert is_vector(dtype1) and is_vector(dtype2), "Both types must be vector types!"
+    if not is_vector(dtype1) or not is_vector(dtype2):
+        raise ValueError("Both types must be vector types!")
 
     if dtype1.child_count != dtype2.child_count:
         raise ValueError(f"Cannot cross types of vectors of two sizes! ({dtype1.child_count} != {dtype2.child_count})")
@@ -591,7 +600,8 @@ def cross_vector_vector(dtype1: dtype, dtype2: dtype) -> dtype:
     return to_vector(cross_scalar_scalar(dtype1.scalar, dtype2.scalar), dtype1.child_count)
 
 def cross_vector(dtype1: dtype, dtype2: dtype) -> dtype:
-    assert is_vector(dtype1), "First type must be vector type!"
+    if not is_vector(dtype1):
+        raise ValueError("First type must be a vector type!")
 
     if is_vector(dtype2):
         return cross_vector_vector(dtype1, dtype2)
@@ -603,7 +613,8 @@ def cross_vector(dtype1: dtype, dtype2: dtype) -> dtype:
         raise ValueError("Second type must be vector or scalar type!")
 
 def cross_matrix(dtype1: dtype, dtype2: dtype) -> dtype:
-    assert is_matrix(dtype1), "Both types must be matrix types!"
+    if not is_matrix(dtype1):
+        raise ValueError("First type must be a matrix type!")
 
     if is_matrix(dtype2):
         if dtype1.shape != dtype2.shape:

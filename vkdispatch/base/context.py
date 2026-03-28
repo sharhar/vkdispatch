@@ -410,18 +410,14 @@ def make_context(
 
         total_devices = len(get_devices())
 
-        # Do type checking before passing to native code
-        assert len(device_ids) == len(
-            queue_families
-        ), "Device and submission thread count lists must be the same length!"
+        if len(device_ids) != len(queue_families):
+            raise ValueError("Device and submission thread count lists must be the same length!")
         
-        assert all(
-            [type(dev) == int for dev in device_ids]
-        ), "Device list must be a list of integers!"
-
-        assert all(
-            [dev >= 0 and dev < total_devices for dev in device_ids]
-        ), f"All device indicies must between 0 and {total_devices}"
+        if not all([isinstance(dev, int) for dev in device_ids]):
+            raise ValueError("Device list must be a list of integers!")
+        
+        if not all([dev >= 0 and dev < total_devices for dev in device_ids]):
+            raise ValueError(f"All device indicies must between 0 and {total_devices}")
 
         __context = Context(device_ids, queue_families)
 
@@ -569,9 +565,12 @@ def queue_wait_idle(queue_index: int = None, context: Context = None) -> None:
     if context is None:
         context = get_context()
 
-    assert queue_index is None or isinstance(queue_index, int), "queue_index must be an integer or None."
-    assert queue_index is None or queue_index >= 0, "queue_index must be a non-negative integer or None (for all queues)."
-    assert queue_index is None or queue_index < context.queue_count, f"Queue index {queue_index} is out of bounds for context with {context.queue_count} queues."
+    if queue_index is not None:
+        if not isinstance(queue_index, int):
+            raise ValueError("queue_index must be an integer or None!")
+        
+        if queue_index < 0 or queue_index >= context.queue_count:
+            raise ValueError(f"queue_index must be between 0 and {context.queue_count - 1} (inclusive) or None for all queues!")
 
     if queue_index is None:
         for i in range(context.queue_count):
