@@ -90,6 +90,7 @@ Minimal Example (API Layer View)
    import vkdispatch.codegen as vc
    from vkdispatch.codegen.abreviations import *
 
+   # @vd.shader(exec_size=lambda args: args.data.size)
    @vd.shader("data.size")
    def scale_inplace(data: Buff[f32], alpha: Const[f32]):
        tid = vc.global_invocation_id().x

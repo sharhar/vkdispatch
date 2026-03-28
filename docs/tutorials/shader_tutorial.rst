@@ -64,6 +64,7 @@ Basic In-Place Kernel
    import vkdispatch.codegen as vc
    from vkdispatch.codegen.abreviations import *
 
+   # @vd.shader(exec_size=lambda args: args.buff.size)
    @vd.shader("buff.size")
    def add_scalar(buff: Buff[f32], bias: Const[f32]):
        tid = vc.global_invocation_id().x
@@ -85,6 +86,7 @@ Use one of these launch patterns:
 
   .. code-block:: python
 
+     # @vd.shader(exec_size=lambda args: args.in_buf.size)
      @vd.shader("in_buf.size")
      def kernel(in_buf: Buff[f32], out_buf: Buff[f32]):
          ...
@@ -115,6 +117,9 @@ Use one of these launch patterns:
 
 ``exec_size`` and ``workgroups`` are mutually exclusive.
 The string form is often the most concise option for argument-dependent dispatch size.
+It is evaluated dynamically, so it is slightly more brittle than the lambda form.
+When you want the declaration itself to be more explicit and deterministic, prefer
+``exec_size=lambda args: ...``.
 
 You can also override launch parameters per call:
 
@@ -134,6 +139,7 @@ To materialize a value once and mutate it, convert it to a register with
 
 .. code-block:: python
 
+   # @vd.shader(exec_size=lambda args: args.buff.size)
    @vd.shader("buff.size")
    def register_example(buff: Buff[f32]):
        tid = vc.global_invocation_id().x
@@ -155,6 +161,7 @@ store syntax ``x[:] = ...``.
 
 .. code-block:: python
 
+   # @vd.shader(exec_size=lambda args: args.buff.size)
    @vd.shader("buff.size")
    def register_store(buff: Buff[f32]):
        tid = vc.global_invocation_id().x
@@ -169,6 +176,7 @@ Native Python control flow with vkdispatch variables is intentionally blocked:
 
 .. code-block:: python
 
+   # @vd.shader(exec_size=lambda args: args.buff.size)
    @vd.shader("buff.size")
    def bad_branch(buff: Buff[f32]):
        tid = vc.global_invocation_id().x
@@ -179,6 +187,7 @@ Use shader control-flow helpers so both branches are emitted into generated code
 
 .. code-block:: python
 
+   # @vd.shader(exec_size=lambda args: args.buff.size)
    @vd.shader("buff.size")
    def threshold(buff: Buff[f32], cutoff: Const[f32]):
        tid = vc.global_invocation_id().x
@@ -198,6 +207,7 @@ conditionals are useful for specialization and unrolling.
 .. code-block:: python
 
    def make_unrolled_sum(unroll: int):
+       # @vd.shader(exec_size=lambda args: args.dst.size)
        @vd.shader("dst.size")
        def unrolled_sum(src: Buff[f32], dst: Buff[f32]):
            tid = vc.global_invocation_id().x
@@ -256,6 +266,7 @@ output backend you want:
    )
    vc.set_codegen_backend("cuda")
 
+   # @vd.shader(exec_size=lambda args: args.buff.size)
    @vd.shader("buff.size")
    def add_scalar(buff: Buff[f32], bias: Const[f32]):
        tid = vc.global_invocation_id().x

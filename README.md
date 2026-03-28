@@ -82,6 +82,7 @@ import vkdispatch as vd
 import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import Buff, Const, f32
 
+# @vd.shader(exec_size=lambda args: args.buff.size)
 @vd.shader("buff.size")
 def add_scalar(buff: Buff[f32], bias: Const[f32]):
     tid = vc.global_invocation_id().x
@@ -95,6 +96,10 @@ add_scalar(buff, 1.5)
 
 print(buff.read(0))
 ```
+
+String launch sizing is the shortest form and is kept for convenience. If you want
+the launch rule to be more explicit and deterministic, use the equivalent lambda form
+instead: `@vd.shader(exec_size=lambda args: args.buff.size)`.
 
 In normal usage, `vkdispatch` initializes itself and creates a default context on first runtime use. Call `vd.initialize()` and `vd.make_context()` manually only when you want non-default settings such as backend selection, custom device selection, debug logging, or multi-device Vulkan contexts.
 
@@ -115,6 +120,7 @@ vd.set_dummy_context_params(
 )
 vc.set_codegen_backend('cuda')
 
+# @vd.shader(exec_size=lambda args: args.buff.size)
 @vd.shader('buff.size')
 def add_scalar(buff: Buff[f32], bias: Const[f32]):
     tid = vc.global_invocation_id().x
