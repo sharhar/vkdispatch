@@ -163,15 +163,19 @@ class GLSLBackend(CodeGenBackend):
         return "gl_NumWorkGroups"
 
     def num_subgroups_expr(self) -> str:
+        self.mark_feature_usage("subgroup_ops")
         return "gl_NumSubgroups"
 
     def subgroup_id_expr(self) -> str:
+        self.mark_feature_usage("subgroup_ops")
         return "gl_SubgroupID"
 
     def subgroup_size_expr(self) -> str:
+        self.mark_feature_usage("subgroup_ops")
         return "gl_SubgroupSize"
 
     def subgroup_invocation_id_expr(self) -> str:
+        self.mark_feature_usage("subgroup_ops")
         return "gl_SubgroupInvocationID"
 
     def barrier_statement(self) -> str:
@@ -228,9 +232,11 @@ class GLSLBackend(CodeGenBackend):
         return f"subgroupXor({arg_expr})"
 
     def subgroup_elect_expr(self) -> str:
+        self.mark_feature_usage("subgroup_ops")
         return "subgroupElect()"
 
     def subgroup_barrier_statement(self) -> str:
+        self.mark_feature_usage("subgroup_ops")
         return "subgroupBarrier();"
 
     def printf_statement(self, fmt: str, args: List[str]) -> str:
