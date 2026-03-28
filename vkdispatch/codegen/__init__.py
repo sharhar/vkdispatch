@@ -1,4 +1,4 @@
-from .arguments import Constant, Variable, ConstantArray, VariableArray
+from .arguments import Constant, Variable
 from .arguments import Buffer, Image1D, Image2D, Image3D
 
 from .arguments import _ArgType
@@ -22,8 +22,8 @@ from .functions.exponential import exp, exp2, log, log2, pow, sqrt, inversesqrt
 
 from .functions.geometric import length, distance, dot, cross, normalize
 
-from .functions.block_synchonization import barrier, memory_barrier, memory_barrier_buffer
-from .functions.block_synchonization import memory_barrier_shared, memory_barrier_image, group_memory_barrier
+from .functions.block_synchronization import barrier, memory_barrier, memory_barrier_buffer
+from .functions.block_synchronization import memory_barrier_shared, memory_barrier_image, group_memory_barrier
 
 from .functions.matrix import matrix_comp_mult, outer_product, transpose
 from .functions.matrix import determinant, inverse
@@ -90,4 +90,4 @@ from .global_builder import set_codegen_backend, get_codegen_backend
 
 from .context import ShaderContext, shader_context
 
-from .abreviations import *
+from .abbreviations import *

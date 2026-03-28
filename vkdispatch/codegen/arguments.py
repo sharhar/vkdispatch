@@ -15,14 +15,6 @@ class Variable(ShaderVariable, typing.Generic[_ArgType]):
     def __init__(self) -> None:
         pass
 
-class ConstantArray(ShaderVariable, typing.Generic[_ArgType, _ArgCount]):
-    def __init__(self) -> None:
-        pass
-
-class VariableArray(ShaderVariable, typing.Generic[_ArgType, _ArgCount]):
-    def __init__(self) -> None:
-        pass
-
 class Buffer(BufferVariable, typing.Generic[_ArgType]):
     def __init__(self) -> None:
         pass

@@ -12,7 +12,7 @@ import torch
 
 import vkdispatch as vd
 import vkdispatch.codegen as vc
-from vkdispatch.codegen.abreviations import Buff, Const, f32
+from vkdispatch.codegen.abbreviations import Buff, Const, f32
 
 
 @vd.shader(exec_size=lambda args: args.x.size)

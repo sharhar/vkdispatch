@@ -12,7 +12,7 @@ def printf(format: str, *args: Any):
     resolved_args = [resolve_arg(arg) for arg in args]
     utils.append_contents(utils.codegen_backend().printf_statement(format, resolved_args) + "\n")
 
-def print_vars(*args: Any, seperator=" "):
+def print_vars(*args: Any, separator=" "):
     args_list = []
 
     fmts = []
@@ -24,6 +24,6 @@ def print_vars(*args: Any, seperator=" "):
         else:
             fmts.append(str(arg))
 
-    fmt = seperator.join(fmts)
+    fmt = separator.join(fmts)
     
     utils.append_contents(utils.codegen_backend().printf_statement(fmt, args_list) + "\n")

@@ -48,7 +48,7 @@ class LaunchParametersHolder:
     def __getattr__(self, name: str):
         return self.ref_dict[name]
 
-class ExectionBounds:
+class ExecutionBounds:
     local_size: Tuple[int, int, int]
     workgroups: Union[Tuple[int, int, int], Callable, None]
     exec_size: Union[Tuple[int, int, int], Callable, None]
@@ -159,7 +159,7 @@ class ShaderBuildError(RuntimeError):
 class ShaderFunction:
     plan: ComputePlan
     shader_description: vc.ShaderDescription
-    bounds: ExectionBounds
+    bounds: ExecutionBounds
     ready: bool
     name: str
     source: str
@@ -193,7 +193,7 @@ class ShaderFunction:
             else [vd.get_context().max_workgroup_size[0], 1, 1]
         )
 
-        self.bounds = ExectionBounds(self.shader_description.get_arg_names_and_defaults(), my_local_size, self.workgroups, self.exec_size)
+        self.bounds = ExecutionBounds(self.shader_description.get_arg_names_and_defaults(), my_local_size, self.workgroups, self.exec_size)
 
         shader_backend_name = (
             self.shader_description.backend.name
