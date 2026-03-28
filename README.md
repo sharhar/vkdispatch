@@ -25,7 +25,7 @@ To install `vkdispatch` with the Vulkan backend, run:
 pip install vkdispatch
 ```
 
-This will install the entire core library, including the code generation along with a the Vulkan runtime backend which is desgined to run on any system supporting Vulkan 1.2 or higher (along with MacOS through statically linking MoltenVK). Alternate backends can be added with optional dependencies as described below.
+This installs the core library, the code generation system, and the Vulkan runtime backend. The Vulkan backend is designed to run on systems supporting Vulkan 1.2 or higher, including macOS via a statically linked MoltenVK. Alternate backends can be added with optional dependencies as described below.
 
 On mainstream platforms - Windows (`x86_64`), macOS (`x86_64` and Apple Silicon/`arm64`), and Linux (`x86_64`) - `pip` will usually download a prebuilt wheel, so no compiler is needed.
 
@@ -33,13 +33,13 @@ On less common platforms, `pip` may fall back to a source build, which takes a f
 
 ### Core package
 
-For cases where only the codegen component is needed (or in environments where only the CUDA/OpenCL backends are needed), the core package can be installed to provide all the features except the Vulkan runtime:
+For cases where only the codegen component is needed, or in environments where only the CUDA or OpenCL backends are needed, install the core package:
 
 ```bash
 pip install vkdispatch-core
 ```
 
-This installs the core library and codegen components, and nothing else. To enable features beyond pure codegen, you can install some of the optional dependencies described below.
+This installs the core library and codegen components, but not the Vulkan runtime backend. To enable runtime features beyond pure codegen, install the optional dependencies below.
 
 ### Optional components
 
@@ -56,7 +56,7 @@ This installs the core library and codegen components, and nothing else. To enab
 - `opencl`
 - `dummy`
 
-If you do not explicitly select a backend, `vkdispatch` prefers Vulkan. When the Vulkan backend cannot be imported due to not being installed, initialization falls back to CUDA and then OpenCL (if the `cuda-python` package is not installed).
+If you do not explicitly select a backend, ``vkdispatch`` prefers Vulkan. When the Vulkan backend cannot be imported because it is not installed, initialization falls back to CUDA and then OpenCL.
 
 You can select a backend explicitly in Python:
 
@@ -81,6 +81,35 @@ There are two intended shader-generation modes:
 
 - Default mode: generate for the current machine/runtime. This is the normal path and is how `vkdispatch` picks backend-specific defaults and limits.
 - Custom mode: initialize with `backend="dummy"` and optionally tune the dummy device limits when you want controlled codegen without relying on the current runtime.
+
+
+## Verifying your installation
+
+If you installed the optional CLI, you can list devices with:
+
+```bash
+vdlist
+
+# Explicit backend selection can be done with cmdline flags:
+vdlist --vulkan
+vdlist --cuda
+vdlist --opencl
+```
+
+You can always inspect devices from Python:
+
+```python
+import vkdispatch as vd
+
+for device in vd.get_devices():
+    print(device.get_info_string())
+```
+
+The reported version label depends on the active backend:
+
+- Vulkan devices show a Vulkan version
+- CUDA devices show CUDA compute capability
+- OpenCL devices show an OpenCL version
 
 ## Quick start
 
@@ -141,34 +170,6 @@ print(src)
 ```
 
 In this mode, `vkdispatch` uses the dummy device model for launch/layout defaults and emits source for the backend selected with `vc.set_codegen_backend(...)`.
-
-## Verifying your installation
-
-If you installed the optional CLI, you can list devices with:
-
-```bash
-vdlist
-
-# Explicit backend selection can be done with cmdline flags:
-vdlist --vulkan
-vdlist --cuda
-vdlist --opencl
-```
-
-You can always inspect devices from Python:
-
-```python
-import vkdispatch as vd
-
-for device in vd.get_devices():
-    print(device.get_info_string())
-```
-
-The reported version label depends on the active backend:
-
-- Vulkan devices show a Vulkan version
-- CUDA devices show CUDA compute capability
-- OpenCL devices show an OpenCL version
 
 ## Documentation
 
