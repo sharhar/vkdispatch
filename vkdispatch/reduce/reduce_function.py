@@ -111,7 +111,8 @@ class ReduceFunction:
             for i in skipped_axes:
                 input_stride *= args[0].shape[i]
 
-            assert input_stride == 1, "Reduction axes must be contiguous!"
+            if input_stride != 1:
+                raise ValueError("Reduction axes must be contiguous!")
 
         workgroups_x = int(npc.ceil(input_size / (self.group_size * input_stride)))
 

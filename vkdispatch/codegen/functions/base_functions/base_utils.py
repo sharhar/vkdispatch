@@ -108,12 +108,12 @@ def format_number_literal(var: numbers.Number, *, force_float32: bool = False, d
     return str(var)
 
 def resolve_input(var: Any, dtype: Optional[dtypes.dtype] = None) -> str:
-    #print("Resolving input:", var)
-
     if is_number(var):
         return format_number_literal(var, dtype=dtype)
 
-    assert isinstance(var, BaseVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, BaseVariable):
+        raise TypeError(f"Argument must be a ShaderVariable or number, but got {type(var)}")
+    
     return var.resolve()
 
 def resolve_input_type(var: Any) -> Optional[dtypes.dtype]:

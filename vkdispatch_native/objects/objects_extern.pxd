@@ -67,10 +67,6 @@ cdef extern from "objects/objects_extern.hh":
     void image_write_extern(Image* image, void* data, VkOffset3D offset, VkExtent3D extent, unsigned int baseLayer, unsigned int layerCount, int device_index)
     void image_read_extern(Image* image, void* data, VkOffset3D offset, VkExtent3D extent, unsigned int baseLayer, unsigned int layerCount, int device_index)
 
-    #void image_copy_extern(Image* src, Image* dst, VkOffset3D src_offset, unsigned int src_baseLayer, unsigned int src_layerCount, 
-    #                                               VkOffset3D dst_offset, unsigned int dst_baseLayer, unsigned int dst_layerCount, VkExtent3D extent, int device_index)
-
-
 cpdef inline buffer_create(unsigned long long context, unsigned long long size, int per_device):
     return <unsigned long long>buffer_create_extern(<Context*>context, size, per_device)
 
@@ -152,7 +148,8 @@ cpdef inline descriptor_set_write_image(
     descriptor_set_write_image_extern(ds, binding, <void*>object, <void*>sampler_obj, read_access, write_access)
 
 cpdef inline image_create(unsigned long long context, tuple[unsigned int, unsigned int, unsigned int] extent, unsigned int layers, unsigned int format, unsigned int type, unsigned int view_type, unsigned int generate_mips):
-    assert len(extent) == 3
+    if len(extent) != 3:
+        raise ValueError("Extent must be a tuple of three unsigned integers (width, height, depth)")
 
     cdef unsigned int width = extent[0]
     cdef unsigned int height = extent[1]
@@ -170,8 +167,11 @@ cpdef inline image_destroy_sampler(unsigned long long sampler):
     image_destroy_sampler_extern(<Sampler*>sampler)
 
 cpdef inline image_write(unsigned long long image, bytes data, tuple[int, int, int] offset, tuple[unsigned int, unsigned int, unsigned int] extent, unsigned int baseLayer, unsigned int layerCount, int device_index):
-    assert len(offset) == 3
-    assert len(extent) == 3
+    if len(offset) != 3:
+        raise ValueError("Offset must be a tuple of three integers (x, y, z)")
+
+    if len(extent) != 3:
+        raise ValueError("Extent must be a tuple of three unsigned integers (width, height, depth)")
 
     cdef int x = offset[0]
     cdef int y = offset[1]
@@ -189,8 +189,11 @@ cpdef inline unsigned int image_format_block_size(unsigned int format):
     return image_format_block_size_extern(format)
 
 cpdef inline image_read(unsigned long long image, unsigned long long out_size, tuple[int, int, int] offset, tuple[unsigned int, unsigned int, unsigned int] extent, unsigned int baseLayer, unsigned int layerCount, int device_index):
-    assert len(offset) == 3
-    assert len(extent) == 3
+    if len(offset) != 3:
+        raise ValueError("Offset must be a tuple of three integers (x, y, z)")
+    
+    if len(extent) != 3:
+        raise ValueError("Extent must be a tuple of three unsigned integers (width, height, depth)")
 
     cdef int x = offset[0]
     cdef int y = offset[1]

@@ -33,8 +33,9 @@ def reduce(identity, axes=None, group_size=None, mapping_function: vd.MappingFun
                 func = lambda buffer: buffer[mapped_io_index()],
                 return_type=func_signature.return_annotation,
                 input_types=[vc.Buffer[func_signature.return_annotation]])
-        else:
-            assert used_mapping_function.return_type == func_signature.return_annotation, "Mapping function return type must match the return type of the reduction function"
+        
+        elif used_mapping_function.return_type != func_signature.return_annotation:
+            raise ValueError("Mapping function return type must match the return type of the reduction function")
 
         return ReduceFunction(
             reduction=ReduceOp(

@@ -117,8 +117,8 @@ def fft(
         input_type: vd.dtype = None,
         compute_type: vd.dtype = None,
         input_signal_range: Union[Tuple[Optional[int], Optional[int]], None] = None):
-    
-    assert len(buffers) >= 1, "At least one buffer must be provided"
+    if len(buffers) < 1:
+        raise ValueError("At least one buffer must be provided")
 
     if input_map is None and output_map is None and len(buffers) != 1:
         raise ValueError("fft() expects exactly one buffer unless input_map/output_map are used")
@@ -171,7 +171,8 @@ def fft2(
     input_type: vd.dtype = None,
     compute_type: vd.dtype = None,
 ):
-    assert len(buffer.shape) == 2 or len(buffer.shape) == 3, 'Buffer must have 2 or 3 dimensions'
+    if len(buffer.shape) != 2 and len(buffer.shape) != 3:
+        raise ValueError('Buffer must have 2 or 3 dimensions')
 
     fft(
         buffer,
@@ -204,7 +205,8 @@ def fft3(
     input_type: vd.dtype = None,
     compute_type: vd.dtype = None,
 ):
-    assert len(buffer.shape) == 3, 'Buffer must have 3 dimensions'
+    if len(buffer.shape) != 3:
+        raise ValueError('Buffer must have 3 dimensions')
 
     fft(
         buffer,
@@ -275,7 +277,8 @@ def ifft2(
     input_type: vd.dtype = None,
     compute_type: vd.dtype = None,
 ):
-    assert len(buffer.shape) == 2 or len(buffer.shape) == 3, 'Buffer must have 2 or 3 dimensions'
+    if len(buffer.shape) != 2 and len(buffer.shape) != 3:
+        raise ValueError('Buffer must have 2 or 3 dimensions')
 
     ifft(
         buffer,
@@ -311,7 +314,8 @@ def ifft3(
     input_type: vd.dtype = None,
     compute_type: vd.dtype = None,
 ):
-    assert len(buffer.shape) == 3, 'Buffer must have 3 dimensions'
+    if len(buffer.shape) != 3:
+        raise ValueError('Buffer must have 3 dimensions')
 
     ifft(
         buffer,
@@ -367,7 +371,8 @@ def rfft(
     )
 
 def rfft2(buffer: vd.RFFTBuffer, graph: vd.CommandGraph = None, print_shader: bool = False, compute_type: vd.dtype = None):
-    assert len(buffer.real_shape) == 2 or len(buffer.real_shape) == 3, 'Buffer must have 2 or 3 dimensions'
+    if len(buffer.real_shape) != 2 and len(buffer.real_shape) != 3:
+        raise ValueError('Buffer must have 2 or 3 dimensions')
 
     rfft(buffer, graph=graph, print_shader=print_shader, compute_type=compute_type)
     fft(
@@ -381,7 +386,8 @@ def rfft2(buffer: vd.RFFTBuffer, graph: vd.CommandGraph = None, print_shader: bo
     )
 
 def rfft3(buffer: vd.RFFTBuffer, graph: vd.CommandGraph = None, print_shader: bool = False, compute_type: vd.dtype = None):
-    assert len(buffer.real_shape) == 3, 'Buffer must have 3 dimensions'
+    if len(buffer.real_shape) != 3:
+        raise ValueError('Buffer must have 3 dimensions')
 
     rfft(buffer, graph=graph, print_shader=print_shader, compute_type=compute_type)
     fft(
@@ -426,7 +432,8 @@ def irfft(
     )
 
 def irfft2(buffer: vd.RFFTBuffer, graph: vd.CommandGraph = None, print_shader: bool = False, normalize: bool = True, compute_type: vd.dtype = None):
-    assert len(buffer.real_shape) == 2 or len(buffer.real_shape) == 3, 'Buffer must have 2 or 3 dimensions'
+    if len(buffer.real_shape) != 2 and len(buffer.real_shape) != 3:
+        raise ValueError('Buffer must have 2 or 3 dimensions')
 
     ifft(
         buffer,
@@ -441,7 +448,8 @@ def irfft2(buffer: vd.RFFTBuffer, graph: vd.CommandGraph = None, print_shader: b
     irfft(buffer, graph=graph, print_shader=print_shader, normalize=normalize, compute_type=compute_type)
 
 def irfft3(buffer: vd.RFFTBuffer, graph: vd.CommandGraph = None, print_shader: bool = False, normalize: bool = True, compute_type: vd.dtype = None):
-    assert len(buffer.real_shape) == 3, 'Buffer must have 3 dimensions'
+    if len(buffer.real_shape) != 3:
+        raise ValueError('Buffer must have 3 dimensions')
 
     ifft(
         buffer,
@@ -484,7 +492,8 @@ def convolve(
         kernel_type: vd.dtype = None,
         compute_type: vd.dtype = None,
         input_signal_range: Union[Tuple[Optional[int], Optional[int]], None] = None):
-    assert len(buffers) >= 1, "At least one buffer must be provided"
+    if len(buffers) < 1:
+        raise ValueError("At least one buffer must be provided")
 
     if kernel_map is None and len(buffers) < 2:
         raise ValueError("convolve() requires at least an output buffer and kernel buffer")
@@ -554,7 +563,8 @@ def convolve2D(
         kernel_type: vd.dtype = None,
         compute_type: vd.dtype = None):
 
-    assert len(buffer.shape) == 2 or len(buffer.shape) == 3, 'Buffer must have 2 or 3 dimensions'
+    if len(buffer.shape) != 2 and len(buffer.shape) != 3:
+        raise ValueError('Buffer must have 2 or 3 dimensions')
 
     input_buffers = [buffer]
 
@@ -612,8 +622,9 @@ def convolve2DR(
         print_shader: bool = False,
         normalize: bool = True,
         compute_type: vd.dtype = None):
-    
-    assert len(buffer.shape) == 2 or len(buffer.shape) == 3, 'Buffer must have 2 or 3 dimensions'
+
+    if len(buffer.real_shape) != 2 and len(buffer.real_shape) != 3:
+        raise ValueError('Buffer must have 2 or 3 dimensions')
 
     rfft(buffer, graph=graph, print_shader=print_shader, compute_type=compute_type)
     convolve(
@@ -677,7 +688,10 @@ def transpose(
                 f"out_buffer type ({out_buffer.var_type.name}) does not match output_type ({resolved_output_type.name})"
             )
 
-    assert out_buffer.size >= transposed_size, f"Output buffer size {out_buffer.size} does not match expected transposed size {transposed_size}"
+    if out_buffer.size < transposed_size:
+        raise ValueError(
+            f"Output buffer size {out_buffer.size} is smaller than expected transposed size {transposed_size}"
+        )
 
     if conv_shape is None:
         conv_shape = in_buffer.shape

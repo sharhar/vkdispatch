@@ -16,8 +16,11 @@ def bitwise_op_common(var: BaseVariable,
                          other: Any,
                          reverse: bool = False,
                          inplace: bool = False) -> BaseVariable:
-    assert isinstance(var, BaseVariable), "First argument must be a ShaderVariable"
-    assert dtypes.is_integer_dtype(var.var_type), "Bitwise operations only supported on integer types."
+    if not isinstance(var, BaseVariable):
+        raise TypeError(f"First argument must be a ShaderVariable, but got {type(var)}")
+    
+    if not dtypes.is_integer_dtype(var.var_type):
+        raise TypeError(f"Bitwise operations only supported on integer types, but got '{var.var_type.name}'")
 
     result_type = None
 
@@ -29,16 +32,23 @@ def bitwise_op_common(var: BaseVariable,
         raise TypeError(f"Unsupported type for bitwise op: ShaderVariable and {type(other)}")
 
     if inplace:
-        assert var.is_setable(), "Inplace bitwise requires the variable to be settable."
-        assert not reverse, "Inplace bitwise does not support reverse operations."
+        if not var.is_setable():
+            raise ValueError("Inplace bitwise requires the variable to be settable.")
+        
+        if reverse:
+            raise ValueError("Inplace bitwise does not support reverse operations.")
+        
         var.read_callback()
         var.write_callback()
-        assert result_type == var.var_type, "Inplace bitwise requires the result type to match the variable type."
+
+        if result_type != var.var_type:
+            raise TypeError(f"Inplace bitwise requires the result type to match the variable type, but got '{result_type.name}' and '{var.var_type.name}' respectively.")
 
     if base_utils.is_int_number(other):
         return result_type
 
-    assert dtypes.is_integer_dtype(other.var_type), "Bitwise operations only supported on integer types."
+    if not dtypes.is_integer_dtype(other.var_type):
+        raise TypeError(f"Bitwise operations only supported on integer types, but got '{other.var_type.name}'")
 
     if inplace:
         other.read_callback()
@@ -63,7 +73,9 @@ def lshift(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool =
         base_utils.append_contents(f"{var.resolve()} <<= {other};\n")
         return var
 
-    assert isinstance(other, BaseVariable)
+    if not isinstance(other, BaseVariable):
+        raise TypeError(f"Unsupported type for left shift: ShaderVariable and {type(other)}")
+    
     _mark_bit_binary(var.var_type if not reverse else other.var_type, other.var_type if not reverse else var.var_type, "<<", inplace=inplace)
 
     if not inplace:
@@ -97,7 +109,9 @@ def rshift(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool =
         base_utils.append_contents(f"{var.resolve()} >>= {other};\n")
         return var
 
-    assert isinstance(other, BaseVariable)
+    if not isinstance(other, BaseVariable):
+        raise TypeError(f"Unsupported type for right shift: ShaderVariable and {type(other)}")
+    
     _mark_bit_binary(var.var_type if not reverse else other.var_type, other.var_type if not reverse else var.var_type, ">>", inplace=inplace)
 
     if not inplace:
@@ -123,8 +137,10 @@ def and_bits(var: BaseVariable, other: Any, inplace: bool = False):
 
         base_utils.append_contents(f"{var.resolve()} &= {other};\n")
         return var
-
-    assert isinstance(other, BaseVariable)
+    
+    if not isinstance(other, BaseVariable):
+        raise TypeError(f"Unsupported type for bitwise AND: ShaderVariable and {type(other)}")
+    
     _mark_bit_binary(var.var_type, other.var_type, "&", inplace=inplace)
 
     if not inplace:
@@ -143,8 +159,10 @@ def xor_bits(var: BaseVariable, other: Any, inplace: bool = False):
 
         base_utils.append_contents(f"{var.resolve()} ^= {other};\n")
         return var
-
-    assert isinstance(other, BaseVariable)
+    
+    if not isinstance(other, BaseVariable):
+        raise TypeError(f"Unsupported type for bitwise XOR: ShaderVariable and {type(other)}")
+    
     _mark_bit_binary(var.var_type, other.var_type, "^", inplace=inplace)
 
     if not inplace:
@@ -164,7 +182,9 @@ def or_bits(var: BaseVariable, other: Any, inplace: bool = False):
         base_utils.append_contents(f"{var.resolve()} |= {other};\n")
         return var
 
-    assert isinstance(other, BaseVariable)
+    if not isinstance(other, BaseVariable):
+        raise TypeError(f"Unsupported type for bitwise OR: ShaderVariable and {type(other)}")
+    
     _mark_bit_binary(var.var_type, other.var_type, "|", inplace=inplace)
 
     if not inplace:
@@ -174,8 +194,12 @@ def or_bits(var: BaseVariable, other: Any, inplace: bool = False):
     return var
 
 def invert(var: BaseVariable):
-    assert isinstance(var, BaseVariable), "First argument must be a ShaderVariable"
-    assert dtypes.is_integer_dtype(var.var_type), "Bitwise operations only supported on integer types."
+    if not isinstance(var, BaseVariable):
+        raise TypeError(f"Argument must be a ShaderVariable, but got {type(var)}")
+    
+    if not dtypes.is_integer_dtype(var.var_type):
+        raise TypeError(f"Bitwise operations only supported on integer types, but got '{var.var_type.name}'")
+    
     _mark_bit_unary(var, "~")
 
     return base_utils.new_base_var(

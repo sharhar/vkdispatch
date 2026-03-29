@@ -51,7 +51,8 @@ def pad_dim(dim: int, max_register_count: int = None):
     if max_register_count is None:
         max_register_count = default_register_limit()
 
-    assert dim > 0, 'Dimension must be greater than 0'
+    if dim <= 0:
+        raise ValueError('Dimension must be greater than 0')
 
     current_dim = dim
     current_primes = prime_factors(current_dim)

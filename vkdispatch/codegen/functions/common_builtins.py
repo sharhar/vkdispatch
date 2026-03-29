@@ -34,7 +34,8 @@ def abs(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return abs(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError(f"Argument must be a ShaderVariable or number, but got {type(var)}!")
 
     return utils.new_var(
         utils.dtype_to_floating(var.var_type),
@@ -47,7 +48,8 @@ def sign(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.sign(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError(f"Argument must be a ShaderVariable or number, but got {type(var)}!")
 
     return utils.new_var(
         utils.dtype_to_floating(var.var_type),
@@ -60,7 +62,8 @@ def floor(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.floor(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError(f"Argument must be a ShaderVariable or number, but got {type(var)}!")
 
     return utils.new_var(
         utils.dtype_to_floating(var.var_type),
@@ -73,7 +76,8 @@ def ceil(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.ceil(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError(f"Argument must be a ShaderVariable or number, but got {type(var)}!")
 
     return utils.new_var(
         utils.dtype_to_floating(var.var_type),
@@ -86,7 +90,8 @@ def trunc(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.trunc(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError(f"Argument must be a ShaderVariable or number, but got {type(var)}!")
 
     return utils.new_var(
         utils.dtype_to_floating(var.var_type),
@@ -99,7 +104,8 @@ def round(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.round(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError(f"Argument must be a ShaderVariable or number, but got {type(var)}!")
 
     return utils.new_var(
         utils.dtype_to_floating(var.var_type),
@@ -111,8 +117,10 @@ def round(var: Any) -> Union[ShaderVariable, float]:
 def round_even(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.round(var)
-
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    
+    if not isinstance(var, ShaderVariable):
+        raise ValueError(f"Argument must be a ShaderVariable or number, but got {type(var)}!")
+    
     utils.mark_backend_feature("roundEven")
 
     return utils.new_var(
@@ -126,7 +134,9 @@ def fract(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return float(var - se.floor(var))
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError(f"Argument must be a ShaderVariable or number, but got {type(var)}!")
+    
     utils.mark_backend_feature("fract")
 
     return utils.new_var(
@@ -147,7 +157,7 @@ def mod(x: Any, y: Any) -> Union[ShaderVariable, float]:
     elif isinstance(x, ShaderVariable):
         base_var = x
     else:
-        raise AssertionError("Arguments must be ShaderVariables or numbers")
+        raise ValueError("Arguments must be ShaderVariables or numbers")
     
     utils.mark_backend_feature("mod")
 
@@ -178,9 +188,13 @@ def modf(x: Any, y: Any) -> Tuple[ShaderVariable, ShaderVariable]:
             f"mod({x.resolve()}, {utils.resolve_input(y)})",
             parents=[x]
         )
-
-    assert isinstance(y, ShaderVariable), "First argument must be a ShaderVariable or number"
-    assert isinstance(x, ShaderVariable), "Second argument must be a ShaderVariable or number"
+    
+    if not isinstance(y, ShaderVariable):
+        raise ValueError(f"First argument must be a ShaderVariable or number, but got {type(y)}!")
+    
+    if not isinstance(x, ShaderVariable):
+        raise ValueError(f"Second argument must be a ShaderVariable or number, but got {type(x)}!")
+    
     utils.mark_backend_feature("mod")
 
     return utils.new_var(
@@ -201,7 +215,7 @@ def min(x: Any, y: Any) -> Union[ShaderVariable, float]:
     elif isinstance(x, ShaderVariable):
         base_var = x
     else:
-        raise AssertionError("Arguments must be ShaderVariables or numbers")
+        raise ValueError("Arguments must be ShaderVariables or numbers")
 
     return utils.new_var(
         utils.dtype_to_floating(base_var.var_type),
@@ -221,7 +235,7 @@ def max(x: Any, y: Any) -> Union[ShaderVariable, float]:
     elif isinstance(x, ShaderVariable):
         base_var = x
     else:
-        raise AssertionError("Arguments must be ShaderVariables or numbers")
+        raise ValueError("Arguments must be ShaderVariables or numbers")
 
     return utils.new_var(
         utils.dtype_to_floating(base_var.var_type),
@@ -243,7 +257,7 @@ def clip(x: Any, min_val: Any, max_val: Any) -> Union[ShaderVariable, float]:
     elif isinstance(x, ShaderVariable):
         base_var = x
     else:
-        raise AssertionError("Arguments must be ShaderVariables or numbers")
+        raise ValueError("Arguments must be ShaderVariables or numbers")
     
     return utils.new_var(
         utils.dtype_to_floating(base_var.var_type),
@@ -268,7 +282,7 @@ def mix(x: Any, y: Any, a: Any) -> Union[ShaderVariable, float]:
     elif isinstance(x, ShaderVariable):
         base_var = x
     else:
-        raise AssertionError("Arguments must be ShaderVariables or numbers")
+        raise ValueError("Arguments must be ShaderVariables or numbers")
     
     utils.mark_backend_feature("mix")
 
@@ -290,7 +304,7 @@ def step(edge: Any, x: Any) -> Union[ShaderVariable, float]:
     elif isinstance(edge, ShaderVariable):
         base_var = edge
     else:
-        raise AssertionError("Arguments must be ShaderVariables or numbers")
+        raise ValueError("Arguments must be ShaderVariables or numbers")
     
     utils.mark_backend_feature("step")
 
@@ -315,7 +329,7 @@ def smoothstep(edge0: Any, edge1: Any, x: Any) -> Union[ShaderVariable, float]:
     elif isinstance(edge0, ShaderVariable):
         base_var = edge0
     else:
-        raise AssertionError("Arguments must be ShaderVariables or numbers")
+        raise ValueError("Arguments must be ShaderVariables or numbers")
     
     utils.mark_backend_feature("smoothstep")
 
@@ -330,7 +344,8 @@ def isnan(var: Any) -> Union[ShaderVariable, bool]:
     if utils.is_number(var):
         return se.isnan(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError(f"Argument must be a ShaderVariable or number, but got {type(var)}!")
 
     return utils.new_var(
         dtypes.int32,
@@ -343,7 +358,8 @@ def isinf(var: Any) -> Union[ShaderVariable, bool]:
     if utils.is_number(var):
         return se.isinf(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError(f"Argument must be a ShaderVariable or number, but got {type(var)}!")
 
     return utils.new_var(
         dtypes.int32,
@@ -356,7 +372,8 @@ def float_bits_to_int(var: Any) -> Union[ShaderVariable, int]:
     if utils.is_number(var):
         return se.float_bits_to_int(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError(f"Argument must be a ShaderVariable or number, but got {type(var)}!")
 
     return utils.new_var(
         dtypes.int32,
@@ -369,7 +386,8 @@ def float_bits_to_uint(var: Any) -> Union[ShaderVariable, int]:
     if utils.is_number(var):
         return se.float_bits_to_uint(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError(f"Argument must be a ShaderVariable or number, but got {type(var)}!")
 
     return utils.new_var(
         dtypes.uint32,
@@ -381,8 +399,9 @@ def float_bits_to_uint(var: Any) -> Union[ShaderVariable, int]:
 def int_bits_to_float(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.int_bits_to_float(var)
-
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    
+    if not isinstance(var, ShaderVariable):
+        raise ValueError(f"Argument must be a ShaderVariable or number, but got {type(var)}!")
 
     return utils.new_var(
         dtypes.float32,
@@ -395,7 +414,8 @@ def uint_bits_to_float(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.uint_bits_to_float(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError(f"Argument must be a ShaderVariable or number, but got {type(var)}!")
 
     return utils.new_var(
         dtypes.float32,
@@ -417,7 +437,7 @@ def fma(a: Any, b: Any, c: Any) -> Union[ShaderVariable, float]:
     elif isinstance(a, ShaderVariable):
         base_var = a
     else:
-        raise AssertionError("Arguments must be ShaderVariables or numbers")
+        raise ValueError("Arguments must be ShaderVariables or numbers")
 
     result_type = utils.dtype_to_floating(base_var.var_type)
     fma_function = utils.codegen_backend().fma_function_name(result_type)

@@ -40,7 +40,8 @@ class BufferBuilder:
     element_map: Dict[Tuple[str, str], BufferedStructEntry]
 
     def __init__(self, struct_alignment: Optional[int] = None, usage: Optional[BufferUsage] = None) -> None:
-        assert struct_alignment is not None or usage is not None, "Either struct_alignment or usage must be provided!"
+        if struct_alignment is None and usage is None:
+            raise ValueError("Either 'struct_alignment' or 'usage' must be provided!")
 
         if struct_alignment is None:
             if usage == BufferUsage.PUSH_CONSTANT:
@@ -110,7 +111,8 @@ class BufferBuilder:
         arr = np.array(value, dtype=buffer_element.dtype)
 
         if self.instance_count != 1:
-            assert arr.shape[0] == self.instance_count, f"Invalid shape for {key}! Expected {self.instance_count} but got {arr.shape[0]}!"
+            if arr.shape[0] != self.instance_count:
+                raise ValueError(f"Invalid shape for {key}! Expected {self.instance_count} but got {arr.shape[0]}!")
 
             if buffer_element.shape == (1,):
                 arr = arr.reshape(*arr.shape, 1)
@@ -221,9 +223,9 @@ class BufferBuilder:
             payload = self._pack_single_instance_value(value[instance_index], key, buffer_element)
             self._write_payload(instance_index, buffer_element.memory_slice, payload)
 
-    def __setitem__(
-        self, key: Tuple[str, str], value: Union[Any, list, tuple, int, float]
-    ) -> None:
+    def set_item(self,
+                 key: Tuple[str, str],
+                 value: Union[Any, list, tuple, int, float]):
         if key not in self.element_map:
             raise ValueError(f"Invalid buffer element name '{key}'!")
 

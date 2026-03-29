@@ -26,6 +26,7 @@ _DEFAULT_MAX_WORKGROUP_COUNT = (65535, 65535, 65535)
 _DEFAULT_MAX_COMPUTE_SHARED_MEMORY_SIZE = 64 * 1024
 
 _device_subgroup_size = _DEFAULT_SUBGROUP_SIZE
+_device_subgroup_enabled = True
 _device_max_workgroup_size = _DEFAULT_MAX_WORKGROUP_SIZE
 _device_max_workgroup_invocations = _DEFAULT_MAX_WORKGROUP_INVOCATIONS
 _device_max_workgroup_count = _DEFAULT_MAX_WORKGROUP_COUNT
@@ -96,7 +97,7 @@ def _clear_error():
 
 _DUMMY_CODEGEN_ONLY_ERROR = (
     "The 'dummy' backend is codegen-only and does not support runtime GPU "
-    "operations. Use backend='vulkan', backend='pycuda', or backend='cuda-python' for execution."
+    "operations. Use backend='vulkan', backend='cuda', or backend='opencl' for execution."
 )
 
 
@@ -137,12 +138,14 @@ def _as_positive_triplet(name, value):
 
 def reset_device_options():
     global _device_subgroup_size
+    global _device_subgroup_enabled
     global _device_max_workgroup_size
     global _device_max_workgroup_invocations
     global _device_max_workgroup_count
     global _device_max_compute_shared_memory_size
 
     _device_subgroup_size = _DEFAULT_SUBGROUP_SIZE
+    _device_subgroup_enabled = True
     _device_max_workgroup_size = _DEFAULT_MAX_WORKGROUP_SIZE
     _device_max_workgroup_invocations = _DEFAULT_MAX_WORKGROUP_INVOCATIONS
     _device_max_workgroup_count = _DEFAULT_MAX_WORKGROUP_COUNT
@@ -151,12 +154,14 @@ def reset_device_options():
 
 def set_device_options(
     subgroup_size=None,
+    subgroup_enabled=None,
     max_workgroup_size=None,
     max_workgroup_invocations=None,
     max_workgroup_count=None,
     max_compute_shared_memory_size=None,
 ):
     global _device_subgroup_size
+    global _device_subgroup_enabled
     global _device_max_workgroup_size
     global _device_max_workgroup_invocations
     global _device_max_workgroup_count
@@ -164,6 +169,11 @@ def set_device_options(
 
     if subgroup_size is not None:
         _device_subgroup_size = _as_positive_int("subgroup_size", subgroup_size)
+
+    if subgroup_enabled is not None:
+        if not isinstance(subgroup_enabled, bool):
+            raise ValueError("subgroup_enabled must be a boolean value")
+        _device_subgroup_enabled = subgroup_enabled
 
     if max_workgroup_size is not None:
         _device_max_workgroup_size = _as_positive_triplet(
@@ -246,8 +256,8 @@ def get_devices():
         65536,  # max_uniform_buffer_range
         0,  # uniform_buffer_alignment
         _device_subgroup_size,  # subgroup_size
-        0x7FFFFFFF,  # supported_stages
-        0x7FFFFFFF,  # supported_operations
+        0x7FFFFFFF if _device_subgroup_enabled else 0,  # supported_stages
+        0x7FFFFFFF if _device_subgroup_enabled else 0,  # supported_operations
         1,  # quad_operations_in_all_stages
         _device_max_compute_shared_memory_size,  # max_compute_shared_memory_size
         [

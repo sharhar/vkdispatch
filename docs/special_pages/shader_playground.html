@@ -401,6 +401,7 @@
     <div class="backend-toggle" id="backend-toggle">
       <button class="active" data-backend="glsl">GLSL</button>
       <button data-backend="cuda">CUDA</button>
+      <button data-backend="opencl">OpenCL</button>
     </div>
     <h1>VkDispatch Shader Playground</h1>
     <button id="copy-output-btn">⎘ Copy</button>
@@ -455,15 +456,17 @@
         <label>Subgroup Size</label>
         <input type="text" id="opt-subgroup-size" value="32">
       </div>
-      <!-- <div class="opt-group">
+      <!-- <input type="checkbox" id="opt-subgroup-enabled" checked> -->
+
+      <div class="opt-group">
         <div class="toggle-row">
-          <span>Shader Print Line Numbers</span>
+          <span>Subgroup Ops Enabled</span>
           <label class="switch">
-            <input type="checkbox" id="opt-shader-line-numbers">
+            <input type="checkbox" id="opt-subgroup-enabled" checked>
             <span class="slider"></span>
           </label>
         </div>
-      </div>  -->
+      </div>
       <div class="opt-group">
         <label>Max Workgroup Size (x, y, z)</label>
         <div style="display:flex; gap:8px;">
@@ -498,6 +501,7 @@
 import vkdispatch.codegen as vc
 from vkdispatch.codegen.abreviations import *
 
+# @vd.shader(exec_size=lambda args: args.buff.size)
 @vd.shader("buff.size")
 def add_scalar(buff: Buff[f32], bias: Const[f32]):
     tid = vc.global_invocation_id().x
@@ -676,7 +680,7 @@ print(add_scalar)</textarea>
         btn.classList.add("active");
 
         /* Switch output highlighting mode */
-        if (backend === "cuda") {
+        if (backend === "cuda" || backend === "opencl") {
           window.cmOutput.setOption("mode", "text/x-csrc");
         } else {
           window.cmOutput.setOption("mode", "text/x-glsl");
@@ -690,6 +694,7 @@ print(add_scalar)</textarea>
     /* ── URL hash restore ── */
     var deviceFields = [
       { key: "ss",  id: "opt-subgroup-size" },
+      { key: "sse", id: "opt-subgroup-enabled" },
       { key: "wsx", id: "opt-wg-size-x" },
       { key: "wsy", id: "opt-wg-size-y" },
       { key: "wsz", id: "opt-wg-size-z" },
@@ -720,11 +725,11 @@ print(add_scalar)</textarea>
     /* Restore backend from URL */
     if (params.has("be")) {
       var be = params.get("be").toLowerCase();
-      if (be === "cuda") {
-        window.currentBackend = "cuda";
+      if (be === "cuda" || be === "opencl") {
+        window.currentBackend = be;
         toggleButtons.forEach(function (b) {
           b.classList.remove("active");
-          if (b.getAttribute("data-backend") === "cuda") {
+          if (b.getAttribute("data-backend") === be) {
             b.classList.add("active");
           }
         });
@@ -734,7 +739,15 @@ print(add_scalar)</textarea>
 
     deviceFields.forEach(function (f) {
       if (params.has(f.key)) {
-        document.getElementById(f.id).value = params.get(f.key);
+        if(f.id === "opt-subgroup-enabled") {
+          document.getElementById(f.id).checked =
+            params.get(f.key) === "1" ||
+            params.get(f.key).toLowerCase() === "true" ||
+            params.get(f.key).toLowerCase() === "yes" ||
+            params.get(f.key).toLowerCase() === "on";
+        } else {
+          document.getElementById(f.id).value = params.get(f.key);
+        }
       }
     });
     toggleFields.forEach(function (f) {
@@ -803,6 +816,11 @@ print(add_scalar)</textarea>
 
       deviceFields.forEach(function (f) {
         var val = document.getElementById(f.id).value.trim();
+
+        if(f.id === "opt-subgroup-enabled") {
+          val = document.getElementById(f.id).checked ? "1" : "0";
+        }
+
         if (val !== "") {
           hashParts.push(
             encodeURIComponent(f.key) +
@@ -988,6 +1006,7 @@ def _parse_positive_int(element_id, field_name):
 def _read_device_options():
     return {
         "subgroup_size": _parse_positive_int("opt-subgroup-size", "Subgroup Size"),
+        "subgroup_enabled": document["opt-subgroup-enabled"].checked,
         "max_workgroup_size": (
             _parse_positive_int("opt-wg-size-x", "Max Workgroup Size X"),
             _parse_positive_int("opt-wg-size-y", "Max Workgroup Size Y"),
@@ -1045,6 +1064,7 @@ def run_code(event):
         vd.get_context()
         vd.set_dummy_context_params(
             subgroup_size=options["subgroup_size"],
+            subgroup_enabled=options["subgroup_enabled"],
             max_workgroup_size=options["max_workgroup_size"],
             max_workgroup_invocations=options["max_workgroup_invocations"],
             max_workgroup_count=options["max_workgroup_count"],

@@ -156,7 +156,8 @@ cpdef inline get_devices():
     return device_list
 
 cpdef inline context_create(list[int] device_indicies, list[list[int]] queue_families):
-    assert len(device_indicies) == len(queue_families)
+    if len(device_indicies) != len(queue_families):
+        raise ValueError(f"Length of device_indicies ({len(device_indicies)}) must match length of queue_families ({len(queue_families)})")
 
     cdef int len_device_indicies = len(device_indicies)
     cdef int* device_indicies_c = <int*>malloc(len_device_indicies * sizeof(int))
@@ -177,8 +178,12 @@ cpdef inline context_create(list[int] device_indicies, list[list[int]] queue_fam
         for j in range(queue_counts_c[i]):
             queue_families_c[current_index] = queue_families[i][j]
             current_index += 1
-    
-    assert current_index == total_queue_count
+
+    if current_index != total_queue_count:
+        free(device_indicies_c)
+        free(queue_counts_c)
+        free(queue_families_c)
+        raise ValueError(f"Total queue count mismatch: expected {total_queue_count}, got {current_index}")
 
     cdef unsigned long long result = <unsigned long long>context_create_extern(device_indicies_c, queue_counts_c, queue_families_c, len_device_indicies)
 

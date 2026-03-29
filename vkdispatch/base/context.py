@@ -7,10 +7,11 @@ from typing import MutableMapping
 import atexit
 import weakref
 
+import sys
 import os, signal
 
 from .errors import check_for_errors, set_running
-from .init import DeviceInfo, is_cuda, is_opencl, is_dummy, get_devices, initialize, log_info
+from .init import DeviceInfo, is_cuda, is_opencl, is_dummy, get_devices, initialize, log_info, log_warning
 from ..backends.backend_selection import native
 
 VK_SHADER_STAGE_COMPUTE_BIT = 0x00000020
@@ -26,13 +27,14 @@ class Handle:
     children_dict: MutableMapping[int, "Handle"]
 
     def __init__(self):
-        self.context = get_context()
+        self.context = None
         self._handle = None
         self.destroyed = False
         self.parents = {}
         self.children_dict = weakref.WeakValueDictionary()
 
         self.canary = False
+        self.context = get_context()
 
     def register_handle(self, handle: int) -> None:
         """
@@ -86,7 +88,7 @@ class Handle:
         """
         Destroys the context handle and cleans up resources.
         """
-        if self.destroyed:
+        if getattr(self, "destroyed", True):
             return        
 
         self.destroyed = True
@@ -99,16 +101,22 @@ class Handle:
                 child = self.children_dict[child_handle]
                 child.destroy()
 
-        assert len(self.children_dict) == 0, "Not all children were destroyed!"
+        if len(self.children_dict) > 0:
+            log_warning(f"Warning: Not all child handles were destroyed for handle {self._handle}!")
         
-        assert not self.canary, "Handle was already destroyed!"
+        if self.canary:
+            raise RuntimeError("Handle was already destroyed!")
+
         if self._handle is not None:
             self._destroy()
             check_for_errors()
 
         self.canary = True
 
-        if self._handle in self.context.handles_dict.keys():
+        if (
+            self.context is not None
+            and self._handle in self.context.handles_dict.keys()
+        ):
             self.context.handles_dict.pop(self._handle)
         
         
@@ -186,9 +194,9 @@ class Context:
         self._handle = native.context_create(self.mapped_device_ids, queue_families)
         check_for_errors()
 
-        self._refresh_limits_from_device_infos()
+        self.refresh_limits_from_device_infos()
 
-    def _refresh_limits_from_device_infos(self) -> None:
+    def refresh_limits_from_device_infos(self) -> None:
         subgroup_sizes = []
         max_workgroup_sizes_x = []
         max_workgroup_sizes_y = []
@@ -405,18 +413,14 @@ def make_context(
 
         total_devices = len(get_devices())
 
-        # Do type checking before passing to native code
-        assert len(device_ids) == len(
-            queue_families
-        ), "Device and submission thread count lists must be the same length!"
+        if len(device_ids) != len(queue_families):
+            raise ValueError("Device and submission thread count lists must be the same length!")
         
-        assert all(
-            [type(dev) == int for dev in device_ids]
-        ), "Device list must be a list of integers!"
-
-        assert all(
-            [dev >= 0 and dev < total_devices for dev in device_ids]
-        ), f"All device indicies must between 0 and {total_devices}"
+        if not all([isinstance(dev, int) for dev in device_ids]):
+            raise ValueError("Device list must be a list of integers!")
+        
+        if not all([dev >= 0 and dev < total_devices for dev in device_ids]):
+            raise ValueError(f"All device indicies must between 0 and {total_devices}")
 
         __context = Context(device_ids, queue_families)
 
@@ -462,6 +466,7 @@ def _as_positive_triplet(name: str, value) -> Tuple[int, int, int]:
 
 def set_dummy_context_params(
     subgroup_size: int = None,
+    subgroup_enabled: bool = None,
     max_workgroup_size: Tuple[int, int, int] = None,
     max_workgroup_invocations: int = None,
     max_workgroup_count: Tuple[int, int, int] = None,
@@ -483,6 +488,7 @@ def set_dummy_context_params(
         __context = get_context()
 
     validated_subgroup_size = None
+    validated_subgroup_enabled = None
     validated_max_workgroup_size = None
     validated_max_workgroup_invocations = None
     validated_max_workgroup_count = None
@@ -493,6 +499,12 @@ def set_dummy_context_params(
     if subgroup_size is not None:
         validated_subgroup_size = _as_positive_int("subgroup_size", subgroup_size)
         backend_kwargs["subgroup_size"] = validated_subgroup_size
+
+    if subgroup_enabled is not None:
+        if not isinstance(subgroup_enabled, bool):
+            raise ValueError("subgroup_enabled must be a boolean value")
+        validated_subgroup_enabled = bool(subgroup_enabled)
+        backend_kwargs["subgroup_enabled"] = subgroup_enabled
 
     if max_workgroup_size is not None:
         validated_max_workgroup_size = _as_positive_triplet("max_workgroup_size", max_workgroup_size)
@@ -521,6 +533,14 @@ def set_dummy_context_params(
         if validated_subgroup_size is not None:
             device.sub_group_size = validated_subgroup_size
 
+        if validated_subgroup_enabled is not None:
+            if validated_subgroup_enabled:
+                device.supported_stages |= VK_SHADER_STAGE_COMPUTE_BIT
+                device.supported_operations |= VK_SUBGROUP_FEATURE_ARITHMETIC_BIT
+            else:
+                device.supported_stages &= ~VK_SHADER_STAGE_COMPUTE_BIT
+                device.supported_operations &= ~VK_SUBGROUP_FEATURE_ARITHMETIC_BIT
+
         if validated_max_workgroup_size is not None:
             device.max_workgroup_size = validated_max_workgroup_size
 
@@ -535,7 +555,7 @@ def set_dummy_context_params(
 
         device.uniform_buffer_alignment = 0
 
-    __context._refresh_limits_from_device_infos()
+    __context.refresh_limits_from_device_infos()
 
 def queue_wait_idle(queue_index: int = None, context: Context = None) -> None:
     """
@@ -548,9 +568,12 @@ def queue_wait_idle(queue_index: int = None, context: Context = None) -> None:
     if context is None:
         context = get_context()
 
-    assert queue_index is None or isinstance(queue_index, int), "queue_index must be an integer or None."
-    assert queue_index is None or queue_index >= 0, "queue_index must be a non-negative integer or None (for all queues)."
-    assert queue_index is None or queue_index < context.queue_count, f"Queue index {queue_index} is out of bounds for context with {context.queue_count} queues."
+    if queue_index is not None:
+        if not isinstance(queue_index, int):
+            raise ValueError("queue_index must be an integer or None!")
+        
+        if queue_index < 0 or queue_index >= context.queue_count:
+            raise ValueError(f"queue_index must be between 0 and {context.queue_count - 1} (inclusive) or None for all queues!")
 
     if queue_index is None:
         for i in range(context.queue_count):
@@ -584,7 +607,8 @@ def destroy_context() -> None:
         log_info(f"Destroying handle {handle._handle}...")
         handle.destroy()
 
-    assert len(__context.handles_dict) == 0, "Not all handles were destroyed!"
+    if len(__context.handles_dict) > 0:
+        log_warning(f"Warning: Not all handles were destroyed for context handle {__context._handle}!")
 
     log_info("Calling native context destroy...")
     native.context_destroy(__context._handle)
@@ -596,26 +620,60 @@ def stop_threads() -> None:
     """
     Stops all threads in the context.
     """
-    native.context_stop_threads(get_context_handle())
+    global __context
 
-_shutdown_once = False
-
-def _sig_handler(signum, frame):
-    print("Ctrl-C received, stopping threads...")
-
-    global _shutdown_once
-    set_running(False)
-    if not _shutdown_once:
-        _shutdown_once = True
-        # Flip the C++ atomic and notify all sleepers
-        stop_threads()
+    if __context is None:
         return
-    # Second Ctrl-C → default behavior (fast exit with right code)
-    signal.signal(signum, signal.SIG_DFL)
+
+    native.context_stop_threads(__context._handle)
+
+_sigint_shutdown_once = False
+_previous_signal_handlers = {}
+
+def _call_previous_handler(signum, frame) -> None:
+    previous_handler = _previous_signal_handlers.get(signum)
+
+    if callable(previous_handler) and previous_handler is not _sig_handler:
+        try:
+            previous_handler(signum, frame)
+        except Exception:
+            pass
+
+def _reraised_signal(signum: int, handler) -> None:
+    signal.signal(signum, handler)
     os.kill(os.getpid(), signum)
 
+def _sig_handler(signum, frame):
+    global _sigint_shutdown_once
+    set_running(False)
 
-from .brython_utils import is_brython
-if not is_brython():
+    if signum == signal.SIGINT:
+        print("Ctrl-C received, stopping threads...")
+
+        if not _sigint_shutdown_once:
+            _sigint_shutdown_once = True
+            stop_threads()
+            return
+
+        _reraised_signal(signum, signal.SIG_DFL)
+        return
+
+    if signum == signal.SIGTERM:
+        try:
+            destroy_context()
+        except Exception:
+            pass
+
+        _call_previous_handler(signum, frame)
+        _reraised_signal(signum, signal.SIG_DFL)
+        return
+
+    _call_previous_handler(signum, frame)
+    _reraised_signal(signum, signal.SIG_DFL)
+
+# No need to register signal handlers in Brython, since it runs in a browser
+if not sys.implementation.name == "Brython":
+    _previous_signal_handlers[signal.SIGINT] = signal.getsignal(signal.SIGINT)
+    _previous_signal_handlers[signal.SIGTERM] = signal.getsignal(signal.SIGTERM)
     signal.signal(signal.SIGINT, _sig_handler)
     signal.signal(signal.SIGTERM, _sig_handler)

@@ -79,7 +79,8 @@ class FFTRegisters:
         return True
 
     def read_from_registers(self, other: "FFTRegisters") -> "FFTRegisters":
-        assert self.count == other.count, "Register counts must match for copy"
+        if self.count != other.count:
+            raise ValueError("Register counts must match for copy")
 
         for i in range(self.count):
             self.registers[i][:] = other.registers[i]

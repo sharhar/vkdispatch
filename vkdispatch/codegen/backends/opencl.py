@@ -105,14 +105,17 @@ class OpenCLBackend(CodeGenBackend):
         target_type = self.type_name(var_type)
 
         if dtypes.is_scalar(var_type):
-            assert len(args) > 0, f"Constructor for scalar type '{var_type.name}' needs at least one argument."
+            if len(args) == 0:
+                raise ValueError(f"Constructor for scalar type '{var_type.name}' needs at least one argument.")
+            
             return f"(({target_type})({args[0]}))"
 
         if dtypes.is_matrix(var_type):
             dim = var_type.child_count
-            assert len(args) in (1, dim, dim * dim), (
-                f"Constructor for matrix type '{var_type.name}' needs 1, {dim}, or {dim * dim} arguments."
-            )
+            if len(args) not in (1, dim, dim * dim):
+                raise ValueError(
+                    f"Constructor for matrix type '{var_type.name}' needs 1, {dim}, or {dim * dim} arguments, but got {len(args)}."
+                )
             if len(args) == 1:
                 single_arg = args[0]
                 helper_name = self._matrix_helper_name(
@@ -165,6 +168,48 @@ class OpenCLBackend(CodeGenBackend):
             f"(({element_index_expr}) * {component_count}) + ({component_index_expr})"
             f"]"
         )
+
+    @staticmethod
+    def _uses_packed_vector_storage(var_type: dtypes.dtype) -> bool:
+        return dtypes.is_vector(var_type) and var_type.child_count == 3
+
+    def packed_buffer_read_expr(
+        self,
+        scalar_buffer_expr: str,
+        var_type: dtypes.dtype,
+        element_index_expr: str,
+    ) -> Optional[str]:
+        if not self._uses_packed_vector_storage(var_type):
+            return None
+
+        return self.constructor(
+            var_type,
+            [
+                f"{scalar_buffer_expr}[(({element_index_expr}) * 3) + 0]",
+                f"{scalar_buffer_expr}[(({element_index_expr}) * 3) + 1]",
+                f"{scalar_buffer_expr}[(({element_index_expr}) * 3) + 2]",
+            ],
+            arg_types=[var_type.scalar, var_type.scalar, var_type.scalar],
+        )
+
+    def packed_buffer_write_statements(
+        self,
+        scalar_buffer_expr: str,
+        var_type: dtypes.dtype,
+        element_index_expr: str,
+        value_expr: str,
+    ) -> Optional[str]:
+        if not self._uses_packed_vector_storage(var_type):
+            return None
+
+        statements: List[str] = []
+        for component_index, component_name in enumerate(("x", "y", "z")):
+            statements.append(
+                f"{scalar_buffer_expr}[(({element_index_expr}) * 3) + {component_index}] = "
+                f"{self.component_access_expr(value_expr, component_name, var_type)};\n"
+            )
+
+        return "".join(statements)
 
     def _cast_math_arg(self, arg_type: dtypes.dtype, arg_expr: str) -> str:
         if dtypes.is_scalar(arg_type) or dtypes.is_vector(arg_type) or dtypes.is_complex(arg_type):

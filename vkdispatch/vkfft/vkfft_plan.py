@@ -30,7 +30,8 @@ class VkFFTPlan(Handle):
                  keep_shader_code: bool = False):
         super().__init__()
 
-        assert len(shape) > 0 and len(shape) < 4, "shape must be 1D, 2D, or 3D"
+        if len(shape) == 0 or len(shape) > 3:
+            raise ValueError("Shape must be 1D, 2D, or 3D!")
 
         self.shape = shape
         self.do_r2c = do_r2c

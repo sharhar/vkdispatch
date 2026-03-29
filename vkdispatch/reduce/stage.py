@@ -54,20 +54,17 @@ def global_reduce(
 
     end_index = vc.new_uint_register(start_index + params.input_size, var_name="end_index")
 
-    vc.while_statement(current_index < end_index)
+    with vc.while_block(current_index < end_index):
+        mapped_value = buffers[0][current_index]
 
-    mapped_value = buffers[0][current_index]
+        if map_func is not None:
+            set_mapped_io_index(current_index)
+            mapped_value = map_func.callback(*buffers)
+            set_mapped_io_index(None)
 
-    if map_func is not None:
-        set_mapped_io_index(current_index)
-        mapped_value = map_func.callback(*buffers)
-        set_mapped_io_index(None)
+        reduction_aggregate[:] = reduction.reduction(reduction_aggregate, mapped_value)
 
-    reduction_aggregate[:] = reduction.reduction(reduction_aggregate, mapped_value)
-
-    current_index += vc.workgroup_size().x * vc.num_workgroups().x
-
-    vc.end()
+        current_index += vc.workgroup_size().x * vc.num_workgroups().x
 
     return reduction_aggregate
 
@@ -91,19 +88,17 @@ def workgroup_reduce(
     
     current_size = group_size // 2
     while current_size > subgroup_reduce_size:
-        vc.if_statement(tid < current_size)
-        sdata[tid] = reduction.reduction(sdata[tid], sdata[tid + current_size])            
-        if current_size // 2 > subgroup_reduce_size:
-            vc.end()
-        else:
+        with vc.if_block(tid < current_size):
+            sdata[tid] = reduction.reduction(sdata[tid], sdata[tid + current_size])            
+        
+        if current_size // 2 <= subgroup_reduce_size:
             tid_limit = 2
 
             if subgroup_reduce_size != 1:
                 tid_limit = 2*vc.subgroup_size()
 
-            vc.else_if_statement(tid < tid_limit)
-            sdata[tid] = vc.new_register(out_type, 0)
-            vc.end()
+            with vc.else_if_block(tid < tid_limit):
+                sdata[tid] = vc.new_register(out_type, 0)
         
         vc.barrier()
         
@@ -122,10 +117,9 @@ def subgroup_reduce(
         subgroup_reduce_size = 1
 
     if group_size > subgroup_reduce_size:
-        vc.if_statement(tid < subgroup_reduce_size)
-        sdata[tid] = reduction.reduction(sdata[tid], sdata[tid + subgroup_reduce_size])
-        vc.end()
-
+        with vc.if_block(tid < subgroup_reduce_size):
+            sdata[tid] = reduction.reduction(sdata[tid], sdata[tid + subgroup_reduce_size])
+        
         if subgroup_reduce_size == 1:
             return sdata[tid].to_register("local_var")
 
@@ -139,9 +133,9 @@ def subgroup_reduce(
     else:
         current_size = subgroup_reduce_size // 2
         while current_size > 1:
-            vc.if_statement(tid < current_size)
-            sdata[tid] = reduction.reduction(sdata[tid], sdata[tid + current_size])
-            vc.end()
+            with vc.if_block(tid < current_size):
+                sdata[tid] = reduction.reduction(sdata[tid], sdata[tid + current_size])
+
             vc.subgroup_barrier()
             
             current_size //= 2
@@ -160,7 +154,7 @@ def make_reduction_stage(
 
     name = f"reduction_stage_{reduction.name}_{out_type.name}_{input_types}_{group_size}"
     
-    with vd.shader_context() as context:
+    with vc.shader_context() as context:
         signature_type_array = []
         
         signature_type_array.append(vc.Buffer[out_type])
@@ -183,8 +177,10 @@ def make_reduction_stage(
         batch_offset = vc.workgroup_id().y * params.output_y_batch_stride
         output_offset = vc.workgroup_id().x * params.output_stride
 
-        vc.if_statement(vc.local_invocation_id().x == 0)
-        input_variables[0][batch_offset + output_offset + params.output_offset] = local_var
-        vc.end()
+        with vc.if_block(vc.local_invocation_id().x == 0):
+            input_variables[0][batch_offset + output_offset + params.output_offset] = local_var
 
-        return context.get_function(local_size=(group_size, 1, 1), name=name)
+        return vd.make_shader_function(
+            context.get_description(name),
+            local_size=(group_size, 1, 1)
+        )

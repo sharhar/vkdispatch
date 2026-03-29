@@ -6,8 +6,9 @@ runtime. This page covers shader launch patterns and the key semantics of vkdisp
 runtime shader generation model.
 
 Examples below omit ``vd.initialize()`` and ``vd.make_context()`` because vkdispatch
-creates them automatically on first runtime use. Call them manually only when you need
-custom initialization/context settings.
+creates them automatically on first runtime use. That default path is intentional:
+generated shaders are specialized against the current machine/runtime unless you
+explicitly choose dummy-mode codegen.
 
 Runtime Generation Model
 ------------------------
@@ -23,6 +24,21 @@ This is different from AST/IR compilers: it is a forward streaming model, so exp
 register materialization and explicit shader control-flow helpers matter for performance
 and correctness.
 
+Default Runtime-Coupled Generation
+----------------------------------
+
+By default, ``vkdispatch`` generates shaders for the active runtime backend and uses that
+runtime's limits when choosing implicit launch defaults such as ``local_size``.
+
+This is the normal mode for end-to-end execution:
+
+1. define the kernel with ``@vd.shader``
+2. let ``vkdispatch`` auto-initialize or call ``vd.initialize(...)`` yourself
+3. execute the shader or inspect ``get_src()`` for the current machine
+
+If you want controlled source generation without relying on the active runtime, use the
+dummy backend explicitly.
+
 Imports and Type Annotations
 ----------------------------
 
@@ -32,7 +48,7 @@ Most shader examples use these imports:
 
    import vkdispatch as vd
    import vkdispatch.codegen as vc
-   from vkdispatch.codegen.abreviations import *
+   from vkdispatch.codegen.abbreviations import *
 
 * ``Buff[...]`` is a shader buffer argument type.
 * ``Const[...]`` is a uniform/constant argument type.
@@ -46,8 +62,9 @@ Basic In-Place Kernel
    import numpy as np
    import vkdispatch as vd
    import vkdispatch.codegen as vc
-   from vkdispatch.codegen.abreviations import *
+   from vkdispatch.codegen.abbreviations import *
 
+   # @vd.shader(exec_size=lambda args: args.buff.size)
    @vd.shader("buff.size")
    def add_scalar(buff: Buff[f32], bias: Const[f32]):
        tid = vc.global_invocation_id().x
@@ -69,6 +86,7 @@ Use one of these launch patterns:
 
   .. code-block:: python
 
+     # @vd.shader(exec_size=lambda args: args.in_buf.size)
      @vd.shader("in_buf.size")
      def kernel(in_buf: Buff[f32], out_buf: Buff[f32]):
          ...
@@ -99,6 +117,9 @@ Use one of these launch patterns:
 
 ``exec_size`` and ``workgroups`` are mutually exclusive.
 The string form is often the most concise option for argument-dependent dispatch size.
+It is evaluated dynamically, so it is slightly more brittle than the lambda form.
+When you want the declaration itself to be more explicit and deterministic, prefer
+``exec_size=lambda args: ...``.
 
 You can also override launch parameters per call:
 
@@ -118,6 +139,7 @@ To materialize a value once and mutate it, convert it to a register with
 
 .. code-block:: python
 
+   # @vd.shader(exec_size=lambda args: args.buff.size)
    @vd.shader("buff.size")
    def register_example(buff: Buff[f32]):
        tid = vc.global_invocation_id().x
@@ -139,6 +161,7 @@ store syntax ``x[:] = ...``.
 
 .. code-block:: python
 
+   # @vd.shader(exec_size=lambda args: args.buff.size)
    @vd.shader("buff.size")
    def register_store(buff: Buff[f32]):
        tid = vc.global_invocation_id().x
@@ -153,6 +176,7 @@ Native Python control flow with vkdispatch variables is intentionally blocked:
 
 .. code-block:: python
 
+   # @vd.shader(exec_size=lambda args: args.buff.size)
    @vd.shader("buff.size")
    def bad_branch(buff: Buff[f32]):
        tid = vc.global_invocation_id().x
@@ -163,6 +187,7 @@ Use shader control-flow helpers so both branches are emitted into generated code
 
 .. code-block:: python
 
+   # @vd.shader(exec_size=lambda args: args.buff.size)
    @vd.shader("buff.size")
    def threshold(buff: Buff[f32], cutoff: Const[f32]):
        tid = vc.global_invocation_id().x
@@ -182,6 +207,7 @@ conditionals are useful for specialization and unrolling.
 .. code-block:: python
 
    def make_unrolled_sum(unroll: int):
+       # @vd.shader(exec_size=lambda args: args.dst.size)
        @vd.shader("dst.size")
        def unrolled_sum(src: Buff[f32], dst: Buff[f32]):
            tid = vc.global_invocation_id().x
@@ -218,6 +244,35 @@ You can pass mapping functions into APIs that accept ``mapping_function``,
 
 Inspecting Generated Shader Source
 ----------------------------------
+
+``get_src()`` returns the generated source for the currently selected runtime/codegen
+configuration. In the default mode, that means the generated shader is tied to the
+current machine/runtime by design.
+
+For explicit codegen-only workflows, initialize the dummy backend first and select the
+output backend you want:
+
+.. code-block:: python
+
+   import vkdispatch as vd
+   import vkdispatch.codegen as vc
+   from vkdispatch.codegen.abbreviations import Buff, Const, f32
+
+   vd.initialize(backend="dummy")
+   vd.set_dummy_context_params(
+       subgroup_size=32,
+       max_workgroup_size=(128, 1, 1),
+       max_workgroup_count=(65535, 65535, 65535),
+   )
+   vc.set_codegen_backend("cuda")
+
+   # @vd.shader(exec_size=lambda args: args.buff.size)
+   @vd.shader("buff.size")
+   def add_scalar(buff: Buff[f32], bias: Const[f32]):
+       tid = vc.global_invocation_id().x
+       buff[tid] = buff[tid] + bias
+
+   print(add_scalar.get_src(line_numbers=True))
 
 A built shader can be printed for debugging:
 

@@ -22,12 +22,18 @@ def _get_read_op() -> Optional[GlobalReadOp]:
 
 def write_op() -> GlobalWriteOp:
     op = _get_write_op()
-    assert op is not None, "No global write operation is set for the current thread!"
+    
+    if op is None:
+        raise ValueError("No global write operation is set for the current thread!")
+    
     return op
 
 def read_op() -> GlobalReadOp:
     op = _get_read_op()
-    assert op is not None, "No global read operation is set for the current thread!"
+
+    if op is None:
+        raise ValueError("No global read operation is set for the current thread!")
+    
     return op
 
 def set_write_op(op: GlobalWriteOp):
@@ -35,7 +41,9 @@ def set_write_op(op: GlobalWriteOp):
         _write_op.op = None
         return
 
-    assert _get_write_op() is None, "A global write operation is already set for the current thread!"
+    if _get_write_op() is not None:
+        raise ValueError("A global write operation is already set for the current thread!")
+    
     _write_op.op = op
 
 def set_read_op(op: GlobalReadOp):
@@ -43,7 +51,8 @@ def set_read_op(op: GlobalReadOp):
         _read_op.op = None
         return
 
-    assert _get_read_op() is None, "A global read operation is already set for the current thread!"
+    if _get_read_op() is not None:
+        raise ValueError("A global read operation is already set for the current thread!")
     _read_op.op = op
 
 class IOManager:
@@ -54,7 +63,7 @@ class IOManager:
 
     def __init__(self,
                     default_registers: FFTRegisters,
-                    shader_context: vd.ShaderContext,
+                    shader_context: vc.ShaderContext,
                     output_map: Optional[vd.MappingFunction],
                     output_type: dtypes.dtype = vd.complex64,
                     input_type: Optional[dtypes.dtype] = None,

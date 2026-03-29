@@ -1,7 +1,7 @@
 import vkdispatch as vd
 import vkdispatch.codegen as vc
 
-from typing import Tuple
+from typing import Tuple, Optional
 from typing import Union
 from typing import Callable
 from typing import List
@@ -9,7 +9,7 @@ from typing import Any
 
 from vkdispatch.base.compute_plan import ComputePlan
 
-from .signature import ShaderArgumentType, ShaderSignature
+from ..codegen.shader_description import ShaderArgumentType
 
 import uuid
 
@@ -48,7 +48,7 @@ class LaunchParametersHolder:
     def __getattr__(self, name: str):
         return self.ref_dict[name]
 
-class ExectionBounds:
+class ExecutionBounds:
     local_size: Tuple[int, int, int]
     workgroups: Union[Tuple[int, int, int], Callable, None]
     exec_size: Union[Tuple[int, int, int], Callable, None]
@@ -77,7 +77,7 @@ class ExectionBounds:
         if not isinstance(in_val, tuple):
             raise ValueError("Must provide a tuple of dimensions!")
         
-        if len(in_val) < 0 or len(in_val) > 4:
+        if len(in_val) <= 0 or len(in_val) >= 4:
             raise ValueError("Must provide a tuple of length 1, 2, or 3!")
         
         return_val = [1, 1, 1]
@@ -127,8 +127,11 @@ class ExectionBounds:
                 my_block = my_blocks[i]
                 max_block = vd.get_context().max_workgroup_count[i]
 
-                assert my_block > 0, f"Workgroup count for dimension {i} must be greater than 0!"
-                assert my_block <= max_block, f"Workgroup count ({my_block}) for dimension {i} exceeds maximum allowed size ({max_block})!"
+                if my_block <= 0:
+                    raise ValueError(f"Workgroup count for dimension {i} must be greater than 0!")
+                
+                if my_block > max_block:
+                    raise ValueError(f"Workgroup count ({my_block}) for dimension {i} exceeds maximum allowed size ({max_block})!")
         
         return (my_blocks, my_limits)
 
@@ -141,61 +144,47 @@ class ShaderSource:
     def __repr__(self):
         return f"// ====== Source Code for '{self.name}', workgroup_size: {self.local_size} ======\n{self.code}"
 
+class ShaderBuildError(RuntimeError):
+    shader_source: ShaderSource
+    compiler_log: Optional[str]
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        shader_source: ShaderSource,
+        compiler_log: Optional[str] = None,
+    ) -> None:
+        super().__init__(message)
+        self.shader_source = shader_source
+        self.compiler_log = compiler_log
+
 class ShaderFunction:
     plan: ComputePlan
-    func: Callable
     shader_description: vc.ShaderDescription
-    shader_signature: ShaderSignature
-    bounds: ExectionBounds
+    bounds: ExecutionBounds
     ready: bool
     name: str
     source: str
-    flags: vc.ShaderFlags
     local_size: Union[Tuple[int, int, int], Callable, None]
     workgroups: Union[Tuple[int, int, int], Callable, None]
     exec_size: Union[Tuple[int, int, int], Callable, None]
 
     def __init__(self,
-                 func: Callable,
+                 shader_description: vc.ShaderDescription,
                  local_size=None,
                  workgroups=None,
-                 exec_count=None,
-                 flags: vc.ShaderFlags = vc.ShaderFlags.NONE,
-                 name: str = None) -> None:
+                 exec_count=None) -> None:
         
         self.plan = None
-        self.func = func
-        self.shader_description = None
-        self.shader_signature = None
+        self.shader_description = shader_description
         self.bounds = None
         self.ready = False
-        self.name = name if name is not None else func.__name__ if func is not None else None
+        self.name = shader_description.name
         self.source = None
         self.local_size = local_size
         self.workgroups = workgroups
         self.exec_size = exec_count
-        self.flags = flags
-
-    def from_description(
-        shader_description: vc.ShaderDescription,
-        shader_signature: ShaderSignature,
-        local_size=None,
-        workgroups=None,
-        exec_count=None,
-        
-    ) -> "ShaderFunction":
-        shader_obj = ShaderFunction(
-            func=None,
-            local_size=local_size,
-            workgroups=workgroups,
-            exec_count=exec_count,
-            flags=vc.ShaderFlags.NONE
-        )
-
-        shader_obj.shader_description = shader_description
-        shader_obj.shader_signature = shader_signature
-
-        return shader_obj
 
     def build(self):
         if self.ready:
@@ -207,60 +196,7 @@ class ShaderFunction:
             else [vd.get_context().max_workgroup_size[0], 1, 1]
         )
 
-        if self.shader_description is None or self.shader_signature is None:
-            assert self.shader_description is None and self.shader_signature is None, "Shader description and signature must both be set or both be None!"
-            assert self.func is not None, "Cannot build a shader without a function!"
-
-            builder = vc.ShaderBuilder(
-                flags=self.flags,
-                is_apple_device=vd.get_context().is_apple()
-            )
-            old_builder = vc.set_builder(builder)
-
-            try:
-                signature = ShaderSignature.from_inspectable_function(builder, self.func)
-                self.func(*signature.get_variables())
-            except Exception as e:
-                print(f"Error during shader inspection: {e}")
-                raise e
-            finally:
-                vc.set_builder(old_builder)
-
-            self.shader_description = builder.build(self.func.__module__ + "." + self.func.__name__)
-            self.shader_signature = signature
-
-        # Resource bindings are declared before final shader layout is known.
-        # For some shader construction paths (e.g. from_description), signatures are
-        # pre-populated and still hold logical bindings assuming a reserved UBO at 0.
-        binding_shift = self.shader_description.resource_binding_base - 1
-        if binding_shift != 0:
-            binding_access_len = len(self.shader_description.binding_access)
-            needs_remap = False
-
-            for shader_arg in self.shader_signature.arguments:
-                if (
-                    shader_arg.binding is not None
-                    and (
-                        shader_arg.arg_type == ShaderArgumentType.BUFFER
-                        or shader_arg.arg_type == ShaderArgumentType.IMAGE
-                    )
-                    and shader_arg.binding >= binding_access_len
-                ):
-                    needs_remap = True
-                    break
-
-            if needs_remap:
-                for shader_arg in self.shader_signature.arguments:
-                    if (
-                        shader_arg.binding is not None
-                        and (
-                            shader_arg.arg_type == ShaderArgumentType.BUFFER
-                            or shader_arg.arg_type == ShaderArgumentType.IMAGE
-                        )
-                    ):
-                        shader_arg.binding += binding_shift
-
-        self.bounds = ExectionBounds(self.shader_signature.get_names_and_defaults(), my_local_size, self.workgroups, self.exec_size)
+        self.bounds = ExecutionBounds(self.shader_description.get_arg_names_and_defaults(), my_local_size, self.workgroups, self.exec_size)
 
         shader_backend_name = (
             self.shader_description.backend.name
@@ -306,9 +242,13 @@ class ShaderFunction:
                     self.shader_description.name
                 )
         except Exception as e:
-            print(f"Error building shader: {e}")
-            print(self.get_src(build=False, line_numbers=True))
-            raise e
+            shader_source = self.get_src(build=False, line_numbers=True)
+            compiler_log = str(e)
+            raise ShaderBuildError(
+                f"Failed to build shader '{self.name}': {compiler_log}",
+                shader_source=shader_source,
+                compiler_log=compiler_log,
+            ) from e
 
         self.ready = True
 
@@ -335,8 +275,9 @@ class ShaderFunction:
         print(self.get_src(line_numbers))
 
     def __call__(self, *args, **kwargs):
-        assert not vd.is_dummy(), "Cannot execute shader functions with dummy backend!"
-        
+        if vd.is_dummy():
+            raise RuntimeError("Cannot execute shader functions with dummy backend!")
+
         self.build()
 
         if not self.ready:
@@ -362,7 +303,7 @@ class ShaderFunction:
 
         shader_uuid = f"{self.shader_description.name}.{uuid.uuid4()}"
 
-        for ii, shader_arg in enumerate(self.shader_signature.arguments):
+        for ii, shader_arg in enumerate(self.shader_description.shader_arg_infos):
             arg = None
             
             if ii < len(args):
@@ -379,7 +320,7 @@ class ShaderFunction:
             if shader_arg.arg_type == ShaderArgumentType.BUFFER:
                 if not isinstance(arg, vd.Buffer):
                     raise ValueError(f"Expected a buffer for argument '{shader_arg.name}' but got '{arg}'!")
-                
+
                 bound_buffers.append(vd.BufferBindInfo(
                     buffer=arg,
                     binding=shader_arg.binding,
@@ -437,3 +378,16 @@ class ShaderFunction:
             pc_values,
             shader_uuid=shader_uuid
         )
+
+def make_shader_function(
+    description: vc.ShaderDescription,
+    local_size=None,
+    workgroups=None,
+    exec_count=None
+) -> ShaderFunction:
+    return ShaderFunction(
+        description,
+        local_size=local_size,
+        workgroups=workgroups,
+        exec_count=exec_count
+    )

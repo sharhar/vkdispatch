@@ -222,8 +222,8 @@ struct FFTPlan* stage_fft_plan_create_extern(
             config.maxComputeWorkGroupSize[2] = resource->max_compute_work_group_size_z;
 
             config.isCompilerInitialized = true;
-            config.glslang_mutex = &ctx->glslang_mutex;
-            config.queue_mutex = &ctx->queues[indicies.queue_index]->queue_usage_mutex;
+            // config.glslang_mutex = NULL;// &ctx->glslang_mutex;
+            // config.queue_mutex = NULL; //&ctx->queues[indicies.queue_index]->queue_usage_mutex;
             config.physicalDevice = &ctx->physicalDevices[indicies.device_index];
             config.device = &ctx->devices[indicies.device_index];
             config.queue = &ctx->queues[indicies.queue_index]->queue;
@@ -250,8 +250,13 @@ struct FFTPlan* stage_fft_plan_create_extern(
                 LOG_VERBOSE("Doing FFT Init");
 
                 VkFFTApplication* application = new VkFFTApplication();
-
+                
+                ctx->glslang_mutex.lock();
+                ctx->queues[indicies.queue_index]->queue_usage_mutex.lock();
                 VkFFTResult resFFT = initializeVkFFT(application, config);
+                ctx->queues[indicies.queue_index]->queue_usage_mutex.unlock();
+                ctx->glslang_mutex.unlock();
+
                 if (resFFT != VKFFT_SUCCESS) {
                     set_error("(VkFFTResult is %d) initializeVkFFT inside '%s' at %s:%d\n", resFFT, __FUNCTION__, __FILE__, __LINE__);
                 }
@@ -335,8 +340,10 @@ void stage_fft_record_extern(
             }
 
             VkFFTApplication* application = (VkFFTApplication*)ctx->handle_manager->get_handle(index, vkfft_applications_handle, timestamp);
-
+            
+            ctx->queues[indicies.queue_index]->queue_usage_mutex.lock();
             VkFFTResult fftRes = VkFFTAppend(application, inverse, &launchParams);
+            ctx->queues[indicies.queue_index]->queue_usage_mutex.unlock();
 
             if (fftRes != VKFFT_SUCCESS) {
                 set_error("(VkFFTResult is %d) VkFFTAppend inside '%s' at %s:%d\n", fftRes, __FUNCTION__, __FILE__, __LINE__);

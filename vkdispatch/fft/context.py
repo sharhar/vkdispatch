@@ -3,7 +3,7 @@ import vkdispatch.codegen as vc
 import vkdispatch.base.dtype as dtypes
 
 import contextlib
-from typing import Optional, Tuple, Union, List, Dict
+from typing import Optional, Tuple, List
 
 from .io_manager import IOManager
 from .config import FFTConfig
@@ -15,7 +15,7 @@ from .cooley_tukey import radix_composite
 from .global_memory_iterators import global_reads_iterator, global_writes_iterator
 
 class FFTContext:
-    shader_context: vd.ShaderContext
+    shader_context: vc.ShaderContext
     config: FFTConfig
     grid: FFTGridManager
     registers: FFTRegisters
@@ -28,7 +28,7 @@ class FFTContext:
     declarer: str
 
     def __init__(self,
-                shader_context: vd.ShaderContext,
+                shader_context: vc.ShaderContext,
                 buffer_shape: Tuple,
                 axis: int = None,
                 max_register_count: int = None,
@@ -50,7 +50,8 @@ class FFTContext:
         self.name = name if name is not None else f"fft_shader_{buffer_shape}_{axis}"
 
     def allocate_registers(self, name: str, count: int = None) -> FFTRegisters:
-        assert name is not None, "Must provide a name for allocated registers"
+        if name is None:
+            raise ValueError("Must provide a name for allocated registers")
 
         if count is None:
             count = self.config.register_count
@@ -58,7 +59,9 @@ class FFTContext:
         return FFTRegisters(self.resources, count, name)
 
     def declare_shader_args(self, types: List) -> List[vc.ShaderVariable]:
-        assert not self.declared_shader_args, f"Shader arguments already declared with {self.declarer}"
+        if self.declared_shader_args:
+            raise ValueError(f"Shader arguments already declared with {self.declarer}")
+
         self.declared_shader_args = True
         self.declarer = "declare_shader_args"
         return self.shader_context.declare_input_arguments(types)
@@ -69,7 +72,10 @@ class FFTContext:
                         input_type: Optional[dtypes.dtype] = None,
                         input_map: Optional[vd.MappingFunction] = None,
                         kernel_map: Optional[vd.MappingFunction] = None) -> IOManager:
-        assert not self.declared_shader_args, f"Shader arguments already declared with {self.declarer}"
+        
+        if self.declared_shader_args:
+            raise ValueError(f"Shader arguments already declared with {self.declarer}")
+
         self.declared_shader_args = True
         self.declarer = "make_io_manager"
         return IOManager(
@@ -131,14 +137,16 @@ class FFTContext:
         )
 
     def compile_shader(self):
-        self.fft_callable = self.shader_context.get_function(
+        self.fft_callable = vd.make_shader_function(
+            self.shader_context.get_description(self.name),
             local_size=self.grid.local_size,
-            exec_count=self.grid.exec_size,
-            name=self.name
+            exec_count=self.grid.exec_size
         )
 
     def get_callable(self) -> vd.ShaderFunction:
-        assert self.fft_callable is not None, "Shader not compiled yet... something is wrong"
+        if self.fft_callable is None:
+            raise ValueError("Shader not compiled yet... something is wrong")
+        
         return self.fft_callable
 
     def execute(self, inverse: bool):
@@ -178,7 +186,7 @@ def fft_context(buffer_shape: Tuple,
                 name: Optional[str] = None):
 
     try:
-        with vd.shader_context(vc.ShaderFlags.NO_EXEC_BOUNDS) as context:
+        with vc.shader_context(vc.ShaderFlags.NO_EXEC_BOUNDS) as context:
             fft_context = FFTContext(
                 shader_context=context,
                 buffer_shape=buffer_shape,
