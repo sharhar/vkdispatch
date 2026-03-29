@@ -64,4 +64,4 @@ import vkdispatch.vkfft as vkfft
 import vkdispatch.fft as fft
 import vkdispatch.reduce as reduce
 
-__version__ = "0.0.36"
+__version__ = "0.1.0"
