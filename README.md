@@ -43,9 +43,9 @@ This installs the core library and codegen components, but not the Vulkan runtim
 
 ### Optional components
 
-- Optional CLI: `pip install "vkdispatch-core[cli]"`
-- CUDA runtime backend: `pip install "vkdispatch-core[cuda]`
-- OpenCL runtime backend: `pip install "vkdispatch-core[opencl]`
+- Optional CLI: `pip install vkdispatch-core[cli]`
+- CUDA runtime backend: `pip install vkdispatch-core[cuda]`
+- OpenCL runtime backend: `pip install vkdispatch-core[opencl]`
 
 ## Runtime backends
 

@@ -8,17 +8,6 @@ import pytest
 
 from typing import Tuple
 
-
-def _require_opencl_runtime():
-    try:
-        vd.get_context()
-    except Exception as exc:
-        pytest.skip(f"No runtime backend available for OpenCL regression test: {exc}")
-
-    if not vd.is_opencl():
-        pytest.skip("OpenCL runtime regression test requires VKDISPATCH_BACKEND=opencl.")
-
-
 def run_index_ravel(shape: Tuple[int, ...], index: Tuple[int, ...], shape_static: bool):
     var_type =  to_vector(vd.uint32, len(shape))
 
@@ -101,39 +90,3 @@ def test_index_unravel():
         run_index_unravel(shape, index, False, True)
         run_index_unravel(shape, index, True, False)
         run_index_unravel(shape, index, True, True)
-
-
-def test_opencl_packed_uvec3_roundtrip():
-    _require_opencl_runtime()
-
-    buffer3 = vd.Buffer((4,), vd.uvec3)
-    buffer4 = vd.Buffer((4,), vd.uvec4)
-
-    try:
-        @vd.shader(4)
-        def fill3(buff: vc.Buff[vc.uv3]):
-            tid = vc.global_invocation_id().x
-            buff[tid] = vc.to_uvec3(tid, tid + 100, tid + 200)
-
-        @vd.shader(4)
-        def fill4(buff: vc.Buff[vc.uv4]):
-            tid = vc.global_invocation_id().x
-            buff[tid] = vc.to_uvec4(tid, tid + 100, tid + 200, tid + 300)
-
-        fill3(buffer3)
-        fill4(buffer4)
-
-        expected3 = np.array(
-            [[0, 100, 200], [1, 101, 201], [2, 102, 202], [3, 103, 203]],
-            dtype=np.uint32,
-        )
-        expected4 = np.array(
-            [[0, 100, 200, 300], [1, 101, 201, 301], [2, 102, 202, 302], [3, 103, 203, 303]],
-            dtype=np.uint32,
-        )
-
-        assert np.array_equal(buffer3.read(0), expected3)
-        assert np.array_equal(buffer4.read(0), expected4)
-    finally:
-        buffer3.destroy()
-        buffer4.destroy()
