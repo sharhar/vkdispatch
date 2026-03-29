@@ -84,6 +84,26 @@ class BufferVariable(BoundVariable):
             index = index[0]
 
         if base_utils.is_int_number(index):
+            backend = self.codegen_backend if self.codegen_backend is not None else get_codegen_backend()
+            packed_expr = None
+            if self.scalar_expr is not None:
+                packed_expr = backend.packed_buffer_read_expr(
+                    self.scalar_expr,
+                    return_type,
+                    str(index),
+                )
+
+            if packed_expr is not None:
+                return ShaderVariable(
+                    return_type,
+                    packed_expr,
+                    parents=[self],
+                    settable=self.settable,
+                    lexical_unit=True,
+                    buffer_root=self,
+                    buffer_index_expr=str(index),
+                )
+
             return ShaderVariable(
                 return_type,
                 f"{self.resolve()}[{index}]",
@@ -102,6 +122,26 @@ class BufferVariable(BoundVariable):
 
         if not dtypes.is_integer_dtype(index.var_type):
             raise TypeError("Indexing variable must be an integer type!")
+
+        backend = self.codegen_backend if self.codegen_backend is not None else get_codegen_backend()
+        packed_expr = None
+        if self.scalar_expr is not None:
+            packed_expr = backend.packed_buffer_read_expr(
+                self.scalar_expr,
+                return_type,
+                index.resolve(),
+            )
+
+        if packed_expr is not None:
+            return ShaderVariable(
+                return_type,
+                packed_expr,
+                parents=[self, index],
+                settable=self.settable,
+                lexical_unit=True,
+                buffer_root=self,
+                buffer_index_expr=index.resolve(),
+            )
 
         return ShaderVariable(
             return_type,

@@ -67,6 +67,25 @@ class CodeGenBackend:
         _ = (scalar_buffer_expr, base_type, element_index_expr, component_index_expr)
         return None
 
+    def packed_buffer_read_expr(
+        self,
+        scalar_buffer_expr: str,
+        var_type: dtypes.dtype,
+        element_index_expr: str,
+    ) -> Optional[str]:
+        _ = (scalar_buffer_expr, var_type, element_index_expr)
+        return None
+
+    def packed_buffer_write_statements(
+        self,
+        scalar_buffer_expr: str,
+        var_type: dtypes.dtype,
+        element_index_expr: str,
+        value_expr: str,
+    ) -> Optional[str]:
+        _ = (scalar_buffer_expr, var_type, element_index_expr, value_expr)
+        return None
+
     def fma_function_name(self, var_type: dtypes.dtype) -> str:
         return "fma"
 

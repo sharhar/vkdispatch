@@ -263,6 +263,24 @@ class ShaderVariable(BaseVariable):
 
         value.read_callback()
 
+        if self.buffer_root is not None and self.buffer_index_expr is not None:
+            scalar_expr = getattr(self.buffer_root, "scalar_expr", None)
+            if scalar_expr is not None:
+                backend = getattr(self.buffer_root, "codegen_backend", None)
+                if backend is None:
+                    backend = get_codegen_backend()
+
+                packed_write = backend.packed_buffer_write_statements(
+                    scalar_expr,
+                    self.var_type,
+                    self.buffer_index_expr,
+                    value.resolve(),
+                )
+
+                if packed_write is not None:
+                    base_utils.append_contents(packed_write)
+                    return
+
         base_utils.append_contents(f"{self.resolve()} = {value.resolve()};\n")
 
     def __setitem__(self, index, value: "ShaderVariable") -> None:

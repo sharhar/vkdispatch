@@ -169,6 +169,48 @@ class OpenCLBackend(CodeGenBackend):
             f"]"
         )
 
+    @staticmethod
+    def _uses_packed_vector_storage(var_type: dtypes.dtype) -> bool:
+        return dtypes.is_vector(var_type) and var_type.child_count == 3
+
+    def packed_buffer_read_expr(
+        self,
+        scalar_buffer_expr: str,
+        var_type: dtypes.dtype,
+        element_index_expr: str,
+    ) -> Optional[str]:
+        if not self._uses_packed_vector_storage(var_type):
+            return None
+
+        return self.constructor(
+            var_type,
+            [
+                f"{scalar_buffer_expr}[(({element_index_expr}) * 3) + 0]",
+                f"{scalar_buffer_expr}[(({element_index_expr}) * 3) + 1]",
+                f"{scalar_buffer_expr}[(({element_index_expr}) * 3) + 2]",
+            ],
+            arg_types=[var_type.scalar, var_type.scalar, var_type.scalar],
+        )
+
+    def packed_buffer_write_statements(
+        self,
+        scalar_buffer_expr: str,
+        var_type: dtypes.dtype,
+        element_index_expr: str,
+        value_expr: str,
+    ) -> Optional[str]:
+        if not self._uses_packed_vector_storage(var_type):
+            return None
+
+        statements: List[str] = []
+        for component_index, component_name in enumerate(("x", "y", "z")):
+            statements.append(
+                f"{scalar_buffer_expr}[(({element_index_expr}) * 3) + {component_index}] = "
+                f"{self.component_access_expr(value_expr, component_name, var_type)};\n"
+            )
+
+        return "".join(statements)
+
     def _cast_math_arg(self, arg_type: dtypes.dtype, arg_expr: str) -> str:
         if dtypes.is_scalar(arg_type) or dtypes.is_vector(arg_type) or dtypes.is_complex(arg_type):
             return self.constructor(arg_type, [arg_expr], arg_types=[arg_type])
