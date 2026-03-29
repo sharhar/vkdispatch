@@ -4,9 +4,9 @@ import vkdispatch.codegen as vc
 from vkdispatch.base.dtype import to_vector
 
 import numpy as np
+import pytest
 
 from typing import Tuple
-
 
 def run_index_ravel(shape: Tuple[int, ...], index: Tuple[int, ...], shape_static: bool):
     var_type =  to_vector(vd.uint32, len(shape))
@@ -25,7 +25,7 @@ def run_index_ravel(shape: Tuple[int, ...], index: Tuple[int, ...], shape_static
 
     result_value = buffer.read(0)
 
-    assert tuple(result_value[index]) == tuple(index), f"Expected index {index}, got {tuple(result_value[index])}"
+    assert tuple(result_value[index]) == tuple(index), f"Expected index {index}, got {tuple(result_value[index])} for shape {shape} with shape_static={shape_static}"
 
     buffer.destroy()
 

@@ -42,7 +42,8 @@ def arithmetic_op_common(var: BaseVariable,
                          other: Any,
                          reverse: bool = False,
                          inplace: bool = False) -> BaseVariable:
-    assert isinstance(var, BaseVariable), "First argument must be a ShaderVariable"
+    if not isinstance(var, BaseVariable):
+        raise TypeError(f"First argument must be a ShaderVariable, but got {type(var)}")
 
     result_type = None
 
@@ -56,11 +57,17 @@ def arithmetic_op_common(var: BaseVariable,
         raise TypeError(f"Unsupported type for arithmetic op: ShaderVariable and {type(other)}")
 
     if inplace:
-        assert var.is_setable(), "Inplace arithmetic requires the variable to be settable."
-        assert not reverse, "Inplace arithmetic does not support reverse operations."
+        if not var.is_setable():
+            raise ValueError("Inplace arithmetic requires the variable to be settable.")
+        
+        if reverse:
+            raise ValueError("Inplace arithmetic does not support reverse operations.")
+        
         var.read_callback()
         var.write_callback()
-        assert result_type == var.var_type, "Inplace arithmetic requires the result type to match the variable type."
+        
+        if result_type != var.var_type:
+            raise TypeError(f"Inplace arithmetic requires the result type to match the variable type, but got '{result_type.name}' and '{var.var_type.name}' respectively.")
 
     if base_utils.is_scalar_number(other):
         return result_type
@@ -102,8 +109,10 @@ def add(var: BaseVariable, other: Any, inplace: bool = False) -> BaseVariable:
         else:
             base_utils.append_contents(f"{var.resolve()} += {scalar_expr};\n")
         return var
-
-    assert isinstance(other, BaseVariable)
+    
+    if not isinstance(other, BaseVariable):
+        raise TypeError(f"Unsupported type for addition: ShaderVariable and {type(other)}")
+    
     _mark_arith_binary(var.var_type, other.var_type, "+", inplace=inplace)
     expr, use_assignment = _resolve_arithmetic_binary_expr(
         "+",
@@ -163,7 +172,9 @@ def sub(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
             base_utils.append_contents(f"{var.resolve()} -= {scalar_expr};\n")
         return var
 
-    assert isinstance(other, BaseVariable)
+    if not isinstance(other, BaseVariable):
+        raise TypeError(f"Unsupported type for subtraction: ShaderVariable and {type(other)}")
+
     lhs_type = var.var_type if not reverse else other.var_type
     rhs_type = other.var_type if not reverse else var.var_type
     _mark_arith_binary(lhs_type, rhs_type, "-", inplace=inplace)
@@ -229,7 +240,8 @@ def mul(var: BaseVariable, other: Any, inplace: bool = False) -> BaseVariable:
             base_utils.append_contents(f"{var.resolve()} *= {scalar_expr};\n")
         return var
 
-    assert isinstance(other, BaseVariable)
+    if not isinstance(other, BaseVariable):
+        raise TypeError(f"Unsupported type for multiplication: ShaderVariable and {type(other)}")
 
     if dtypes.is_complex(var.var_type) and dtypes.is_complex(other.var_type):
         raise ValueError("Complex multiplication is not supported via the `*` operator.")
@@ -239,11 +251,15 @@ def mul(var: BaseVariable, other: Any, inplace: bool = False) -> BaseVariable:
 
     return_type = dtypes.cross_multiply_type(var.var_type, other.var_type)
     if inplace:
-        assert var.is_setable(), "Inplace arithmetic requires the variable to be settable."
+        if not var.is_setable():
+            raise ValueError("Inplace arithmetic requires the variable to be settable.")
+        
         var.read_callback()
         var.write_callback()
         other.read_callback()
-        assert return_type == var.var_type, "Inplace arithmetic requires the result type to match the variable type."
+
+        if return_type != var.var_type:
+            raise TypeError(f"Inplace multiplication requires the result type to match the variable type, but got '{return_type.name}' and '{var.var_type.name}' respectively.")
 
     _mark_arith_binary(var.var_type, other.var_type, "*", inplace=inplace)
     expr, use_assignment = _resolve_arithmetic_binary_expr(
@@ -309,7 +325,8 @@ def truediv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool 
             base_utils.append_contents(f"{var.resolve()} /= {other_expr};\n")
         return var
 
-    assert isinstance(other, BaseVariable)
+    if not isinstance(other, BaseVariable):
+        raise TypeError(f"Unsupported type for true division: ShaderVariable and {type(other)}")
 
     if dtypes.is_complex(var.var_type) and dtypes.is_complex(other.var_type):
         raise ValueError("Complex division is not supported.")
@@ -359,12 +376,17 @@ def truediv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool 
     return var
 
 def floordiv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = False) -> BaseVariable:
-    assert dtypes.is_integer_dtype(var.var_type), "Floor division is only supported for integer types."
+    if not dtypes.is_integer_dtype(var.var_type):
+        raise TypeError(f"Floor division is only supported for integer types, but variable '{var.resolve()}' has type '{var.var_type.name}'!")
+    
     return_type = arithmetic_op_common(var, other, reverse=reverse, inplace=inplace)
-    assert dtypes.is_integer_dtype(return_type), "Floor division is only supported for integer types."
+
+    if not dtypes.is_integer_dtype(return_type):
+        raise TypeError(f"Floor division is only supported for integer types, but the result type of the operation is '{return_type.name}'!")
 
     if base_utils.is_scalar_number(other):
-        assert base_utils.is_int_number(other), "Floor division only supports integer scalar values."
+        if not base_utils.is_int_number(other):
+            raise TypeError("Floor division only supports integer scalar values.")
 
         if not inplace:
             if other == 1:
@@ -390,7 +412,9 @@ def floordiv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool
         base_utils.append_contents(f"{var.resolve()} /= {other};\n")
         return var
 
-    assert isinstance(other, BaseVariable)
+    if not isinstance(other, BaseVariable):
+        raise TypeError(f"Unsupported type for floor division: ShaderVariable and {type(other)}")
+    
     _mark_arith_binary(var.var_type if not reverse else other.var_type, other.var_type if not reverse else var.var_type, "/", inplace=inplace)
 
     if not inplace:
@@ -407,9 +431,14 @@ def floordiv(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool
     return var
 
 def mod(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = False) -> BaseVariable:
-    assert dtypes.is_integer_dtype(var.var_type), "Modulus is only supported for integer types."
+
+    if not dtypes.is_integer_dtype(var.var_type):
+        raise TypeError(f"Modulus is only supported for integer types, but variable '{var.resolve()}' has type '{var.var_type.name}'!")
+    
     return_type = arithmetic_op_common(var, other, reverse=reverse, inplace=inplace)
-    assert dtypes.is_integer_dtype(return_type), "Modulus is only supported for integer types."
+
+    if not dtypes.is_integer_dtype(return_type):
+        raise TypeError(f"Modulus is only supported for integer types, but the result type of the operation is '{return_type.name}'!")
 
     if base_utils.is_scalar_number(other):
         scalar_type = base_utils.number_to_dtype(other)
@@ -426,8 +455,10 @@ def mod(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
 
         base_utils.append_contents(f"{var.resolve()} %= {other};\n")
         return var
-
-    assert isinstance(other, BaseVariable)
+    
+    if not isinstance(other, BaseVariable):
+        raise TypeError(f"Unsupported type for modulus op: ShaderVariable and {type(other)}")
+    
     _mark_arith_binary(var.var_type if not reverse else other.var_type, other.var_type if not reverse else var.var_type, "%", inplace=inplace)
 
     if not inplace:
@@ -488,8 +519,8 @@ def pow_expr(x: Any, y: Any) -> Union[BaseVariable, float]:
             parents=[x]
         )
 
-    assert isinstance(y, BaseVariable), "First argument must be a ShaderVariable or number"
-    assert isinstance(x, BaseVariable), "Second argument must be a ShaderVariable or number"
+    if not isinstance(x, BaseVariable) or not isinstance(y, BaseVariable):
+        raise TypeError("Both arguments must be ShaderVariables or numbers")
 
     result_type = base_utils.dtype_to_floating(dtypes.cross_type(x.var_type, y.var_type))
     return base_utils.new_base_var(

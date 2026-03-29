@@ -80,11 +80,6 @@ static VkBool32 VKAPI_PTR vulkan_custom_debug_callback(
 
     log_message(log_level, "\n", "Vulkan", 0, pCallbackData->pMessage);
 
-    if(log_level == LOG_LEVEL_ERROR) {
-        exit(1);
-    }
-
-    //printf("%s", pCallbackData->pMessage);
     return VK_FALSE;
 }
 

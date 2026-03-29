@@ -93,7 +93,7 @@ def _load_backend_module(backend_name: str) -> ModuleType:
         if backend_name == BACKEND_VULKAN:
             raise BackendUnavailableError(
                 backend_name,
-                "Vulkan backend is unavailable because the 'vkdispatch_native' package "
+                "Vulkan backend is unavailable because the 'vkdispatch_vulkan_native' package "
                 f"could not be imported ({exc}).",
             ) from exc
         if backend_name == BACKEND_CUDA:

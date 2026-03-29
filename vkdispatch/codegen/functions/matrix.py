@@ -4,13 +4,14 @@ from ..variables.variables import ShaderVariable
 from . import utils
 
 def matrix_comp_mult(x: ShaderVariable, y: ShaderVariable) -> ShaderVariable:
-    assert isinstance(y, ShaderVariable), "Second argument must be a ShaderVariable"
-    assert isinstance(x, ShaderVariable), "First argument must be a ShaderVariable"
+    if not isinstance(x, ShaderVariable) or not isinstance(y, ShaderVariable):
+        raise ValueError("Both arguments must be ShaderVariables")
 
-    assert dtypes.is_matrix(x.var_type), "First argument must be a matrix"
-    assert dtypes.is_matrix(y.var_type), "Second argument must be a matrix"
+    if not dtypes.is_matrix(x.var_type) or not dtypes.is_matrix(y.var_type):
+        raise ValueError("Both arguments must be matrices")
 
-    assert x.var_type == y.var_type, "Matrices must have the same shape"
+    if x.var_type != y.var_type:
+        raise ValueError("Both matrices must have the same shape")
 
     return utils.new_var(
         x.var_type,
@@ -20,13 +21,14 @@ def matrix_comp_mult(x: ShaderVariable, y: ShaderVariable) -> ShaderVariable:
     )
 
 def outer_product(x: ShaderVariable, y: ShaderVariable) -> ShaderVariable:
-    assert isinstance(y, ShaderVariable), "Second argument must be a ShaderVariable"
-    assert isinstance(x, ShaderVariable), "First argument must be a ShaderVariable"
+    if not isinstance(x, ShaderVariable) or not isinstance(y, ShaderVariable):
+        raise ValueError("Both arguments must be ShaderVariables")
 
-    assert dtypes.is_vector(x.var_type), "First argument must be a matrix"
-    assert dtypes.is_vector(y.var_type), "Second argument must be a matrix"
-
-    assert x.var_type == y.var_type, "Matrices must have the same shape"
+    if not dtypes.is_vector(x.var_type) or not dtypes.is_vector(y.var_type):
+        raise ValueError("Both arguments must be vectors")
+    
+    if x.var_type != y.var_type:
+        raise ValueError("Both arguments must be of the same vector type")
 
     out_type = None
 
@@ -47,9 +49,11 @@ def outer_product(x: ShaderVariable, y: ShaderVariable) -> ShaderVariable:
     )
 
 def transpose(var: ShaderVariable) ->ShaderVariable:
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable"
-
-    assert dtypes.is_matrix(var.var_type), "Argument must be a matrix"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError("Argument must be a ShaderVariable")
+    
+    if not dtypes.is_matrix(var.var_type):
+        raise ValueError("Argument must be a matrix")
 
     return utils.new_var(
         var.var_type,
@@ -59,9 +63,11 @@ def transpose(var: ShaderVariable) ->ShaderVariable:
     )
 
 def determinant(var: ShaderVariable) -> ShaderVariable:
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable"
-
-    assert dtypes.is_matrix(var.var_type), "Argument must be a matrix"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError("Argument must be a ShaderVariable")
+    
+    if not dtypes.is_matrix(var.var_type):
+        raise ValueError("Argument must be a matrix")
 
     return utils.new_var(
         dtypes.float32,
@@ -71,9 +77,11 @@ def determinant(var: ShaderVariable) -> ShaderVariable:
     )
 
 def inverse(var: ShaderVariable) -> ShaderVariable:
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable"
-
-    assert dtypes.is_matrix(var.var_type), "Argument must be a matrix"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError("Argument must be a ShaderVariable")
+    
+    if not dtypes.is_matrix(var.var_type):
+        raise ValueError("Argument must be a matrix")
 
     return utils.new_var(
         var.var_type,

@@ -18,9 +18,6 @@ from .buffer_builder import BufferBuilder
 
 import dataclasses
 
-def _runtime_supports_push_constants() -> bool:
-    return True
-
 @dataclasses.dataclass
 class BufferBindInfo:
     """A dataclass to hold information about a buffer binding."""
@@ -97,7 +94,7 @@ class CommandGraph(CommandList):
         self.uniform_constants_size = 0
         self.uniform_constants_buffer = None
 
-    def _ensure_uniform_constants_capacity(self, uniform_word_size: int) -> None:
+    def ensure_uniform_constants_capacity(self, uniform_word_size: int) -> None:
         if self.uniform_constants_buffer is not None and uniform_word_size <= self.uniform_constants_size:
             return
 
@@ -108,26 +105,18 @@ class CommandGraph(CommandList):
             self.uniform_constants_size = max(uniform_word_size, self.uniform_constants_size * 2)
         self.uniform_constants_buffer = vd.Buffer(shape=(self.uniform_constants_size,), var_type=vd.uint32)
 
-    def _prepare_submission_state(self, instance_count: int) -> None:
-        if len(self.pc_builder.element_map) > 0 and (
-                self.pc_builder.instance_count != instance_count or not self.buffers_valid
-            ):
-
-            assert _runtime_supports_push_constants(), (
-                "Push constants not supported for backends without push-constant support "
-                "(OpenCL). Use UBO-backed variables instead."
-            )
-
+    def prepare_submission_state(self, instance_count: int) -> None:
+        if len(self.pc_builder.element_map) > 0 and (self.pc_builder.instance_count != instance_count or not self.buffers_valid):
             self.pc_builder.prepare(instance_count)
 
             for key, value in self.pc_values.items():
-                self.pc_builder[key] = value
+                self.pc_builder.set_item(key, value)
 
         if len(self.uniform_builder.element_map) > 0 and not self.buffers_valid:
             self.uniform_builder.prepare(1)
 
             for key, value in self.uniform_values.items():
-                self.uniform_builder[key] = value
+                self.uniform_builder.set_item(key, value)
 
             uniform_word_size = (self.uniform_builder.instance_bytes + 3) // 4
             uniform_payload = self.uniform_builder.tobytes()
@@ -136,8 +125,10 @@ class CommandGraph(CommandList):
                 for descriptor_set, offset, size in self.uniform_descriptors:
                     descriptor_set.set_inline_uniform_payload(uniform_payload[offset:offset + size])
             else:
-                self._ensure_uniform_constants_capacity(uniform_word_size)
-                assert self.uniform_constants_buffer is not None
+                self.ensure_uniform_constants_capacity(uniform_word_size)
+                
+                if self.uniform_constants_buffer is None:
+                    raise RuntimeError("Failed to allocate uniform constants buffer!")
 
                 for descriptor_set, offset, size in self.uniform_descriptors:
                     descriptor_set.bind_buffer(self.uniform_constants_buffer, 0, offset, size, True, write_access=False)
@@ -156,7 +147,7 @@ class CommandGraph(CommandList):
         if instance_count is None:
             instance_count = 1
 
-        self._prepare_submission_state(instance_count)
+        self.prepare_submission_state(instance_count)
 
     def reset(self) -> None:
         """Reset the command graph by clearing the push constant buffer and descriptor
@@ -184,12 +175,6 @@ class CommandGraph(CommandList):
         super()._destroy()
     
     def bind_var(self, name: str):
-        if not _runtime_supports_push_constants():
-            raise RuntimeError(
-                "CommandGraph.bind_var() is disabled for backends without push-constant "
-                "support (OpenCL). Pass Variable values directly at shader invocation."
-            )
-
         def register_var(key: Tuple[str, str]):
             if not name in self.name_to_pc_key_dict.keys():
                 self.name_to_pc_key_dict[name] = []
@@ -199,12 +184,6 @@ class CommandGraph(CommandList):
         return register_var
     
     def set_var(self, name: str, value: Any):
-        if not _runtime_supports_push_constants():
-            raise RuntimeError(
-                "CommandGraph.set_var() is disabled for backends without push-constant "
-                "support (OpenCL). Pass Variable values directly at shader invocation."
-            )
-
         if name not in self.name_to_pc_key_dict.keys():
             raise ValueError("Variable not bound!")
         
@@ -246,19 +225,7 @@ class CommandGraph(CommandList):
         if shader_uuid is None:
             shader_uuid = shader_description.name + "_" + str(uuid.uuid4())
 
-        if (not _runtime_supports_push_constants()) and len(pc_values) > 0:
-            raise RuntimeError(
-                "Push-constant Variable payloads are disabled for backends without "
-                "push-constant support (OpenCL). "
-                "Variable values must be UBO-backed and provided at shader invocation."
-            )
-
         if len(shader_description.pc_structure) != 0:
-            if not _runtime_supports_push_constants():
-                raise RuntimeError(
-                    "Kernels should not emit push-constant layouts for backends without "
-                    "push-constant support (OpenCL). Use UBO-backed variables."
-                )
             self.pc_builder.register_struct(shader_uuid, shader_description.pc_structure)
 
         uniform_field_names = {elem.name for elem in shader_description.uniform_structure}
@@ -328,10 +295,10 @@ class CommandGraph(CommandList):
         if instance_count is None:
             instance_count = 1
 
-        self._prepare_submission_state(instance_count)
+        self.prepare_submission_state(instance_count)
 
         for key, val in self.queued_pc_values.items():
-            self.pc_builder[key] = val
+            self.pc_builder.set_item(key, val)
         
         my_data = None
 
@@ -375,5 +342,7 @@ def set_global_graph(graph: CommandGraph = None) -> CommandGraph:
         _global_graph.custom_graph = None
         return
 
-    assert _get_global_graph() is None, "A global CommandGraph is already set for the current thread!"
+    if _get_global_graph() is not None:
+        raise RuntimeError("A global CommandGraph is already set for the current thread!")
+    
     _global_graph.custom_graph = graph

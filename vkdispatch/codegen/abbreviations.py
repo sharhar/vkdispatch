@@ -1,7 +1,5 @@
 from .arguments import Constant as Const
 from .arguments import Variable as Var
-from .arguments import ConstantArray as ConstArr
-from .arguments import VariableArray as VarArr
 from .arguments import Buffer as Buff
 from .arguments import Image1D as Img1
 from .arguments import Image2D as Img2
@@ -43,4 +41,5 @@ from vkdispatch.base.dtype import uvec3 as uv3
 from vkdispatch.base.dtype import uvec4 as uv4
 
 from vkdispatch.base.dtype import mat2 as m2
+from vkdispatch.base.dtype import mat3 as m3
 from vkdispatch.base.dtype import mat4 as m4

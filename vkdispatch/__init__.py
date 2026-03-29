@@ -6,6 +6,8 @@ from .base.init import initialize
 from .base.init import is_initialized
 from .base.init import log, log_error, log_warning, log_info, log_verbose, set_log_level
 
+from .backends.backend_selection import BackendUnavailableError
+
 from .base.dtype import dtype
 from .base.dtype import float16, float32, float64, int16, uint16, int32, uint32, int64, uint64
 from .base.dtype import complex32, complex64, complex128
@@ -54,8 +56,7 @@ from .execution_pipeline.command_graph import CommandGraph, BufferBindInfo, Imag
 from .execution_pipeline.command_graph import global_graph, set_global_graph, default_graph
 from .execution_pipeline.cuda_graph_capture import cuda_graph_capture, get_cuda_capture, CUDAGraphCapture
 
-from .shader.shader_function import ShaderFunction, ShaderSource
-from .shader.context import ShaderContext, shader_context
+from .shader.shader_function import ShaderBuildError, ShaderFunction, ShaderSource, make_shader_function
 from .shader.map import map, MappingFunction
 from .shader.decorator import shader
 
@@ -63,4 +64,4 @@ import vkdispatch.vkfft as vkfft
 import vkdispatch.fft as fft
 import vkdispatch.reduce as reduce
 
-__version__ = "0.0.34"
+__version__ = "0.1.0"

@@ -41,6 +41,9 @@ class StructBuilder:
         self.elements.append(StructElement(name, dtype, count))
         self.size += dtype.item_size * count
 
+    def empty(self) -> bool:
+        return len(self.elements) == 0 and self.size == 0
+
     def build(self) -> List[StructElement]:
         # Sort the elements by size in descending order
         self.elements.sort(key=lambda x: x.dtype.item_size * x.count, reverse=True)

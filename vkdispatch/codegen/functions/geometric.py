@@ -9,7 +9,8 @@ def length(var: Any) -> Union[ShaderVariable, float]:
     if utils.is_number(var):
         return se.abs_value(var)
 
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable or number"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError("Argument must be a ShaderVariable or number")
 
     return utils.new_var(
         utils.dtype_to_floating(var.var_type),
@@ -59,11 +60,11 @@ def dot(x: Any, y: Any) -> Union[ShaderVariable, float]:
     )
 
 def cross(x: ShaderVariable, y: ShaderVariable) -> ShaderVariable:
-    assert isinstance(x, ShaderVariable), "Argument x must be a ShaderVariable"
-    assert isinstance(y, ShaderVariable), "Argument y must be a ShaderVariable"
-
-    assert x.var_type == dtypes.vec3, "Argument x must be of type vec3 or dvec3"
-    assert y.var_type == dtypes.vec3, "Argument y must be of type vec3 or dvec3"
+    if not isinstance(x, ShaderVariable) or not isinstance(y, ShaderVariable):
+        raise ValueError("Both arguments must be ShaderVariables")
+    
+    if x.var_type != dtypes.vec3 or y.var_type != dtypes.vec3:
+        raise ValueError("Both arguments must be of type vec3 or dvec3")
 
     return utils.new_var(
         dtypes.vec3,
@@ -73,7 +74,8 @@ def cross(x: ShaderVariable, y: ShaderVariable) -> ShaderVariable:
     )
 
 def normalize(var: ShaderVariable) -> ShaderVariable:
-    assert isinstance(var, ShaderVariable), "Argument must be a ShaderVariable"
+    if not isinstance(var, ShaderVariable):
+        raise ValueError("Argument must be a ShaderVariable")
 
     return utils.new_var(
         var.var_type,

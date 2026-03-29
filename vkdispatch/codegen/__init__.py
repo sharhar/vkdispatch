@@ -1,4 +1,4 @@
-from .arguments import Constant, Variable, ConstantArray, VariableArray
+from .arguments import Constant, Variable
 from .arguments import Buffer, Image1D, Image2D, Image3D
 
 from .arguments import _ArgType
@@ -22,8 +22,8 @@ from .functions.exponential import exp, exp2, log, log2, pow, sqrt, inversesqrt
 
 from .functions.geometric import length, distance, dot, cross, normalize
 
-from .functions.block_synchonization import barrier, memory_barrier, memory_barrier_buffer
-from .functions.block_synchonization import memory_barrier_shared, memory_barrier_image, group_memory_barrier
+from .functions.block_synchronization import barrier, memory_barrier, memory_barrier_buffer
+from .functions.block_synchronization import memory_barrier_shared, memory_barrier_image, group_memory_barrier
 
 from .functions.matrix import matrix_comp_mult, outer_product, transpose
 from .functions.matrix import determinant, inverse
@@ -62,10 +62,14 @@ from .functions.subgroups import subgroup_min, subgroup_max, subgroup_and
 from .functions.subgroups import subgroup_or, subgroup_xor, subgroup_elect
 from .functions.subgroups import subgroup_barrier
 
-from .functions.control_flow import if_statement, if_any, if_all, else_statement
-from .functions.control_flow import else_if_statement, else_if_any, else_if_all
-from .functions.control_flow import return_statement, while_statement, new_scope, end
-from .functions.control_flow import logical_and, logical_or
+# from .functions.control_flow import if_statement, if_any, if_all, else_statement
+# from .functions.control_flow import else_if_statement, else_if_any, else_if_all
+# from .functions.control_flow import return_statement, while_statement, new_scope, end
+# from .functions.control_flow import logical_and, logical_or, any, all
+
+from .functions.control_flow import if_block, else_block, else_if_block
+from .functions.control_flow import return_statement, while_block, scope_block
+from .functions.control_flow import any, all
 
 from .functions.complex_numbers import mult_complex, complex_from_euler_angle
 
@@ -78,7 +82,9 @@ from .functions.index_raveling import ravel_index, unravel_index
 from .functions.printing import printf
 from .functions.printing import print_vars as print
 
-from .builder import ShaderBinding, ShaderDescription
+from .shader_description import ShaderDescription, BindingType, ShaderArgumentInfo
+
+from .builder import ShaderBinding
 from .builder import ShaderBuilder, ShaderFlags
 
 from .backends import CodeGenBackend, GLSLBackend, CUDABackend, OpenCLBackend
@@ -86,4 +92,6 @@ from .backends import CodeGenBackend, GLSLBackend, CUDABackend, OpenCLBackend
 from .global_builder import set_builder, get_builder, shared_buffer, set_shader_print_line_numbers, get_shader_print_line_numbers
 from .global_builder import set_codegen_backend, get_codegen_backend
 
-from .abreviations import *
+from .context import ShaderContext, shader_context
+
+from .abbreviations import *

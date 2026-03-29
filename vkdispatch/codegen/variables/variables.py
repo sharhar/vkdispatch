@@ -97,12 +97,15 @@ class ShaderVariable(BaseVariable):
         )
 
     def __getitem__(self, index) -> "ShaderVariable":
-        assert self.can_index, f"Variable '{self.resolve()}' of type '{self.var_type.name}' cannot be indexed into!"
+        if not self.can_index:
+            raise ValueError(f"Variable '{self.resolve()}' of type '{self.var_type.name}' cannot be indexed into!")
 
         return_type = self.var_type.child_type if self.use_child_type else self.var_type
 
         if isinstance(index, tuple):
-            assert len(index) == 1, "Only single index is supported, cannot use multi-dimentional indexing!"
+            if len(index) != 1:
+                raise ValueError("Only single index is supported, cannot use multi-dimentional indexing!")
+            
             index = index[0]
 
         if base_utils.is_int_number(index):
@@ -118,9 +121,14 @@ class ShaderVariable(BaseVariable):
 
             return ShaderVariable(return_type, f"{self.resolve()}[{index}]", parents=[self], settable=self.settable, lexical_unit=True)
         
-        assert isinstance(index, ShaderVariable), f"Index must be a ShaderVariable or int type, not {type(index)}!"
-        assert dtypes.is_scalar(index.var_type), "Indexing variable must be a scalar!"
-        assert dtypes.is_integer_dtype(index.var_type), "Indexing variable must be an integer type!"
+        if not isinstance(index, ShaderVariable):
+            raise ValueError(f"Index must be a ShaderVariable or int type, not {type(index)}!")
+        
+        if not dtypes.is_scalar(index.var_type):
+            raise ValueError(f"Indexing variable must be a scalar, but got variable '{index.resolve()}' of type '{index.var_type.name}'!")
+        
+        if not dtypes.is_integer_dtype(index.var_type):
+            raise ValueError(f"Indexing variable must be an integer type, but got variable '{index.resolve()}' of type '{index.var_type.name}'!")
 
         component_expr = self._buffer_component_expr(index.resolve())
         if component_expr is not None:
@@ -135,13 +143,18 @@ class ShaderVariable(BaseVariable):
         return ShaderVariable(return_type, f"{self.resolve()}[{index.resolve()}]", parents=[self, index], settable=self.settable, lexical_unit=True)
 
     def swizzle(self, components: str) -> "ShaderVariable":
-        assert dtypes.is_vector(self.var_type) or dtypes.is_complex(self.var_type) or dtypes.is_scalar(self.var_type), f"Variable '{self.resolve()}' of type '{self.var_type.name}' does not support swizzling!"
-        assert self.use_child_type, f"Variable '{self.resolve()}' does not support swizzling!"
-
-        assert len(components) >= 1 and len(components) <= 4, f"Swizzle must have between 1 and 4 components, got {len(components)}!"
+        if not (dtypes.is_vector(self.var_type) or dtypes.is_complex(self.var_type) or dtypes.is_scalar(self.var_type)):
+            raise ValueError(f"Variable '{self.resolve()}' of type '{self.var_type.name}' does not support swizzling!")
+        
+        if not self.use_child_type:
+            raise ValueError(f"Variable '{self.resolve()}' does not support swizzling!")
+        
+        if len(components) < 1 or len(components) > 4:
+            raise ValueError(f"Swizzle must have between 1 and 4 components, got {len(components)}!")
 
         for c in components:
-            assert c in ['x', 'y', 'z', 'w'], f"Invalid swizzle component '{c}'!"
+            if c not in ['x', 'y', 'z', 'w']:
+                raise ValueError(f"Invalid swizzle component '{c}' in swizzle '{components}' for variable '{self.resolve()}'!")
 
         sample_type = self.var_type if dtypes.is_scalar(self.var_type) else self.var_type.child_type
         return_type = sample_type if len(components) == 1 else dtypes.to_vector(sample_type, len(components))
@@ -149,7 +162,8 @@ class ShaderVariable(BaseVariable):
         base_expr = self.resolve()
 
         if dtypes.is_scalar(self.var_type):
-            assert all(c == 'x' for c in components), f"Cannot swizzle scalar variable '{self.resolve()}' with components other than 'x'!"
+            if any(c != 'x' for c in components):
+                raise ValueError(f"Cannot swizzle scalar variable '{self.resolve()}' with components other than 'x'!")
 
             scalar_x_expr = backend.component_access_expr(base_expr, "x", self.var_type)
             swizzle_expr = scalar_x_expr
@@ -168,14 +182,14 @@ class ShaderVariable(BaseVariable):
                 register=self.register and len(components) == 1
             )
 
-        if self.var_type.shape[0] < 4:
-            assert 'w' not in components, f"Cannot swizzle variable '{self.resolve()}' of type '{self.var_type.name}' with component 'w'!"
+        if self.var_type.shape[0] < 4 and 'w' in components:
+            raise ValueError(f"Cannot swizzle variable '{self.resolve()}' of type '{self.var_type.name}' with component 'w' because it only has {self.var_type.shape[0]} components!")
 
-        if self.var_type.shape[0] < 3:
-            assert 'z' not in components, f"Cannot swizzle variable '{self.resolve()}' of type '{self.var_type.name}' with component 'z'!"
+        if self.var_type.shape[0] < 3 and 'z' in components:
+            raise ValueError(f"Cannot swizzle variable '{self.resolve()}' of type '{self.var_type.name}' with component 'z' because it only has {self.var_type.shape[0]} components!")
         
-        if self.var_type.shape[0] < 2:
-            assert 'y' not in components, f"Cannot swizzle variable '{self.resolve()}' of type '{self.var_type.name}' with component 'y'!"
+        if self.var_type.shape[0] < 2 and 'y' in components:
+            raise ValueError(f"Cannot swizzle variable '{self.resolve()}' of type '{self.resolve()}' with component 'y' because it only has {self.var_type.shape[0]} components!")
 
         if len(components) == 1:
             component_index = "xyzw".index(components)
@@ -207,7 +221,8 @@ class ShaderVariable(BaseVariable):
         )
     
     def conjugate(self) -> "ShaderVariable":
-        assert self.is_complex, f"Variable '{self.resolve()}' of type '{self.var_type.name}' is not a complex variable and cannot be conjugated!"
+        if not self.is_complex:
+            raise ValueError(f"Variable '{self.resolve()}' of type '{self.var_type.name}' is not a complex variable and cannot be conjugated!")
 
         return ShaderVariable(
             var_type=self.var_type,
@@ -221,7 +236,8 @@ class ShaderVariable(BaseVariable):
         )
 
     def set_value(self, value: "ShaderVariable") -> None:
-        assert self.settable, f"Cannot set value of '{self.resolve()}' because it is not a settable variable!"
+        if not self.settable:
+            raise ValueError(f"Cannot set value of '{self.resolve()}' because it is not a settable variable!")
 
         self.write_callback()
         self.read_callback()
@@ -242,16 +258,39 @@ class ShaderVariable(BaseVariable):
             base_utils.append_contents(f"{self.resolve()} = {base_utils.format_number_literal(value)};\n")
             return
 
-        assert self.var_type == value.var_type, f"Cannot set variable of type '{self.var_type.name}' to value of type '{value.var_type.name}'!"
+        if self.var_type != value.var_type:
+            raise ValueError(f"Cannot set variable of type '{self.var_type.name}' to value of type '{value.var_type.name}'!")
+
         value.read_callback()
+
+        if self.buffer_root is not None and self.buffer_index_expr is not None:
+            scalar_expr = getattr(self.buffer_root, "scalar_expr", None)
+            if scalar_expr is not None:
+                backend = getattr(self.buffer_root, "codegen_backend", None)
+                if backend is None:
+                    backend = get_codegen_backend()
+
+                packed_write = backend.packed_buffer_write_statements(
+                    scalar_expr,
+                    self.var_type,
+                    self.buffer_index_expr,
+                    value.resolve(),
+                )
+
+                if packed_write is not None:
+                    base_utils.append_contents(packed_write)
+                    return
 
         base_utils.append_contents(f"{self.resolve()} = {value.resolve()};\n")
 
     def __setitem__(self, index, value: "ShaderVariable") -> None:
-        assert self.settable, f"Cannot set value of '{self.resolve()}' because it is not a settable variable!"
+        if not self.settable:
+            raise ValueError(f"Cannot set value of '{self.resolve()}' because it is not a settable variable!")
 
         if isinstance(index, slice):
-            assert index.start is None and index.stop is None and index.step is None, "Only full slice (:) is supported!"
+            if index.start is not None or index.stop is not None or index.step is not None:
+                raise ValueError("Only full slice (:) is supported for setting variable values!")
+            
             self.set_value(value)
             return
         
@@ -283,10 +322,14 @@ class ShaderVariable(BaseVariable):
             elif name == "y":
                 self.y.set_value(value)
             elif name == "z":
-                assert self.var_type.shape[0] >= 3, f"Variable '{self.resolve()}' of type '{self.var_type.name}' does not have 'z' component!"
+                if self.var_type.shape[0] < 3:
+                    raise ValueError(f"Variable '{self.resolve()}' of type '{self.var_type.name}' does not have 'z' component!")
+                
                 self.z.set_value(value)
             elif name == "w":
-                assert self.var_type.shape[0] == 4, f"Variable '{self.resolve()}' of type '{self.var_type.name}' does not have 'w' component!"
+                if self.var_type.shape[0] < 4:
+                    raise ValueError(f"Variable '{self.resolve()}' of type '{self.var_type.name}' does not have 'w' component!")
+                
                 self.w.set_value(value)
             return
 

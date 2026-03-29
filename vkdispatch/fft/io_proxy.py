@@ -33,13 +33,15 @@ class IOProxy:
             raise ValueError("IOObject must be initialized with a Buffer or MappingFunction")
     
     def set_variables(self, vars: List[vc.Buffer]) -> None:
-        assert len(vars) == len(self.buffer_types), "Number of buffer variables does not match number of buffer types"
+        if len(vars) != len(self.buffer_types):
+            raise ValueError(f"Number of buffer variables does not match number of buffer types. Expected {len(self.buffer_types)} but got {len(vars)}")
+        
         if len(vars) == 0:
             self.enabled = False
             return
         
-        if self.map_func is None:
-            assert len(vars) == 1, "Buffer IOObject must have exactly one buffer variable"
+        if self.map_func is None and len(vars) != 1:
+            raise ValueError("IOProxy initialized with a non-mapping function must have exactly one buffer variable")
 
         self.buffer_variables = vars
 
@@ -47,5 +49,7 @@ class IOProxy:
         return self.map_func is not None
 
     def do_callback(self):
-        assert self.map_func is not None, "IOProxy does not have a mapping function"
+        if self.map_func is None:
+            raise ValueError("IOProxy does not have a mapping function")
+        
         self.map_func.callback(*self.buffer_variables)

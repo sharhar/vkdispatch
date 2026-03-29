@@ -29,23 +29,32 @@ def _is_buffer_backed_target(var: ShaderVariable) -> bool:
 
 # https://docs.vulkan.org/glsl/latest/chapters/builtinfunctions.html#atomic-memory-functions
 def atomic_add(mem: ShaderVariable, y: Any) -> ShaderVariable:
-    assert isinstance(mem, ShaderVariable), f"atomic_add target must be a ShaderVariable, got {type(mem)}"
-    assert dtypes.is_scalar(mem.var_type), "atomic_add target must be a scalar lvalue"
-    assert mem.is_setable(), "atomic_add target must be a writable lvalue"
-    assert not mem.is_register(), "atomic_add does not support register/local variables as target"
-    assert _is_buffer_backed_target(mem), "atomic_add target must reference a buffer element (e.g., buf[idx])"
-
-    assert mem.var_type in (dtypes.int32, dtypes.uint32), (
-        f"atomic_add currently supports only int32/uint32 targets, got '{mem.var_type.name}'"
-    )
+    if not isinstance(mem, ShaderVariable):
+        raise TypeError(f"atomic_add target must be a ShaderVariable, got {type(mem)}")
+    
+    if not dtypes.is_scalar(mem.var_type):
+        raise TypeError("atomic_add target must be a scalar lvalue")
+    
+    if not mem.is_setable():
+        raise TypeError("atomic_add target must be a writable lvalue")
+    
+    if mem.is_register():
+        raise TypeError("atomic_add does not support register/local variables as target")
+    
+    if not _is_buffer_backed_target(mem):
+        raise TypeError("atomic_add target must reference a buffer element (e.g., buf[idx])")
+    
+    if mem.var_type not in (dtypes.int32, dtypes.uint32):
+        raise TypeError(f"atomic_add currently supports only int32/uint32 targets, got '{mem.var_type.name}'")
 
     parents: List[BaseVariable] = [mem]
 
     if isinstance(y, ShaderVariable):
-        assert dtypes.is_scalar(y.var_type), "atomic_add increment variable must be scalar"
-        assert dtypes.is_integer_dtype(y.var_type), (
-            f"atomic_add increment variable must be integer-typed, got '{y.var_type.name}'"
-        )
+        if not dtypes.is_scalar(y.var_type):
+            raise TypeError(f"atomic_add increment variable must be scalar, got variable '{y.resolve()}' of type '{y.var_type.name}'")
+        
+        if not dtypes.is_integer_dtype(y.var_type):
+            raise TypeError(f"atomic_add increment variable must be integer-typed, got variable '{y.resolve()}' of type '{y.var_type.name}'")
         y.read_callback()
         parents.append(y)
         y_expr = utils.backend_constructor(mem.var_type, y)

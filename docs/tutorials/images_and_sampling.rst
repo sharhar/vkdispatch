@@ -48,6 +48,7 @@ Use codegen image argument types (``Img1``, ``Img2``, ``Img3``) inside ``@vd.sha
    upscale = 4
    out = vd.Buffer((data.shape[0] * upscale, data.shape[1] * upscale), vd.float32)
 
+   # @vd.shader(exec_size=lambda args: args.out.size)
    @vd.shader("out.size")
    def sample_2d(out: Buff[f32], src: Img2[f32], scale: Const[f32]):
        tid = vc.global_invocation_id().x

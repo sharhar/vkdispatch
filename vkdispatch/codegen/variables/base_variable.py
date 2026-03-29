@@ -25,13 +25,14 @@ class BaseVariable:
         self.can_index = False
         self.use_child_type = True
 
-        assert name is not None, "Variable name cannot be None!"
+        if name is None:
+            raise ValueError("Variable name cannot be None!")
 
         self.name = name
         self.raw_name = raw_name if raw_name is not None else self.name
 
-        if register:
-            assert settable, "An unsettable register makes no sense"
+        if register and not settable:
+            raise ValueError("An unsettable register makes no sense!")
 
         self.settable = settable
         self.register = register

@@ -26,6 +26,7 @@ Single Graph, Multiple Dispatches
 
    graph = vd.CommandGraph()
 
+   # @vd.shader(exec_size=lambda args: args.buff.size)
    @vd.shader("buff.size")
    def add_scalar(buff: Buff[f32], value: Const[f32]):
        tid = vc.global_invocation_id().x

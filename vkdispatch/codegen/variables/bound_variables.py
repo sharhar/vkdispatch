@@ -58,7 +58,9 @@ class BufferVariable(BoundVariable):
     @property
     def shape(self) -> "ShaderVariable":
         if self._shape_var is None:
-            assert self._shape_var_factory is not None, "Buffer shape variable factory is not available!"
+            if self._shape_var_factory is None:
+                raise ValueError("Buffer shape variable factory is not available!")
+            
             self._shape_var = self._shape_var_factory()
 
         return self._shape_var
@@ -70,15 +72,38 @@ class BufferVariable(BoundVariable):
         self.write_lambda()
 
     def __getitem__(self, index) -> "ShaderVariable":
-        assert self.can_index, f"Variable '{self.resolve()}' of type '{self.var_type.name}' cannot be indexed into!"
+        if not self.can_index:
+            raise TypeError(f"Variable '{self.resolve()}' of type '{self.var_type.name}' cannot be indexed into!")
 
         return_type = self.var_type.child_type if self.use_child_type else self.var_type
 
         if isinstance(index, tuple):
-            assert len(index) == 1, "Only single index is supported, cannot use multi-dimentional indexing!"
+            if len(index) != 1:
+                raise ValueError("Only single index is supported, cannot use multi-dimentional indexing!")
+            
             index = index[0]
 
         if base_utils.is_int_number(index):
+            backend = self.codegen_backend if self.codegen_backend is not None else get_codegen_backend()
+            packed_expr = None
+            if self.scalar_expr is not None:
+                packed_expr = backend.packed_buffer_read_expr(
+                    self.scalar_expr,
+                    return_type,
+                    str(index),
+                )
+
+            if packed_expr is not None:
+                return ShaderVariable(
+                    return_type,
+                    packed_expr,
+                    parents=[self],
+                    settable=self.settable,
+                    lexical_unit=True,
+                    buffer_root=self,
+                    buffer_index_expr=str(index),
+                )
+
             return ShaderVariable(
                 return_type,
                 f"{self.resolve()}[{index}]",
@@ -89,9 +114,34 @@ class BufferVariable(BoundVariable):
                 buffer_index_expr=str(index),
             )
 
-        assert isinstance(index, ShaderVariable), f"Index must be a ShaderVariable or int type, not {type(index)}!"
-        assert dtypes.is_scalar(index.var_type), "Indexing variable must be a scalar!"
-        assert dtypes.is_integer_dtype(index.var_type), "Indexing variable must be an integer type!"
+        if not isinstance(index, ShaderVariable):
+            raise TypeError(f"Index must be a ShaderVariable or int type, not {type(index)}!")
+        
+        if not dtypes.is_scalar(index.var_type):
+            raise TypeError("Indexing variable must be a scalar!")
+
+        if not dtypes.is_integer_dtype(index.var_type):
+            raise TypeError("Indexing variable must be an integer type!")
+
+        backend = self.codegen_backend if self.codegen_backend is not None else get_codegen_backend()
+        packed_expr = None
+        if self.scalar_expr is not None:
+            packed_expr = backend.packed_buffer_read_expr(
+                self.scalar_expr,
+                return_type,
+                index.resolve(),
+            )
+
+        if packed_expr is not None:
+            return ShaderVariable(
+                return_type,
+                packed_expr,
+                parents=[self, index],
+                settable=self.settable,
+                lexical_unit=True,
+                buffer_root=self,
+                buffer_index_expr=index.resolve(),
+            )
 
         return ShaderVariable(
             return_type,
