@@ -29,7 +29,7 @@ def test_reductions_sum():
 
     # Check that the data is the same
     assert np.allclose([data.sum()], [read_data[0]])
-"""
+
 def test_mapped_reductions():
     # Create a buffer
     buf = vd.Buffer((1024,) , vd.float32)
@@ -220,4 +220,3 @@ def test_min_max_codegen_stage_creation():
 
     assert min_src_stage1 and min_src_stage2
     assert max_src_stage1 and max_src_stage2
-"""
