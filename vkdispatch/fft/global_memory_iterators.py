@@ -1,6 +1,6 @@
 import vkdispatch.codegen as vc
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, ContextManager
 
 import dataclasses
 
@@ -83,9 +83,8 @@ class GlobalWriteOp(MemoryOp):
             return
 
         if not self.inverse:
-            vc.if_statement(self.fft_index < (self.fft_size // 2) + 1)
-            buffer[io_index] = _cast_if_needed(register, buffer.var_type)
-            vc.end()
+            with vc.if_block(self.fft_index < (self.fft_size // 2) + 1):
+                buffer[io_index] = _cast_if_needed(register, buffer.var_type)
             return
 
         out_scalar_type = buffer.var_type.child_type
@@ -140,6 +139,8 @@ class GlobalReadOp(MemoryOp):
     format_transposed: bool
     signal_range: Tuple[int, int]
 
+    signal_range_context: ContextManager
+
     @classmethod
     def from_memory_op(cls,
                        base: MemoryOp,
@@ -159,30 +160,39 @@ class GlobalReadOp(MemoryOp):
                    inverse=inverse,
                    r2c_inverse_offset=r2c_inverse_offset,
                    format_transposed=format_transposed,
-                   signal_range=signal_range
+                   signal_range=signal_range,
+                   signal_range_context=None
                 )
 
     def check_in_signal_range(self) -> bool:
         if self.signal_range == (0, self.fft_size):
+            self.signal_range_context = None
             return
+        
+        assert self.signal_range_context is None, "Signal range context already active"
+        
+        condition_check = None
         
         if self.signal_range[0] == 0:
-            vc.if_statement(self.fft_index < self.signal_range[1])
-            return
-        
-        if self.signal_range[1] == self.fft_size:
-            vc.if_statement(self.fft_index >= self.signal_range[0])
-            return
+            condition_check = self.fft_index < self.signal_range[1]
+        elif self.signal_range[1] == self.fft_size:
+            condition_check = self.fft_index >= self.signal_range[0]
+        else:
+            condition_check = vc.all(self.fft_index >= self.signal_range[0], self.fft_index < self.signal_range[1])
 
-        vc.if_all(self.fft_index >= self.signal_range[0], self.fft_index < self.signal_range[1])
+        self.signal_range_context = vc.if_block(condition_check)
+        self.signal_range_context.__enter__()
         
     def signal_range_end(self, register: vc.ShaderVariable):
         if self.signal_range == (0, self.fft_size):
             return
+        
+        assert self.signal_range_context is not None, "Signal range context not active"
 
-        vc.else_statement()
-        register[:] = vc.to_dtype(register.var_type, 0)
-        vc.end()
+        self.signal_range_context.__exit__(None, None, None)
+
+        with vc.else_block():
+            register[:] = vc.to_dtype(register.var_type, 0)
 
     def read_from_buffer(self,
                          buffer: vc.Buffer,
@@ -208,13 +218,13 @@ class GlobalReadOp(MemoryOp):
             self.signal_range_end(register)
             return
 
-        vc.if_statement(self.fft_index >= (self.fft_size // 2) + 1)
-        self.io_index_2[:] = self.r2c_inverse_offset - io_index
-        register[:] = _cast_if_needed(buffer[self.io_index_2], register.var_type)
-        register.imag = -register.imag
-        vc.else_statement()
-        register[:] = _cast_if_needed(buffer[io_index], register.var_type)
-        vc.end()
+        with vc.if_block(self.fft_index >= (self.fft_size // 2) + 1):
+            self.io_index_2[:] = self.r2c_inverse_offset - io_index
+            register[:] = _cast_if_needed(buffer[self.io_index_2], register.var_type)
+            register.imag = -register.imag
+
+        with vc.else_block():
+            register[:] = _cast_if_needed(buffer[io_index], register.var_type)
 
         self.signal_range_end(register)
 

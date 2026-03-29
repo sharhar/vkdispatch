@@ -62,10 +62,14 @@ from .functions.subgroups import subgroup_min, subgroup_max, subgroup_and
 from .functions.subgroups import subgroup_or, subgroup_xor, subgroup_elect
 from .functions.subgroups import subgroup_barrier
 
-from .functions.control_flow import if_statement, if_any, if_all, else_statement
-from .functions.control_flow import else_if_statement, else_if_any, else_if_all
-from .functions.control_flow import return_statement, while_statement, new_scope, end
-from .functions.control_flow import logical_and, logical_or
+# from .functions.control_flow import if_statement, if_any, if_all, else_statement
+# from .functions.control_flow import else_if_statement, else_if_any, else_if_all
+# from .functions.control_flow import return_statement, while_statement, new_scope, end
+# from .functions.control_flow import logical_and, logical_or, any, all
+
+from .functions.control_flow import if_block, else_block, else_if_block
+from .functions.control_flow import return_statement, while_block, scope_block
+from .functions.control_flow import any, all
 
 from .functions.complex_numbers import mult_complex, complex_from_euler_angle
 
