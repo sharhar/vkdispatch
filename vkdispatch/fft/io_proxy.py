@@ -51,5 +51,9 @@ class IOProxy:
     def do_callback(self):
         if self.map_func is None:
             raise ValueError("IOProxy does not have a mapping function")
-        
-        self.map_func.callback(*self.buffer_variables)
+
+
+        if self.buffer_variables is None:
+            self.map_func.callback()
+        else:
+            self.map_func.callback(*self.buffer_variables)
