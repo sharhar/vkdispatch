@@ -27,48 +27,34 @@ with vd.fft.fft_context(shape) as ctx:
         vc.Buffer[vc.c64],  # derivative output
     ])
 
-    for read_op in ctx.reads_iter():
-        read_op.read_from_buffer(args[0])
-
+    ctx.read_from_buffer(args[0])
     ctx.execute(inverse=False)
     ctx.register_shuffle()
 
-    derivative_registers = ctx.allocate_registers("derivative")
+    dx_registers = ctx.allocate_registers("dx")
 
     # Branch 1: Gaussian low-pass.
-    for reg_op in vd.fft.memory_reads_iterator(ctx.resources):
-        reg = ctx.registers[reg_op.register_id]
-        reg_d = derivative_registers[reg_op.register_id]
+    for op in ctx.reads_iter() :#vd.fft.memory_reads_iterator(ctx.resources):
+        reg = ctx.registers[op.register_id]
+        reg_d = dx_registers[op.register_id]
 
-        k = vc.new_int_register()
-        k[:] = reg_op.fft_index.to_dtype(vc.i32)
-        with vc.if_block(k > (reg_op.fft_size // 2)):
-            k[:] = k - reg_op.fft_size
+        k = op.fft_index_shifted
         
-        # Calculate derivative
-        reg_d[:]= vc.mult_complex(reg, 1j * omega * k) # vc.to_complex(0, omega * k))
-        #reg_d.real = -omega * k * reg.imag
-        #reg_d.imag = omega * k * reg.real
-
-        # Do low-pass filter
+        reg_d[:] = k * omega * vc.mult_complex(reg, 1j)
         reg *= vc.exp(-(k * k) * 0.5 / (10.0 * 10.0))
 
     # IFFT and write low-pass output
     ctx.execute(inverse=True)
     ctx.registers.normalize()
-
-    for write_op in ctx.writes_iter():
-        write_op.write_to_buffer(args[1])
+    ctx.write_to_buffer(args[1])
 
     # Load spectrum again for derivative output
-    ctx.registers.read_from_registers(derivative_registers)
+    ctx.registers.read_from_registers(dx_registers)
 
     # IFFT and write derivative output
     ctx.execute(inverse=True)
     ctx.registers.normalize()
-
-    for write_op in ctx.writes_iter():
-        write_op.write_to_buffer(args[2])
+    ctx.write_to_buffer(args[2])
 
 kernel = ctx.get_callable()
 kernel(input_buffer, lowpass_output, derivative_output)

@@ -10,10 +10,8 @@ def my_log2_int(x: int) -> int:
 
 from . import base_utils
 
-
 def _mark_arith_unary(var: BaseVariable, op: str) -> None:
     base_utils.get_codegen_backend().mark_composite_unary_op(var.var_type, op)
-
 
 def _mark_arith_binary(lhs_type: dtypes.dtype, rhs_type: dtypes.dtype, op: str, *, inplace: bool = False) -> None:
     base_utils.get_codegen_backend().mark_composite_binary_op(lhs_type, rhs_type, op, inplace=inplace)
