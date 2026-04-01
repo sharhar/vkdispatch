@@ -96,7 +96,7 @@ class IOManager:
     
             output_count = len(output_types)
             input_count = len(input_types)
-    
+
             self.output_proxy.set_variables(sig_vars[:output_count])
             self.input_proxy.set_variables(sig_vars[output_count:input_count + output_count])
             self.kernel_proxy.set_variables(sig_vars[input_count + output_count:])

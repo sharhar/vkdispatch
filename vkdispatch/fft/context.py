@@ -103,6 +103,22 @@ class FFTContext:
             signal_range=signal_range
         )
 
+    def read_from_buffer(self,
+                         buffer: vc.ShaderVariable,
+                         r2c: bool = False,
+                         inverse: Optional[bool] = None,
+                         format_transposed: bool = False,
+                         inner_only: bool = False,
+                         signal_range: Optional[Tuple[Optional[int], Optional[int]]] = None):
+        for read_op in self.reads_iter(
+            r2c=r2c,
+            inverse=inverse,
+            format_transposed=format_transposed,
+            inner_only=inner_only,
+            signal_range=signal_range
+        ):
+            read_op.read_from_buffer(buffer)
+
     def writes_iter(self,
                     r2c: bool = False,
                     inverse: Optional[bool] = None):
@@ -111,6 +127,16 @@ class FFTContext:
             r2c=r2c,
             inverse=inverse
         )
+    
+    def write_to_buffer(self,
+                        buffer: vc.ShaderVariable,
+                        r2c: bool = False,
+                        inverse: Optional[bool] = None):
+        for write_op in self.writes_iter(
+            r2c=r2c,
+            inverse=inverse
+        ):
+            write_op.write_to_buffer(buffer)
 
     def register_shuffle(self,
                          registers: Optional[FFTRegisters] = None,

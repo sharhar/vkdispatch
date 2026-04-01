@@ -10,10 +10,8 @@ def my_log2_int(x: int) -> int:
 
 from . import base_utils
 
-
 def _mark_arith_unary(var: BaseVariable, op: str) -> None:
     base_utils.get_codegen_backend().mark_composite_unary_op(var.var_type, op)
-
 
 def _mark_arith_binary(lhs_type: dtypes.dtype, rhs_type: dtypes.dtype, op: str, *, inplace: bool = False) -> None:
     base_utils.get_codegen_backend().mark_composite_binary_op(lhs_type, rhs_type, op, inplace=inplace)
@@ -31,12 +29,6 @@ def _resolve_arithmetic_binary_expr(
     if override_expr is not None:
         return override_expr, True
     return f"{lhs_expr} {op} {rhs_expr}", False
-
-def _resolve_arithmetic_unary_expr(op: str, var_type: dtypes.dtype, var_expr: str) -> Tuple[str, bool]:
-    override_expr = base_utils.get_codegen_backend().arithmetic_unary_expr(op, var_type, var_expr)
-    if override_expr is not None:
-        return override_expr, True
-    return f"{op}{var_expr}", False
 
 def arithmetic_op_common(var: BaseVariable,
                          other: Any,
@@ -548,7 +540,12 @@ def pow(var: BaseVariable, other: Any, reverse: bool = False, inplace: bool = Fa
 
 def neg(var: BaseVariable) -> BaseVariable:
     _mark_arith_unary(var, "-")
-    expr, _ = _resolve_arithmetic_unary_expr("-", var.var_type, var.resolve())
+    expr = base_utils.get_codegen_backend()\
+                              .arithmetic_unary_expr("-", var.var_type, var.resolve())
+    
+    if expr is None:
+        expr = f"-{var.resolve()}"
+    
     return base_utils.new_base_var(
         var.var_type,
         expr,

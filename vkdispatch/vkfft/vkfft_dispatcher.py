@@ -141,12 +141,16 @@ def convolve2D(
         conjugate_kernel: bool = False,
         graph: Optional[vd.CommandGraph] = None,
         keep_shader_code: bool = False,
+        input_buffer: vd.Buffer = None,
         padding: Tuple[Tuple[int, int]] = None):
 
-    in_shape = sanitize_input_tuple(buffer.shape)
+    src = input_buffer if input_buffer is not None else buffer
+    src_shape = tuple(src.shape)
 
-    if len(in_shape) == 2:
-        in_shape = (1,) + in_shape
+    if len(src_shape) == 2:
+        logical_shape = (1,) + src_shape
+    else:
+        logical_shape = src_shape
 
     execute_fft_plan(
         buffer,
@@ -154,16 +158,19 @@ def convolve2D(
         graph = graph,
         config = FFTConfig(
             buffer_handle=buffer._handle,
-            shape=in_shape[1:],
+            shape=logical_shape[1:],
             normalize=normalize,
             kernel_count=1,
             conjugate_convolution=conjugate_kernel,
             convolution_features=1,
             keep_shader_code=keep_shader_code,
-            num_batches=buffer.shape[0],
-            padding=padding
+            num_batches=logical_shape[0],
+            padding=padding,
+            input_shape=tuple(src.shape) if input_buffer is not None else None,
+            input_type=src.var_type if input_buffer is not None else None
         ),
-        kernel=kernel
+        kernel=kernel,
+        input=input_buffer
     )
 
 def fft(

@@ -10,6 +10,7 @@ class MemoryOp:
     fft_offset: vc.ShaderVariable
     fft_stride: int
     fft_index: vc.ShaderVariable
+    fft_index_shifted: vc.ShaderVariable
     fft_size: int
     register_id: int
     register_count: int
@@ -35,10 +36,15 @@ def memory_reads_iterator(resources: FFTResources, stage_index: int = 0):
         for i in range(len(register_indicies)):
             fft_index = i * stride + offset
 
+            fft_index_shifted = fft_index.to_dtype(vc.i32) + (resources.config.N // 2)
+            fft_index_shifted = fft_index_shifted % resources.config.N
+            fft_index_shifted = fft_index_shifted - (resources.config.N // 2)
+
             read_op = MemoryOp(
                 fft_offset=offset,
                 fft_stride=stride,
                 fft_index=fft_index,
+                fft_index_shifted=fft_index_shifted,
                 fft_size=resources.config.N,
                 register_id=register_indicies[i],
                 register_count=resources.config.register_count,
@@ -69,12 +75,17 @@ def memory_writes_iterator(resources: FFTResources, stage_index: int = -1):
 
             fft_index = offset + i * stride
 
+            fft_index_shifted = fft_index.to_dtype(vc.i32) + (resources.config.N // 2)
+            fft_index_shifted = fft_index_shifted % resources.config.N
+            fft_index_shifted = fft_index_shifted - (resources.config.N // 2)
+
             register_indicies = index_list[invocation.register_selection]
 
             write_op = MemoryOp(
                 fft_offset=offset,
                 fft_stride=stride,
                 fft_index=fft_index,
+                fft_index_shifted=fft_index_shifted,
                 fft_size=resources.config.N,
                 register_id=register_indicies[i],
                 register_count=resources.config.register_count,
